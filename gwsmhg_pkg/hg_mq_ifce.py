@@ -218,4 +218,5 @@ class SCMInterface(console.ConsoleLogUser):
         else:
             return self._run_cmd_on_console(cmd, stdout_is_data=True)
     def do_exec_tool_cmd(self, cmd):
-        return self._run_cmd_on_console("hg " + cmd)
+        return self._run_cmd_on_console("hg " + cmd, stdout_is_data=True)
+

@@ -178,11 +178,9 @@ class ConsoleLog(gtk.VBox, cmd_result.ProblemReporter,
         text = entry.get_text_and_clear_to_history()
         if text:
             result = self._scm_ifce.do_exec_tool_cmd(text)
-            result = cmd_result.map_cmd_result(result)
         else:
             result = (cmd_result.OK, "", "")
         self._unshow_busy()
         self._report_any_problems(result)
         # TODO: inform main program that repository state may have changed
-
 
