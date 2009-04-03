@@ -13,7 +13,7 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, os.path, tempfile
+import os, os.path, tempfile, gtk, gtk.gdk
 from gwsmhg_pkg import utils, text_edit, cmd_result, diff, console, gutils
 import gtksourceview
 
@@ -588,6 +588,9 @@ UI_DESCR = \
 </ui>
 '''
 
+_KEYVAL_c = gtk.gdk.keyval_from_name('c')
+_KEYVAL_C = gtk.gdk.keyval_from_name('C')
+
 class FileTreeView(_ViewWithActionGroups, gutils.PopupUser):
     def __init__(self, model=None, tooltips=None, auto_refresh=False, show_hidden=False, show_status=False):
         if model is None:
@@ -612,6 +615,7 @@ class FileTreeView(_ViewWithActionGroups, gutils.PopupUser):
             ])
         self.cwd_merge_id = self._ui_manager.add_ui_from_string(UI_DESCR)
         self._toggle_auto_refresh_cb()
+        self.connect("key_press_event", self._key_press_cb)
     def _do_auto_refresh(self):
         if self.auto_refresh_action.get_active():
             self.update_tree()
@@ -648,6 +652,17 @@ class FileTreeView(_ViewWithActionGroups, gutils.PopupUser):
     def get_selected_files(self):
         store, selection = self.get_selection().get_selected_rows()
         return [store.fs_path(store.get_iter(x)) for x in selection]
+    def add_selected_files_to_keyboard(self, clipboard=None):
+        if not clipboard:
+            clipboard = gtk.clipboard_get(gtk.gdk.SELECTION_CLIPBOARD)
+        sel = " ".join(self.get_selected_files())
+        clipboard.set_text(sel)
+    def _key_press_cb(self, widget, event):
+        if event.state == gtk.gdk.CONTROL_MASK:
+            if event.keyval in [_KEYVAL_c, _KEYVAL_C]:
+                self.add_selected_files_to_keyboard()
+                return True
+        return False
     def repopulate_tree(self):
         self._show_busy()
         self.get_model().repopulate()
