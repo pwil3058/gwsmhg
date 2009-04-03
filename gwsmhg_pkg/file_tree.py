@@ -1298,3 +1298,4 @@ class ScmCommitDialog(gtk.Dialog):
                 dialog.update_files()
         else:
             dialog.destroy()
+

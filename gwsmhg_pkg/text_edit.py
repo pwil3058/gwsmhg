@@ -123,3 +123,4 @@ class ChangeSummaryView(gtksourceview.SourceView):
     def get_msg(self):
         buffer = self.get_buffer()
         return buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter())
+

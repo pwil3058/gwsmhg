@@ -204,3 +204,4 @@ class DiffTextDialog(gtk.Dialog):
         self.show_all()
     def _close_cb(self, dialog, response_id):
         self.destroy()
+

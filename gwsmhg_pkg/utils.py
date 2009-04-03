@@ -87,3 +87,4 @@ def run_cmd_in_console(cmd, console, interactive=False):
     if oldterm:
         os.environ['TERM'] = oldterm
     return [ sub.returncode, outd, errd ]
+

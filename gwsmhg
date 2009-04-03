@@ -19,3 +19,4 @@ import gtk, gwsmhg_pkg.gwsm, gwsmhg_pkg.hg_mq_ifce
 app = gwsmhg_pkg.gwsm.gwsm(gwsmhg_pkg.hg_mq_ifce.SCMInterface)
 app.show()
 gtk.main()
+

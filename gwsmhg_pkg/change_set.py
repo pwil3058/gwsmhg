@@ -96,3 +96,4 @@ class ParentsView(ChangeSetView):
                 self.set_contents([])
     def update_after_commit(self, files_in_commit):
         self.restart_auto_update()
+
