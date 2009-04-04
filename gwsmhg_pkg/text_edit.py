@@ -62,7 +62,7 @@ class ChangeSummaryBuffer(gtksourceview.SourceBuffer):
         self.insert_at_cursor("Signed-off-by: %s\n" % self._scm_ifce.get_author_name_and_email())
     def insert_ack(self):
         self.insert_at_cursor("Acked-by: %s\n" % self._scm_ifce.get_author_name_and_email())
-    def insert_auther(self):
+    def insert_author(self):
         self.insert_at_cursor("Author: %s\n" % self._scm_ifce.get_author_name_and_email())
 
 CHANGE_SUMMARY_UI_DESCR = \
@@ -71,6 +71,7 @@ CHANGE_SUMMARY_UI_DESCR = \
   <toolbar name="change_summary_toolbar">
     <toolitem action="change_summary_ack"/>
     <toolitem action="change_summary_sign_off"/>
+    <toolitem action="change_summary_author"/>
   </toolbar>
 </ui>
 '''
@@ -100,6 +101,8 @@ class ChangeSummaryView(gtksourceview.SourceView):
                  "Insert Acked-by tag at cursor position", self._insert_ack_acb),
                 ("change_summary_sign_off", None, "_Sign Off", None,
                  "Insert Signed-off-by tag at cursor position", self._insert_sign_off_acb),
+                ("change_summary_author", None, "A_uthor", None,
+                 "Insert Author tag at cursor position", self._insert_author_acb),
             ])
         self.change_summary_merge_id = self._ui_manager.add_ui_from_string(CHANGE_SUMMARY_UI_DESCR)
     def get_action(self, action_name):
