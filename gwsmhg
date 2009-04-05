@@ -14,7 +14,30 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import gtk, gwsmhg_pkg.gwsm, gwsmhg_pkg.hg_mq_ifce
+import sys, os, getopt, gtk, gwsmhg_pkg.gwsm, gwsmhg_pkg.hg_mq_ifce
+
+# read required directory from the command line
+
+def usage():
+    print "Usage: gwsmhg [dir]"
+
+try:
+    option_list, arg_list = getopt.getopt(sys.argv[1:], "")
+except getopt.GetoptError, err:
+    sys.stderr.write(str(err) + os.linesep)
+    usage()
+    sys.exit(1)
+
+if not len(arg_list) == 1:
+    usage()
+    sys.exit(1)
+
+if len(arg_list) == 1:
+    try:
+        os.chdir(sys.argv[1])
+    except OSError, msg:
+        sys.stderr.write(str(msg) + os.linesep)
+        sys.exit(2)
 
 app = gwsmhg_pkg.gwsm.gwsm(gwsmhg_pkg.hg_mq_ifce.SCMInterface)
 app.show()
