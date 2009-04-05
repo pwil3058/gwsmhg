@@ -145,7 +145,7 @@ class ConsoleLog(gtk.VBox, cmd_result.ProblemReporter,
         cmd_entry.connect("activate", self._cmd_entry_cb)
         hbox.pack_start(cmd_entry, expand=True, fill=True)
         self.pack_start(hbox, expand=False)
-        self.pack_start(self._view, expand=True, fill=True)
+        self.pack_start(gutils.wrap_in_scrolled_window(self._view), expand=True, fill=True)
         self.show_all()
     def get_scm_ifce(self):
         return self._scm_ifce
