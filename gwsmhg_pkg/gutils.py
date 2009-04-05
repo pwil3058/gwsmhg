@@ -13,7 +13,7 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import gtk
+import gtk, os.path
 
 def wrap_in_scrolled_window(widget, policy=(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC), with_frame=True, label=None):
     scrw = gtk.ScrolledWindow()
@@ -27,6 +27,67 @@ def wrap_in_scrolled_window(widget, policy=(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUT
     else:
         scrw.show_all()
         return scrw
+
+def ask_file_name(prompt, suggestion=None, existing=True, parent=None):
+    if existing:
+        mode = gtk.FILE_CHOOSER_ACTION_OPEN
+        if suggestion and not os.path.exists(suggestion):
+            suggestion = None
+    else:
+        mode = gtk.FILE_CHOOSER_ACTION_SAVE
+    dialog = gtk.FileChooserDialog(prompt, parent, mode,
+                                   (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                   gtk.STOCK_OK, gtk.RESPONSE_OK))
+    dialog.set_default_response(gtk.RESPONSE_OK)
+    if parent:
+        dialog.set_position(gtk.WIN_POS_CENTER_ON_PARENT)
+    else:
+        dialog.set_position(gtk.WIN_POS_MOUSE)
+    if suggestion:
+        if os.path.isdir(suggestion):
+            dialog.set_current_folder(suggestion)
+        else:
+            dirname, basename = os.path.split(suggestion)
+            if dirname:
+                dialog.set_current_folder(dirname)
+            if basename:
+                dialog.set_current_name(basename)
+    response = dialog.run()
+    if response == gtk.RESPONSE_OK:
+        new_file_name = dialog.get_filename()
+    else:
+        new_file_name = None
+    dialog.destroy()
+    return new_file_name
+
+def ask_question(question, parent=None, default_ok=True):
+    dialog = gtk.MessageDialog(parent=parent,
+                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
+                            type=gtk.MESSAGE_QUESTION, buttons=gtk.BUTTONS_OK_CANCEL,
+                            message_format=question)
+    if default_ok:
+        dialog.set_default_response(gtk.RESPONSE_OK)
+    else:
+        dialog.set_default_response(gtk.RESPONSE_CANCEL)
+    if parent:
+        dialog.set_position(gtk.WIN_POS_CENTER_ON_PARENT)
+    else:
+        dialog.set_position(gtk.WIN_POS_MOUSE)
+    response = dialog.run()
+    dialog.destroy()
+    return response == gtk.RESPONSE_OK
+
+def inform_user(msg, parent=None, problem_type=gtk.MESSAGE_ERROR):
+    dialog = gtk.MessageDialog(parent=parent,
+                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
+                            type=problem_type, buttons=gtk.BUTTONS_CLOSE,
+                            message_format=msg)
+    if parent:
+        dialog.set_position(gtk.WIN_POS_CENTER_ON_PARENT)
+    else:
+        dialog.set_position(gtk.WIN_POS_MOUSE)
+    response = dialog.run()
+    dialog.destroy()
 
 class PopupUser:
     def __init__(self):

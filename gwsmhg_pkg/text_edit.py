@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import os, gtk, gtksourceview, pango
-from gwsmhg_pkg import utils, cmd_result
+from gwsmhg_pkg import utils, cmd_result, gutils
 
 EDITORS_THAT_NEED_A_TERMINAL = ["vi", "joe"]
 DEFAULT_EDITOR = "gedit"
@@ -58,6 +58,48 @@ class ChangeSummaryBuffer(gtksourceview.SourceBuffer):
             table = gtksourceview.SourceTagTable()
         gtksourceview.SourceBuffer.__init__(self, table=table)
         self._scm_ifce = scm_ifce
+        self._save_file_name = self._scm_ifce.get_default_commit_save_file()
+    def save_summary(self, file_name=None):
+        if not file_name:
+            file_name = self._save_file_name
+        try:
+            save_file = open(file_name, 'w')
+            save_file.write(self.get_text(self.get_start_iter(), self.get_end_iter()))
+            save_file.close()
+            self._save_file_name = file_name
+            self.set_modified(False)
+        except:
+            gutils.inform_user("Save failed!")
+    def save_summary_as(self):
+        fn = gutils.ask_file_name("Enter file name", existing=False, suggestion=self._save_file_name)
+        if fn and os.path.exists(fn) and not os.path.samefile(fn, self._save_file_name):
+            if not os.path.samefile(fn, self._scm_ifce.get_default_commit_save_file()):
+                if not gutils.ask_question(os.linesep.join([fn, "\nFile exists. Overwrite?"])):
+                    return
+        self.save_summary(fn)
+    def load_summary(self, file_name=None):
+        if not file_name:
+            file_name = self._save_file_name
+        try:
+            save_file = open(file_name, 'r')
+            self.set_text(save_file.read())
+            save_file.close()
+            self._save_file_name = file_name
+            self.set_modified(False)
+        except:
+            gutils.inform_user("Load from file failed!")
+    def load_summary_from(self):
+        fn = gutils.ask_file_name("Enter file name", existing=True)
+        self.load_summary(fn)
+    def insert_summary_from(self):
+        file_name = gutils.ask_file_name("Enter file name", existing=True)
+        try:
+            save_file = open(file_name, 'r')
+            self.insert_at_cursor(save_file.read())
+            save_file.close()
+            self.set_modified(True)
+        except:
+            gutils.inform_user("Insert at cursor from file failed!")
     def insert_sign_off(self):
         self.insert_at_cursor("Signed-off-by: %s\n" % self._scm_ifce.get_author_name_and_email())
     def insert_ack(self):
@@ -68,6 +110,15 @@ class ChangeSummaryBuffer(gtksourceview.SourceBuffer):
 CHANGE_SUMMARY_UI_DESCR = \
 '''
 <ui>
+  <menubar name="change_summary_menubar">
+    <menu name="change_summary_menu" action="menu_summary">
+      <menuitem action="change_summary_save"/>
+      <menuitem action="change_summary_save_as"/>
+      <menuitem action="change_summary_load"/>
+      <menuitem action="change_summary_load_from"/>
+      <menuitem action="change_summary_insert_from"/>
+    </menu>
+  </menubar>
   <toolbar name="change_summary_toolbar">
     <toolitem action="change_summary_ack"/>
     <toolitem action="change_summary_sign_off"/>
@@ -81,6 +132,7 @@ class ChangeSummaryView(gtksourceview.SourceView):
         if not buffer:
             buffer = ChangeSummaryBuffer(table, scm_ifce)
         gtksourceview.SourceView.__init__(self, buffer)
+        self._save_file_name = None
         fdesc = pango.FontDescription("mono, 10")
         self.modify_font(fdesc)
         self.set_margin(72)
@@ -97,6 +149,17 @@ class ChangeSummaryView(gtksourceview.SourceView):
         self._ui_manager.insert_action_group(self._action_group, -1)
         self._action_group.add_actions(
             [
+                ("menu_summary", None, "_Summary"),
+                ("change_summary_save", gtk.STOCK_SAVE, "_Save", "",
+                 "Save commit summary", self._save_summary_acb),
+                ("change_summary_save_as", gtk.STOCK_SAVE_AS, "S_ave as", "",
+                 "Save commit summary to a file", self._save_summary_as_acb),
+                ("change_summary_load", gtk.STOCK_REVERT_TO_SAVED, "_Load", "",
+                 "Load summary from saved file", self._load_summary_acb),
+                ("change_summary_load_from", gtk.STOCK_REVERT_TO_SAVED, "Load _from", "",
+                 "Load summary from a file", self._load_summary_from_acb),
+                ("change_summary_insert_from", gtk.STOCK_PASTE, "_Insert from", "",
+                 "Insert contents of a file at cursor position", self._insert_summary_from_acb),
                 ("change_summary_ack", None, "_Ack", None,
                  "Insert Acked-by tag at cursor position", self._insert_ack_acb),
                 ("change_summary_sign_off", None, "_Sign Off", None,
@@ -117,6 +180,16 @@ class ChangeSummaryView(gtksourceview.SourceView):
         return self._ui_manager.get_widget(path)
     def get_accel_group(self):
         return self._ui_manager.get_accel_group()
+    def _save_summary_acb(self, action):
+        self.get_buffer().save_summary()
+    def _save_summary_as_acb(self, action):
+        self.get_buffer().save_summary_as()
+    def _load_summary_acb(self, action):
+        self.get_buffer().load_summary()
+    def _load_summary_from_acb(self, action):
+        self.get_buffer().load_summary_from()
+    def _insert_summary_from_acb(self, action):
+        self.get_buffer().insert_summary_from()
     def _insert_sign_off_acb(self, action):
         self.get_buffer().insert_sign_off()
     def _insert_ack_acb(self, action):

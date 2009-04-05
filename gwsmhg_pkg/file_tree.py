@@ -1250,7 +1250,8 @@ class ScmCommitWidget(gtk.VPaned, cmd_result.ProblemReporter):
         self.view = text_edit.ChangeSummaryView(scm_ifce=self._scm_ifce)
         vbox = gtk.VBox()
         hbox = gtk.HBox()
-        hbox.pack_start(gtk.Label("Summary"), fill=True, expand=False)
+        menubar = self.view.get_ui_widget("/change_summary_menubar")
+        hbox.pack_start(menubar, fill=True, expand=False)
         toolbar = self.view.get_ui_widget("/change_summary_toolbar")
         toolbar.set_style(gtk.TOOLBAR_ICONS)
         toolbar.set_orientation(gtk.ORIENTATION_HORIZONTAL)
@@ -1311,6 +1312,10 @@ class ScmCommitDialog(gtk.Dialog):
                 dialog.destroy()
             else:
                 dialog.update_files()
+        elif self.commit_widget.view.get_buffer().get_modified():
+            qn = os.linesep.join(["Unsaved changes to summary will be lost.", "Cancel anyway?"])
+            if gutils.ask_question(qn):
+                dialog.destroy()
         else:
             dialog.destroy()
 
