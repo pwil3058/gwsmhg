@@ -45,7 +45,6 @@ class DiffTextBuffer(gtksourceview.SourceBuffer):
             match = self.tws_check.match(line)
             if match:
                 self.tws_count += 1
-                print "|" + match.group(1) + "|" + match.group(2) + "|"
                 self._append_tagged_text(match.group(1), self.plus_tag)
                 self._append_tagged_text(match.group(2), self.added_tws_tag)
             else:
@@ -171,7 +170,7 @@ class DiffTextView(gtksourceview.SourceView, cmd_result.ProblemReporter):
     def check_added_white_space(self):
         tws_count = self.get_buffer().tws_count
         if tws_count:
-            gutils.inform_user("%d instance(s) of added trailing space" % tws_count,
+            gutils.inform_user("%d instance(s) of added trailing space detected" % tws_count,
                         problem_type=gtk.MESSAGE_INFO, parent=self._get_gtk_window())
     def _refresh_acb(self, action):
         self.set_contents()
