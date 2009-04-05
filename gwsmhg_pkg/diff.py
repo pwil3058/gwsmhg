@@ -13,7 +13,7 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, gtk, gtksourceview, pango
+import os, gtk, gtksourceview, pango, re
 from gwsmhg_pkg import utils, cmd_result, gutils
 
 class DiffTextBuffer(gtksourceview.SourceBuffer):
@@ -21,11 +21,14 @@ class DiffTextBuffer(gtksourceview.SourceBuffer):
         if not table:
             table = gtksourceview.SourceTagTable()
         gtksourceview.SourceBuffer.__init__(self, table)
+        self.tws_check = re.compile('^(\+.*\S)(\s+\n)$')
+        self.tws_count = 0
         self.index_tag = self.create_tag("INDEX", weight=pango.WEIGHT_BOLD, foreground="#0000AA", family="monospace")
         self.sep_tag = self.create_tag("SEP", weight=pango.WEIGHT_BOLD, foreground="#0000AA", family="monospace")
         self.minus_tag = self.create_tag("MINUS", foreground="#AA0000", family="monospace")
         self.lab_tag = self.create_tag("LAB", foreground="#AA0000", family="monospace")
         self.plus_tag = self.create_tag("PLUS", foreground="#006600", family="monospace")
+        self.added_tws_tag = self.create_tag("ADDED_TWS", background="#006600", family="monospace")
         self.star_tag = self.create_tag("STAR", foreground="#006600", family="monospace")
         self.rab_tag = self.create_tag("RAB", foreground="#006600", family="monospace")
         self.change_tag = self.create_tag("CHANGED", foreground="#AA6600", family="monospace")
@@ -39,7 +42,14 @@ class DiffTextBuffer(gtksourceview.SourceBuffer):
         if fc == " ":
             self._append_tagged_text(line, self.unchanged_tag)
         elif fc == "+":
-            self._append_tagged_text(line, self.plus_tag)
+            match = self.tws_check.match(line)
+            if match:
+                self.tws_count += 1
+                print "|" + match.group(1) + "|" + match.group(2) + "|"
+                self._append_tagged_text(match.group(1), self.plus_tag)
+                self._append_tagged_text(match.group(2), self.added_tws_tag)
+            else:
+                self._append_tagged_text(line, self.plus_tag)
         elif fc == "-":
             self._append_tagged_text(line, self.minus_tag)
         elif fc == "!":
@@ -65,6 +75,7 @@ class DiffTextBuffer(gtksourceview.SourceBuffer):
     def set_contents(self, text):
         self.begin_not_undoable_action()
         self.set_text("")
+        self.tws_count = 0
         for line in text.splitlines():
             self._append_patch_line(line + os.linesep)
         self.end_not_undoable_action()
@@ -157,8 +168,14 @@ class DiffTextView(gtksourceview.SourceView, cmd_result.ProblemReporter):
         res, diff_text, serr = self._scm_ifce.diff_files(self._file_list)
         self._report_any_problems((res, diff_text, serr))
         self.get_buffer().set_contents(diff_text)
+    def check_added_white_space(self):
+        tws_count = self.get_buffer().tws_count
+        if tws_count:
+            gutils.inform_user("%d instance(s) of added trailing space" % tws_count,
+                        problem_type=gtk.MESSAGE_INFO, parent=self._get_gtk_window())
     def _refresh_acb(self, action):
         self.set_contents()
+        self.check_added_white_space()
     def _save_to_file(self):
         ok, msg = self.get_buffer().save_to_file(self._save_file)
         if not ok:
@@ -202,6 +219,7 @@ class DiffTextDialog(gtk.Dialog):
         self.add_buttons(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
         self.connect("response", self._close_cb)
         self.show_all()
+        self.diff_view.check_added_white_space()
     def _close_cb(self, dialog, response_id):
         self.destroy()
 
