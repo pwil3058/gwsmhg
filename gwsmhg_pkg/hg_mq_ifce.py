@@ -43,7 +43,7 @@ class SCMInterface(console.ConsoleLogUser):
         self._email_envars = DEFAULT_EMAIL_VARS
         self._commit_notification_cbs = []
     def get_default_commit_save_file(self):
-        return os.path.join(".hg", "saved.commit")
+        return os.path.join(".hg", "gwsmhg.saved.commit")
     def get_status_row_data(self):
         return (self.status_deco_map, self.extra_info_sep, self.modified_dir_status, self.default_nonexistant_status)
     def _get_first_in_envar(self, envar_list):

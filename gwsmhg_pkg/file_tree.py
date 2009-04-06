@@ -1306,16 +1306,22 @@ class ScmCommitDialog(gtk.Dialog):
         return (self.commit_widget.get_msg(), self.commit_widget.get_file_mask())
     def update_files(self):
         self.commit_widget.files.update_tree()
+    def _finish_up(self):
+        self.commit_widget.view.finish_up()
+        self.destroy()
     def _handle_response_cb(self, dialog, response_id):
         if response_id == gtk.RESPONSE_OK:
             if self.commit_widget.do_commit():
-                dialog.destroy()
+                self._finish_up()
             else:
                 dialog.update_files()
         elif self.commit_widget.view.get_buffer().get_modified():
-            qn = os.linesep.join(["Unsaved changes to summary will be lost.", "Cancel anyway?"])
-            if gutils.ask_question(qn):
-                dialog.destroy()
+            if self.commit_widget.view.get_auto_save():
+                self._finish_up()
+            else:
+                qn = os.linesep.join(["Unsaved changes to summary will be lost.", "Cancel anyway?"])
+                if gutils.ask_yes_no(qn):
+                    self._finish_up()
         else:
-            dialog.destroy()
+            self._finish_up()
 

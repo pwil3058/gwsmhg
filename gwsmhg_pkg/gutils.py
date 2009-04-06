@@ -60,22 +60,24 @@ def ask_file_name(prompt, suggestion=None, existing=True, parent=None):
     dialog.destroy()
     return new_file_name
 
-def ask_question(question, parent=None, default_ok=True):
+def ask_question(question, parent=None, buttons=gtk.BUTTONS_OK_CANCEL):
     dialog = gtk.MessageDialog(parent=parent,
                             flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
-                            type=gtk.MESSAGE_QUESTION, buttons=gtk.BUTTONS_OK_CANCEL,
+                            type=gtk.MESSAGE_QUESTION, buttons=buttons,
                             message_format=question)
-    if default_ok:
-        dialog.set_default_response(gtk.RESPONSE_OK)
-    else:
-        dialog.set_default_response(gtk.RESPONSE_CANCEL)
     if parent:
         dialog.set_position(gtk.WIN_POS_CENTER_ON_PARENT)
     else:
         dialog.set_position(gtk.WIN_POS_MOUSE)
     response = dialog.run()
     dialog.destroy()
-    return response == gtk.RESPONSE_OK
+    return response
+
+def ask_ok_cancel(question, parent=None):
+   return ask_question(question, parent) == gtk.RESPONSE_OK
+
+def ask_yes_no(question, parent=None):
+   return ask_question(question, parent, gtk.BUTTONS_YES_NO) == gtk.RESPONSE_YES
 
 def inform_user(msg, parent=None, problem_type=gtk.MESSAGE_ERROR):
     dialog = gtk.MessageDialog(parent=parent,

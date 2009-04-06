@@ -13,7 +13,7 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, gtk, gtksourceview, pango
+import os, gtk, gtksourceview, pango, gobject
 from gwsmhg_pkg import utils, cmd_result, gutils
 
 EDITORS_THAT_NEED_A_TERMINAL = ["vi", "joe"]
@@ -74,10 +74,16 @@ class ChangeSummaryBuffer(gtksourceview.SourceBuffer):
         fn = gutils.ask_file_name("Enter file name", existing=False, suggestion=self._save_file_name)
         if fn and os.path.exists(fn) and not os.path.samefile(fn, self._save_file_name):
             if not os.path.samefile(fn, self._scm_ifce.get_default_commit_save_file()):
-                if not gutils.ask_question(os.linesep.join([fn, "\nFile exists. Overwrite?"])):
+                if not gutils.ask_ok_cancel(os.linesep.join([fn, "\nFile exists. Overwrite?"])):
                     return
         self.save_summary(fn)
-    def load_summary(self, file_name=None):
+    def _ok_to_overwrite_summary(self):
+        if self.get_char_count():
+            return gutils.ask_ok_cancel("Buffer contents will be destroyed. Continue?")
+        return True
+    def load_summary(self, file_name=None, already_checked=False):
+        if not already_checked and not self._ok_to_overwrite_summary():
+            return
         if not file_name:
             file_name = self._save_file_name
         try:
@@ -89,8 +95,10 @@ class ChangeSummaryBuffer(gtksourceview.SourceBuffer):
         except:
             gutils.inform_user("Load from file failed!")
     def load_summary_from(self):
+        if not self._ok_to_overwrite_summary():
+            return
         fn = gutils.ask_file_name("Enter file name", existing=True)
-        self.load_summary(fn)
+        self.load_summary(file_name=fn, already_checked=True)
     def insert_summary_from(self):
         file_name = gutils.ask_file_name("Enter file name", existing=True)
         try:
@@ -123,16 +131,18 @@ CHANGE_SUMMARY_UI_DESCR = \
     <toolitem action="change_summary_ack"/>
     <toolitem action="change_summary_sign_off"/>
     <toolitem action="change_summary_author"/>
+    <toolitem action="change_summary_toggle_auto_save"/>
   </toolbar>
 </ui>
 '''
 
 class ChangeSummaryView(gtksourceview.SourceView):
-    def __init__(self, buffer=None, table=None, scm_ifce=None):
+    def __init__(self, buffer=None, auto_save=True, table=None, scm_ifce=None):
         if not buffer:
             buffer = ChangeSummaryBuffer(table, scm_ifce)
         gtksourceview.SourceView.__init__(self, buffer)
         self._save_file_name = None
+        self._save_interval = 1000 # milliseconds
         fdesc = pango.FontDescription("mono, 10")
         self.modify_font(fdesc)
         self.set_margin(72)
@@ -154,9 +164,9 @@ class ChangeSummaryView(gtksourceview.SourceView):
                  "Save commit summary", self._save_summary_acb),
                 ("change_summary_save_as", gtk.STOCK_SAVE_AS, "S_ave as", "",
                  "Save commit summary to a file", self._save_summary_as_acb),
-                ("change_summary_load", gtk.STOCK_REVERT_TO_SAVED, "_Load", "",
+                ("change_summary_load", gtk.STOCK_REVERT_TO_SAVED, "_Revert", "",
                  "Load summary from saved file", self._load_summary_acb),
-                ("change_summary_load_from", gtk.STOCK_REVERT_TO_SAVED, "Load _from", "",
+                ("change_summary_load_from", gtk.STOCK_REVERT_TO_SAVED, "_Load from", "",
                  "Load summary from a file", self._load_summary_from_acb),
                 ("change_summary_insert_from", gtk.STOCK_PASTE, "_Insert from", "",
                  "Insert contents of a file at cursor position", self._insert_summary_from_acb),
@@ -167,7 +177,15 @@ class ChangeSummaryView(gtksourceview.SourceView):
                 ("change_summary_author", None, "A_uthor", None,
                  "Insert Author tag at cursor position", self._insert_author_acb),
             ])
+        self._action_group.add_toggle_actions(
+            [
+                ("change_summary_toggle_auto_save", None, "Auto Sa_ve", None,
+                 "Automatically/periodically save summary to file", self._toggle_auto_save_acb),
+            ])
+        self._save_toggle_action = self._action_group.get_action("change_summary_toggle_auto_save")
+        self._save_toggle_action.set_active(auto_save)
         self.change_summary_merge_id = self._ui_manager.add_ui_from_string(CHANGE_SUMMARY_UI_DESCR)
+        self._toggle_auto_save_acb(self._save_toggle_action)
     def get_action(self, action_name):
         for action_group in self._ui_manager.get_action_groups():
             action = action_group.get_action(action_name)
@@ -196,6 +214,22 @@ class ChangeSummaryView(gtksourceview.SourceView):
         self.get_buffer().insert_ack()
     def _insert_author_acb(self, action):
         self.get_buffer().insert_author()
+    def get_auto_save(self):
+        return self._save_toggle_action.get_active()
+    def set_auto_save(self, active=True):
+        self._save_toggle_action.set_active(active)
+    def do_auto_save(self):
+        buffer = self.get_buffer()
+        if buffer.get_modified():
+            buffer.save_summary()
+        return self.get_auto_save()
+    def _toggle_auto_save_acb(self, action):
+        if self.get_auto_save():
+            gobject.timeout_add(self._save_interval, self.do_auto_save)
+    def finish_up(self):
+        if self.get_auto_save():
+            self.set_auto_save(False)
+            self.do_auto_save()
     def get_msg(self):
         buffer = self.get_buffer()
         return buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter())
