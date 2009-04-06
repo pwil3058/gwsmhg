@@ -16,6 +16,29 @@
 import os, gtk, gtksourceview, pango, re
 from gwsmhg_pkg import utils, cmd_result, gutils
 
+STATES = [gtk.STATE_NORMAL, gtk.STATE_ACTIVE, gtk.STATE_PRELIGHT, gtk.STATE_PRELIGHT, gtk.STATE_INSENSITIVE]
+
+class tws_line_count_display(gtk.HBox):
+    def __init__(self):
+        gtk.HBox.__init__(self)
+        self.pack_start(gtk.Label("Added TWS lines:"), expand=False, fill=False)
+        self._entry = gtk.Entry()
+        self._entry.set_width_chars(1)
+        self._entry.set_text(str(0))
+        self._entry.set_editable(False)
+        self.pack_start(self._entry, expand=False, fill=False)
+        self.show_all()
+    def set_value(self, val):
+        sval = str(val)
+        self._entry.set_width_chars(len(sval))
+        self._entry.set_text(sval)
+        if val:
+            for state in STATES:
+                self._entry.modify_base(state, gtk.gdk.Color("#FF0000"))
+        else:
+            for state in STATES:
+                self._entry.modify_base(state, gtk.gdk.Color("#00FF00"))
+
 class DiffTextBuffer(gtksourceview.SourceBuffer):
     def __init__(self, table=None):
         if not table:
@@ -23,6 +46,7 @@ class DiffTextBuffer(gtksourceview.SourceBuffer):
         gtksourceview.SourceBuffer.__init__(self, table)
         self.tws_check = re.compile('^(\+.*\S)(\s+\n)$')
         self.tws_count = 0
+        self.tws_display = tws_line_count_display()
         self.index_tag = self.create_tag("INDEX", weight=pango.WEIGHT_BOLD, foreground="#0000AA", family="monospace")
         self.sep_tag = self.create_tag("SEP", weight=pango.WEIGHT_BOLD, foreground="#0000AA", family="monospace")
         self.minus_tag = self.create_tag("MINUS", foreground="#AA0000", family="monospace")
@@ -78,6 +102,7 @@ class DiffTextBuffer(gtksourceview.SourceBuffer):
         for line in text.splitlines():
             self._append_patch_line(line + os.linesep)
         self.end_not_undoable_action()
+        self.tws_display.set_value(self.tws_count)
     def save_to_file(self, filename):
         try:
             file = open(filename, 'w')
@@ -167,14 +192,8 @@ class DiffTextView(gtksourceview.SourceView, cmd_result.ProblemReporter):
         res, diff_text, serr = self._scm_ifce.diff_files(self._file_list)
         self._report_any_problems((res, diff_text, serr))
         self.get_buffer().set_contents(diff_text)
-    def check_added_white_space(self):
-        tws_count = self.get_buffer().tws_count
-        if tws_count:
-            gutils.inform_user("%d instance(s) of added trailing space detected" % tws_count,
-                        problem_type=gtk.MESSAGE_INFO, parent=self._get_gtk_window())
     def _refresh_acb(self, action):
         self.set_contents()
-        self.check_added_white_space()
     def _save_to_file(self):
         ok, msg = self.get_buffer().save_to_file(self._save_file)
         if not ok:
@@ -216,9 +235,11 @@ class DiffTextDialog(gtk.Dialog):
             action.connect_proxy(button)
             self.action_area.pack_start(button)
         self.add_buttons(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
+        tws_display = self.diff_view.get_buffer().tws_display
+        self.action_area.pack_end(tws_display, expand=False, fill=False)
+        self.action_area.reorder_child(tws_display, 0)
         self.connect("response", self._close_cb)
         self.show_all()
-        self.diff_view.check_added_white_space()
     def _close_cb(self, dialog, response_id):
         self.destroy()
 
