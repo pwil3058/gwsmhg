@@ -53,12 +53,20 @@ def peruse_files_extern(filelist):
 import time
 
 class ChangeSummaryBuffer(gtksourceview.SourceBuffer):
-    def __init__(self, table=None, scm_ifce=None):
+    def __init__(self, table=None, scm_ifce=None, auto_save=True):
         if not table:
             table = gtksourceview.SourceTagTable()
         gtksourceview.SourceBuffer.__init__(self, table=table)
         self._scm_ifce = scm_ifce
+        self._save_interval = 1000 # milliseconds
         self._save_file_name = self._scm_ifce.get_default_commit_save_file()
+        self.save_toggle_action = gtk.ToggleAction(
+                "change_summary_toggle_auto_save", "Auto Sa_ve",
+                "Automatically/periodically save summary to file", gtk.STOCK_SAVE
+            )
+        self.save_toggle_action.connect("toggled", self._toggle_auto_save_acb)
+        self.save_toggle_action.set_active(auto_save)
+        self._toggle_auto_save_acb()
     def save_summary(self, file_name=None):
         if not file_name:
             file_name = self._save_file_name
@@ -108,6 +116,25 @@ class ChangeSummaryBuffer(gtksourceview.SourceBuffer):
             self.set_modified(True)
         except:
             gutils.inform_user("Insert at cursor from file failed!")
+    def get_auto_save(self):
+        return self.save_toggle_action.get_active()
+    def set_auto_save(self, active=True):
+        self.save_toggle_action.set_active(active)
+    def get_auto_save_interval(self):
+        return self._save_interval
+    def set_auto_save_inerval(self, interval):
+        self._save_interval = interval
+    def do_auto_save(self):
+        if self.get_modified():
+            self.save_summary()
+        return self.get_auto_save()
+    def _toggle_auto_save_acb(self, action=None):
+        if self.get_auto_save():
+            gobject.timeout_add(self._save_interval, self.do_auto_save)
+    def finish_up(self):
+        if self.get_auto_save():
+            self.set_auto_save(False)
+            self.do_auto_save()
     def insert_sign_off(self):
         self.insert_at_cursor("Signed-off-by: %s\n" % self._scm_ifce.get_author_name_and_email())
     def insert_ack(self):
@@ -139,10 +166,8 @@ CHANGE_SUMMARY_UI_DESCR = \
 class ChangeSummaryView(gtksourceview.SourceView):
     def __init__(self, buffer=None, auto_save=True, table=None, scm_ifce=None):
         if not buffer:
-            buffer = ChangeSummaryBuffer(table, scm_ifce)
+            buffer = ChangeSummaryBuffer(table, scm_ifce, auto_save)
         gtksourceview.SourceView.__init__(self, buffer)
-        self._save_file_name = None
-        self._save_interval = 1000 # milliseconds
         fdesc = pango.FontDescription("mono, 10")
         self.modify_font(fdesc)
         self.set_margin(72)
@@ -177,15 +202,8 @@ class ChangeSummaryView(gtksourceview.SourceView):
                 ("change_summary_author", None, "A_uthor", None,
                  "Insert Author tag at cursor position", self._insert_author_acb),
             ])
-        self._action_group.add_toggle_actions(
-            [
-                ("change_summary_toggle_auto_save", None, "Auto Sa_ve", None,
-                 "Automatically/periodically save summary to file", self._toggle_auto_save_acb),
-            ])
-        self._save_toggle_action = self._action_group.get_action("change_summary_toggle_auto_save")
-        self._save_toggle_action.set_active(auto_save)
+        self._action_group.add_action(buffer.save_toggle_action)
         self.change_summary_merge_id = self._ui_manager.add_ui_from_string(CHANGE_SUMMARY_UI_DESCR)
-        self._toggle_auto_save_acb(self._save_toggle_action)
     def get_action(self, action_name):
         for action_group in self._ui_manager.get_action_groups():
             action = action_group.get_action(action_name)
@@ -214,22 +232,6 @@ class ChangeSummaryView(gtksourceview.SourceView):
         self.get_buffer().insert_ack()
     def _insert_author_acb(self, action):
         self.get_buffer().insert_author()
-    def get_auto_save(self):
-        return self._save_toggle_action.get_active()
-    def set_auto_save(self, active=True):
-        self._save_toggle_action.set_active(active)
-    def do_auto_save(self):
-        buffer = self.get_buffer()
-        if buffer.get_modified():
-            buffer.save_summary()
-        return self.get_auto_save()
-    def _toggle_auto_save_acb(self, action):
-        if self.get_auto_save():
-            gobject.timeout_add(self._save_interval, self.do_auto_save)
-    def finish_up(self):
-        if self.get_auto_save():
-            self.set_auto_save(False)
-            self.do_auto_save()
     def get_msg(self):
         buffer = self.get_buffer()
         return buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter())

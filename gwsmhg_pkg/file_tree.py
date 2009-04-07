@@ -1307,7 +1307,7 @@ class ScmCommitDialog(gtk.Dialog):
     def update_files(self):
         self.commit_widget.files.update_tree()
     def _finish_up(self):
-        self.commit_widget.view.finish_up()
+        self.commit_widget.view.get_buffer().finish_up()
         self.destroy()
     def _handle_response_cb(self, dialog, response_id):
         if response_id == gtk.RESPONSE_OK:
