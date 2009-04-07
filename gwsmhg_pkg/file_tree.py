@@ -1306,13 +1306,13 @@ class ScmCommitDialog(gtk.Dialog):
         return (self.commit_widget.get_msg(), self.commit_widget.get_file_mask())
     def update_files(self):
         self.commit_widget.files.update_tree()
-    def _finish_up(self):
-        self.commit_widget.view.get_buffer().finish_up()
+    def _finish_up(self, clear_save=False):
+        self.commit_widget.view.get_buffer().finish_up(clear_save)
         self.destroy()
     def _handle_response_cb(self, dialog, response_id):
         if response_id == gtk.RESPONSE_OK:
             if self.commit_widget.do_commit():
-                self._finish_up()
+                self._finish_up(clear_save=True)
             else:
                 dialog.update_files()
         elif self.commit_widget.view.get_buffer().get_modified():

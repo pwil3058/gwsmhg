@@ -60,19 +60,27 @@ class ChangeSummaryBuffer(gtksourceview.SourceBuffer):
         self._scm_ifce = scm_ifce
         self._save_interval = 1000 # milliseconds
         self._save_file_name = self._scm_ifce.get_default_commit_save_file()
+        if not os.path.exists(self._save_file_name):
+            self.save_summary(content="")
         self.save_toggle_action = gtk.ToggleAction(
                 "change_summary_toggle_auto_save", "Auto Sa_ve",
                 "Automatically/periodically save summary to file", gtk.STOCK_SAVE
             )
         self.save_toggle_action.connect("toggled", self._toggle_auto_save_acb)
         self.save_toggle_action.set_active(auto_save)
+        # Load the saved content before (possibly) turning auto save on or
+        # contents of saved file could be wiped out before it's loaded
+        self.load_summary(already_checked=True)
         self._toggle_auto_save_acb()
-    def save_summary(self, file_name=None):
+    def save_summary(self, file_name=None, content=None):
         if not file_name:
             file_name = self._save_file_name
         try:
             save_file = open(file_name, 'w')
-            save_file.write(self.get_text(self.get_start_iter(), self.get_end_iter()))
+            if content is None:
+                save_file.write(self.get_text(self.get_start_iter(), self.get_end_iter()))
+            else:
+                save_file.write(content)
             save_file.close()
             self._save_file_name = file_name
             self.set_modified(False)
@@ -84,7 +92,7 @@ class ChangeSummaryBuffer(gtksourceview.SourceBuffer):
             if not os.path.samefile(fn, self._scm_ifce.get_default_commit_save_file()):
                 if not gutils.ask_ok_cancel(os.linesep.join([fn, "\nFile exists. Overwrite?"])):
                     return
-        self.save_summary(fn)
+        self.save_summary(file_name=fn)
     def _ok_to_overwrite_summary(self):
         if self.get_char_count():
             return gutils.ask_ok_cancel("Buffer contents will be destroyed. Continue?")
@@ -131,10 +139,12 @@ class ChangeSummaryBuffer(gtksourceview.SourceBuffer):
     def _toggle_auto_save_acb(self, action=None):
         if self.get_auto_save():
             gobject.timeout_add(self._save_interval, self.do_auto_save)
-    def finish_up(self):
+    def finish_up(self, clear_save=False):
         if self.get_auto_save():
             self.set_auto_save(False)
             self.do_auto_save()
+        if clear_save:
+            self.save_summary(file_name=self._scm_ifce.get_default_commit_save_file(), content="")
     def insert_sign_off(self):
         self.insert_at_cursor("Signed-off-by: %s\n" % self._scm_ifce.get_author_name_and_email())
     def insert_ack(self):
