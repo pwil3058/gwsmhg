@@ -173,3 +173,48 @@ class EntryWithHistory(gtk.Entry):
             self._history_len = len(self._history_list)
         return text
 
+class ActionButton(gtk.Button):
+    def __init__(self, action, use_underline=True):
+        label = action.get_property("label")
+        stock_id = action.get_property("stock-id")
+        if label:
+            gtk.Button.__init__(self, label=label, use_underline=use_underline)
+            if stock_id:
+                image = gtk.Image()
+                image.set_from_stock(stock_id, gtk.ICON_SIZE_BUTTON)
+                self.set_image(image)
+        elif stock_id:
+            gtk.Button.__init__(self, stock_id=stock_id, use_underline=use_underline)
+        else:
+            gtk.Button.__init__(self, use_underline=use_underline)
+        self.set_tooltip_text(action.get_property("tooltip"))
+        action.connect_proxy(self)
+
+class ActionButtonList:
+    def __init__(self, action_group_list, action_name_list=None, use_underline=True):
+        self.list = []
+        self.dict = {}
+        if action_name_list:
+            for a_name in action_name_list:
+                for a_group in action_group_list:
+                    action = a_group.get_action(a_name)
+                    if action:
+                        button = ActionButton(action, use_underline)
+                        self.list.append(button)
+                        self.dict[a_name] = button
+                        break
+        else:
+            for a_group in action_group_list:
+                for action in a_group.list_actions():
+                    button = ActionButton(action, use_underline)
+                    self.list.append(button)
+                    self.dict[action.get_name()] = button
+
+class ActionHButtonBox(gtk.HBox):
+    def __init__(self, action_group_list, action_name_list=None,
+                 use_underline=True, expand=True, fill=True, padding=0):
+        gtk.HBox.__init__(self)
+        self.button_list = ActionButtonList(action_group_list, action_name_list, use_underline)
+        for button in self.button_list.list:
+            self.pack_start(button, expand, fill, padding)
+

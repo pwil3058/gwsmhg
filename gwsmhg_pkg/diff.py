@@ -39,13 +39,32 @@ class tws_line_count_display(gtk.HBox):
             for state in STATES:
                 self._entry.modify_base(state, gtk.gdk.Color("#00FF00"))
 
-class DiffTextBuffer(gtksourceview.SourceBuffer):
-    def __init__(self, table=None):
+class DiffTextBuffer(gtksourceview.SourceBuffer, cmd_result.ProblemReporter):
+    def __init__(self, scm_ifce, file_list=[], table=None):
+        cmd_result.ProblemReporter.__init__(self)
         if not table:
             table = gtksourceview.SourceTagTable()
         gtksourceview.SourceBuffer.__init__(self, table)
+        self._file_list = file_list
+        self._scm_ifce = scm_ifce
+        self._tws_change_cbs = []
         self.tws_check = re.compile('^(\+.*\S)(\s+\n)$')
-        self.tws_count = 0
+        self.tws_list = []
+        self.tws_index = 0
+        self._action_group = gtk.ActionGroup("diff_text")
+        self._action_group.add_actions(
+            [
+                ("diff_save", gtk.STOCK_SAVE, "_Save", None,
+                 "Save the diff to previously nominated file", self._save_acb),
+                ("diff_save_as", gtk.STOCK_SAVE_AS, "Save _as", None,
+                 "Save the diff to a nominated file", self._save_as_acb),
+                ("diff_refresh", gtk.STOCK_REFRESH, "_Refresh", None,
+                 "Refresh contents of the diff", self._refresh_acb),
+            ])
+        self.diff_buttons = gutils.ActionButtonList([self._action_group],
+                                ["diff_save", "diff_save_as", "diff_refresh"])
+        self._save_file = None
+        self.check_set_save_sensitive()
         self.tws_display = tws_line_count_display()
         self.index_tag = self.create_tag("INDEX", weight=pango.WEIGHT_BOLD, foreground="#0000AA", family="monospace")
         self.sep_tag = self.create_tag("SEP", weight=pango.WEIGHT_BOLD, foreground="#0000AA", family="monospace")
@@ -59,6 +78,8 @@ class DiffTextBuffer(gtksourceview.SourceBuffer):
         self.stats_tag = self.create_tag("STATS", foreground="#AA00AA", family="monospace")
         self.func_tag = self.create_tag("FUNC", foreground="#00AAAA", family="monospace")
         self.unchanged_tag = self.create_tag("UNCHANGED", foreground="black", family="monospace")
+    def register_tws_change_cb(self, func):
+        self._tws_change_cbs.append(func)
     def _append_tagged_text(self, text, tag):
         self.insert_with_tags(self.get_end_iter(), text, tag)
     def _append_patch_line(self, line):
@@ -68,9 +89,9 @@ class DiffTextBuffer(gtksourceview.SourceBuffer):
         elif fc == "+":
             match = self.tws_check.match(line)
             if match:
-                self.tws_count += 1
                 self._append_tagged_text(match.group(1), self.plus_tag)
                 self._append_tagged_text(match.group(2), self.added_tws_tag)
+                return len(match.group(1))
             else:
                 self._append_tagged_text(line, self.plus_tag)
         elif fc == "-":
@@ -95,47 +116,78 @@ class DiffTextBuffer(gtksourceview.SourceBuffer):
             self._append_tagged_text(line, self.rab_tag)
         else:
             self._append_tagged_text(line, self.index_tag)
-    def set_contents(self, text):
+        return 0
+    def set_contents(self):
+        res, text, serr = self._scm_ifce.diff_files(self._file_list)
+        self._report_any_problems((res, text, serr))
+        old_count = len(self.tws_list)
         self.begin_not_undoable_action()
         self.set_text("")
-        self.tws_count = 0
+        self.tws_list = []
+        line_no = 0
         for line in text.splitlines():
-            self._append_patch_line(line + os.linesep)
+            offset = self._append_patch_line(line + os.linesep)
+            if offset:
+                self.tws_list.append((line_no, offset - 2))
+            line_no += 1
         self.end_not_undoable_action()
-        self.tws_display.set_value(self.tws_count)
-    def save_to_file(self, filename):
+        new_count = len(self.tws_list)
+        self.tws_display.set_value(new_count)
+        if not (new_count == old_count):
+            for func in self._tws_change_cbs:
+                func(new_count)
+    def _tws_index_iter(self):
+        pos = self.tws_list[self.tws_index]
+        iter = self.get_iter_at_line_offset(pos[0], pos[1])
+        self.place_cursor(iter)
+        return iter
+    def get_tws_first_iter(self):
+        self.tws_index = 0
+        return self._tws_index_iter()
+    def get_tws_prev_iter(self):
+        if self.tws_index:
+            self.tws_index -= 1
+        return self._tws_index_iter()
+    def get_tws_next_iter(self):
+        self.tws_index += 1
+        if self.tws_index >= len(self.tws_list):
+            self.tws_index = len(self.tws_list) - 1
+        return self._tws_index_iter()
+    def get_tws_last_iter(self):
+        self.tws_index = len(self.tws_list) - 1
+        return self._tws_index_iter()
+    def _save_to_file(self):
         try:
-            file = open(filename, 'w')
+            file = open(self._save_file, 'w')
         except IOError, (errno, strerror):
-            return (False, strerror)
+            self._report_any_problems((cmd_result.ERROR, "", strerror))
+            self.check_set_save_sensitive()
+            return
         text = self.get_text(self.get_start_iter(), self.get_end_iter())
         file.write(text)
         file.close()
-        return (True, None)
+        self.check_set_save_sensitive()
+    def check_save_sensitive(self):
+        return self._save_file is not None and os.path.exists(self._save_file)
+    def check_set_save_sensitive(self):
+        set_sensitive = self.check_save_sensitive()
+        self._action_group.get_action("diff_save").set_sensitive(set_sensitive)
+    def _refresh_acb(self, action):
+        self.set_contents()
+    def _save_acb(self, action):
+        self._save_to_file()
+    def _save_as_acb(self, action):
+        if self._save_file:
+            suggestion = self._save_file
+        else:
+            suggestion = os.getcwd()
+        self._save_file = gutils.ask_file_name("Save as ...", suggestion=suggestion, existing=False)
+        self._save_to_file()
 
-DIFF_TEXT_UI_DESCR = \
-'''
-<ui>
-  <toolbar name="diff_text_toolbar">
-    <toolitem action="diff_save"/>
-    <toolitem action="diff_save_as"/>
-    <toolitem action="diff_refresh"/>
-  </toolbar>
-</ui>
-'''
-
-class DiffTextView(gtksourceview.SourceView, cmd_result.ProblemReporter):
-    def __init__(self, buffer=None, scm_ifce=None, file_list=[]):
-        cmd_result.ProblemReporter.__init__(self)
-        # allow scm_ifce to be either an instance or a generator
-        try:
-            self._scm_ifce = scm_ifce()
-        except:
-            self._scm_ifce = scm_ifce
+class DiffTextView(gtksourceview.SourceView):
+    def __init__(self, scm_ifce, file_list=[]):
         self._file_list = file_list
-        if not buffer:
-            buffer = DiffTextBuffer()
-        self._gtk_window = None
+        buffer = DiffTextBuffer(scm_ifce, file_list)
         gtksourceview.SourceView.__init__(self, buffer)
         fdesc = pango.FontDescription("mono, 10")
         self.modify_font(fdesc)
@@ -148,77 +200,54 @@ class DiffTextView(gtksourceview.SourceView, cmd_result.ProblemReporter):
         self.set_size_request(width, width / 2)
         self.set_cursor_visible(False)
         self.set_editable(False)
-        self._action_group = gtk.ActionGroup("diff_text")
-        self._ui_manager = gtk.UIManager()
-        self._ui_manager.insert_action_group(self._action_group, -1)
+        self._action_group = gtk.ActionGroup("diff_tws_nav")
         self._action_group.add_actions(
             [
-                ("diff_save", gtk.STOCK_SAVE, "_Save", None,
-                 "Save the diff to previously nominated file", self._save_acb),
-                ("diff_save_as", gtk.STOCK_SAVE_AS, "Save _as", None,
-                 "Save the diff to a nominated file", self._save_as_acb),
-                ("diff_refresh", gtk.STOCK_REFRESH, "_Refresh", None,
-                 "Refresh contents of the diff", self._refresh_acb),
+                ("tws_nav_first", gtk.STOCK_GOTO_TOP, "_First", None,
+                 "Scroll to first line with added trailing white space",
+                 self._tws_nav_first_acb),
+                ("tws_nav_prev", gtk.STOCK_GO_UP, "_Prev", None,
+                 "Scroll to previous line with added trailing white space",
+                 self._tws_nav_prev_acb),
+                ("tws_nav_next", gtk.STOCK_GO_DOWN, "_Next", None,
+                 "Scroll to next line with added trailing white space",
+                 self._tws_nav_next_acb),
+                ("tws_nav_last", gtk.STOCK_GOTO_BOTTOM, "_Last", None,
+                 "Scroll to last line with added trailing white space",
+                 self._tws_nav_last_acb),
             ])
-        self.diff_text_merge_id = self._ui_manager.add_ui_from_string(DIFF_TEXT_UI_DESCR)
-        self._save_file = None
-        self.check_set_save_sensitive()
-        self.set_contents()
-    def _get_gtk_window(self):
-        if not self._gtk_window:
-            temp = self.get_parent()
-            while temp:
-                self._gtk_window = temp
-                temp = temp.get_parent()
-        return self._gtk_window
-    def get_action(self, action_name):
-        for action_group in self._ui_manager.get_action_groups():
-            action = action_group.get_action(action_name)
-            if action:
-                return action
-        return None
-    def get_ui_manager(self):
-        return self._ui_manager
-    def get_ui_widget(self, path):
-        return self._ui_manager.get_widget(path)
-    def get_accel_group(self):
-        return self._ui_manager.get_accel_group()
-    def check_save_sensitive(self):
-        return self._save_file is not None and os.path.exists(self._save_file)
-    def check_set_save_sensitive(self):
-        set_sensitive = self.check_save_sensitive()
-        self._action_group.get_action("diff_save").set_sensitive(set_sensitive)
-    def set_contents(self):
-        res, diff_text, serr = self._scm_ifce.diff_files(self._file_list)
-        self._report_any_problems((res, diff_text, serr))
-        self.get_buffer().set_contents(diff_text)
-    def _refresh_acb(self, action):
-        self.set_contents()
-    def _save_to_file(self):
-        ok, msg = self.get_buffer().save_to_file(self._save_file)
-        if not ok:
-            self._report_any_problems((cmd_result.ERROR, "", msg))
-        self.check_set_save_sensitive()
-    def _save_acb(self, action):
-        self._save_to_file()
-    def _save_as_acb(self, action):
-        dialog = gtk.FileChooserDialog("Save as ...", self._get_gtk_window(),
-                                       gtk.FILE_CHOOSER_ACTION_SAVE,
-                                       (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                                        gtk.STOCK_OK, gtk.RESPONSE_OK))
-        dialog.set_default_response(gtk.RESPONSE_OK)
-        if self._save_file:
-            dialog.set_current_folder(os.path.abspath(os.path.dirname(self._save_file)))
-            dialog.et_current_name(os.path.abspath(os.path.basename(self._save_file)))
-        else:
-            dialog.set_current_folder(os.getcwd())
-        response = dialog.run()
-        if response == gtk.RESPONSE_OK:
-            self._save_file = dialog.get_filename()
-            dialog.destroy()
-            self._save_to_file()
-        else:
-            dialog.destroy()
+        self.tws_nav_buttonbox = gutils.ActionHButtonBox([self._action_group],
+            ["tws_nav_first", "tws_nav_prev", "tws_nav_next", "tws_nav_last"])
+    def _tws_nav_first_acb(self, action):
+        self.scroll_to_iter(self.get_buffer().get_tws_first_iter(), 0.01)
+        iter = self.get_buffer().get_tws_first_iter()
+        self.scroll_to_iter(iter, 0.01)
+    def _tws_nav_prev_acb(self, action):
+        self.scroll_to_iter(self.get_buffer().get_tws_prev_iter(), 0.01)
+    def _tws_nav_next_acb(self, action):
+        self.scroll_to_iter(self.get_buffer().get_tws_next_iter(), 0.01)
+    def _tws_nav_last_acb(self, action):
+        self.scroll_to_iter(self.get_buffer().get_tws_last_iter(), 0.01)
+
+class DiffTextWidget(gtk.VBox):
+    def __init__(self, parent, scm_ifce, file_list=[]):
+        gtk.VBox.__init__(self)
+        self.diff_view = DiffTextView(scm_ifce=scm_ifce, file_list=file_list)
+        self.pack_start(gutils.wrap_in_scrolled_window(self.diff_view))
+        self._tws_nav_buttons_packed = False
+        buffer = self.diff_view.get_buffer()
+        buffer.register_tws_change_cb(self._tws_change_cb)
+        buffer.set_contents()
+        self.show_all()
+    def _tws_change_cb(self, new_count):
+        if self._tws_nav_buttons_packed and not new_count:
+            self.remove(self.diff_view.tws_nav_buttonbox)
+            self.diff_view.set_cursor_visible(False)
+            self._tws_nav_buttons_packed = False
+        elif not self._tws_nav_buttons_packed and new_count:
+            self.pack_start(self.diff_view.tws_nav_buttonbox, expand=False, fill=True)
+            self.diff_view.set_cursor_visible(True)
+            self._tws_nav_buttons_packed = True
 
 class DiffTextDialog(gtk.Dialog):
     def __init__(self, parent, scm_ifce, file_list=[], modal=False):
@@ -227,17 +256,13 @@ class DiffTextDialog(gtk.Dialog):
         else:
             flags = gtk.DIALOG_DESTROY_WITH_PARENT
         gtk.Dialog.__init__(self, "diff: %s" % os.getcwd(), parent, flags, ())
-        self.diff_view = DiffTextView(scm_ifce=scm_ifce, file_list=file_list)
-        self.vbox.pack_start(gutils.wrap_in_scrolled_window(self.diff_view))
-        for action_name in ["diff_save", "diff_save_as", "diff_refresh"]:
-            action = self.diff_view.get_action(action_name)
-            button = gtk.Button(stock=action.get_property("stock-id"))
-            action.connect_proxy(button)
+        self._dtw = DiffTextWidget(self, scm_ifce, file_list)
+        self.vbox.pack_start(self._dtw)
+        tws_display = self._dtw.diff_view.get_buffer().tws_display
+        self.action_area.pack_end(tws_display, expand=False, fill=False)
+        for button in self._dtw.diff_view.get_buffer().diff_buttons.list:
             self.action_area.pack_start(button)
         self.add_buttons(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
-        tws_display = self.diff_view.get_buffer().tws_display
-        self.action_area.pack_end(tws_display, expand=False, fill=False)
-        self.action_area.reorder_child(tws_display, 0)
         self.connect("response", self._close_cb)
         self.show_all()
     def _close_cb(self, dialog, response_id):
