@@ -198,11 +198,14 @@ class SCMInterface(console.ConsoleLogUser):
             return self._map_result(utils.run_cmd(cmd), stdout_is_data=True)
         else:
             return self._run_cmd_on_console(cmd)
-    def diff_files(self, file_list):
+    def diff_files(self, file_list, rev1=None, rev2=None):
+        cmd = "hg diff "
+        if rev1:
+            cmd += "--rev %s " % rev1
+        if rev2:
+            cmd += "--rev %s " % rev2
         if file_list:
-            cmd = "hg diff %s" % " ".join(file_list)
-        else:
-            cmd = "hg diff"
+            cmd += " ".join(file_list)
         res, sout, serr = utils.run_cmd(cmd)
         if res != 0:
             res = cmd_result.ERROR
