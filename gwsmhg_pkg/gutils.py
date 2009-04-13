@@ -13,7 +13,7 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import gtk, os.path
+import gtk, os.path, gobject
 
 def wrap_in_scrolled_window(widget, policy=(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC), with_frame=True, label=None):
     scrw = gtk.ScrolledWindow()
@@ -223,4 +223,116 @@ class ActionHButtonBox(gtk.HBox):
         self.button_list = ActionButtonList(action_group_list, action_name_list, use_underline)
         for button in self.button_list.list:
             self.pack_start(button, expand, fill, padding)
+
+TOC_NAME, TOC_LABEL, TOC_TOOLTIP, TOC_STOCK_ID = range(4)
+
+class TimeOutController():
+    def __init__(self, toggle_data, function=None, is_on=True, interval=10000):
+        self._interval = abs(interval)
+        self._timeout_id = None
+        self._function = function
+        self.toggle_action = gtk.ToggleAction(
+                toggle_data[TOC_NAME], toggle_data[TOC_LABEL],
+                toggle_data[TOC_TOOLTIP], toggle_data[TOC_STOCK_ID]
+            )
+        self.toggle_action.connect("toggled", self._toggle_acb)
+        self.toggle_action.set_active(is_on)
+        self._toggle_acb()
+    def _toggle_acb(self, action=None):
+        if self.toggle_action.get_active():
+            self._timeout_id = gobject.timeout_add(self._interval, self._timeout_cb)
+    def _timeout_cb(self):
+        if self._function:
+            self._function()
+        return self.toggle_action.get_active()
+    def stop_cycle(self):
+        if self._timeout_id:
+            gobject.source_remove(self._timeout_id)
+            self._timeout_id = None
+    def restart_cycle(self):
+        self.stop_cycle()
+        self._toggle_acb()
+    def set_function(self, function):
+        self.stop_cycle()
+        self._function = function
+        self._toggle_acb()
+    def set_interval(self, interval):
+        if interval > 0 and interval is not self._interval:
+            self._interval = interval
+            self.restart_cycle()
+    def get_interval(self):
+        return self._interval
+    def set_active(self, active=True):
+        if active is not self.toggle_action.get_active():
+            self.toggle_action.set_active(active)
+        self.restart_cycle()
+
+TOC_DEFAULT_REFRESH_TD = ["auto_refresh_toggle", "Auto _Refresh", "Turn data auto refresh on/off", gtk.STOCK_REFRESH]
+
+class RefreshController(TimeOutController):
+    def __init__(self, toggle_data=TOC_DEFAULT_REFRESH_TD, function=None, is_on=True, interval=10000):
+        TimeOutController.__init__(self, toggle_data, function=function, is_on=is_on, interval=interval)
+
+TOC_DEFAULT_SAVE_TD = ["auto_save_toggle", "Auto _Save", "Turn data auto save on/off", gtk.STOCK_SAVE]
+
+class SaveController(TimeOutController):
+    def __init__(self, toggle_data=TOC_DEFAULT_SAVE_TD, function=None, is_on=True, interval=10000):
+        TimeOutController.__init__(self, toggle_data, function=function, is_on=is_on, interval=interval)
+
+ROW_LABEL, ROW_TYPE, ROW_EXPAND, ROW_PROPERTIES = range(4)
+PROPERTY_NAME, PROPERTY_VALUE = range(2)
+
+def find_label_index(descr, label):
+    index = 0
+    for index in range(len(descr)):
+        if label == descr[index][0]:
+            return index
+    return None
+
+# Table descriptor is:
+#[
+#  [ROW_LABEL, ROW_TYPE, ROW_EXPAND, [ (name, value), (name, value), ...]],
+#  [ROW_LABEL, ROW_TYPE, ROW_EXPAND, ROW_PROPERTIES],
+#  .....
+#]
+#
+# e.g.
+#PARENTS_TABLE_DESCR = \
+#[
+#    ["Rev", gobject.TYPE_INT, False, [("cell-background", "#F0F0F0")]],
+#    ["Age", gobject.TYPE_STRING, False, [("cell-background", "white")]],
+#    ["Tags", gobject.TYPE_STRING, False, [("cell-background", "#F0F0F0")]],
+#    ["Branches", gobject.TYPE_STRING, False, [("cell-background", "white")]],
+#    ["Author", gobject.TYPE_STRING, False, [("cell-background", "#F0F0F0")]],
+#    ["Description", gobject.TYPE_STRING, True, [("cell-background", "white")]],
+#]
+
+class TableView(gtk.TreeView):
+    def __init__(self, descr, set_mode=gtk.SELECTION_SINGLE):
+        model = apply(gtk.ListStore, self._get_type_list(descr))
+        gtk.TreeView.__init__(self, model)
+        bgnd = ["#F0F0F0", "white"]
+        for colid in range(len(descr)):
+            col_d = descr[colid]
+            cell = gtk.CellRendererText()
+            tvcolumn = gtk.TreeViewColumn(col_d[ROW_LABEL], cell, text=colid)
+            cell.set_property("cell-background", bgnd[colid % 2])
+            for prop in col_d[ROW_PROPERTIES]:
+                cell.set_property(prop[PROPERTY_NAME], prop[PROPERTY_VALUE])
+            tvcolumn.set_expand(col_d[ROW_EXPAND])
+            self.append_column(tvcolumn)
+        self.set_headers_visible(False)
+        self.get_selection().set_mode(gtk.SELECTION_SINGLE)
+        self.get_selection().unselect_all()
+    def _get_type_list(self, descr):
+        list = []
+        for cdescr in descr:
+            list.append(cdescr[ROW_TYPE])
+        return list
+    def set_contents(self, cset_list):
+        model = self.get_model()
+        model.clear()
+        for cset in cset_list:
+            model.append(cset)
+        self.set_headers_visible(self.get_model().iter_n_children(None) > 0)
 

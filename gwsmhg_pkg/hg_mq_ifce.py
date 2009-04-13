@@ -13,7 +13,7 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, os.path, tempfile, pango
+import os, os.path, tempfile, pango, re
 from gwsmhg_pkg import text_edit, utils, cmd_result, console
 
 DEFAULT_NAME_EVARS = ["GIT_AUTHOR_NAME", "GECOS"]
@@ -172,6 +172,67 @@ class SCMInterface(console.ConsoleLogUser):
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return (res, plist, serr)
+    def get_heads_data(self):
+        cmd = 'hg heads --template "{rev}:{date|age}:{tags}:{branches}:{author|person}:{desc|firstline}' + os.linesep + '"'
+        res, sout, serr = utils.run_cmd(cmd)
+        if res != 0:
+            return (res, sout, serr)
+        plist = []
+        for line in sout.splitlines():
+            pdata = []
+            for dummy in range(5):
+                cpos = line.find(":")
+                if cpos:
+                    pdata.append(line[0:cpos])
+                else:
+                    pdata.append("")
+                line = line[cpos+1:]
+            pdata.append(line)
+            pdata[0] = int(pdata[0])
+            plist.append(pdata)
+        return (res, plist, serr)
+    def get_tags_data(self):
+        res, sout, serr = utils.run_cmd("hg tags")
+        if res:
+            return (res, sout, serr)
+        de = re.compile("^(\S+)\s*(\d+):")
+        tag_list = []
+        for line in sout.splitlines(False):
+            dat = de.match(line)
+            tag_list.append([dat.group(1), int(dat.group(2))])
+        cmd = 'hg log --template "{branches}:{date|age}:{author|person}:{desc|firstline}" --rev '
+        for tag in tag_list:
+            res, sout, serr = utils.run_cmd(cmd + str(tag[1]))
+            for dummy in range(3):
+                cpos = sout.find(":")
+                if cpos:
+                    tag.append(sout[0:cpos])
+                else:
+                    tag.append("")
+                sout = sout[cpos+1:]
+            tag.append(sout)
+        return (res, tag_list, serr)
+    def get_branches_data(self):
+        res, sout, serr = utils.run_cmd("hg branches")
+        if res:
+            return (res, sout, serr)
+        de = re.compile("^(\S+)\s*(\d+):")
+        tag_list = []
+        for line in sout.splitlines(False):
+            dat = de.match(line)
+            tag_list.append([dat.group(1), int(dat.group(2))])
+        cmd = 'hg log --template "{tags}:{date|age}:{author|person}:{desc|firstline}" --rev '
+        for tag in tag_list:
+            res, sout, serr = utils.run_cmd(cmd + str(tag[1]))
+            for dummy in range(3):
+                cpos = sout.find(":")
+                if cpos:
+                    tag.append(sout[0:cpos])
+                else:
+                    tag.append("")
+                sout = sout[cpos+1:]
+            tag.append(sout)
+        return (res, tag_list, serr)
     def add_files(self, file_list, dry_run=False):
         cmd = "hg add"
         if dry_run:

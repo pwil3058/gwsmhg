@@ -14,86 +14,169 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import gtk, gobject
-from gwsmhg_pkg import cmd_result
+from gwsmhg_pkg import cmd_result, gutils
 
-COLUMNS = (gobject.TYPE_INT,
-           gobject.TYPE_STRING,
-           gobject.TYPE_STRING,
-           gobject.TYPE_STRING,
-           gobject.TYPE_STRING,
-           gobject.TYPE_STRING)
+LOG_TABLE_PRECIS_DESCR = \
+[
+    ["Rev", gobject.TYPE_INT, False, []],
+    ["Age", gobject.TYPE_STRING, False, []],
+    ["Tags", gobject.TYPE_STRING, False, []],
+    ["Branches", gobject.TYPE_STRING, False, []],
+    ["Author", gobject.TYPE_STRING, False, []],
+    ["Description", gobject.TYPE_STRING, True, []],
+]
 
-REV_ID, AGE, TAGS, BRANCHES, AUTHOR, DESCRIPTION = range(len(COLUMNS))
+LOG_TABLE_PRECIS_AGE = gutils.find_label_index(LOG_TABLE_PRECIS_DESCR, "Age")
 
-LABEL = \
-      { REV_ID: "Rev",
-        AGE: "Age",
-        TAGS: "Tags",
-        BRANCHES: "Branches",
-        AUTHOR: "Author",
-        DESCRIPTION: "Description",
-      }
-
-class ChangeSetView(gtk.TreeView):
-    def __init__(self):
-        model = apply(gtk.ListStore, COLUMNS)
-        gtk.TreeView.__init__(self, model)
-        bgnd = ["#F0F0F0", "white"]
-        for colid in [REV_ID, AGE, TAGS, BRANCHES, AUTHOR, DESCRIPTION]:
-            cell = gtk.CellRendererText()
-            tvcolumn = gtk.TreeViewColumn(LABEL[colid], cell, text=colid)
-            cell.set_property("cell-background", bgnd[colid % 2])
-            tvcolumn.set_expand(colid==DESCRIPTION)
-            self.append_column(tvcolumn)
-        self.set_headers_visible(False)
-    def set_contents(self, cset_list):
-        model = self.get_model()
-        model.clear()
-        for cset in cset_list:
-            model.append(cset)
-        self.set_headers_visible(self.get_model().iter_n_children(None) > 0)
-
-class ParentsView(ChangeSetView):
-    def __init__(self, scm_ifce):
-        ChangeSetView.__init__(self)
+class ParentsView(gutils.TableView):
+    def __init__(self, scm_ifce, set_mode=gtk.SELECTION_SINGLE, auto_refresh_on=True, auto_refresh_interval=30000):
+        gutils.TableView.__init__(self, LOG_TABLE_PRECIS_DESCR, set_mode=set_mode)
         self._scm_ifce = scm_ifce
-        self._scm_ifce.add_commit_notification_cb(self.update_after_commit)
-        self.get_selection().set_mode(gtk.SELECTION_SINGLE)
-        self.get_selection().unselect_all()
-        self._auto_update_interval = 1000
-        self._auto_update_id = None
-        self._auto_update()
-    def _auto_update(self):
-        self.update()
-        self._auto_update_id = gobject.timeout_add(self._auto_update_interval, self._auto_update)
-        return False
-    def restart_auto_update(self):
-        gobject.source_remove(self._auto_update_id)
-        self._auto_update()
-    def get_scm_ifce(self):
-        return self._scm_ifce
-    def set_scm_ifce(self, scm_ifce):
-        old_scm_ifce = self.get_scm_ifce()
-        if old_scm_ifce:
-            old_scm_ifce.del_commit_notification_cb(self.update_after_commit)
+        self._scm_ifce.add_commit_notification_cb(self.refresh_after_commit)
+        self._normal_interval = auto_refresh_interval
+        self.rtoc = gutils.RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
+        self.refresh_contents()
+        self.rtoc.set_function(self.refresh_contents)
+        self.show_all()
+    def refresh_contents(self):
+        res, parents, serr = self._scm_ifce.get_parents_data()
+        if res == cmd_result.OK:
+            desired_interval = self._normal_interval
+            self.set_contents(parents)
+            # if any parent's age is expressed in seconds then update every second
+            # they're in time order so only need to look at first one
+            if parents[0][LOG_TABLE_PRECIS_AGE].find("sec") != -1:
+                desired_interval = 1000
+            elif parents[0][LOG_TABLE_PRECIS_AGE].find("min") != -1:
+                desired_interval = 30000
+            elif parents[0][LOG_TABLE_PRECIS_AGE].find("hour") != -1:
+                    desired_interval = 1800000
+            if desired_interval is not self.rtoc.get_interval():
+                self.rtoc.set_interval(desired_interval)
+        else:
+            self.set_contents([])
+    def refresh_after_commit(self, files_in_commit=None):
+        self.rtoc.stop_cycle()
+        self.refresh_contents()
+        self.rtoc.restart_cycle()
+
+class HeadsView(gutils.TableView):
+    def __init__(self, scm_ifce, set_mode=gtk.SELECTION_SINGLE, auto_refresh_on=False, auto_refresh_interval=30000):
+        gutils.TableView.__init__(self, LOG_TABLE_PRECIS_DESCR, set_mode=set_mode)
         self._scm_ifce = scm_ifce
-        new_scm_ifce = self.get_scm_ifce()
-        if new_scm_ifce:
-            new_scm_ifce.add_commit_notification_cb(self.update_after_commit)
-        self.restart_auto_update()
-    def update(self):
-        self._auto_update_interval = 30000
-        if self._scm_ifce:
-            res, parents, serr = self._scm_ifce.get_parents_data()
-            if res == cmd_result.OK:
-                self.set_contents(parents)
-                for parent in parents:
-                    # if any parent's age is expressed in seconds then update every second
-                    if parent[AGE].find("sec") != -1:
-                        self._auto_update_interval = 1000
-                        break
-            else:
-                self.set_contents([])
-    def update_after_commit(self, files_in_commit):
-        self.restart_auto_update()
+        self._scm_ifce.add_commit_notification_cb(self.refresh_after_commit)
+        self._normal_interval = auto_refresh_interval
+        self.rtoc = gutils.RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
+        self.refresh_contents()
+        self.rtoc.set_function(self.refresh_contents)
+        self.show_all()
+    def refresh_contents(self):
+        res, heads, serr = self._scm_ifce.get_heads_data()
+        if res == cmd_result.OK:
+            desired_interval = self._normal_interval
+            self.set_contents(heads)
+            # if any head's age is expressed in seconds then update every second
+            # they're in time order so only need to look at first one
+            if heads[0][LOG_TABLE_PRECIS_AGE].find("sec") != -1:
+                desired_interval = 1000
+            elif heads[0][LOG_TABLE_PRECIS_AGE].find("min") != -1:
+                desired_interval = 30000
+            elif heads[0][LOG_TABLE_PRECIS_AGE].find("hour") != -1:
+                    desired_interval = 1800000
+            if desired_interval is not self.rtoc.get_interval():
+                self.rtoc.set_interval(desired_interval)
+        else:
+            self.set_contents([])
+    def refresh_after_commit(self, files_in_commit=None):
+        self.rtoc.stop_cycle()
+        self.refresh_contents()
+        self.rtoc.restart_cycle()
+
+TAG_TABLE_PRECIS_DESCR = \
+[
+    ["Tag", gobject.TYPE_STRING, False, []],
+    ["Rev", gobject.TYPE_INT, False, []],
+    ["Branches", gobject.TYPE_STRING, False, []],
+    ["Age", gobject.TYPE_STRING, False, []],
+    ["Author", gobject.TYPE_STRING, False, []],
+    ["Description", gobject.TYPE_STRING, True, []],
+]
+
+TAG_TABLE_PRECIS_AGE = gutils.find_label_index(TAG_TABLE_PRECIS_DESCR, "Age")
+
+class TagsView(gutils.TableView):
+    def __init__(self, scm_ifce, set_mode=gtk.SELECTION_SINGLE, auto_refresh_on=False, auto_refresh_interval=3600000):
+        gutils.TableView.__init__(self, TAG_TABLE_PRECIS_DESCR, set_mode=set_mode)
+        self._scm_ifce = scm_ifce
+        self._scm_ifce.add_commit_notification_cb(self.refresh_after_commit)
+        self._normal_interval = auto_refresh_interval
+        self.rtoc = gutils.RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
+        self.refresh_contents()
+        self.rtoc.set_function(self.refresh_contents)
+        self.show_all()
+    def refresh_contents(self):
+        res, tags, serr = self._scm_ifce.get_tags_data()
+        if res == cmd_result.OK:
+            desired_interval = self._normal_interval
+            self.set_contents(tags)
+            # if any tag's age is expressed in seconds then update every second
+            # they're in time order so only need to look at first one
+            if tags[0][TAG_TABLE_PRECIS_AGE].find("sec") != -1:
+                desired_interval = 1000
+            elif tags[0][TAG_TABLE_PRECIS_AGE].find("min") != -1:
+                desired_interval = 30000
+            elif tags[0][TAG_TABLE_PRECIS_AGE].find("hour") != -1:
+                    desired_interval = 1800000
+            if desired_interval is not self.rtoc.get_interval():
+                self.rtoc.set_interval(desired_interval)
+        else:
+            self.set_contents([])
+    def refresh_after_commit(self, files_in_commit=None):
+        self.rtoc.stop_cycle()
+        self.refresh_contents()
+        self.rtoc.restart_cycle()
+
+BRANCH_TABLE_PRECIS_DESCR = \
+[
+    ["Branch", gobject.TYPE_STRING, False, []],
+    ["Rev", gobject.TYPE_INT, False, []],
+    ["Tags", gobject.TYPE_STRING, False, []],
+    ["Age", gobject.TYPE_STRING, False, []],
+    ["Author", gobject.TYPE_STRING, False, []],
+    ["Description", gobject.TYPE_STRING, True, []],
+]
+
+BRANCH_TABLE_PRECIS_AGE = gutils.find_label_index(BRANCH_TABLE_PRECIS_DESCR, "Age")
+
+class BranchesView(gutils.TableView):
+    def __init__(self, scm_ifce, set_mode=gtk.SELECTION_SINGLE, auto_refresh_on=False, auto_refresh_interval=3600000):
+        gutils.TableView.__init__(self, BRANCH_TABLE_PRECIS_DESCR, set_mode=set_mode)
+        self._scm_ifce = scm_ifce
+        self._scm_ifce.add_commit_notification_cb(self.refresh_after_commit)
+        self._normal_interval = auto_refresh_interval
+        self.rtoc = gutils.RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
+        self.refresh_contents()
+        self.rtoc.set_function(self.refresh_contents)
+        self.show_all()
+    def refresh_contents(self):
+        res, branches, serr = self._scm_ifce.get_branches_data()
+        if res == cmd_result.OK:
+            desired_interval = self._normal_interval
+            self.set_contents(branches)
+            # if any branch's age is expressed in seconds then update every second
+            # they're in time order so only need to look at first one
+            if branches[0][BRANCH_TABLE_PRECIS_AGE].find("sec") != -1:
+                desired_interval = 1000
+            elif branches[0][BRANCH_TABLE_PRECIS_AGE].find("min") != -1:
+                desired_interval = 30000
+            elif branches[0][BRANCH_TABLE_PRECIS_AGE].find("hour") != -1:
+                    desired_interval = 1800000
+            if desired_interval is not self.rtoc.get_interval():
+                self.rtoc.set_interval(desired_interval)
+        else:
+            self.set_contents([])
+    def refresh_after_commit(self, files_in_commit=None):
+        self.rtoc.stop_cycle()
+        self.refresh_contents()
+        self.rtoc.restart_cycle()
 

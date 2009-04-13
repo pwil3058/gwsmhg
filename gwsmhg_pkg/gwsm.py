@@ -28,9 +28,10 @@ GWSM_UI_DESCR = \
 </ui>
 '''
 
-class gwsm(gtk.Window):
+class gwsm(gtk.Window, gutils.BusyIndicator):
     def __init__(self, scm_ifce):
         gtk.Window.__init__(self, gtk.WINDOW_TOPLEVEL)
+        gutils.BusyIndicator.__init__(self)
         self.connect("destroy", self._quit)
         self._action_group = gtk.ActionGroup("gwsm")
         self._action_group.add_actions(
@@ -52,8 +53,15 @@ class gwsm(gtk.Window):
         self._parent_view = change_set.ParentsView(self._scm_ifce)
         self._file_tree_widget = file_tree.ScmCwdFilesWidget(scm_ifce=self._scm_ifce,
             console_log=self._console_log, tooltips=self._tooltips)
-        self._dummy_editor = gtk.Label("Tabbed Data Go Here")
-        self._dummy_editor.set_size_request(640, 240)
+        self._notebook = gtk.Notebook()
+        self._notebook.set_size_request(640, 240)
+        self._heads_view = change_set.HeadsView(self._scm_ifce)
+        self._notebook.append_page(gutils.wrap_in_scrolled_window(self._heads_view), gtk.Label("Heads"))
+        self._tags_view = change_set.TagsView(self._scm_ifce)
+        self._notebook.append_page(gutils.wrap_in_scrolled_window(self._tags_view), gtk.Label("Tags"))
+        self._branches_view = change_set.BranchesView(self._scm_ifce)
+        self._notebook.append_page(gutils.wrap_in_scrolled_window(self._branches_view), gtk.Label("Branches"))
+        self._notebook.append_page(gtk.Label("MQ controls go here"), gtk.Label("MQ"))
         # Now lay the widgets out
         vbox = gtk.VBox()
         vbox.pack_start(self._menubar, expand=False)
@@ -63,7 +71,7 @@ class gwsm(gtk.Window):
         hpane.add1(self._file_tree_widget)
         vpane = gtk.VPaned()
         hpane.add2(vpane)
-        vpane.add1(self._dummy_editor)
+        vpane.add1(self._notebook)
         vpane.add2(self._console_log)
         self.add(vbox)
         self.show_all()
@@ -74,6 +82,7 @@ class gwsm(gtk.Window):
     def _update_title(self):
         self.set_title("%s: %s" % (self._scm_ifce.name, os.getcwd()))
     def _change_wd(self, newdir=None):
+        self._show_busy()
         if newdir:
             os.chdir(newdir)
         else:
@@ -83,16 +92,21 @@ class gwsm(gtk.Window):
         if newrootdir and newrootdir != newdir:
             os.chdir(newrootdir)
         self._console_log.append_entry("New Working Directory: %s" % os.getcwd())
-        self._parent_view.restart_auto_update()
+        self._parent_view.refresh_after_commit()
+        self._heads_view.refresh_after_commit()
+        self._tags_view.refresh_after_commit()
+        self._branches_view.refresh_after_commit()
         self._file_tree_widget.file_tree.repopulate_tree()
         self._update_title()
+        self._unshow_busy()
     def _change_wd_acb(self, action=None):
         dialog = gtk.FileChooserDialog("New Directory", self, gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER,
                                        (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
         dialog.set_default_response(gtk.RESPONSE_OK)
         dialog.set_current_folder(os.getcwd())
         response = dialog.run()
-        if response == gtk.RESPONSE_OK:
-            self._change_wd(dialog.get_filename())
+        dirname = dialog.get_filename()
         dialog.destroy()
+        if response == gtk.RESPONSE_OK:
+            self._change_wd(dirname)
 
