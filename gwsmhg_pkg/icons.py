@@ -29,7 +29,7 @@ if not os.path.exists(libdir) or not os.path.isdir(libdir):
         libdir = os.path.join(prefix, tailend)
         if os.path.exists(libdir) and os.path.isdir(libdir):
             break
-        prefix = os.path.dirname(libdir)
+        prefix = os.path.dirname(prefix)
 
 factory = gtk.IconFactory()
 
