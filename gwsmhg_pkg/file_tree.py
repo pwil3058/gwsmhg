@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import os, os.path, tempfile, gtk, gtk.gdk
-from gwsmhg_pkg import utils, text_edit, cmd_result, diff, console, gutils
+from gwsmhg_pkg import utils, text_edit, cmd_result, diff, console, gutils, icons
 import gtksourceview
 
 IGNORED = 0
@@ -873,11 +873,11 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                  "Remove the selected file(s) from the repository", self.remove_selected_files_acb),
                 ("scm_add_files", gtk.STOCK_ADD, "_Add", None,
                  "Add the selected file(s) to the repository", self.add_selected_files_to_repo_acb),
-                ("scm_commit_files_selection", gtk.STOCK_APPLY, "_Commit", None,
+                ("scm_commit_files_selection", icons.STOCK_COMMIT, "_Commit", None,
                  "Commit changes for selected file(s)", self.commit_selected_files_acb),
                 ("scm_copy_files_selection", gtk.STOCK_COPY, "_Copy", None,
                  "Copy the selected file(s)", self.copy_selected_files_acb),
-                ("scm_diff_files_selection", gtk.STOCK_APPLY, "_Diff", None,
+                ("scm_diff_files_selection", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for selected file(s)", self.diff_selected_files_acb),
                 ("scm_move_files_selection", gtk.STOCK_PASTE, "_Move/Rename", None,
                  "Move the selected file(s)", self.move_selected_files_acb),
@@ -893,9 +893,9 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             [
                 ("scm_add_files_all", gtk.STOCK_ADD, "_Add all", None,
                  "Add all files to the repository", self.add_all_files_to_repo_acb),
-                ("scm_commit_files_all", gtk.STOCK_APPLY, "_Commit", None,
+                ("scm_commit_files_all", icons.STOCK_COMMIT, "_Commit", None,
                  "Commit all changes", self.commit_all_changes_acb),
-                ("scm_diff_files_all", gtk.STOCK_APPLY, "_Diff", None,
+                ("scm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for all changes", self.diff_selected_files_acb),
                 ("scm_revert_files_all", gtk.STOCK_UNDO, "Rever_t", None,
                  "Revert all changes in working directory", self.revert_all_files_acb),
