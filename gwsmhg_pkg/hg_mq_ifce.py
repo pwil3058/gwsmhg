@@ -78,10 +78,41 @@ class SCMInterface(console.ConsoleLogUser):
         return root.strip()
     def is_repository(self, dir=None):
         return self.get_root(dir) != None
+    def _get_qbase(self):
+        res, rev, serr = utils.run_cmd('hg log --template "{rev}" -r qbase')
+        if not res:
+            return rev
+        return None
+    def get_parents(self, rev=None):
+        cmd = os.linesep.join(['hg parents --template "{rev}', '"'])
+        if not rev:
+            qbase = self._get_qbase()
+            if qbase:
+                rev = qbase
+        if rev:
+            cmd += " -r %s" % rev
+        res, sout, serr = utils.run_cmd(cmd)
+        if res or not sout:
+            revs = [sout]
+        else:
+            revs = []
+            for line in sout.splitlines(False):
+                revs.append(line)
+        return (res, revs, serr)
+    def _get_qbase_parents(self):
+        res, parents, serr = self.get_parents("qbase")
+        if res:
+            # probably should pop up a problem report
+            return []
+        else:
+            return parents
     def get_file_status_lists(self, fspath_list=[], *revs):
         cmd = "hg status -marduiC"
-        for rev in revs:
-            cmd += " --rev %s" % rev
+        if not revs:
+            revs = self._get_qbase_parents()
+        if revs:
+            for rev in revs:
+                cmd += " --rev %s" % rev
         if fspath_list:
             cmd += " %s" % " ".join(fspath_list)
         res, sout, serr = utils.run_cmd(cmd)
@@ -116,8 +147,12 @@ class SCMInterface(console.ConsoleLogUser):
                 if serr.find(force_suggested) != -1 or sout.find(force_suggested) != -1:
                     outres += cmd_result.SUGGEST_FORCE
         return (outres, sout, serr)
-    def get_parents(self, rev=None):
-        cmd = 'hg parents --template "{rev}:{date|age}:{tags}:{branches}:{author|person}:{desc|firstline}' +os.linesep + '"'
+    def get_parents_data(self, rev=None):
+        cmd = 'hg parents --template "{rev}:{date|age}:{tags}:{branches}:{author|person}:{desc|firstline}' + os.linesep + '"'
+        if not rev:
+            qbase = self._get_qbase()
+            if qbase:
+                rev = qbase
         if rev:
             cmd += " --rev %s" % str(rev)
         res, sout, serr = utils.run_cmd(cmd)
@@ -198,12 +233,12 @@ class SCMInterface(console.ConsoleLogUser):
             return self._map_result(utils.run_cmd(cmd), stdout_is_data=True)
         else:
             return self._run_cmd_on_console(cmd)
-    def diff_files(self, file_list, rev1=None, rev2=None):
-        cmd = "hg diff "
-        if rev1:
-            cmd += "--rev %s " % rev1
-        if rev2:
-            cmd += "--rev %s " % rev2
+    def get_diff_for_files(self, file_list, fromrev, torev=None):
+        # because of the likelihood of a multiple parents we'll never use the
+        # zero rev option so fromrev is compulsory
+        cmd = "hg diff --rev %s " % fromrev
+        if torev:
+            cmd += "--rev %s " % torev
         if file_list:
             cmd += " ".join(file_list)
         res, sout, serr = utils.run_cmd(cmd)

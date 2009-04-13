@@ -84,7 +84,7 @@ class ParentsView(ChangeSetView):
     def update(self):
         self._auto_update_interval = 30000
         if self._scm_ifce:
-            res, parents, serr = self._scm_ifce.get_parents()
+            res, parents, serr = self._scm_ifce.get_parents_data()
             if res == cmd_result.OK:
                 self.set_contents(parents)
                 for parent in parents:

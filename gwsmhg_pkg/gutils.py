@@ -96,10 +96,16 @@ class PopupUser:
         self._gtk_window = None
     def _get_gtk_window(self):
         if not self._gtk_window:
-            temp = self.get_parent()
+            try:
+                temp = self.get_parent()
+            except:
+                return None
             while temp:
                 self._gtk_window = temp
-                temp = temp.get_parent()
+                try:
+                    temp = temp.get_parent()
+                except:
+                    return None
         return self._gtk_window
 
 class TooltipsUser:
