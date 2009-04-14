@@ -652,7 +652,7 @@ class FileTreeView(_ViewWithActionGroups, gutils.PopupUser):
     def get_selected_files(self):
         store, selection = self.get_selection().get_selected_rows()
         return [store.fs_path(store.get_iter(x)) for x in selection]
-    def add_selected_files_to_keyboard(self, clipboard=None):
+    def add_selected_files_to_clipboard(self, clipboard=None):
         if not clipboard:
             clipboard = gtk.clipboard_get(gtk.gdk.SELECTION_CLIPBOARD)
         sel = " ".join(self.get_selected_files())
@@ -660,7 +660,7 @@ class FileTreeView(_ViewWithActionGroups, gutils.PopupUser):
     def _key_press_cb(self, widget, event):
         if event.state == gtk.gdk.CONTROL_MASK:
             if event.keyval in [_KEYVAL_c, _KEYVAL_C]:
-                self.add_selected_files_to_keyboard()
+                self.add_selected_files_to_clipboard()
                 return True
         return False
     def repopulate_tree(self):
