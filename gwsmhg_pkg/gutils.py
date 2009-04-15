@@ -60,6 +60,32 @@ def ask_file_name(prompt, suggestion=None, existing=True, parent=None):
     dialog.destroy()
     return new_file_name
 
+def ask_dir_name(prompt, suggestion=None, existing=True, parent=None):
+    if existing:
+        mode = gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER
+        if suggestion and not os.path.exists(suggestion):
+            suggestion = None
+    else:
+        mode = gtk.FILE_CHOOSER_ACTION_CREATE_FOLDER
+    dialog = gtk.FileChooserDialog(prompt, parent, mode,
+                                   (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                    gtk.STOCK_OK, gtk.RESPONSE_OK))
+    dialog.set_default_response(gtk.RESPONSE_OK)
+    if suggestion:
+        if os.path.isdir(suggestion):
+            dialog.set_current_folder(suggestion)
+        else:
+            dirname = os.path.dirname(suggestion)
+            if dirname:
+                dialog.set_current_folder(dirname)
+    response = dialog.run()
+    if response == gtk.RESPONSE_OK:
+        new_dir_name = dialog.get_filename()
+    else:
+        new_dir_name = None
+    dialog.destroy()
+    return new_dir_name
+
 def ask_question(question, parent=None, buttons=gtk.BUTTONS_OK_CANCEL):
     dialog = gtk.MessageDialog(parent=parent,
                             flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
@@ -308,11 +334,13 @@ def find_label_index(descr, label):
 #]
 
 class TableView(gtk.TreeView):
-    def __init__(self, descr, set_mode=gtk.SELECTION_SINGLE):
+    def __init__(self, descr, set_mode=gtk.SELECTION_SINGLE, perm_headers=False):
         model = apply(gtk.ListStore, self._get_type_list(descr))
+        self._perm_headers = perm_headers
         gtk.TreeView.__init__(self, model)
-        bgnd = ["#F0F0F0", "white"]
-        for colid in range(len(descr)):
+        bgnd = ["white", "#F0F0F0"]
+        self._ncols = len(descr)
+        for colid in range(self._ncols):
             col_d = descr[colid]
             cell = gtk.CellRendererText()
             tvcolumn = gtk.TreeViewColumn(col_d[ROW_LABEL], cell, text=colid)
@@ -321,7 +349,7 @@ class TableView(gtk.TreeView):
                 cell.set_property(prop[PROPERTY_NAME], prop[PROPERTY_VALUE])
             tvcolumn.set_expand(col_d[ROW_EXPAND])
             self.append_column(tvcolumn)
-        self.set_headers_visible(False)
+        self.set_headers_visible(perm_headers)
         self.get_selection().set_mode(gtk.SELECTION_SINGLE)
         self.get_selection().unselect_all()
     def _get_type_list(self, descr):
@@ -334,5 +362,28 @@ class TableView(gtk.TreeView):
         model.clear()
         for cset in cset_list:
             model.append(cset)
-        self.set_headers_visible(self.get_model().iter_n_children(None) > 0)
+        if not self._perm_headers:
+            self.set_headers_visible(self.get_model().iter_n_children(None) > 0)
+        self.get_selection().unselect_all()
+    def get_contents(self):
+        list = []
+        store = self.get_model()
+        iter = store.get_iter_first()
+        while iter:
+            row = []
+            for index in range(self._ncols):
+                row.append(store.get_value(iter, index))
+            list.append(row)
+            iter = store.iter_next(iter)
+        return list
+    def get_selected_data(self, columns):
+        store, selection = self.get_selection().get_selected_rows()
+        list = []
+        for row in selection:
+            iter = store.get_iter(row)
+            row_data = []
+            for col in columns:
+                row_data.append(store.get_value(iter, col))
+            list.append(row_data)
+        return list
 

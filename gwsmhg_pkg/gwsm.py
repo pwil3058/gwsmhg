@@ -13,8 +13,135 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, gtk
-from gwsmhg_pkg import console, change_set, file_tree, gutils
+import os, gtk, gobject, sys
+from gwsmhg_pkg import console, change_set, file_tree, gutils, utils
+
+WS_TABLE_DESCR = \
+[
+    ["Alias", gobject.TYPE_STRING, True, [("editable", True)]],
+    ["Path", gobject.TYPE_STRING, True, []],
+]
+
+WS_PATH = gutils.find_label_index(WS_TABLE_DESCR, "Path")
+WS_ALIAS = gutils.find_label_index(WS_TABLE_DESCR, "Alias")
+
+GSWMHG_D_NAME = os.sep.join([utils.HOME, ".gwsmhg.d"])
+SAVED_WS_FILE_NAME = os.sep.join([GSWMHG_D_NAME, "workspaces"]) 
+
+if not os.path.exists(GSWMHG_D_NAME):
+    os.mkdir(GSWMHG_D_NAME, 0775)
+
+class WSPathView(gutils.TableView):
+    def __init__(self):
+        gutils.TableView.__init__(self, WS_TABLE_DESCR,
+                                  set_mode=gtk.SELECTION_SINGLE,
+                                  perm_headers=True)
+        self._alias_ctr = self.get_column(WS_ALIAS).get_cell_renderers()[0]
+        self._alias_ctr.connect("edited", self._edited_cb, self.get_model())
+        model = self.get_model()
+#        model.set_sort_func(WS_ALIAS, self._sort_func, WS_ALIAS)
+#        model.set_sort_func(WS_PATH, self._sort_func, WS_PATH)
+        self.read_saved_ws_file()
+#        model.set_sort_column_id(WS_ALIAS, gtk.SORT_ASCENDING)
+#        self.set_headers_clickable(True)
+#    def _sort_func(self, model, iter1, iter2, index):
+#        v1 = model.get_value(iter1, index)
+#        v2 = model.get_value(iter2, index)
+#        if v1 < v2:
+#            return -1
+#        elif v1 > v2:
+#            return 1
+#        else:
+#            return 0
+    def read_saved_ws_file(self):
+        valid_ws_list = []
+        if not os.path.exists(SAVED_WS_FILE_NAME):
+            self.set_contents([])
+            return
+        file = open(SAVED_WS_FILE_NAME, 'r')
+        lines = file.readlines()
+        file.close()
+        for line in lines:
+            data = line.strip().split(os.pathsep, 1)
+            if os.path.exists(os.path.expanduser(data[WS_PATH])):
+                valid_ws_list.append(data)
+        self.set_contents(valid_ws_list)
+        self._write_list_to_file(valid_ws_list)
+        self.get_selection().unselect_all()
+    def _write_list_to_file(self, list):
+        file = open(SAVED_WS_FILE_NAME, 'w')
+        for ws in list:
+            file.write(os.pathsep.join(ws))
+            file.write(os.linesep)
+        file.close()
+    def add_ws(self, path, alias=""):
+        if os.path.exists(path):
+            store = self.get_model()
+            iter = store.get_iter_first()
+            while iter:
+                if os.path.samefile(os.path.expanduser(store.get_value(iter, WS_PATH)), path):
+                    if alias:
+                        store.set_value(iter, WS_ALIAS, alias)
+                    return
+                iter = store.iter_next(iter)
+            if not alias:
+                alias = os.path.basename(path)
+            data = ["",""]
+            data[WS_PATH] = utils.path_rel_home(path)
+            data[WS_ALIAS] = alias
+            store.append(data)
+            self.save_to_file()
+    def save_to_file(self):
+        list = self.get_contents()
+        self._write_list_to_file(list)
+    def get_selected_ws(self):
+        data = self.get_selected_data([WS_PATH, WS_ALIAS])
+        return data[0]
+    def _edited_cb(self, cell, path, new_text, model):
+        model[path][WS_ALIAS] = new_text
+        self.save_to_file()
+
+class WSOpenDialog(gtk.Dialog, gutils.BusyIndicator):
+    def __init__(self, parent=None):
+        gutils.BusyIndicator.__init__(self)
+        gtk.Dialog.__init__(self, title="gwsmg: Select Workspace/Directory", parent=parent,
+                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
+                            buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                    gtk.STOCK_OK, gtk.RESPONSE_OK)
+                           )
+        hbox = gtk.HBox()
+        self.path_view = WSPathView()
+        self.path_view.get_selection().connect("changed", self._selection_cb)
+        hbox.pack_start(gutils.wrap_in_scrolled_window(self.path_view))
+        self._select_button = gtk.Button(label="_Select")
+        self._select_button.connect("clicked", self._select_cb)
+        hbox.pack_start(self._select_button, expand=False, fill=False)
+        self.vbox.pack_start(hbox)
+        hbox = gtk.HBox()
+        hbox.pack_start(gtk.Label("Directory:"))
+        self._path = gutils.EntryWithHistory()
+        self._path.set_width_chars(32)
+        self._path.connect("activate", self._path_cb)
+        hbox.pack_start(self._path, expand=True, fill=True)
+        self._browse_button = gtk.Button(label="_Browse")
+        self._browse_button.connect("clicked", self._browse_cb)
+        hbox.pack_start(self._browse_button, expand=False, fill=False)
+        self.vbox.pack_start(hbox, expand=False, fill=False)
+        self.show_all()
+        self.path_view.get_selection().unselect_all()
+    def _selection_cb(self, selection=None):
+        self._select_button.set_sensitive(selection.count_selected_rows())
+    def _select_cb(self, button=None):
+        path = self.path_view.get_selected_ws()
+        self._path.set_text(path[0])
+    def _path_cb(self, entry=None):
+        self.response(gtk.RESPONSE_OK)
+    def _browse_cb(self, button=None):
+        dirname = gutils.ask_dir_name("gwsnhg: Browse for Directory", existing=True, parent=self)
+        if dirname:
+            self._path.set_text(utils.path_rel_home(dirname))
+    def get_path(self):
+        return os.path.expanduser(self._path.get_text())
 
 GWSM_UI_DESCR = \
 '''
@@ -50,6 +177,27 @@ class gwsm(gtk.Window, gutils.BusyIndicator):
         self._tooltips.enable()
         self._console_log = console.ConsoleLog(scm_ifce, tooltips=self._tooltips)
         self._scm_ifce = self._console_log.get_scm_ifce()
+        # see if we're in a valid work space and if not offer a selection
+        rootdir = self._scm_ifce.get_root()
+        if not rootdir:
+            open_dialog = WSOpenDialog()
+            if open_dialog.run() == gtk.RESPONSE_OK:
+                path = open_dialog.get_path()
+                if path:
+                    try:
+                        os.chdir(path)
+                        rootdir = self._scm_ifce.get_root()
+                        if rootdir:
+                            os.chdir(rootdir)
+                            open_dialog.path_view.add_ws(rootdir)
+                    except:
+                        pass
+            else:
+                sys.exit()
+            open_dialog._show_busy()
+        else:
+            os.chdir(rootdir)
+            open_dialog = None # we need this later
         self._parent_view = change_set.ParentsView(self._scm_ifce)
         self._file_tree_widget = file_tree.ScmCwdFilesWidget(scm_ifce=self._scm_ifce,
             console_log=self._console_log, tooltips=self._tooltips)
@@ -77,12 +225,14 @@ class gwsm(gtk.Window, gutils.BusyIndicator):
         self.show_all()
         self._update_title()
         self._parent_view.get_selection().unselect_all()
+        if open_dialog:
+            open_dialog._unshow_busy()
+            open_dialog.destroy()
     def _quit(self, widget):
         gtk.main_quit()
     def _update_title(self):
         self.set_title("%s: %s" % (self._scm_ifce.name, os.getcwd()))
     def _change_wd(self, newdir=None):
-        self._show_busy()
         if newdir:
             os.chdir(newdir)
         else:
@@ -91,6 +241,8 @@ class gwsm(gtk.Window, gutils.BusyIndicator):
         newrootdir = self._scm_ifce.get_root()
         if newrootdir and newrootdir != newdir:
             os.chdir(newrootdir)
+    def _reset_after_cd(self):
+        self._show_busy()
         self._console_log.append_entry("New Working Directory: %s" % os.getcwd())
         self._parent_view.refresh_after_commit()
         self._heads_view.refresh_after_commit()
@@ -100,13 +252,22 @@ class gwsm(gtk.Window, gutils.BusyIndicator):
         self._update_title()
         self._unshow_busy()
     def _change_wd_acb(self, action=None):
-        dialog = gtk.FileChooserDialog("New Directory", self, gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER,
-                                       (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
-        dialog.set_default_response(gtk.RESPONSE_OK)
-        dialog.set_current_folder(os.getcwd())
-        response = dialog.run()
-        dirname = dialog.get_filename()
-        dialog.destroy()
-        if response == gtk.RESPONSE_OK:
-            self._change_wd(dirname)
+        open_dialog = WSOpenDialog(parent=self)
+        if open_dialog.run() == gtk.RESPONSE_OK:
+            path = open_dialog.get_path()
+            if not path:
+                open_dialog.destroy()
+            else:
+                old_path = os.getcwd()
+                os.chdir(path)
+                rootdir = self._scm_ifce.get_root()
+                if rootdir:
+                    os.chdir(rootdir)
+                    open_dialog.path_view.add_ws(rootdir)
+                    path = rootdir
+                open_dialog.destroy()
+                if not os.path.samefile(old_path, os.path.expanduser(path)):
+                    self._reset_after_cd()
+        else:
+            open_dialog.destroy()
 

@@ -17,6 +17,15 @@
 
 import subprocess, os, signal, errno, gtk, select
 
+HOME = os.path.expanduser("~")
+
+def path_rel_home(path):
+    path = os.path.abspath(path)
+    len_home = len(HOME)
+    if len(path) >= len_home and HOME == path[:len_home]:
+        path = "~" + path[len_home:]
+    return path
+
 def run_cmd(cmd):
     if not cmd:
         return [ 0, None, None ]
