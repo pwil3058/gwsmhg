@@ -517,6 +517,9 @@ UNIQUE_SELECTION = "sel_unique"
 SELECTION = "sel_made"
 SELECTION_AGNOSTIC = "sel_agnostic"
 
+NO_SELECTION_NOT_PATCHED = "sel_none_not_patched"
+SELECTION_NOT_PATCHED = "sel_made_not_patched" 
+
 class _ViewWithActionGroups(gtk.TreeView, gutils.BusyIndicator, gutils.TooltipsUser):
     def __init__(self, model=None, tooltips=None):
         gutils.TooltipsUser.__init__(self, tooltips)
@@ -525,6 +528,9 @@ class _ViewWithActionGroups(gtk.TreeView, gutils.BusyIndicator, gutils.TooltipsU
         self._ui_manager = gtk.UIManager()
         self._action_group = {}
         for sel_condition in NO_SELECTION, UNIQUE_SELECTION, SELECTION, SELECTION_AGNOSTIC:
+            self._action_group[sel_condition] = gtk.ActionGroup(sel_condition)
+            self._ui_manager.insert_action_group(self._action_group[sel_condition], -1)
+        for sel_condition in NO_SELECTION_NOT_PATCHED, SELECTION_NOT_PATCHED:
             self._action_group[sel_condition] = gtk.ActionGroup(sel_condition)
             self._ui_manager.insert_action_group(self._action_group[sel_condition], -1)
         self._action_group[SELECTION_AGNOSTIC].add_action(model.show_hidden_action)
@@ -572,9 +578,13 @@ UI_DESCR = \
     <separator/>
     <placeholder name="selection"/>
     <separator/>
+    <placeholder name="selection_not_patched"/>
+    <separator/>
     <placeholder name="unique_selection"/>
     <separator/>
     <placeholder name="no_selection"/>
+    <separator/>
+    <placeholder name="no_selection_not_patched"/>
     <separator/>
   </popup>
   <toolbar name="files_housekeeping_toolbar">
@@ -685,9 +695,13 @@ CWD_UI_DESCR = \
       <menuitem action="delete_files"/>
     </placeholder>
     <separator/>
+    <placeholder name="selection_not_patched"/>
+    <separator/>
     <placeholder name="unique_selection"/>
     <separator/>
     <placeholder name="no_selection"/>
+    <separator/>
+    <placeholder name="no_selection_not_patched"/>
     <separator/>
     <menuitem action="show_hidden_files"/>
   </popup>
@@ -843,19 +857,23 @@ SCM_CWD_UI_DESCR = \
       <menuitem action="delete_files"/>
       <menuitem action="scm_add_files"/>
       <menuitem action="scm_remove_files"/>
-      <menuitem action="scm_commit_files_selection"/>
       <menuitem action="scm_copy_files_selection"/>
       <menuitem action="scm_diff_files_selection"/>
       <menuitem action="scm_move_files_selection"/>
+    </placeholder>
+    <placeholder name="selection_not_patched">
       <menuitem action="scm_revert_files_selection"/>
+      <menuitem action="scm_commit_files_selection"/>
     </placeholder>
     <placeholder name="unique_selection">
       <menuitem action="scm_rename_file"/>
     </placeholder>
     <placeholder name="no_selection">
-      <menuitem action="scm_commit_files_all"/>
       <menuitem action="scm_diff_files_all"/>
+    </placeholder>
+    <placeholder name="no_selection_not_patched">
       <menuitem action="scm_revert_files_all"/>
+      <menuitem action="scm_commit_files_all"/>
     </placeholder>
   </popup>
 </ui>
@@ -863,9 +881,9 @@ SCM_CWD_UI_DESCR = \
 
 class ScmCwdFileTreeView(CwdFileTreeView):
     def __init__(self, scm_ifce, tooltips=None, auto_refresh=False, show_hidden=False, console_log=None):
-        scm_ifce.set_console_log(console_log)
-        model = ScmCwdFileTreeStore(scm_ifce=scm_ifce, show_hidden=show_hidden)
-        model.get_scm_ifce().add_commit_notification_cb(self.update_after_commit)
+        self._scm_ifce = scm_ifce
+        model = ScmCwdFileTreeStore(scm_ifce=self._scm_ifce, show_hidden=show_hidden)
+        self._scm_ifce.add_commit_notification_cb(self.update_after_commit)
         CwdFileTreeView.__init__(self, model=model, tooltips=tooltips, auto_refresh=auto_refresh, console_log=console_log, show_status=True)
         self._action_group[SELECTION].add_actions(
             [
@@ -873,16 +891,19 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                  "Remove the selected file(s) from the repository", self.remove_selected_files_acb),
                 ("scm_add_files", gtk.STOCK_ADD, "_Add", None,
                  "Add the selected file(s) to the repository", self.add_selected_files_to_repo_acb),
-                ("scm_commit_files_selection", icons.STOCK_COMMIT, "_Commit", None,
-                 "Commit changes for selected file(s)", self.commit_selected_files_acb),
                 ("scm_copy_files_selection", gtk.STOCK_COPY, "_Copy", None,
                  "Copy the selected file(s)", self.copy_selected_files_acb),
                 ("scm_diff_files_selection", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for selected file(s)", self.diff_selected_files_acb),
                 ("scm_move_files_selection", gtk.STOCK_PASTE, "_Move/Rename", None,
                  "Move the selected file(s)", self.move_selected_files_acb),
+            ])
+        self._action_group[SELECTION_NOT_PATCHED].add_actions(
+            [
                 ("scm_revert_files_selection", gtk.STOCK_UNDO, "Rever_t", None,
                  "Revert changes in the selected file(s)", self.revert_selected_files_acb),
+                ("scm_commit_files_selection", icons.STOCK_COMMIT, "_Commit", None,
+                 "Commit changes for selected file(s)", self.commit_selected_files_acb),
             ])
         self._action_group[UNIQUE_SELECTION].add_actions(
             [
@@ -893,18 +914,30 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             [
                 ("scm_add_files_all", gtk.STOCK_ADD, "_Add all", None,
                  "Add all files to the repository", self.add_all_files_to_repo_acb),
-                ("scm_commit_files_all", icons.STOCK_COMMIT, "_Commit", None,
-                 "Commit all changes", self.commit_all_changes_acb),
                 ("scm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for all changes", self.diff_selected_files_acb),
+            ])
+        self._action_group[NO_SELECTION_NOT_PATCHED].add_actions(
+            [
                 ("scm_revert_files_all", gtk.STOCK_UNDO, "Rever_t", None,
                  "Revert all changes in working directory", self.revert_all_files_acb),
+                ("scm_commit_files_all", icons.STOCK_COMMIT, "_Commit", None,
+                 "Commit all changes", self.commit_all_changes_acb),
             ])
         self._action_group[SELECTION_AGNOSTIC].add_actions(
             [
                 ("menu_files", None, "_Files"),
             ])
         self.cwd_merge_id = self._ui_manager.add_ui_from_string(SCM_CWD_UI_DESCR)
+    def _selection_changed_cb(self, selection):
+        if self._scm_ifce.get_patches_applied():
+            self._action_group[NO_SELECTION_NOT_PATCHED].set_sensitive(False)
+            self._action_group[SELECTION_NOT_PATCHED].set_sensitive(False)
+        else:
+            sel_sz = selection.count_selected_rows()
+            self._action_group[NO_SELECTION_NOT_PATCHED].set_sensitive(sel_sz == 0)
+            self._action_group[SELECTION_NOT_PATCHED].set_sensitive(sel_sz > 0)
+        _ViewWithActionGroups._selection_changed_cb(self, selection)
     def get_scm_name(self):
         return self.get_model().get_scm_ifce().name
     def get_scm_ifce(self):

@@ -42,6 +42,8 @@ class SCMInterface(console.ConsoleLogUser):
         self._name_envars = DEFAULT_NAME_EVARS
         self._email_envars = DEFAULT_EMAIL_VARS
         self._commit_notification_cbs = []
+    def get_patches_applied(self):
+        return False
     def get_default_commit_save_file(self):
         return os.path.join(".hg", "gwsmhg.saved.commit")
     def get_status_row_data(self):
