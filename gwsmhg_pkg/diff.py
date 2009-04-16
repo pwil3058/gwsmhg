@@ -263,7 +263,7 @@ class DiffTextDialog(gtk.Dialog):
             flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
         else:
             flags = gtk.DIALOG_DESTROY_WITH_PARENT
-        title = "diff: %s" % os.getcwd()
+        title = "diff: %s" % utils.path_rel_home(os.getcwd())
         mutable = torev is None
         if fromrev:
             parents = [fromrev]

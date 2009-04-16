@@ -137,7 +137,7 @@ class WSOpenDialog(gtk.Dialog, gutils.BusyIndicator):
     def _path_cb(self, entry=None):
         self.response(gtk.RESPONSE_OK)
     def _browse_cb(self, button=None):
-        dirname = gutils.ask_dir_name("gwsnhg: Browse for Directory", existing=True, parent=self)
+        dirname = gutils.ask_dir_name("gwsmhg: Browse for Directory", existing=True, parent=self)
         if dirname:
             self._path.set_text(utils.path_rel_home(dirname))
     def get_path(self):
@@ -231,7 +231,7 @@ class gwsm(gtk.Window, gutils.BusyIndicator):
     def _quit(self, widget):
         gtk.main_quit()
     def _update_title(self):
-        self.set_title("%s: %s" % (self._scm_ifce.name, os.getcwd()))
+        self.set_title("gwsm%s: %s" % (self._scm_ifce.name, utils.path_rel_home(os.getcwd())))
     def _change_wd(self, newdir=None):
         if newdir:
             os.chdir(newdir)

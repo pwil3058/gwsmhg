@@ -1296,7 +1296,7 @@ class ScmCommitDialog(gtk.Dialog):
             flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
         else:
             flags = gtk.DIALOG_DESTROY_WITH_PARENT
-        gtk.Dialog.__init__(self, "Commit Changes: %s" % os.getcwd(), parent, flags,
+        gtk.Dialog.__init__(self, "Commit Changes: %s" % utils.path_rel_home(os.getcwd()), parent, flags,
             (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
         self.commit_widget = ScmCommitWidget(scm_ifce=scm_ifce, tooltips=None, file_mask=filelist)
         self.vbox.pack_start(self.commit_widget)
