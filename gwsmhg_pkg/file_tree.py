@@ -221,6 +221,8 @@ class FileTreeStore(gtk.TreeStore, RowDataUser):
         if parent_iter is None:
             return name
         else:
+            if name is None:
+                return "name was none"
             return os.path.join(self.fs_path(parent_iter), name)
     def fs_path_list(self, iter_list):
         return [self.fs_path(fsobj_iter) for fsobj_iter in iter_list]
@@ -515,7 +517,7 @@ class ConditionalImageMenuItem(gtk.ImageMenuItem, ConditionalSensitivity):
 NO_SELECTION = "sel_none"
 UNIQUE_SELECTION = "sel_unique"
 SELECTION = "sel_made"
-SELECTION_AGNOSTIC = "sel_agnostic"
+SELECTION_INDIFFERENT = "sel_indifferent"
 
 NO_SELECTION_NOT_PATCHED = "sel_none_not_patched"
 SELECTION_NOT_PATCHED = "sel_made_not_patched" 
@@ -527,13 +529,13 @@ class _ViewWithActionGroups(gtk.TreeView, gutils.BusyIndicator, gutils.TooltipsU
         gtk.TreeView.__init__(self, model)
         self._ui_manager = gtk.UIManager()
         self._action_group = {}
-        for sel_condition in NO_SELECTION, UNIQUE_SELECTION, SELECTION, SELECTION_AGNOSTIC:
+        for sel_condition in NO_SELECTION, UNIQUE_SELECTION, SELECTION, SELECTION_INDIFFERENT:
             self._action_group[sel_condition] = gtk.ActionGroup(sel_condition)
             self._ui_manager.insert_action_group(self._action_group[sel_condition], -1)
         for sel_condition in NO_SELECTION_NOT_PATCHED, SELECTION_NOT_PATCHED:
             self._action_group[sel_condition] = gtk.ActionGroup(sel_condition)
             self._ui_manager.insert_action_group(self._action_group[sel_condition], -1)
-        self._action_group[SELECTION_AGNOSTIC].add_action(model.show_hidden_action)
+        self._action_group[SELECTION_INDIFFERENT].add_action(model.show_hidden_action)
         self.get_selection().connect("changed", self._selection_changed_cb)
         self.connect("button_press_event", self._handle_button_press_cb)
         # Initialize the action groups sensitivity
@@ -574,7 +576,7 @@ UI_DESCR = \
 '''
 <ui>
   <popup name="files_popup">
-    <placeholder name="selection_agnostic"/>
+    <placeholder name="selection_indifferent"/>
     <separator/>
     <placeholder name="selection"/>
     <separator/>
@@ -617,15 +619,15 @@ class FileTreeView(_ViewWithActionGroups, gutils.PopupUser):
         self.auto_refresh_action.connect("toggled", self._toggle_auto_refresh_cb)
         self.auto_refresh_action.set_menu_item_type(gtk.CheckMenuItem)
         self.auto_refresh_action.set_tool_item_type(gtk.ToggleToolButton)
-        self._action_group[SELECTION_AGNOSTIC].add_action(self.auto_refresh_action)
-        self._action_group[SELECTION_AGNOSTIC].add_actions(
+        self._action_group[SELECTION_INDIFFERENT].add_action(self.auto_refresh_action)
+        self._action_group[SELECTION_INDIFFERENT].add_actions(
             [
                 ("refresh_files", gtk.STOCK_REFRESH, "_Refresh", None,
                  "Refresh/update the file tree display", self.update_tree),
             ])
         self.cwd_merge_id = self._ui_manager.add_ui_from_string(UI_DESCR)
-        self._toggle_auto_refresh_cb()
         self.connect("key_press_event", self._key_press_cb)
+        self._toggle_auto_refresh_cb()
     def _do_auto_refresh(self):
         if self.auto_refresh_action.get_active():
             self.update_tree()
@@ -686,7 +688,7 @@ CWD_UI_DESCR = \
 '''
 <ui>
   <popup name="files_popup">
-    <placeholder name="selection_agnostic">
+    <placeholder name="selection_indifferent">
       <menuitem action="new_file"/>
     </placeholder>
     <separator/>
@@ -710,6 +712,7 @@ CWD_UI_DESCR = \
 
 class CwdFileTreeView(FileTreeView, cmd_result.ProblemReporter, console.ConsoleLogUser):
     def __init__(self, model=None, tooltips=None, auto_refresh=False, show_hidden=False, show_status=False, console_log=None):
+        cmd_result.ProblemReporter.__init__(self)
         console.ConsoleLogUser.__init__(self, console_log)
         if not model:
             model = CwdFileTreeStore(show_hidden=show_hidden)
@@ -721,7 +724,7 @@ class CwdFileTreeView(FileTreeView, cmd_result.ProblemReporter, console.ConsoleL
                 ("delete_files", gtk.STOCK_DELETE, "_Delete", None,
                  "Delete the selected file(s) from the repository", self.delete_selected_files_acb),
             ])
-        self._action_group[SELECTION_AGNOSTIC].add_actions(
+        self._action_group[SELECTION_INDIFFERENT].add_actions(
             [
                 ("new_file", gtk.STOCK_NEW, "_New", None,
                  "Create a new file and open for editing", self.create_new_file_acb),
@@ -849,7 +852,7 @@ SCM_CWD_UI_DESCR = \
     </menu>
   </menubar>
   <popup name="files_popup">
-    <placeholder name="selection_agnostic">
+    <placeholder name="selection_indifferent">
       <menuitem action="new_file"/>
     </placeholder>
     <placeholder name="selection">
@@ -875,6 +878,8 @@ SCM_CWD_UI_DESCR = \
       <menuitem action="scm_revert_files_all"/>
       <menuitem action="scm_commit_files_all"/>
     </placeholder>
+    <separator/>
+    <menuitem action="show_hidden_files"/>
   </popup>
 </ui>
 '''
@@ -924,7 +929,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                 ("scm_commit_files_all", icons.STOCK_COMMIT, "_Commit", None,
                  "Commit all changes", self.commit_all_changes_acb),
             ])
-        self._action_group[SELECTION_AGNOSTIC].add_actions(
+        self._action_group[SELECTION_INDIFFERENT].add_actions(
             [
                 ("menu_files", None, "_Files"),
             ])
@@ -1184,7 +1189,7 @@ SCM_CHANGE_UI_DESCR = \
 '''
 <ui>
   <popup name="files_popup">
-    <placeholder name="selection_agnostic">
+    <placeholder name="selection_indifferent">
       <menuitem action="scmch_undo_remove_files"/>
     </placeholder>
     <separator/>
@@ -1214,20 +1219,20 @@ class ScmChangeFileTreeView(FileTreeView):
             [
                 ("scmch_remove_files", gtk.STOCK_DELETE, "_Remove", None,
                  "Remove the selected files from the change set", self._remove_selected_files_acb),
-                ("scm_diff_files_selection", gtk.STOCK_APPLY, "_Diff", None,
+                ("scm_diff_files_selection", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for selected file(s)", self._diff_selected_files_acb),
             ])
-        self._action_group[SELECTION_AGNOSTIC].add_actions(
+        self._action_group[SELECTION_INDIFFERENT].add_actions(
             [
                 ("scmch_undo_remove_files", gtk.STOCK_UNDO, "_Undo", None,
                  "Undo the last remove", self._undo_last_remove_acb),
             ])
         self._action_group[NO_SELECTION].add_actions(
             [
-                ("scm_diff_files_all", gtk.STOCK_APPLY, "_Diff", None,
+                ("scm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for all changes", self._diff_all_files_acb),
             ])
-        self._action_group[SELECTION_AGNOSTIC].get_action("scmch_undo_remove_files").set_sensitive(False)
+        self._action_group[SELECTION_INDIFFERENT].get_action("scmch_undo_remove_files").set_sensitive(False)
         self.scm_change_merge_id = self._ui_manager.add_ui_from_string(SCM_CHANGE_UI_DESCR)
     def set_file_mask(self, file_mask):
         self.model.set_file_mask(file_mask)
@@ -1243,14 +1248,14 @@ class ScmChangeFileTreeView(FileTreeView):
             del file_mask[file_mask.index(sel_file)]
         self.model.set_file_mask(file_mask)
         self.removeds.append(selected_files)
-        self._action_group[SELECTION_AGNOSTIC].get_action("scmch_undo_remove_files").set_sensitive(True)
+        self._action_group[SELECTION_INDIFFERENT].get_action("scmch_undo_remove_files").set_sensitive(True)
         self._unshow_busy()
         self.update_tree()
     def _undo_last_remove_acb(self, menu_item):
         self._show_busy()
         restore_files = self.removeds[-1]
         del self.removeds[-1]
-        self._action_group[SELECTION_AGNOSTIC].get_action("scmch_undo_remove_files").set_sensitive(len(self.removeds) > 0)
+        self._action_group[SELECTION_INDIFFERENT].get_action("scmch_undo_remove_files").set_sensitive(len(self.removeds) > 0)
         file_mask = self.model.get_file_mask()
         for res_file in restore_files:
             file_mask.append(res_file)

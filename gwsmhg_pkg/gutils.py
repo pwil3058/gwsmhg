@@ -13,7 +13,7 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import gtk, os.path, gobject
+import gtk, os.path, gobject, cmd_result
 
 def wrap_in_scrolled_window(widget, policy=(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC), with_frame=True, label=None):
     scrw = gtk.ScrolledWindow()
@@ -105,6 +105,22 @@ def ask_ok_cancel(question, parent=None):
 def ask_yes_no(question, parent=None):
    return ask_question(question, parent, gtk.BUTTONS_YES_NO) == gtk.RESPONSE_YES
 
+FORCE = 1
+REFRESH = 2
+RECOVER = 3
+
+def ask_force_refresh_or_cancel(question, flags, parent=None):
+    buttons = [gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL]
+    if flags & cmd_result.SUGGEST_REFRESH:
+        buttons += ["_Refresh and Retry", REFRESH]
+    if flags & cmd_result.SUGGEST_FORCE:
+        buttons += ["_Force", FORCE]
+    return ask_question(question, parent, buttons)
+
+def ask_recover_or_cancel(question, parent=None):
+    buttons = [gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, "_Recover", RECOVER]
+    return ask_question(question, parent, buttons)
+
 def inform_user(msg, parent=None, problem_type=gtk.MESSAGE_ERROR):
     dialog = gtk.MessageDialog(parent=parent,
                             flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
@@ -151,11 +167,15 @@ class TooltipsUser:
 class BusyIndicator:
     def __init__(self):
         pass
-    def _show_busy(self):
+    def _show_busy(self, really=True):
+        if not really:
+            return
         self.window.set_cursor(gtk.gdk.Cursor(gtk.gdk.WATCH))
         while gtk.events_pending():
             gtk.main_iteration()
-    def _unshow_busy(self):
+    def _unshow_busy(self, really=True):
+        if not really:
+            return
         self.window.set_cursor(None)
 
 _KEYVAL_UP_ARROW = gtk.gdk.keyval_from_name('Up')
@@ -334,47 +354,58 @@ def find_label_index(descr, label):
 #]
 
 class TableView(gtk.TreeView):
-    def __init__(self, descr, set_mode=gtk.SELECTION_SINGLE, perm_headers=False):
-        model = apply(gtk.ListStore, self._get_type_list(descr))
+    def __init__(self, descr, sel_mode=gtk.SELECTION_SINGLE, perm_headers=False,
+                 bgnd=["white", "#F0F0F0"], popup=None):
+        self._model = apply(gtk.ListStore, self._get_type_list(descr))
         self._perm_headers = perm_headers
-        gtk.TreeView.__init__(self, model)
-        bgnd = ["white", "#F0F0F0"]
+        gtk.TreeView.__init__(self, self._model)
+        lenbgnd = len(bgnd)
         self._ncols = len(descr)
         for colid in range(self._ncols):
             col_d = descr[colid]
             cell = gtk.CellRendererText()
             tvcolumn = gtk.TreeViewColumn(col_d[ROW_LABEL], cell, text=colid)
-            cell.set_property("cell-background", bgnd[colid % 2])
+            if bgnd:
+                cell.set_property("cell-background", bgnd[colid % lenbgnd])
             for prop in col_d[ROW_PROPERTIES]:
                 cell.set_property(prop[PROPERTY_NAME], prop[PROPERTY_VALUE])
             tvcolumn.set_expand(col_d[ROW_EXPAND])
             self.append_column(tvcolumn)
         self.set_headers_visible(perm_headers)
-        self.get_selection().set_mode(gtk.SELECTION_SINGLE)
+        self.get_selection().set_mode(sel_mode)
         self.get_selection().unselect_all()
+        self.connect("button_press_event", self._handle_button_press_cb)
+    def _handle_button_press_cb(self, widget, event, popup=None):
+        if event.type == gtk.gdk.BUTTON_PRESS:
+            if event.button == 3 and popup:
+                menu = self._ui_manager.get_widget(popup)
+                menu.popup(None, None, None, event.button, event.time)
+                return True
+            elif event.button == 2:
+                self.get_selection().unselect_all()
+                return True
+        return False
     def _get_type_list(self, descr):
         list = []
         for cdescr in descr:
             list.append(cdescr[ROW_TYPE])
         return list
     def set_contents(self, cset_list):
-        model = self.get_model()
-        model.clear()
+        self._model.clear()
         for cset in cset_list:
-            model.append(cset)
+            self._model.append(cset)
         if not self._perm_headers:
-            self.set_headers_visible(self.get_model().iter_n_children(None) > 0)
+            self.set_headers_visible(self._model.iter_n_children(None) > 0)
         self.get_selection().unselect_all()
     def get_contents(self):
         list = []
-        store = self.get_model()
-        iter = store.get_iter_first()
+        iter = self._model.get_iter_first()
         while iter:
             row = []
             for index in range(self._ncols):
-                row.append(store.get_value(iter, index))
+                row.append(self._model.get_value(iter, index))
             list.append(row)
-            iter = store.iter_next(iter)
+            iter = self._model.iter_next(iter)
         return list
     def get_selected_data(self, columns):
         store, selection = self.get_selection().get_selected_rows()

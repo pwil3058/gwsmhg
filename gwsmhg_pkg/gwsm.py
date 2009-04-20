@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import os, gtk, gobject, sys
-from gwsmhg_pkg import console, change_set, file_tree, gutils, utils
+from gwsmhg_pkg import console, change_set, file_tree, gutils, utils, patch_mgr
 
 WS_TABLE_DESCR = \
 [
@@ -34,10 +34,11 @@ if not os.path.exists(GSWMHG_D_NAME):
 class WSPathView(gutils.TableView):
     def __init__(self):
         gutils.TableView.__init__(self, WS_TABLE_DESCR,
-                                  set_mode=gtk.SELECTION_SINGLE,
+                                  sel_mode=gtk.SELECTION_SINGLE,
                                   perm_headers=True)
         self._alias_ctr = self.get_column(WS_ALIAS).get_cell_renderers()[0]
         self._alias_ctr.connect("edited", self._edited_cb, self.get_model())
+        self.set_size_request(480, 160)
         model = self.get_model()
 #        model.set_sort_func(WS_ALIAS, self._sort_func, WS_ALIAS)
 #        model.set_sort_func(WS_PATH, self._sort_func, WS_PATH)
@@ -156,7 +157,7 @@ GWSM_UI_DESCR = \
 '''
 
 class gwsm(gtk.Window, gutils.BusyIndicator):
-    def __init__(self, scm_ifce):
+    def __init__(self, scm_ifce, pm_ifce):
         gtk.Window.__init__(self, gtk.WINDOW_TOPLEVEL)
         gutils.BusyIndicator.__init__(self)
         self.connect("destroy", self._quit)
@@ -177,6 +178,7 @@ class gwsm(gtk.Window, gutils.BusyIndicator):
         self._tooltips.enable()
         self._console_log = console.ConsoleLog(scm_ifce, tooltips=self._tooltips)
         self._scm_ifce = self._console_log.get_scm_ifce()
+        self._pm_ifce = pm_ifce(self._console_log)
         # see if we're in a valid work space and if not offer a selection
         rootdir = self._scm_ifce.get_root()
         if not rootdir:
@@ -202,14 +204,16 @@ class gwsm(gtk.Window, gutils.BusyIndicator):
         self._file_tree_widget = file_tree.ScmCwdFilesWidget(scm_ifce=self._scm_ifce,
             console_log=self._console_log, tooltips=self._tooltips)
         self._notebook = gtk.Notebook()
-        self._notebook.set_size_request(640, 240)
+        self._notebook.set_size_request(640, 360)
+        self._patch_mgr = patch_mgr.PatchManagementWidget(pm_ifce=self._pm_ifce, scm_ifce=self._scm_ifce,
+            console_log=self._console_log, tooltips=self._tooltips)
+        self._notebook.append_page(self._patch_mgr, gtk.Label(self._pm_ifce.name))
         self._heads_view = change_set.HeadsView(self._scm_ifce)
         self._notebook.append_page(gutils.wrap_in_scrolled_window(self._heads_view), gtk.Label("Heads"))
         self._tags_view = change_set.TagsView(self._scm_ifce)
         self._notebook.append_page(gutils.wrap_in_scrolled_window(self._tags_view), gtk.Label("Tags"))
         self._branches_view = change_set.BranchesView(self._scm_ifce)
         self._notebook.append_page(gutils.wrap_in_scrolled_window(self._branches_view), gtk.Label("Branches"))
-        self._notebook.append_page(gtk.Label("MQ controls go here"), gtk.Label("MQ"))
         # Now lay the widgets out
         vbox = gtk.VBox()
         vbox.pack_start(self._menubar, expand=False)

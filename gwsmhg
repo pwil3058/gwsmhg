@@ -39,7 +39,8 @@ if len(arg_list) == 1:
         sys.stderr.write(str(msg) + os.linesep)
         sys.exit(2)
 
-app = gwsmhg_pkg.gwsm.gwsm(gwsmhg_pkg.hg_mq_ifce.SCMInterface)
+app = gwsmhg_pkg.gwsm.gwsm(gwsmhg_pkg.hg_mq_ifce.SCMInterface,
+                           gwsmhg_pkg.hg_mq_ifce.PMInterface)
 app.show()
 gtk.main()
 

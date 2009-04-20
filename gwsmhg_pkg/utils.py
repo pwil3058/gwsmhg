@@ -97,3 +97,10 @@ def run_cmd_in_console(cmd, console, interactive=False):
         os.environ['TERM'] = oldterm
     return [ sub.returncode, outd, errd ]
 
+def which(cmd):
+    for d in os.environ['PATH'].split(os.pathsep):
+        potential_path = os.path.join(d, cmd)
+        if os.path.isfile(potential_path) and os.access(potential_path, os.X_OK):
+            return potential_path
+    return None
+

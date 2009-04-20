@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import os, os.path, tempfile, pango, re
-from gwsmhg_pkg import text_edit, utils, cmd_result, console
+from gwsmhg_pkg import text_edit, utils, cmd_result, console, putils
 
 DEFAULT_NAME_EVARS = ["GIT_AUTHOR_NAME", "GECOS"]
 DEFAULT_EMAIL_VARS = ["GIT_AUTHOR_EMAIL", "EMAIL_ADDRESS"]
@@ -43,7 +43,8 @@ class SCMInterface(console.ConsoleLogUser):
         self._email_envars = DEFAULT_EMAIL_VARS
         self._commit_notification_cbs = []
     def get_patches_applied(self):
-        return False
+        res = utils.run_cmd("hg qtop")
+        return res[0] == 0
     def get_default_commit_save_file(self):
         return os.path.join(".hg", "gwsmhg.saved.commit")
     def get_status_row_data(self):
@@ -142,8 +143,8 @@ class SCMInterface(console.ConsoleLogUser):
                 others.append((name, status, None))
             index += 1
         return (res, (ignored, others, modified), serr)
-    def _map_result(self, result, stdout_is_data=False):
-        outres, sout, serr = cmd_result.map_cmd_result(result, stdout_is_data)
+    def _map_result(self, result, stdout_expected=False):
+        outres, sout, serr = cmd_result.map_cmd_result(result, stdout_expected)
         if outres != cmd_result.OK:
             for force_suggested in ["use -f to force", "not overwriting - file exists"]:
                 if serr.find(force_suggested) != -1 or sout.find(force_suggested) != -1:
@@ -212,7 +213,7 @@ class SCMInterface(console.ConsoleLogUser):
         if file_list:
             cmd = " ".join([cmd] + file_list)
         if dry_run:
-            return self._map_result(utils.run_cmd(cmd), stdout_is_data=True)
+            return self._map_result(utils.run_cmd(cmd), stdout_expected=True)
         else:
             return self._run_cmd_on_console(cmd)
     def add_commit_notification_cb(self, notification_cb):
@@ -252,7 +253,7 @@ class SCMInterface(console.ConsoleLogUser):
             cmd += "-f "
         cmd = " ".join([cmd] + file_list + [target])
         if dry_run:
-            return self._map_result(utils.run_cmd(cmd), stdout_is_data=True)
+            return self._map_result(utils.run_cmd(cmd), stdout_expected=True)
         else:
             return self._run_cmd_on_console(cmd)
     def move_files(self, file_list, target, force=False, dry_run=False):
@@ -263,7 +264,7 @@ class SCMInterface(console.ConsoleLogUser):
             cmd += "-f "
         cmd = " ".join([cmd] + file_list + [target])
         if dry_run:
-            return self._map_result(utils.run_cmd(cmd), stdout_is_data=True)
+            return self._map_result(utils.run_cmd(cmd), stdout_expected=True)
         else:
             return self._run_cmd_on_console(cmd)
     def get_diff_for_files(self, file_list, fromrev, torev=None):
@@ -287,9 +288,182 @@ class SCMInterface(console.ConsoleLogUser):
         else:
             cmd += "--all"
         if dry_run:
-            return self._map_result(utils.run_cmd(cmd), stdout_is_data=True)
+            return self._map_result(utils.run_cmd(cmd), stdout_expected=True)
         else:
-            return self._run_cmd_on_console(cmd, stdout_is_data=True)
+            return self._run_cmd_on_console(cmd, stdout_expected=True)
     def do_exec_tool_cmd(self, cmd):
-        return self._run_cmd_on_console("hg " + cmd, stdout_is_data=True)
+        return self._run_cmd_on_console("hg " + cmd, stdout_expected=True)
+
+class PMInterface(console.ConsoleLogUser):
+    def __init__(self, console_log=None):
+        console.ConsoleLogUser.__init__(self, console_log)
+        self.name = "MQ"
+        self.status_deco_map = {
+            None: (pango.STYLE_NORMAL, "black"),
+            "M": (pango.STYLE_NORMAL, "blue"),
+            "A": (pango.STYLE_NORMAL, "darkgreen"),
+            "R": (pango.STYLE_NORMAL, "red"),
+            "!": (pango.STYLE_ITALIC, "pink"),
+        }
+        self.extra_info_sep = " <- "
+        self.modified_dir_status = "M"
+        self.default_nonexistant_status = "!"
+        self.modification_statuses = ("M", "A", "R", "!")
+        self._name_envars = DEFAULT_NAME_EVARS
+        self._email_envars = DEFAULT_EMAIL_VARS
+        self._qrefresh_notification_cbs = []
+        self._qpush_notification_cbs = []
+        self._qpop_notification_cbs = []
+    def _map_cmd_result(self, result, no_output_expected=False):
+        if res[0]:
+            if no_output_expected and res[1]:
+                return (cmd_result.INFO, res[1], res[2])
+            else:
+                return result
+        else:
+            flags = cmd_result.ERROR
+            if serr.find('use -f to force') is not -1:
+                flags |= cmd_result.SUGGEST_FORCE
+            if serr.find('refresh first') is not -1:
+                flags |= cmd_result.SUGGEST_REFRESH
+            if serr.find('(revert --all, qpush to recover)') is not -1:
+                flags |= cmd_result.SUGGEST_RECOVER
+            return (flags, res[1], res[2])
+    def get_status_row_data(self):
+        return (self.status_deco_map, self.extra_info_sep, self.modified_dir_status, self.default_nonexistant_status)
+    def add_qrefresh_notification_cb(self, notification_cb):
+        self._qrefresh_notification_cbs.append(notification_cb)
+    def del_qrefresh_notification_cb(self, notification_cb):
+        try:
+            del self._qrefresh_notification_cbs[self._qrefresh_notification_cbs.index(notification_cb)]
+        except:
+            pass
+    def add_qpop_notification_cb(self, notification_cb):
+        self._qpop_notification_cbs.append(notification_cb)
+    def del_qpop_notification_cb(self, notification_cb):
+        try:
+            del self._qpop_notification_cbs[self._qpop_notification_cbs.index(notification_cb)]
+        except:
+            pass
+    def add_qpush_notification_cb(self, notification_cb):
+        self._qpush_notification_cbs.append(notification_cb)
+    def del_qpush_notification_cb(self, notification_cb):
+        try:
+            del self._qpush_notification_cbs[self._qpush_notification_cbs.index(notification_cb)]
+        except:
+            pass
+    def get_parents(self, patch):
+        cmd = os.linesep.join(['hg parents --template "{rev}', '" -r %s' % patch])
+        res, sout, serr = utils.run_cmd(cmd)
+        return sout.splitlines(False)
+    def get_file_status_list(self, patch=None):
+        res, top, serr = utils.run_cmd("hg qtop")
+        if res:
+            # either we're not in an mq playground or no patches are applied
+            return (cmd_result.OK, [], "")
+        cmd = "hg status -mardC"
+        if patch:
+            cmd += " --rev %s" % patch
+            parents = self.get_parents(patch)
+        else:
+            parents = self.get_parents("qtip")
+        cmd += " --rev %s" % parents[0] # use the newest parent
+        res, sout, serr = utils.run_cmd(cmd)
+        if res != 0:
+            return (res, [], sout + serr)
+        file_list = []
+        lines = sout.splitlines()
+        numlines = len(lines)
+        index = 0
+        while index < numlines:
+            status = lines[index][0]
+            name = lines[index][2:]
+            if (index + 1) < numlines and lines[index + 1][0] == " ":
+                index += 1
+                extra_info = lines[index][2:]
+            else:
+                extra_info = None
+            file_list.append((name, status, extra_info))
+            index += 1
+        return (res, file_list, serr)
+    def get_applied_patches(self):
+        res, op, err = utils.run_cmd("hg qapplied")
+        if res != 0:
+                return []
+        return op.splitlines(False)
+    def get_unapplied_patches(self):
+        res, op, err = utils.run_cmd("hg qunapplied")
+        if res != 0:
+                return []
+        return op.splitlines(False)
+    def top_patch(self):
+        res, sout, serr = utils.run_cmd("hg qtop")
+        if res:
+            return None
+        else:
+            return sout
+    def do_refresh(self):
+        result = self._run_cmd_on_console("hg qrefresh")
+        if not result[0]:
+            for call_back in self._qrefresh_notification_cbs:
+                call_back()
+        return result
+    def do_pop_to(self, patch=None, force=False):
+        if patch is None:
+            if force:
+                result = self._run_cmd_on_console("hg qpop -f")
+            else:
+                result = self._run_cmd_on_console("hg qpop")
+        elif patch is "":
+            if force:
+                result = self._run_cmd_on_console("hg qpop -f -a")
+            else:
+                result = self._run_cmd_on_console("hg qpop -a")
+        else:
+            if force:
+                result = self._run_cmd_on_console("hg qgoto -f %s" % patch)
+            else:
+                result = self._run_cmd_on_console("hg qgoto %s" % patch)
+        for call_back in self._qpop_notification_cbs:
+            call_back()
+        return result
+    def do_push_to(self, patch=None, force=False, merge=False):
+        if merge:
+            mflag = "-m"
+        else:
+            mflag = ""
+        if patch is None:
+            if force:
+                result = self._run_cmd_on_console("hg qpush %s -f" % mflag)
+            else:
+                result = self._run_cmd_on_console("hg qpush %s" % mflag)
+        elif patch is "":
+            if force:
+                result = self._run_cmd_on_console("hg qpush %s -f -a" % mflag)
+            else:
+                result = self._run_cmd_on_console("hg qpush %s -a" % mflag)
+        else:
+            if force:
+                result = self._run_cmd_on_console("hg qgoto %s -f %s" % (mflag, patch))
+            else:
+                result = self._run_cmd_on_console("hg qgoto %s %s" % (mflag, patch))
+        for call_back in self._qpush_notification_cbs:
+            call_back()
+        return result
+    def get_patch_description(self, patch):
+        return utils.run_cmd("hg qheader %s" % patch)
+    def do_set_patch_description(self, patch, descr):
+        pfn = self.get_patch_file_name(patch)
+        self._console_log.start_cmd("set description for: %s" %patch)
+        res = putils.set_patch_descr_lines(pfn, descr.splitlines(False))
+        if res:
+            self._console_log.append_sdtout(descr)
+            res = cmd_result.OK
+            serr = ""
+        else:
+            serr = "Error writing description to \"%s\" patch file" % patch
+            self._console_log.append_sdterr(serr)
+            res = cmd_result.ERROR
+        self._console_log.cmd_end()
+        return (res, "", serr)
 

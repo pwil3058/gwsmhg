@@ -17,8 +17,17 @@ import gtk, gtk.gdk, os.path, sys
 
 STOCK_COMMIT = "stock_commit"
 STOCK_DIFF = "stock_diff"
+STOCK_POP_PATCH = "stock_pop_patch"
+STOCK_PUSH_PATCH = "stock_push_patch"
+STOCK_FOLD_PATCH = "stock_fold_patch"
+STOCK_FINISH_PATCH = "stock_finish_patch"
+STOCK_IMPORT_PATCH = "stock_import_patch"
+STOCK_APPLIED = "stock_applied"
 
-_icon_name_list = [STOCK_COMMIT, STOCK_DIFF]
+_icon_name_list = \
+    [ STOCK_COMMIT, STOCK_DIFF, STOCK_POP_PATCH, STOCK_PUSH_PATCH,
+      STOCK_FOLD_PATCH, STOCK_FINISH_PATCH, STOCK_IMPORT_PATCH, STOCK_APPLIED
+    ]
 
 # first look in the source directory
 libdir = os.path.join(sys.path[0], "pixmaps")

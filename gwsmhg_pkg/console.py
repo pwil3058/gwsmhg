@@ -42,14 +42,14 @@ class ConsoleLogUser:
         self._console_log = console_log
     def get_console_log(self):
         return self._console_log
-    def _map_result(self, result, stdout_is_data=False):
-        return cmd_result.map_cmd_result(result, stdout_is_data)
-    def _run_cmd_on_console(self, cmd, stdout_is_data=False):
+    def _map_result(self, result, stdout_expected=False):
+        return cmd_result.map_cmd_result(result, stdout_expected)
+    def _run_cmd_on_console(self, cmd, stdout_expected=True):
         if self._console_log:
             result = utils.run_cmd_in_console(cmd, self._console_log)
         else:
             result = utils.run_cmd(cmd)
-        return self._map_result(result, stdout_is_data)
+        return self._map_result(result, stdout_expected)
     def _append_console_entry(self, msg):
         if self._console_log:
             self._console_log.append_entry(msg)
