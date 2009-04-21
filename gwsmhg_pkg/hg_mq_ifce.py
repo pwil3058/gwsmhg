@@ -453,21 +453,29 @@ class PMInterface:
         for call_back in self._qpush_notification_cbs:
             call_back()
         return result
+    def get_patch_file_name(self, patch):
+        return os.path.join(os.getcwd(), ".hg", "patches", patch)
     def get_patch_description(self, patch):
-        return utils.run_cmd("hg qheader %s" % patch)
+        pfn = self.get_patch_file_name(patch)
+        res, descr_lines = putils.get_patch_descr_lines(pfn)
+        descr = os.linesep.join(descr_lines) + os.linesep
+        if res:
+            return (cmd_result.OK, descr, "")
+        else:
+            return (cmd_result.ERROR, descr, "Error reading description to \"%s\" patch file" % patch)
     def do_set_patch_description(self, patch, descr):
         pfn = self.get_patch_file_name(patch)
         self._console_log.start_cmd("set description for: %s" %patch)
         res = putils.set_patch_descr_lines(pfn, descr.splitlines(False))
         if res:
-            self._console_log.append_sdtout(descr)
+            self._console_log.append_stdout(descr)
             res = cmd_result.OK
             serr = ""
         else:
             serr = "Error writing description to \"%s\" patch file" % patch
-            self._console_log.append_sdterr(serr)
+            self._console_log.append_stderr(serr)
             res = cmd_result.ERROR
-        self._console_log.cmd_end()
+        self._console_log.end_cmd()
         return (res, "", serr)
 
 class CombinedInterface:
