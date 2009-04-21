@@ -710,10 +710,10 @@ CWD_UI_DESCR = \
 </ui>
 '''
 
-class CwdFileTreeView(FileTreeView, cmd_result.ProblemReporter, console.ConsoleLogUser):
+class CwdFileTreeView(FileTreeView, cmd_result.ProblemReporter):
     def __init__(self, model=None, tooltips=None, auto_refresh=False, show_hidden=False, show_status=False, console_log=None):
         cmd_result.ProblemReporter.__init__(self)
-        console.ConsoleLogUser.__init__(self, console_log)
+        self._console_log = console_log
         if not model:
             model = CwdFileTreeStore(show_hidden=show_hidden)
         FileTreeView.__init__(self, model=model, tooltips=tooltips, auto_refresh=auto_refresh, show_status=show_status)
@@ -748,7 +748,7 @@ class CwdFileTreeView(FileTreeView, cmd_result.ProblemReporter, console.ConsoleL
             serr_xtra = ("File \"%s\" already exists" + os.linesep) % new_file_name
         else:
             serr_xtra = ""
-        res, sout, serr = self._run_cmd_on_console("touch %s" % new_file_name)
+        res, sout, serr = utils.run_cmd_in_console("touch %s" % new_file_name, self._console_log)
         return (res, sout, serr_xtra + serr)
     def create_new_file(self, new_file_name, open_for_edit=False):
         model = self.get_model()
@@ -809,13 +809,13 @@ class CwdFileTreeView(FileTreeView, cmd_result.ProblemReporter, console.ConsoleL
         self._delete_named_files(self.get_selected_files())
 
 class ScmCwdFileTreeStore(CwdFileTreeStore):
-    def __init__(self, scm_ifce, show_hidden=False):
-        self._scm_ifce = scm_ifce
-        row_data = apply(FileTreeRowData, self._scm_ifce.get_status_row_data())
+    def __init__(self, ifce, show_hidden=False):
+        self._ifce = ifce
+        row_data = apply(FileTreeRowData, self._ifce.SCM.get_status_row_data())
         CwdFileTreeStore.__init__(self, show_hidden=show_hidden, row_data=row_data)
         self._update_statuses()
     def _update_statuses(self, fspath_list=[]):
-        res, dflists, dummy = self._scm_ifce.get_file_status_lists(fspath_list)
+        res, dflists, dummy = self._ifce.SCM.get_file_status_lists(fspath_list)
         if res == 0:
             if self.show_hidden_action.get_active():
                 for dfile, status, dummy in dflists[IGNORED]:
@@ -835,12 +835,6 @@ class ScmCwdFileTreeStore(CwdFileTreeStore):
     def repopulate(self):
         CwdFileTreeStore.repopulate(self)
         self._update_statuses()
-    def get_scm_ifce(self):
-        return self._scm_ifce
-    def set_scm_ifce(self, scm_ifce):
-        self._scm_ifce = scm_ifce
-        self._row_data = self._scm_ifce.row_data
-        self.update()
 
 SCM_CWD_UI_DESCR = \
 '''
@@ -885,11 +879,11 @@ SCM_CWD_UI_DESCR = \
 '''
 
 class ScmCwdFileTreeView(CwdFileTreeView):
-    def __init__(self, scm_ifce, tooltips=None, auto_refresh=False, show_hidden=False, console_log=None):
-        self._scm_ifce = scm_ifce
-        model = ScmCwdFileTreeStore(scm_ifce=self._scm_ifce, show_hidden=show_hidden)
-        self._scm_ifce.add_commit_notification_cb(self.update_after_commit)
-        CwdFileTreeView.__init__(self, model=model, tooltips=tooltips, auto_refresh=auto_refresh, console_log=console_log, show_status=True)
+    def __init__(self, ifce, tooltips=None, auto_refresh=False, show_hidden=False):
+        self._ifce = ifce
+        model = ScmCwdFileTreeStore(ifce=self._ifce, show_hidden=show_hidden)
+        self._ifce.SCM.add_commit_notification_cb(self.update_after_commit)
+        CwdFileTreeView.__init__(self, model=model, tooltips=tooltips, auto_refresh=auto_refresh, console_log=ifce.log, show_status=True)
         self._action_group[SELECTION].add_actions(
             [
                 ("scm_remove_files", gtk.STOCK_REMOVE, "_Remove", None,
@@ -935,7 +929,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             ])
         self.cwd_merge_id = self._ui_manager.add_ui_from_string(SCM_CWD_UI_DESCR)
     def _selection_changed_cb(self, selection):
-        if self._scm_ifce.get_patches_applied():
+        if self._ifce.SCM.get_patches_applied():
             self._action_group[NO_SELECTION_NOT_PATCHED].set_sensitive(False)
             self._action_group[SELECTION_NOT_PATCHED].set_sensitive(False)
         else:
@@ -944,22 +938,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             self._action_group[SELECTION_NOT_PATCHED].set_sensitive(sel_sz > 0)
         _ViewWithActionGroups._selection_changed_cb(self, selection)
     def get_scm_name(self):
-        return self.get_model().get_scm_ifce().name
-    def get_scm_ifce(self):
-        return self.get_model().get_scm_ifce()
-    def set_scm_ifce(self, scm_ifce):
-        old_scm_ifce = self.get_scm_ifce()
-        if old_scm_ifce:
-            old_scm_ifce.del_commit_notification_cb(self.update_after_commit)
-        self.get_model().set_scm_ifce(scm_ifce)
-        new_scm_ifce = self.get_scm_ifce()
-        if new_scm_ifce:
-            new_scm_ifce.add_commit_notification_cb(self.update_after_commit)
-    def _busy_run_cmd_on_console(self, cmd):
-        self._show_busy()
-        result = self._run_cmd_on_console(cmd)
-        self._unshow_busy()
-        return result
+        return self._ifce.SCM.name
     def _check_if_force(self, result):
         if (result[0] & cmd_result.SUGGEST_FORCE) == cmd_result.SUGGEST_FORCE:
             dialog = gtk.MessageDialog(parent=self._get_gtk_window(),
@@ -976,22 +955,22 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         if not ask or self._confirm_list_action(file_list, "About to be removed. OK?"):
             model = self.get_model()
             self._show_busy()
-            result = model.get_scm_ifce().remove_files(file_list)
+            result = model._ifce.SCM.remove_files(file_list)
             self._show_busy()
             if self._check_if_force(result):
-                result = model.get_scm_ifce().remove_files(file_list, force=True)
+                result = model._ifce.SCM.remove_files(file_list, force=True)
             self.update_tree()
             self._report_any_problems(result)
     def remove_selected_files_acb(self, menu_item):
         self._remove_named_files(self.get_selected_files())
     def add_files_to_repo(self, file_list):
         self._show_busy()
-        result = self.get_scm_ifce().add_files(file_list)
+        result = self._ifce.SCM.add_files(file_list)
         self._unshow_busy()
         self.update_tree()
         self._report_any_problems(result)
     def add_all_files_to_repo(self):
-        operation = self.get_scm_ifce().add_files
+        operation = self._ifce.SCM.add_files
         self._show_busy()
         res, info, serr = operation([], dry_run=True)
         self._unshow_busy()
@@ -1012,7 +991,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         self.get_model().del_files_from_displayable_nonexistants(files_in_commit)
         self.update_tree()
     def commit_changes(self, file_list):
-        dialog = ScmCommitDialog(parent=self._get_gtk_window(), scm_ifce=self.get_scm_ifce(), filelist=file_list)
+        dialog = ScmCommitDialog(parent=self._get_gtk_window(), ifce=self._ifce, filelist=file_list)
         dialog.show()
     def commit_selected_files_acb(self, menu_item):
         self.commit_changes(self.get_selected_files())
@@ -1040,9 +1019,9 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         return (response, target)
     def _move_or_copy_files(self, file_list, reqop, ask=True):
         if reqop == "c":
-            operation = self.get_scm_ifce().copy_files
+            operation = self._ifce.SCM.copy_files
         elif reqop == "m":
-            operation = self.get_scm_ifce().move_files
+            operation = self._ifce.SCM.move_files
         else:
             raise "Invalid operation requested"
         response, target = self._get_target(file_list)
@@ -1085,14 +1064,13 @@ class ScmCwdFileTreeView(CwdFileTreeView):
     def move_selected_files_acb(self, action=None):
         self.move_files(self.get_selected_files())
     def diff_selected_files_acb(self, action=None):
-        dialog = diff.DiffTextDialog(parent=self._get_gtk_window(),
-                                     scm_ifce=self.get_scm_ifce(),
+        dialog = diff.DiffTextDialog(parent=self._get_gtk_window(), ifce=self._ifce,
                                      file_list=self.get_selected_files(), modal=False)
         dialog.show()
     def revert_named_files(self, file_list, ask=True):
         if ask:
             self._show_busy()
-            res, sout, serr = self.get_scm_ifce().revert_files(file_list, dry_run=True)
+            res, sout, serr = self._ifce.SCM.revert_files(file_list, dry_run=True)
             self._unshow_busy()
             if res == cmd_result.OK:
                 if sout:
@@ -1107,7 +1085,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             ok = True
         if ok:
             self._show_busy()
-            result = self.get_scm_ifce().revert_files(file_list)
+            result = self._ifce.SCM.revert_files(file_list)
             self.get_model().del_files_from_displayable_nonexistants(file_list)
             self._show_busy()
             self.update_tree()
@@ -1118,12 +1096,12 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         self.revert_named_files([])
 
 class ScmCwdFilesWidget(gtk.VBox):
-    def __init__(self, scm_ifce, tooltips=None, auto_refresh=False, show_hidden=False, console_log=None):
+    def __init__(self, ifce, tooltips=None, auto_refresh=False, show_hidden=False):
         gtk.VBox.__init__(self)
         self._tooltips = tooltips
         # file tree view wrapped in scrolled window
-        self.file_tree = ScmCwdFileTreeView(scm_ifce=scm_ifce, tooltips=tooltips, auto_refresh=auto_refresh,
-                                            show_hidden=show_hidden, console_log=console_log)
+        self.file_tree = ScmCwdFileTreeView(ifce=ifce, tooltips=tooltips, auto_refresh=auto_refresh,
+                                            show_hidden=show_hidden)
         scw = gtk.ScrolledWindow()
         scw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
         self.file_tree.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
@@ -1147,10 +1125,10 @@ class ScmCwdFilesWidget(gtk.VBox):
         self.show_all()
 
 class ScmChangeFileTreeStore(FileTreeStore):
-    def __init__(self, scm_ifce, show_hidden=True, view=None, file_mask=None):
+    def __init__(self, ifce, show_hidden=True, view=None, file_mask=None):
         self._file_mask = file_mask
-        self._scm_ifce = scm_ifce
-        row_data = apply(FileTreeRowData, self._scm_ifce.get_status_row_data())
+        self._ifce = ifce
+        row_data = apply(FileTreeRowData, self._ifce.SCM.get_status_row_data())
         FileTreeStore.__init__(self, show_hidden=show_hidden, row_data=row_data)
         # if this is set to the associated view then the view will expand
         # to show new files without disturbing other expansion states
@@ -1164,7 +1142,7 @@ class ScmChangeFileTreeStore(FileTreeStore):
     def get_file_mask(self):
         return self._file_mask
     def update(self, fsobj_iter=None):
-        res, dflists, dummy = self._scm_ifce.get_file_status_lists(self._file_mask)
+        res, dflists, dummy = self._ifce.SCM.get_file_status_lists(self._file_mask)
         if res == 0:
             files = [tmpx[0] for tmpx in dflists[MODIFIED]] 
             for f in self.get_file_paths():
@@ -1178,11 +1156,6 @@ class ScmChangeFileTreeStore(FileTreeStore):
                     self._view.expand_to_path(self.get_path(file_iter))
     def repopulate(self):
         self.clear()
-        self.update()
-    def get_scm_ifce(self):
-        return self._scm_ifce
-    def set_scm_ifce(self, scm_ifce):
-        self._scm_ifce = scm_ifce
         self.update()
 
 SCM_CHANGE_UI_DESCR = \
@@ -1208,9 +1181,9 @@ SCM_CHANGE_UI_DESCR = \
 '''
 
 class ScmChangeFileTreeView(FileTreeView):
-    def __init__(self, scm_ifce, tooltips=None, auto_refresh=False, show_hidden=True, file_mask=None):
+    def __init__(self, ifce, tooltips=None, auto_refresh=False, show_hidden=True, file_mask=None):
         self.removeds = []
-        self.model = ScmChangeFileTreeStore(scm_ifce, show_hidden=show_hidden, file_mask=file_mask)
+        self.model = ScmChangeFileTreeStore(ifce, show_hidden=show_hidden, file_mask=file_mask)
         self.model.set_view(self)
         FileTreeView.__init__(self, model=self.model, tooltips=tooltips, auto_refresh=auto_refresh, show_status=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
@@ -1264,15 +1237,13 @@ class ScmChangeFileTreeView(FileTreeView):
         self.update_tree()
     def _diff_selected_files_acb(self, action=None):
         parent = self._get_gtk_window()
-        dialog = diff.DiffTextDialog(parent=parent,
-                                     scm_ifce=self.get_model().get_scm_ifce(),
+        dialog = diff.DiffTextDialog(parent=parent, ifce=self._ifce,
                                      file_list=self.get_selected_files(),
                                      modal=False)
         dialog.show()
     def _diff_all_files_acb(self, action=None):
         parent = self._get_gtk_window()
-        dialog = diff.DiffTextDialog(parent=parent,
-                                     scm_ifce=self.get_model().get_scm_ifce(),
+        dialog = diff.DiffTextDialog(parent=parent, ifce=self._ifce,
                                      file_list=self.get_file_mask(),
                                      modal=False)
         dialog.show()
@@ -1280,12 +1251,12 @@ class ScmChangeFileTreeView(FileTreeView):
 import gutils
 
 class ScmCommitWidget(gtk.VPaned, cmd_result.ProblemReporter):
-    def __init__(self, scm_ifce, tooltips=None, file_mask=None):
+    def __init__(self, ifce, tooltips=None, file_mask=None):
         gtk.VPaned.__init__(self)
         cmd_result.ProblemReporter.__init__(self)
-        self._scm_ifce = scm_ifce
+        self._ifce = ifce
         # TextView for change message
-        self.view = text_edit.ChangeSummaryView(scm_ifce=self._scm_ifce)
+        self.view = text_edit.ChangeSummaryView(ifce=self._ifce)
         vbox = gtk.VBox()
         hbox = gtk.HBox()
         menubar = self.view.get_ui_widget("/change_summary_menubar")
@@ -1298,7 +1269,7 @@ class ScmCommitWidget(gtk.VPaned, cmd_result.ProblemReporter):
         vbox.pack_start(gutils.wrap_in_scrolled_window(self.view))
         self.add1(vbox)
         # TreeView of files in change set
-        self.files = ScmChangeFileTreeView(scm_ifce=self._scm_ifce,
+        self.files = ScmChangeFileTreeView(ifce=self._ifce,
                                           tooltips=tooltips,
                                           auto_refresh=False,
                                           show_hidden=True,
@@ -1324,19 +1295,19 @@ class ScmCommitWidget(gtk.VPaned, cmd_result.ProblemReporter):
     def get_file_mask(self):
         return self.files.get_file_mask()
     def do_commit(self):
-        result = self._scm_ifce.commit_change(self.get_msg(), self.get_file_mask())
+        result = self._ifce.SCM.commit_change(self.get_msg(), self.get_file_mask())
         self._report_any_problems(result)
         return result[0] == cmd_result.OK
 
 class ScmCommitDialog(gtk.Dialog):
-    def __init__(self, parent, scm_ifce, filelist=None, modal=False):
+    def __init__(self, parent, ifce, filelist=None, modal=False):
         if modal or (parent and parent.get_modal()):
             flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
         else:
             flags = gtk.DIALOG_DESTROY_WITH_PARENT
         gtk.Dialog.__init__(self, "Commit Changes: %s" % utils.path_rel_home(os.getcwd()), parent, flags,
             (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
-        self.commit_widget = ScmCommitWidget(scm_ifce=scm_ifce, tooltips=None, file_mask=filelist)
+        self.commit_widget = ScmCommitWidget(ifce=ifce, tooltips=None, file_mask=filelist)
         self.vbox.pack_start(self.commit_widget)
         self.connect("response", self._handle_response_cb)
         self.set_focus_child(self.commit_widget.view)

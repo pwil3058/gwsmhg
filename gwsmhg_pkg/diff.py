@@ -40,7 +40,7 @@ class tws_line_count_display(gtk.HBox):
                 self._entry.modify_base(state, gtk.gdk.Color("#00FF00"))
 
 class DiffTextBuffer(gtksourceview.SourceBuffer, cmd_result.ProblemReporter):
-    def __init__(self, scm_ifce, file_list=[], fromrev=None, torev=None, table=None):
+    def __init__(self, ifce, file_list=[], fromrev=None, torev=None, table=None):
         cmd_result.ProblemReporter.__init__(self)
         if not table:
             table = gtksourceview.SourceTagTable()
@@ -48,7 +48,7 @@ class DiffTextBuffer(gtksourceview.SourceBuffer, cmd_result.ProblemReporter):
         self._fromrev = fromrev
         self._torev = torev
         self._file_list = file_list
-        self._scm_ifce = scm_ifce
+        self._ifce = ifce
         self._tws_change_cbs = []
         self.tws_check = re.compile('^(\+.*\S)(\s+\n)$')
         self.tws_list = []
@@ -124,7 +124,7 @@ class DiffTextBuffer(gtksourceview.SourceBuffer, cmd_result.ProblemReporter):
             self._append_tagged_text(line, self.index_tag)
         return 0
     def set_contents(self):
-        res, text, serr = self._scm_ifce.get_diff_for_files(self._file_list, self._fromrev, self._torev)
+        res, text, serr = self._ifce.SCM.get_diff_for_files(self._file_list, self._fromrev, self._torev)
         self._report_any_problems((res, text, serr))
         old_count = len(self.tws_list)
         self.begin_not_undoable_action()
@@ -193,9 +193,9 @@ class DiffTextBuffer(gtksourceview.SourceBuffer, cmd_result.ProblemReporter):
         return gutils.ActionHButtonBox([self._action_group], action_name_list=self.a_name_list)
 
 class DiffTextView(gtksourceview.SourceView):
-    def __init__(self, scm_ifce, file_list=[], fromrev=None, torev=None):
+    def __init__(self, ifce, file_list=[], fromrev=None, torev=None):
         self._file_list = file_list
-        buffer = DiffTextBuffer(scm_ifce, file_list, fromrev=fromrev, torev=torev)
+        buffer = DiffTextBuffer(ifce, file_list, fromrev=fromrev, torev=torev)
         gtksourceview.SourceView.__init__(self, buffer)
         fdesc = pango.FontDescription("mono, 10")
         self.modify_font(fdesc)
@@ -238,9 +238,9 @@ class DiffTextView(gtksourceview.SourceView):
         self.scroll_to_iter(self.get_buffer().get_tws_last_iter(), 0.01)
 
 class DiffTextWidget(gtk.VBox):
-    def __init__(self, parent, scm_ifce, file_list=[], fromrev=None, torev=None):
+    def __init__(self, parent, ifce, file_list=[], fromrev=None, torev=None):
         gtk.VBox.__init__(self)
-        self.diff_view = DiffTextView(scm_ifce=scm_ifce, file_list=file_list, fromrev=fromrev, torev=torev)
+        self.diff_view = DiffTextView(ifce=ifce, file_list=file_list, fromrev=fromrev, torev=torev)
         self.pack_start(gutils.wrap_in_scrolled_window(self.diff_view))
         self._tws_nav_buttons_packed = False
         buffer = self.diff_view.get_buffer()
@@ -258,7 +258,7 @@ class DiffTextWidget(gtk.VBox):
             self._tws_nav_buttons_packed = True
 
 class DiffTextDialog(gtk.Dialog):
-    def __init__(self, parent, scm_ifce, file_list=[], fromrev=None, torev=None, modal=False):
+    def __init__(self, parent, ifce, file_list=[], fromrev=None, torev=None, modal=False):
         if modal or (parent and parent.get_modal()):
             flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
         else:
@@ -272,13 +272,13 @@ class DiffTextDialog(gtk.Dialog):
             else:
                 title += " REV[%s] -> []" % (str(fromrev))
         elif torev:
-            res, parents, serr = scm_ifce.get_parents(torev)
+            res, parents, serr = ifce.SCM.get_parents(torev)
             if len(parents) == 1:
                 title += " REV[%s] -> REV[%s]" % (str(parents[0]), str(torev))
             else:
                 title += " * -> [%s]" % (str(torev))
         else:
-            res, parents, serr = scm_ifce.get_parents()
+            res, parents, serr = ifce.SCM.get_parents()
             if len(parents) == 1:
                 title += " REV[%s] -> []" % (str(parents[0]))
             else:
@@ -288,7 +288,7 @@ class DiffTextDialog(gtk.Dialog):
             nb = gtk.Notebook()
             for parent in parents:
                 vbox = gtk.VBox()
-                dtw = DiffTextWidget(self, scm_ifce, file_list, fromrev=parent, torev=torev)
+                dtw = DiffTextWidget(self, ifce, file_list, fromrev=parent, torev=torev)
                 vbox.pack_start(dtw)
                 hbox = gtk.HBox()
                 tws_display = dtw.diff_view.get_buffer().tws_display
@@ -300,7 +300,7 @@ class DiffTextDialog(gtk.Dialog):
                 nb.append_page(vbox,tab_label=tab_label)
             self.vbox.add(nb)
         else:
-            dtw = DiffTextWidget(self, scm_ifce, file_list, fromrev=parents[0], torev=torev)
+            dtw = DiffTextWidget(self, ifce, file_list, fromrev=parents[0], torev=torev)
             self.vbox.pack_start(dtw)
             tws_display = dtw.diff_view.get_buffer().tws_display
             self.action_area.pack_end(tws_display, expand=False, fill=False)

@@ -53,11 +53,11 @@ def peruse_files_extern(filelist):
 import time
 
 class SummaryBuffer(gtksourceview.SourceBuffer):
-    def __init__(self, table=None, scm_ifce=None):
+    def __init__(self, table=None, ifce=None):
         if not table:
             table = gtksourceview.SourceTagTable()
         gtksourceview.SourceBuffer.__init__(self, table=table)
-        self._scm_ifce = scm_ifce
+        self._ifce = ifce
         self._action_group = gtk.ActionGroup("summary")
         self._action_group.add_actions(
             [
@@ -69,16 +69,16 @@ class SummaryBuffer(gtksourceview.SourceBuffer):
                  "Insert Author tag at cursor position", self._insert_author_acb),
             ])
     def _insert_sign_off_acb(self, action=None):
-        self.insert_at_cursor("Signed-off-by: %s\n" % self._scm_ifce.get_author_name_and_email())
+        self.insert_at_cursor("Signed-off-by: %s\n" % self._ifce.SCM.get_author_name_and_email())
     def _insert_ack_acb(self, action=None):
-        self.insert_at_cursor("Acked-by: %s\n" % self._scm_ifce.get_author_name_and_email())
+        self.insert_at_cursor("Acked-by: %s\n" % self._ifce.SCM.get_author_name_and_email())
     def _insert_author_acb(self, action=None):
-        self.insert_at_cursor("Author: %s\n" % self._scm_ifce.get_author_name_and_email())
+        self.insert_at_cursor("Author: %s\n" % self._ifce.SCM.get_author_name_and_email())
 
 class SummaryView(gtksourceview.SourceView):
-    def __init__(self, buffer=None, table=None, scm_ifce=None):
+    def __init__(self, buffer=None, table=None, ifce=None):
         if not buffer:
-            buffer = SummaryBuffer(table, scm_ifce)
+            buffer = SummaryBuffer(table, ifce)
         gtksourceview.SourceView.__init__(self, buffer)
         fdesc = pango.FontDescription("mono, 10")
         self.modify_font(fdesc)
@@ -110,12 +110,12 @@ class SummaryView(gtksourceview.SourceView):
         return buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter())
 
 class ChangeSummaryBuffer(SummaryBuffer):
-    def __init__(self, table=None, scm_ifce=None, auto_save=True):
+    def __init__(self, table=None, ifce=None, auto_save=True):
         if not table:
             table = gtksourceview.SourceTagTable()
-        SummaryBuffer.__init__(self, table=table, scm_ifce=scm_ifce)
+        SummaryBuffer.__init__(self, table=table, ifce=ifce)
         self._save_interval = 1000 # milliseconds
-        self._save_file_name = self._scm_ifce.get_default_commit_save_file()
+        self._save_file_name = self._ifce.SCM.get_default_commit_save_file()
         if not os.path.exists(self._save_file_name):
             self.save_summary(content="")
         self._action_group.add_actions(
@@ -162,7 +162,7 @@ class ChangeSummaryBuffer(SummaryBuffer):
     def save_summary_as(self, action=None):
         fn = gutils.ask_file_name("Enter file name", existing=False, suggestion=self._save_file_name)
         if fn and os.path.exists(fn) and not os.path.samefile(fn, self._save_file_name):
-            if not os.path.samefile(fn, self._scm_ifce.get_default_commit_save_file()):
+            if not os.path.samefile(fn, self._ifce.SCM.get_default_commit_save_file()):
                 if not gutils.ask_ok_cancel(os.linesep.join([fn, "\nFile exists. Overwrite?"])):
                     return
         self.save_summary(file_name=fn)
@@ -219,7 +219,7 @@ class ChangeSummaryBuffer(SummaryBuffer):
             self.set_auto_save(False)
             self.do_auto_save()
         if clear_save:
-            self.save_summary(file_name=self._scm_ifce.get_default_commit_save_file(), content="")
+            self.save_summary(file_name=self._ifce.SCM.get_default_commit_save_file(), content="")
 
 CHANGE_SUMMARY_UI_DESCR = \
 '''
@@ -243,19 +243,19 @@ CHANGE_SUMMARY_UI_DESCR = \
 '''
 
 class ChangeSummaryView(SummaryView):
-    def __init__(self, buffer=None, auto_save=True, table=None, scm_ifce=None):
+    def __init__(self, buffer=None, auto_save=True, table=None, ifce=None):
         if not buffer:
-            buffer = ChangeSummaryBuffer(table, scm_ifce, auto_save)
-        SummaryView.__init__(self, buffer, table, scm_ifce)
+            buffer = ChangeSummaryBuffer(table, ifce, auto_save)
+        SummaryView.__init__(self, buffer, table, ifce)
         self.change_summary_merge_id = self._ui_manager.add_ui_from_string(CHANGE_SUMMARY_UI_DESCR)
 
 class PatchSummaryBuffer(SummaryBuffer):
-    def __init__(self, patch, table=None, scm_ifce=None, pm_ifce=None):
+    def __init__(self, patch, table=None, ifce=None):
         self.patch = patch
         if not table:
             table = gtksourceview.SourceTagTable()
-        SummaryBuffer.__init__(self, table=table, scm_ifce=scm_ifce)
-        self._pm_ifce = pm_ifce
+        SummaryBuffer.__init__(self, table=table, ifce=ifce)
+        self._ifce = ifce
         self._action_group.add_actions(
             [
                 ("menu_summary", None, "_Description"),
@@ -268,7 +268,7 @@ class PatchSummaryBuffer(SummaryBuffer):
             ])
     def _save_summary_acb(self, action=None):
         text = self.get_text(self.get_start_iter(), self.get_end_iter())
-        res, sout, serr = self._pm_ifce.do_set_patch_description(self.patch, text)
+        res, sout, serr = self._ifce.PM.do_set_patch_description(self.patch, text)
         if res:
             gutils.inform_user(os.linesep.join([sout, serr]))
         else:
@@ -278,7 +278,7 @@ class PatchSummaryBuffer(SummaryBuffer):
             return gutils.ask_ok_cancel("Buffer contents will be destroyed. Continue?")
         return True
     def load_summary(self):
-        res, text, serr = self._pm_ifce.get_patch_description(self.patch)
+        res, text, serr = self._ifce.PM.get_patch_description(self.patch)
         if res:
             gutils.inform_user(os.linesep.join([text, serr]))
         else:
@@ -315,10 +315,10 @@ PATCH_SUMMARY_UI_DESCR = \
 '''
 
 class PatchSummaryView(SummaryView):
-    def __init__(self, patch, scm_ifce, pm_ifce, buffer=None, table=None):
+    def __init__(self, patch, ifce, buffer=None, table=None):
         if not buffer:
-            buffer = PatchSummaryBuffer(patch, table, scm_ifce, pm_ifce)
-        SummaryView.__init__(self, buffer, table, scm_ifce)
+            buffer = PatchSummaryBuffer(patch, table, ifce)
+        SummaryView.__init__(self, buffer, table, ifce)
         self.patch_summary_merge_id = self._ui_manager.add_ui_from_string(PATCH_SUMMARY_UI_DESCR)
         action = buffer._action_group.get_action("patch_summary_save")
         self.save_button = gutils.ActionButton(action, use_underline=False)

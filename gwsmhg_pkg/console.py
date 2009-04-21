@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import os, gtk, gtksourceview, pango
-from gwsmhg_pkg import utils, cmd_result, gutils
+from gwsmhg_pkg import utils, cmd_result, gutils, utils
 import time
 
 class DummyConsoleLog:
@@ -31,28 +31,6 @@ class DummyConsoleLog:
     def append_entry(self, msg):
         print msg.rstrip()
         print "%",
-
-class ConsoleLogUser:
-    def __init__(self, console_log=None):
-        if console_log:
-            self._console_log = console_log
-        else:
-            self._console_log = DummyConsoleLog()
-    def set_console_log(self, console_log):
-        self._console_log = console_log
-    def get_console_log(self):
-        return self._console_log
-    def _map_result(self, result, stdout_expected=False):
-        return cmd_result.map_cmd_result(result, stdout_expected)
-    def _run_cmd_on_console(self, cmd, stdout_expected=True):
-        if self._console_log:
-            result = utils.run_cmd_in_console(cmd, self._console_log)
-        else:
-            result = utils.run_cmd(cmd)
-        return self._map_result(result, stdout_expected)
-    def _append_console_entry(self, msg):
-        if self._console_log:
-            self._console_log.append_entry(msg)
 
 class ConsoleLogBuffer(gtksourceview.SourceBuffer):
     def __init__(self, view=None, table=None):
@@ -119,14 +97,13 @@ CONSOLE_LOG_UI_DESCR = \
 
 class ConsoleLog(gtk.VBox, cmd_result.ProblemReporter,
                  gutils.BusyIndicator, gutils.TooltipsUser):
-    def __init__(self, scm_ifce, table=None, tooltips=None):
+    def __init__(self, table=None, tooltips=None):
         gtk.VBox.__init__(self)
         cmd_result.ProblemReporter.__init__(self)
         gutils.BusyIndicator.__init__(self)
         gutils.TooltipsUser.__init__(self, tooltips)
         self._buffer = ConsoleLogBuffer()
         self._view = ConsoleLogView(buffer=self._buffer)
-        self._scm_ifce = scm_ifce(self)
         self._action_group = gtk.ActionGroup("console_log")
         self._ui_manager = gtk.UIManager()
         self._ui_manager.insert_action_group(self._action_group, -1)
@@ -140,15 +117,13 @@ class ConsoleLog(gtk.VBox, cmd_result.ProblemReporter,
         self._menubar = self._ui_manager.get_widget("/console_log_menubar")
         hbox = gtk.HBox()
         hbox.pack_start(self._menubar, expand=False)
-        hbox.pack_start(gtk.Label("Run: hg"), expand=False)
+        hbox.pack_start(gtk.Label("Run: "), expand=False)
         cmd_entry = gutils.EntryWithHistory()
         cmd_entry.connect("activate", self._cmd_entry_cb)
         hbox.pack_start(cmd_entry, expand=True, fill=True)
         self.pack_start(hbox, expand=False)
         self.pack_start(gutils.wrap_in_scrolled_window(self._view), expand=True, fill=True)
         self.show_all()
-    def get_scm_ifce(self):
-        return self._scm_ifce
     def get_action(self, action_name):
         for action_group in self._ui_manager.get_action_groups():
             action = action_group.get_action(action_name)
@@ -177,10 +152,9 @@ class ConsoleLog(gtk.VBox, cmd_result.ProblemReporter,
         self._show_busy()
         text = entry.get_text_and_clear_to_history()
         if text:
-            result = self._scm_ifce.do_exec_tool_cmd(text)
+            result = utils.run_cmd_in_console(text, self)
         else:
             result = (cmd_result.OK, "", "")
         self._unshow_busy()
         self._report_any_problems(result)
-        # TODO: inform main program that repository state may have changed
 

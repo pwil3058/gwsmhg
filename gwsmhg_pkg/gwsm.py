@@ -157,7 +157,7 @@ GWSM_UI_DESCR = \
 '''
 
 class gwsm(gtk.Window, gutils.BusyIndicator):
-    def __init__(self, scm_ifce, pm_ifce):
+    def __init__(self, ifce):
         gtk.Window.__init__(self, gtk.WINDOW_TOPLEVEL)
         gutils.BusyIndicator.__init__(self)
         self.connect("destroy", self._quit)
@@ -176,11 +176,9 @@ class gwsm(gtk.Window, gutils.BusyIndicator):
         self._menubar = self._ui_manager.get_widget("/gwsm_menubar")
         self._tooltips = gtk.Tooltips()
         self._tooltips.enable()
-        self._console_log = console.ConsoleLog(scm_ifce, tooltips=self._tooltips)
-        self._scm_ifce = self._console_log.get_scm_ifce()
-        self._pm_ifce = pm_ifce(self._console_log)
+        self._ifce = ifce(tooltips=self._tooltips)
         # see if we're in a valid work space and if not offer a selection
-        rootdir = self._scm_ifce.get_root()
+        rootdir = self._ifce.SCM.get_root()
         if not rootdir:
             open_dialog = WSOpenDialog()
             if open_dialog.run() == gtk.RESPONSE_OK:
@@ -188,7 +186,7 @@ class gwsm(gtk.Window, gutils.BusyIndicator):
                 if path:
                     try:
                         os.chdir(path)
-                        rootdir = self._scm_ifce.get_root()
+                        rootdir = self._ifce.SCM.get_root()
                         if rootdir:
                             os.chdir(rootdir)
                             open_dialog.path_view.add_ws(rootdir)
@@ -200,19 +198,17 @@ class gwsm(gtk.Window, gutils.BusyIndicator):
         else:
             os.chdir(rootdir)
             open_dialog = None # we need this later
-        self._parent_view = change_set.ParentsView(self._scm_ifce)
-        self._file_tree_widget = file_tree.ScmCwdFilesWidget(scm_ifce=self._scm_ifce,
-            console_log=self._console_log, tooltips=self._tooltips)
+        self._parent_view = change_set.ParentsView(self._ifce)
+        self._file_tree_widget = file_tree.ScmCwdFilesWidget(ifce=self._ifce, tooltips=self._tooltips)
         self._notebook = gtk.Notebook()
         self._notebook.set_size_request(640, 360)
-        self._patch_mgr = patch_mgr.PatchManagementWidget(pm_ifce=self._pm_ifce, scm_ifce=self._scm_ifce,
-            console_log=self._console_log, tooltips=self._tooltips)
-        self._notebook.append_page(self._patch_mgr, gtk.Label(self._pm_ifce.name))
-        self._heads_view = change_set.HeadsView(self._scm_ifce)
+        self._patch_mgr = patch_mgr.PatchManagementWidget(ifce=self._ifce, tooltips=self._tooltips)
+        self._notebook.append_page(self._patch_mgr, gtk.Label(self._ifce.PM.name))
+        self._heads_view = change_set.HeadsView(self._ifce)
         self._notebook.append_page(gutils.wrap_in_scrolled_window(self._heads_view), gtk.Label("Heads"))
-        self._tags_view = change_set.TagsView(self._scm_ifce)
+        self._tags_view = change_set.TagsView(self._ifce)
         self._notebook.append_page(gutils.wrap_in_scrolled_window(self._tags_view), gtk.Label("Tags"))
-        self._branches_view = change_set.BranchesView(self._scm_ifce)
+        self._branches_view = change_set.BranchesView(self._ifce)
         self._notebook.append_page(gutils.wrap_in_scrolled_window(self._branches_view), gtk.Label("Branches"))
         # Now lay the widgets out
         vbox = gtk.VBox()
@@ -224,7 +220,7 @@ class gwsm(gtk.Window, gutils.BusyIndicator):
         vpane = gtk.VPaned()
         hpane.add2(vpane)
         vpane.add1(self._notebook)
-        vpane.add2(self._console_log)
+        vpane.add2(self._ifce.log)
         self.add(vbox)
         self.show_all()
         self._update_title()
@@ -235,19 +231,19 @@ class gwsm(gtk.Window, gutils.BusyIndicator):
     def _quit(self, widget):
         gtk.main_quit()
     def _update_title(self):
-        self.set_title("gwsm%s: %s" % (self._scm_ifce.name, utils.path_rel_home(os.getcwd())))
+        self.set_title("gwsm%s: %s" % (self._ifce.SCM.name, utils.path_rel_home(os.getcwd())))
     def _change_wd(self, newdir=None):
         if newdir:
             os.chdir(newdir)
         else:
             newdir = os.getcwd()
         # This is where'll we get the appropriate SCM interface in later versions
-        newrootdir = self._scm_ifce.get_root()
+        newrootdir = self._ifce.SCM.get_root()
         if newrootdir and newrootdir != newdir:
             os.chdir(newrootdir)
     def _reset_after_cd(self):
         self._show_busy()
-        self._console_log.append_entry("New Working Directory: %s" % os.getcwd())
+        self._ifce.log.append_entry("New Working Directory: %s" % os.getcwd())
         self._parent_view.refresh_after_commit()
         self._heads_view.refresh_after_commit()
         self._tags_view.refresh_after_commit()
@@ -264,7 +260,7 @@ class gwsm(gtk.Window, gutils.BusyIndicator):
             else:
                 old_path = os.getcwd()
                 os.chdir(path)
-                rootdir = self._scm_ifce.get_root()
+                rootdir = self._ifce.SCM.get_root()
                 if rootdir:
                     os.chdir(rootdir)
                     open_dialog.path_view.add_ws(rootdir)

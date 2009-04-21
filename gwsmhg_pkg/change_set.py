@@ -29,17 +29,17 @@ LOG_TABLE_PRECIS_DESCR = \
 LOG_TABLE_PRECIS_AGE = gutils.find_label_index(LOG_TABLE_PRECIS_DESCR, "Age")
 
 class ParentsView(gutils.TableView):
-    def __init__(self, scm_ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=True, auto_refresh_interval=30000):
+    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=True, auto_refresh_interval=30000):
         gutils.TableView.__init__(self, LOG_TABLE_PRECIS_DESCR, sel_mode=sel_mode)
-        self._scm_ifce = scm_ifce
-        self._scm_ifce.add_commit_notification_cb(self.refresh_after_commit)
+        self._ifce = ifce
+        self._ifce.SCM.add_commit_notification_cb(self.refresh_after_commit)
         self._normal_interval = auto_refresh_interval
         self.rtoc = gutils.RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
         self.refresh_contents()
         self.rtoc.set_function(self.refresh_contents)
         self.show_all()
     def refresh_contents(self):
-        res, parents, serr = self._scm_ifce.get_parents_data()
+        res, parents, serr = self._ifce.SCM.get_parents_data()
         if res == cmd_result.OK:
             desired_interval = self._normal_interval
             self.set_contents(parents)
@@ -61,17 +61,17 @@ class ParentsView(gutils.TableView):
         self.rtoc.restart_cycle()
 
 class HeadsView(gutils.TableView):
-    def __init__(self, scm_ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=False, auto_refresh_interval=30000):
+    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=False, auto_refresh_interval=30000):
         gutils.TableView.__init__(self, LOG_TABLE_PRECIS_DESCR, sel_mode=sel_mode)
-        self._scm_ifce = scm_ifce
-        self._scm_ifce.add_commit_notification_cb(self.refresh_after_commit)
+        self._ifce = ifce
+        self._ifce.SCM.add_commit_notification_cb(self.refresh_after_commit)
         self._normal_interval = auto_refresh_interval
         self.rtoc = gutils.RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
         self.refresh_contents()
         self.rtoc.set_function(self.refresh_contents)
         self.show_all()
     def refresh_contents(self):
-        res, heads, serr = self._scm_ifce.get_heads_data()
+        res, heads, serr = self._ifce.SCM.get_heads_data()
         if res == cmd_result.OK:
             desired_interval = self._normal_interval
             self.set_contents(heads)
@@ -105,17 +105,17 @@ TAG_TABLE_PRECIS_DESCR = \
 TAG_TABLE_PRECIS_AGE = gutils.find_label_index(TAG_TABLE_PRECIS_DESCR, "Age")
 
 class TagsView(gutils.TableView):
-    def __init__(self, scm_ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=False, auto_refresh_interval=3600000):
+    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=False, auto_refresh_interval=3600000):
         gutils.TableView.__init__(self, TAG_TABLE_PRECIS_DESCR, sel_mode=sel_mode)
-        self._scm_ifce = scm_ifce
-        self._scm_ifce.add_commit_notification_cb(self.refresh_after_commit)
+        self._ifce = ifce
+        self._ifce.SCM.add_commit_notification_cb(self.refresh_after_commit)
         self._normal_interval = auto_refresh_interval
         self.rtoc = gutils.RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
         self.refresh_contents()
         self.rtoc.set_function(self.refresh_contents)
         self.show_all()
     def refresh_contents(self):
-        res, tags, serr = self._scm_ifce.get_tags_data()
+        res, tags, serr = self._ifce.SCM.get_tags_data()
         if res == cmd_result.OK:
             desired_interval = self._normal_interval
             self.set_contents(tags)
@@ -149,17 +149,17 @@ BRANCH_TABLE_PRECIS_DESCR = \
 BRANCH_TABLE_PRECIS_AGE = gutils.find_label_index(BRANCH_TABLE_PRECIS_DESCR, "Age")
 
 class BranchesView(gutils.TableView):
-    def __init__(self, scm_ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=False, auto_refresh_interval=3600000):
+    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=False, auto_refresh_interval=3600000):
         gutils.TableView.__init__(self, BRANCH_TABLE_PRECIS_DESCR, sel_mode=sel_mode)
-        self._scm_ifce = scm_ifce
-        self._scm_ifce.add_commit_notification_cb(self.refresh_after_commit)
+        self._ifce = ifce
+        self._ifce.SCM.add_commit_notification_cb(self.refresh_after_commit)
         self._normal_interval = auto_refresh_interval
         self.rtoc = gutils.RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
         self.refresh_contents()
         self.rtoc.set_function(self.refresh_contents)
         self.show_all()
     def refresh_contents(self):
-        res, branches, serr = self._scm_ifce.get_branches_data()
+        res, branches, serr = self._ifce.SCM.get_branches_data()
         if res == cmd_result.OK:
             desired_interval = self._normal_interval
             self.set_contents(branches)

@@ -19,9 +19,9 @@ from gwsmhg_pkg import text_edit, utils, cmd_result, console, putils
 DEFAULT_NAME_EVARS = ["GIT_AUTHOR_NAME", "GECOS"]
 DEFAULT_EMAIL_VARS = ["GIT_AUTHOR_EMAIL", "EMAIL_ADDRESS"]
 
-class SCMInterface(console.ConsoleLogUser):
+class SCMInterface:
     def __init__(self, console_log=None):
-        console.ConsoleLogUser.__init__(self, console_log)
+        self._console_log = console_log
         self.name = "hg"
         self.status_deco_map = {
             None: (pango.STYLE_NORMAL, "black"),
@@ -42,6 +42,9 @@ class SCMInterface(console.ConsoleLogUser):
         self._name_envars = DEFAULT_NAME_EVARS
         self._email_envars = DEFAULT_EMAIL_VARS
         self._commit_notification_cbs = []
+    def _run_cmd_on_console(self, cmd, stdout_expected=True):
+        result = utils.run_cmd_in_console(cmd, self._console_log)
+        return cmd_result.map_cmd_result(result, stdout_expected)
     def get_patches_applied(self):
         res = utils.run_cmd("hg qtop")
         return res[0] == 0
@@ -294,9 +297,9 @@ class SCMInterface(console.ConsoleLogUser):
     def do_exec_tool_cmd(self, cmd):
         return self._run_cmd_on_console("hg " + cmd, stdout_expected=True)
 
-class PMInterface(console.ConsoleLogUser):
+class PMInterface:
     def __init__(self, console_log=None):
-        console.ConsoleLogUser.__init__(self, console_log)
+        self._console_log = console_log
         self.name = "MQ"
         self.status_deco_map = {
             None: (pango.STYLE_NORMAL, "black"),
@@ -314,12 +317,9 @@ class PMInterface(console.ConsoleLogUser):
         self._qrefresh_notification_cbs = []
         self._qpush_notification_cbs = []
         self._qpop_notification_cbs = []
-    def _map_cmd_result(self, result, no_output_expected=False):
-        if res[0]:
-            if no_output_expected and res[1]:
-                return (cmd_result.INFO, res[1], res[2])
-            else:
-                return result
+    def _map_cmd_result(self, result, stdout_expected=True):
+        if not result[0]:
+            return cmd_result.map_cmd_result(result, stdout_expected=stdout_expected)
         else:
             flags = cmd_result.ERROR
             if serr.find('use -f to force') is not -1:
@@ -329,6 +329,9 @@ class PMInterface(console.ConsoleLogUser):
             if serr.find('(revert --all, qpush to recover)') is not -1:
                 flags |= cmd_result.SUGGEST_RECOVER
             return (flags, res[1], res[2])
+    def _run_cmd_on_console(self, cmd, stdout_expected=True):
+        result = utils.run_cmd_in_console(cmd, self._console_log)
+        return self._map_cmd_result(result, stdout_expected)
     def get_status_row_data(self):
         return (self.status_deco_map, self.extra_info_sep, self.modified_dir_status, self.default_nonexistant_status)
     def add_qrefresh_notification_cb(self, notification_cb):
@@ -466,4 +469,10 @@ class PMInterface(console.ConsoleLogUser):
             res = cmd_result.ERROR
         self._console_log.cmd_end()
         return (res, "", serr)
+
+class CombinedInterface:
+    def __init__(self, tooltips=None):
+        self.log = console.ConsoleLog(tooltips=tooltips)
+        self.SCM = SCMInterface(self.log)
+        self.PM = PMInterface(self.log)
 

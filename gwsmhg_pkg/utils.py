@@ -47,7 +47,7 @@ def run_cmd(cmd):
         os.environ['TERM'] = oldterm
     return [ sub.returncode, outd, errd ]
 
-def run_cmd_in_console(cmd, console, interactive=False):
+def run_cmd_in_console(cmd, console):
     if not cmd:
         return [ 0, None, None ]
     try:
