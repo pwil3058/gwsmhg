@@ -404,7 +404,7 @@ class PMInterface:
         if res:
             return None
         else:
-            return sout
+            return sout.strip()
     def do_refresh(self):
         result = self._run_cmd_on_console("hg qrefresh")
         if not result[0]:

@@ -513,11 +513,9 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                     ans = gutils.ask_force_refresh_or_cancel(os.linesep.join([sout, serr]), res, self)
                     if ans is gtk.RESPONSE_CANCEL:
                         return False
-                    if ans is gutils.REFRESH:
+                    elif ans is gutils.REFRESH:
                         self.do_refresh()
-                        self._show_busy()
-                        res, sout, serr = self._ifce.PM.do_pop_to(patch=patch)
-                        self._unshow_busy()
+                        continue
                     elif ans is gutils.FORCE:
                         self._show_busy()
                         res, sout, serr = self._ifce.PM.do_pop_to(force=True)
@@ -546,14 +544,13 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                     ans = gutils.ask_force_refresh_or_cancel(os.linesep.join([sout, serr]), res, self)
                     if ans is gtk.RESPONSE_CANCEL:
                         return False
-                    self._show_busy()
                     if ans is gutils.REFRESH:
-                        res, sout, serr = self._pm_ifcr.do_refresh()
-                        if res is cmd_result.OK:
-                            res, sout, serr = self._ifce.PM.do_push_to(patch=patch, merge=merge)
+                        self.do_refresh()
+                        continue
                     elif ans is gutils.FORCE:
+                        self._unshow_busy()
                         res, sout, serr = self._ifce.PM.do_push_to(force=True, merge=merge)
-                    self._unshow_busy()
+                        self._unshow_busy()
                 if res is not cmd_result.OK: # there're are still problems
                     self._report_any_problems((res, sout, serr))
                     return False
