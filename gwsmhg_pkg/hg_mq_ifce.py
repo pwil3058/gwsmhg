@@ -317,6 +317,7 @@ class PMInterface:
         self._qrefresh_notification_cbs = []
         self._qpush_notification_cbs = []
         self._qpop_notification_cbs = []
+        self._qfinish_notification_cbs = []
     def _map_cmd_result(self, result, stdout_expected=True):
         if not result[0]:
             return cmd_result.map_cmd_result(result, stdout_expected=stdout_expected)
@@ -353,6 +354,13 @@ class PMInterface:
     def del_qpush_notification_cb(self, notification_cb):
         try:
             del self._qpush_notification_cbs[self._qpush_notification_cbs.index(notification_cb)]
+        except:
+            pass
+    def add_qfinish_notification_cb(self, notification_cb):
+        self._qfinish_notification_cbs.append(notification_cb)
+    def del_qfinish_notification_cb(self, notification_cb):
+        try:
+            del self._qfinish_notification_cbs[self._qfinish_notification_cbs.index(notification_cb)]
         except:
             pass
     def get_parents(self, patch):
@@ -405,6 +413,12 @@ class PMInterface:
             return None
         else:
             return sout.strip()
+    def base_patch(self):
+        res, sout, serr = utils.run_cmd("hg qapplied")
+        if res or not sout:
+            return None
+        else:
+            return sout.splitlines(False)[0]
     def do_refresh(self):
         result = self._run_cmd_on_console("hg qrefresh")
         if not result[0]:
@@ -477,6 +491,11 @@ class PMInterface:
             res = cmd_result.ERROR
         self._console_log.end_cmd()
         return (res, "", serr)
+    def do_finish_patch(self, patch):
+        result = self._run_cmd_on_console("hg qfinish %s" % patch)
+        for call_back in self._qfinish_notification_cbs:
+            call_back()
+        return result
 
 class CombinedInterface:
     def __init__(self, tooltips=None):

@@ -84,6 +84,7 @@ class PatchFileTreeView(file_tree.CwdFileTreeView):
         model._ifce.PM.add_qrefresh_notification_cb(self.update_tree)
         model._ifce.PM.add_qpop_notification_cb(self.update_tree)
         model._ifce.PM.add_qpush_notification_cb(self.update_tree)
+        model._ifce.PM.add_qfinish_notification_cb(self.update_tree)
         file_tree.CwdFileTreeView.__init__(self, model=model, tooltips=tooltips, auto_refresh=auto_refresh, show_status=True)
         model.set_view(self)
         self._action_group[file_tree.SELECTION].add_actions(
@@ -567,9 +568,46 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
     def do_push_all_with_merge(self, action=None):
         self._do_push_to("", merge=True)
     def do_finish_to(self, action=None):
-        gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
+        patch = self.get_selected_patch()
+        while True:
+            next = self._ifce.PM.base_patch()
+            if not next:
+                break
+            while True:
+                self._show_busy()
+                res, sout, serr = self._ifce.PM.get_patch_description(next)
+                descr = sout.strip()
+                self._unshow_busy()
+                if descr:
+                    break
+                msg = os.linesep.join(
+                    ['"%s" has an empty description.' % next,
+                     "Do you wish to:",
+                     "\tcancel,",
+                     "\tedit the description and retry, or",
+                     "\tforce the finish operation?"
+                    ])
+                ans = gutils.ask_edit_force_or_cancel(msg, parent=None)
+                if ans == gtk.RESPONSE_CANCEL:
+                    return
+                elif ans == gutils.FORCE:
+                    break
+                self.do_edit_description_wait(next)
+            self._show_busy()
+            res, sout, serr = self._ifce.PM.do_finish_patch(next)
+            self.set_contents()
+            self._unshow_busy()
+            if res is not cmd_result.OK:
+                self._report_any_problems((res, sout, serr))
+                break
+            if patch == next:
+                break
     def do_save_queue_state(self, action=None):
         gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
+    def do_edit_description_wait(self, patch=None):
+        if not patch:
+            patch = self.get_selected_patch()
+        PatchDescrEditDialog(patch, parent=None, ifce=self._ifce, modal=False).run()
     def do_edit_description(self, action=None):
         patch = self.get_selected_patch()
         PatchDescrEditDialog(patch, parent=None, ifce=self._ifce, modal=False).show()

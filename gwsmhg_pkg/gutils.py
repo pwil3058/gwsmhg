@@ -134,6 +134,7 @@ def ask_yes_no(question, parent=None):
 FORCE = 1
 REFRESH = 2
 RECOVER = 3
+EDIT = 4
 
 def ask_force_refresh_or_cancel(question, flags, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
@@ -145,6 +146,10 @@ def ask_force_refresh_or_cancel(question, flags, parent=None):
 
 def ask_recover_or_cancel(question, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, "_Recover", RECOVER)
+    return ask_question(question, parent, buttons)
+
+def ask_edit_force_or_cancel(question, parent=None):
+    buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, "_Edit", EDIT, "_Force", FORCE)
     return ask_question(question, parent, buttons)
 
 def inform_user(msg, parent=None, problem_type=gtk.MESSAGE_ERROR):
