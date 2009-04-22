@@ -86,39 +86,65 @@ def ask_dir_name(prompt, suggestion=None, existing=True, parent=None):
     dialog.destroy()
     return new_dir_name
 
-def ask_question(question, parent=None, buttons=gtk.BUTTONS_OK_CANCEL):
-    dialog = gtk.MessageDialog(parent=parent,
+class QuestionDialog(gtk.Dialog):
+    def __init__(self, title=None, parent=None, flags=0, buttons=None, question=""):
+        try:
+            gtk.Dialog.__init__(self, title, parent, flags, buttons)
+        except:
+            parent=None
+            gtk.Dialog.__init__(self, title, parent, flags, buttons)
+        if parent is None:
+            self.set_position(gtk.WIN_POS_MOUSE)
+        else:
+            self.set_position(gtk.WIN_POS_CENTER_ON_PARENT)
+        hbox = gtk.HBox()
+        self.vbox.add(hbox)
+        hbox.show()
+        self.image = gtk.Image()
+        self.image.set_from_stock(gtk.STOCK_DIALOG_QUESTION, gtk.ICON_SIZE_DIALOG)
+        hbox.pack_start(self.image, expand=False)
+        self.image.show()
+        self.tv = gtk.TextView()
+        self.tv.set_cursor_visible(False)
+        self.tv.set_editable(False)
+        self.tv.set_size_request(320, 80)
+        self.tv.show()
+        self.tv.get_buffer().set_text(question)
+        hbox.add(wrap_in_scrolled_window(self.tv))
+    def set_question(self, question):
+        self.tv.get_buffer().set_text(question)
+
+def ask_question(question, parent=None,
+                 buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                          gtk.STOCK_OK, gtk.RESPONSE_OK)):
+    dialog = QuestionDialog(parent=parent,
                             flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
-                            type=gtk.MESSAGE_QUESTION, buttons=buttons,
-                            message_format=question)
-    if parent:
-        dialog.set_position(gtk.WIN_POS_CENTER_ON_PARENT)
-    else:
-        dialog.set_position(gtk.WIN_POS_MOUSE)
+                            buttons=buttons, question=question)
     response = dialog.run()
     dialog.destroy()
     return response
 
 def ask_ok_cancel(question, parent=None):
-   return ask_question(question, parent) == gtk.RESPONSE_OK
+    return ask_question(question, parent) == gtk.RESPONSE_OK
 
 def ask_yes_no(question, parent=None):
-   return ask_question(question, parent, gtk.BUTTONS_YES_NO) == gtk.RESPONSE_YES
+    buttons = (gtk.STOCK_NO, gtk.RESPONSE_NO, gtk.STOCK_YES, gtk.RESPONSE_YES)
+    return ask_question(question, parent, buttons) == gtk.RESPONSE_YES
 
 FORCE = 1
 REFRESH = 2
 RECOVER = 3
 
 def ask_force_refresh_or_cancel(question, flags, parent=None):
-    buttons = [gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL]
+    buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
     if flags & cmd_result.SUGGEST_REFRESH:
-        buttons += ["_Refresh and Retry", REFRESH]
+        buttons += ("_Refresh and Retry", REFRESH)
     if flags & cmd_result.SUGGEST_FORCE:
-        buttons += ["_Force", FORCE]
+        buttons += ("_Force", FORCE)
     return ask_question(question, parent, buttons)
 
 def ask_recover_or_cancel(question, parent=None):
-    buttons = [gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, "_Recover", RECOVER]
+    buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, "_Recover", RECOVER)
     return ask_question(question, parent, buttons)
 
 def inform_user(msg, parent=None, problem_type=gtk.MESSAGE_ERROR):

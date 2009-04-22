@@ -322,13 +322,13 @@ class PMInterface:
             return cmd_result.map_cmd_result(result, stdout_expected=stdout_expected)
         else:
             flags = cmd_result.ERROR
-            if serr.find('use -f to force') is not -1:
+            if result[2].find('use -f to force') is not -1:
                 flags |= cmd_result.SUGGEST_FORCE
-            if serr.find('refresh first') is not -1:
+            if result[2].find('refresh first') is not -1:
                 flags |= cmd_result.SUGGEST_REFRESH
-            if serr.find('(revert --all, qpush to recover)') is not -1:
+            if result[2].find('(revert --all, qpush to recover)') is not -1:
                 flags |= cmd_result.SUGGEST_RECOVER
-            return (flags, res[1], res[2])
+            return (flags, result[1], result[2])
     def _run_cmd_on_console(self, cmd, stdout_expected=True):
         result = utils.run_cmd_in_console(cmd, self._console_log)
         return self._map_cmd_result(result, stdout_expected)

@@ -541,7 +541,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             self.set_contents()
             if res is not cmd_result.OK:
                 if res & cmd_result.SUGGEST_FORCE_OR_REFRESH:
-                    ans = gutils.ask_force_refresh_or_cancel(os.linesep.join([sout, serr]), res, self)
+                    ans = gutils.ask_force_refresh_or_cancel(os.linesep.join([sout, serr]), res, parent=None)
                     if ans is gtk.RESPONSE_CANCEL:
                         return False
                     if ans is gutils.REFRESH:
