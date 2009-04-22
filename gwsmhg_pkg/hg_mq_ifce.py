@@ -496,6 +496,13 @@ class PMInterface:
         for call_back in self._qfinish_notification_cbs:
             call_back()
         return result
+    def do_save_queue_state(self):
+        return self._run_cmd_on_console("hg qsave")
+    def do_save_queue_state_for_update(self):
+        result = self._run_cmd_on_console("hg qsave -e -c")
+        for call_back in self._qpop_notification_cbs:
+            call_back()
+        return result
 
 class CombinedInterface:
     def __init__(self, tooltips=None):

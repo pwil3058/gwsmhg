@@ -325,6 +325,7 @@ APPLIED_INDIFFERENT = "pm_sel_indifferent"
 PUSH_POSSIBLE = "pm_push_possible"
 PUSH_NOT_POSSIBLE = "pm_push_not_possible"
 POP_POSSIBLE = "pm_pop_possible"
+POP_NOT_POSSIBLE = "pm_push_not_possible"
 PUSH_POP_INDIFFERENT = "pm_push_pop_indifferent"
 
 class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicator):
@@ -350,7 +351,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         for applied_condition in APPLIED, UNAPPLIED, APPLIED_INDIFFERENT, UNAPPLIED_AND_INTERDIFF:
             self._action_group[applied_condition] = gtk.ActionGroup(applied_condition)
             self._ui_manager.insert_action_group(self._action_group[applied_condition], -1)
-        for applied_condition in PUSH_POSSIBLE, PUSH_NOT_POSSIBLE, POP_POSSIBLE, PUSH_POP_INDIFFERENT:
+        for applied_condition in PUSH_POSSIBLE, PUSH_NOT_POSSIBLE, POP_POSSIBLE, POP_NOT_POSSIBLE, PUSH_POP_INDIFFERENT:
             self._action_group[applied_condition] = gtk.ActionGroup(applied_condition)
             self._ui_manager.insert_action_group(self._action_group[applied_condition], -1)
         self._action_group[APPLIED].add_actions(
@@ -398,10 +399,8 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             ])
         self._action_group[PUSH_NOT_POSSIBLE].add_actions(
             [
-                ("pm_update_workspace", None, "Update Workspace", None,
-                 "Update the workspace from the repository", self.do_update_workspace),
                 ("save_queue_state_for_update", None, "Save Queue State For Update", None,
-                 "Save the queue state prepatory to update", self.do_save_queue_state),
+                 "Save the queue state prepatory to update", self.do_save_queue_state_for_update),
             ])
         self._action_group[POP_POSSIBLE].add_actions(
             [
@@ -413,6 +412,11 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                  "Refresh the top patch", self.do_refresh),
                 ("pm_fold_external_patch", icons.STOCK_FOLD_PATCH, "Fold", None,
                  "Fold an external patch into the top patch", self.do_fold_external_patch),
+            ])
+        self._action_group[POP_NOT_POSSIBLE].add_actions(
+            [
+                ("pm_update_workspace", None, "Update Workspace", None,
+                 "Update the workspace from the repository", self.do_update_workspace),
             ])
         self._action_group[PUSH_POP_INDIFFERENT].add_actions(
             [
@@ -603,7 +607,18 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             if patch == next:
                 break
     def do_save_queue_state(self, action=None):
-        gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
+        self._show_busy()
+        res, sout, serr = self._ifce.PM.do_save_queue_state()
+        self._unshow_busy()
+        if res is not cmd_result.OK:
+            self._report_any_problems((res, sout, serr))
+    def do_save_queue_state_for_update(self, action=None):
+        self._show_busy()
+        res, sout, serr = self._ifce.PM.do_save_queue_state_for_update()
+        self._unshow_busy()
+        self.set_contents()
+        if res is not cmd_result.OK:
+            self._report_any_problems((res, sout, serr))
     def do_edit_description_wait(self, patch=None):
         if not patch:
             patch = self.get_selected_patch()
