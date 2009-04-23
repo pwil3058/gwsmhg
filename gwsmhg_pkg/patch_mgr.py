@@ -705,7 +705,20 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         dialog = PatchFilesDialog(ifce=self._ifce, patch=patch)
         dialog.show()
     def do_rename(self, action=None):
-        gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
+        patch = self.get_selected_patch()
+        dialog = gutils.ReadTextDialog("Rename Patch: %s" % patch, "New Name:", patch)
+        response = dialog.run()
+        if response == gtk.RESPONSE_OK:
+            new_name = dialog.entry.get_text()
+            dialog.destroy()
+            if patch == new_name:
+                return
+            res, sout, serr = self._ifce.PM.do_rename_patch(patch, new_name)
+            if res is not cmd_result.OK:
+                self._report_any_problems((res, sout, serr))
+            self.set_contents()
+        else:
+            dialog.destroy()
     def do_delete(self, action=None):
         gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
     def do_fold(self, action=None):

@@ -513,6 +513,8 @@ class PMInterface:
         for call_back in self._qpop_notification_cbs:
             call_back()
         return result
+    def do_rename_patch(self, old_name, new_name):
+        return self._run_cmd_on_console("hg qrename %s %s" % (old_name, new_name))
 
 class CombinedInterface:
     def __init__(self, tooltips=None):

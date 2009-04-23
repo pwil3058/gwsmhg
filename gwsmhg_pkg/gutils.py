@@ -164,6 +164,30 @@ def inform_user(msg, parent=None, problem_type=gtk.MESSAGE_ERROR):
     response = dialog.run()
     dialog.destroy()
 
+class ReadTextDialog(gtk.Dialog):
+    def __init__(self, title=None, prompt=None, suggestion="", parent=None):
+        flags = gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT
+        buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK)
+        try:
+            gtk.Dialog.__init__(self, title, parent, flags, buttons)
+        except:
+            parent=None
+            gtk.Dialog.__init__(self, title, parent, flags, buttons)
+        if parent is None:
+            self.set_position(gtk.WIN_POS_MOUSE)
+        else:
+            self.set_position(gtk.WIN_POS_CENTER_ON_PARENT)
+        hbox = gtk.HBox()
+        self.vbox.add(hbox)
+        hbox.show()
+        if prompt:
+            hbox.pack_start(gtk.Label(prompt), fill=False, expand=False)
+        self.entry = gtk.Entry()
+        self.entry.set_width_chars(32)
+        self.entry.set_text(suggestion)
+        hbox.pack_start(self.entry)
+        self.show_all()
+
 class PopupUser:
     def __init__(self):
         self._gtk_window = None
