@@ -726,9 +726,24 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             self._report_any_problems((res, sout, serr))
         self.set_contents()
     def do_fold(self, action=None):
-        gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
+        patch = self.get_selected_patch()
+        res, sout, serr = self._ifce.PM.do_fold_patch(patch)
+        if res is not cmd_result.OK:
+            self._report_any_problems((res, sout, serr))
+        self.set_contents()
     def do_fold_to(self, action=None):
-        gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
+        patch = self.get_selected_patch()
+        while True:
+            next = self._ifce.PM.get_next_patch()
+            if not next:
+                return
+            res, sout, serr = self._ifce.PM.do_fold_patch(next)
+            if res is not cmd_result.OK:
+                self._report_any_problems((res, sout, serr))
+                return
+            self.set_contents()
+            if patch == next:
+                return
     def do_duplicate(self, action=None):
         gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
     def do_interdiff(self, action=None):

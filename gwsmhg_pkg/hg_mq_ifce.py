@@ -429,6 +429,12 @@ class PMInterface:
             return None
         else:
             return sout.splitlines(False)[0]
+    def get_next_patch(self):
+        res, sout, serr = utils.run_cmd("hg qnext")
+        if res or not sout:
+            return None
+        else:
+            return sout.strip()
     def do_refresh(self):
         result = self._run_cmd_on_console("hg qrefresh")
         if not result[0]:
@@ -517,6 +523,8 @@ class PMInterface:
         return self._run_cmd_on_console("hg qrename %s %s" % (old_name, new_name))
     def do_delete_patch(self, patch):
         return self._run_cmd_on_console("hg qdelete %s" % patch)
+    def do_fold_patch(self, patch):
+        return self._run_cmd_on_console("hg qfold %s" % patch)
 
 class CombinedInterface:
     def __init__(self, tooltips=None):
