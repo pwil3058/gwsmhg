@@ -264,11 +264,11 @@ def set_patch_diff_lines(path, lines):
     os.remove(tmpf_name)
     return ret
 
-ADDED = 1
-EXTANT = 0
-DELETED = -1
+ADDED = "A"
+EXTANT = "M"
+DELETED = "R"
 
-def get_patch_files(path, status=False):
+def get_patch_files(path, status=True):
     if not utils.which("lsdiff"):
         return (False, "This functionality requires \"lsdiff\" from \"patchutils\"")
     cmd = "lsdiff --strip=1"
@@ -284,11 +284,11 @@ def get_patch_files(path, status=False):
             filelist = []
             for line in so.splitlines():
                 if line[0] == "+":
-                    filelist.append((line[2:], ADDED))
+                    filelist.append((line[2:], ADDED, None))
                 elif line[0] == "-":
-                    filelist.append((line[2:], DELETED))
+                    filelist.append((line[2:], DELETED, None))
                 else:
-                    filelist.append((line[2:], EXTANT))
+                    filelist.append((line[2:], EXTANT, None))
             return (True, filelist)
         else:
             return (False, so + se)

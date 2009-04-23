@@ -17,8 +17,9 @@ import gtk, gobject, pango, os
 from gwsmhg_pkg import cmd_result, gutils, file_tree, icons, text_edit, utils
 
 class PatchFileTreeStore(file_tree.FileTreeStore):
-    def __init__(self, ifce, view=None):
+    def __init__(self, ifce, patch=None, view=None):
         self._ifce = ifce
+        self._patch = patch
         row_data = apply(file_tree.FileTreeRowData, self._ifce.PM.get_status_row_data())
         file_tree.FileTreeStore.__init__(self, show_hidden=True, row_data=row_data)
         # if this is set to the associated view then the view will expand
@@ -27,7 +28,7 @@ class PatchFileTreeStore(file_tree.FileTreeStore):
     def set_view(self, view):
         self._view = view
     def update(self, fsobj_iter=None):
-        res, dflist, dummy = self._ifce.PM.get_file_status_list()
+        res, dflist, dummy = self._ifce.PM.get_file_status_list(self._patch)
         if res == 0:
             files = [tmpx[0] for tmpx in dflist] 
             for f in self.get_file_paths():
@@ -42,6 +43,79 @@ class PatchFileTreeStore(file_tree.FileTreeStore):
     def repopulate(self):
         self.clear()
         self.update()
+
+PATCH_FILES_UI_DESCR = \
+'''
+<ui>
+  <menubar name="files_menubar">
+  </menubar>
+  <popup name="files_popup">
+    <placeholder name="selection_indifferent">
+    </placeholder>
+    <placeholder name="selection">
+      <menuitem action="pm_diff_files_selection"/>
+    </placeholder>
+    <placeholder name="unique_selection">
+    </placeholder>
+    <placeholder name="no_selection">
+      <menuitem action="pm_diff_files_all"/>
+    </placeholder>
+  </popup>
+</ui>
+'''
+
+class PatchFileTreeView(file_tree.CwdFileTreeView):
+    def __init__(self, ifce, patch=None, tooltips=None):
+        self._ifce = ifce
+        self._patch = patch
+        model = PatchFileTreeStore(ifce=ifce, patch=patch)
+        file_tree.CwdFileTreeView.__init__(self, model=model,
+             tooltips=tooltips, auto_refresh=False, show_status=True)
+        model.set_view(self)
+        self._action_group[file_tree.SELECTION].add_actions(
+            [
+                ("pm_diff_files_selection", icons.STOCK_DIFF, "_Diff", None,
+                 "Display the diff for selected file(s)", self.diff_selected_files_acb),
+            ])
+        self._action_group[file_tree.NO_SELECTION].add_actions(
+            [
+                ("pm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
+                 "Display the diff for all changes", self.diff_selected_files_acb),
+            ])
+        self._action_group[file_tree.SELECTION_INDIFFERENT].add_actions(
+            [
+                ("menu_files", None, "_Files"),
+            ])
+        model.show_hidden_action.set_visible(False)
+        model.show_hidden_action.set_sensitive(False)
+        self._action_group[file_tree.SELECTION_INDIFFERENT].get_action("new_file").set_visible(False)
+        self._action_group[file_tree.SELECTION].get_action("edit_files").set_visible(False)
+        self._action_group[file_tree.SELECTION].get_action("delete_files").set_visible(False)
+        model.repopulate()
+        self.cwd_merge_id = self._ui_manager.add_ui_from_string(PATCH_FILES_UI_DESCR)
+    def diff_selected_files_acb(self, action=None):
+        gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
+#        dialog = diff.DiffTextDialog(parent=self._get_gtk_window(),
+#                                     pm_ifce=self._ifce.PM,
+#                                     file_list=self.get_selected_files(), modal=False)
+#        dialog.show()
+
+class PatchFilesDialog(gtk.Dialog):
+    def __init__(self, ifce, patch, tooltips=None):
+        title = "patch: %s files: %s" % (patch, utils.path_rel_home(os.getcwd()))
+        gtk.Dialog.__init__(self, title, None, gtk.DIALOG_DESTROY_WITH_PARENT,
+                            (gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE))
+        self._tooltips = tooltips
+        # file tree view wrapped in scrolled window
+        self.file_tree = PatchFileTreeView(ifce=ifce, patch=patch, tooltips=tooltips)
+        self.file_tree.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
+        self.file_tree.set_headers_visible(False)
+        self.file_tree.set_size_request(240, 320)
+        self.vbox.pack_start(gutils.wrap_in_scrolled_window(self.file_tree))
+        self.connect("response", self._close_cb)
+        self.show_all()
+    def _close_cb(self, dialog, response_id):
+        self.destroy()
 
 PM_FILES_UI_DESCR = \
 '''
@@ -77,7 +151,7 @@ PM_FILES_UI_DESCR = \
 </ui>
 '''
 
-class PatchFileTreeView(file_tree.CwdFileTreeView):
+class TopPatchFileTreeView(file_tree.CwdFileTreeView):
     def __init__(self, ifce, tooltips=None, auto_refresh=False):
         self._ifce = ifce
         model = PatchFileTreeStore(ifce=ifce)
@@ -244,12 +318,12 @@ class PatchFileTreeView(file_tree.CwdFileTreeView):
     def revert_all_files_acb(self, action=None):
         self.revert_named_files([])
 
-class PatchFilesWidget(gtk.VBox):
+class TopPatchFilesWidget(gtk.VBox):
     def __init__(self, ifce, tooltips=None, auto_refresh=False):
         gtk.VBox.__init__(self)
         self._tooltips = tooltips
         # file tree view wrapped in scrolled window
-        self.file_tree = PatchFileTreeView(ifce=ifce, tooltips=tooltips,
+        self.file_tree = TopPatchFileTreeView(ifce=ifce, tooltips=tooltips,
                                            auto_refresh=auto_refresh)
         scw = gtk.ScrolledWindow()
         scw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
@@ -627,7 +701,9 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         patch = self.get_selected_patch()
         PatchDescrEditDialog(patch, parent=None, ifce=self._ifce, modal=False).show()
     def show_files(self, action=None):
-        gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
+        patch = self.get_selected_patch()
+        dialog = PatchFilesDialog(ifce=self._ifce, patch=patch)
+        dialog.show()
     def do_rename(self, action=None):
         gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
     def do_delete(self, action=None):
@@ -665,7 +741,7 @@ class PatchManagementWidget(gtk.VBox, gutils.TooltipsUser):
         gtk.VBox.__init__(self)
         gutils.TooltipsUser.__init__(self, tooltips)
         self._ifce = ifce
-        self._file_tree = PatchFilesWidget(ifce=self._ifce, auto_refresh=False, tooltips=self._tooltips)
+        self._file_tree = TopPatchFilesWidget(ifce=self._ifce, auto_refresh=False, tooltips=self._tooltips)
         self._patch_list = PatchListWidget(ifce=self._ifce, tooltips=self._tooltips)
         self._menu_bar = self._patch_list.list_view.get_ui_widget("/patches_menubar")
         self._tool_bar = self._patch_list.list_view.get_ui_widget("/patches_toolbar")

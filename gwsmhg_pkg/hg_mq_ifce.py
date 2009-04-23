@@ -368,6 +368,13 @@ class PMInterface:
         res, sout, serr = utils.run_cmd(cmd)
         return sout.splitlines(False)
     def get_file_status_list(self, patch=None):
+        if patch and not self.get_patch_is_applied(patch):
+            pfn = self.get_patch_file_name(patch)
+            result, file_list = putils.get_patch_files(pfn, status=True)
+            if result:
+                return (cmd_result.OK, file_list, "")
+            else:
+                return (cmd_result.WARNING, "", file_list)
         res, top, serr = utils.run_cmd("hg qtop")
         if res:
             # either we're not in an mq playground or no patches are applied
@@ -407,6 +414,9 @@ class PMInterface:
         if res != 0:
                 return []
         return op.splitlines(False)
+    def get_patch_is_applied(self, patch):
+        res, op, err = utils.run_cmd("hg qapplied %s" % patch)
+        return op.strip() == patch
     def top_patch(self):
         res, sout, serr = utils.run_cmd("hg qtop")
         if res:
