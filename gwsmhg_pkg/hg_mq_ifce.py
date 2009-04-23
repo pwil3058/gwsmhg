@@ -515,6 +515,8 @@ class PMInterface:
         return result
     def do_rename_patch(self, old_name, new_name):
         return self._run_cmd_on_console("hg qrename %s %s" % (old_name, new_name))
+    def do_delete_patch(self, patch):
+        return self._run_cmd_on_console("hg qdelete %s" % patch)
 
 class CombinedInterface:
     def __init__(self, tooltips=None):

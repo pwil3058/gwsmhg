@@ -376,10 +376,10 @@ PM_PATCHES_UI_DESCR = \
       <menuitem action="pm_edit_patch_descr"/>
       <menuitem action="pm_view_patch_files"/>
       <menuitem action="pm_rename_patch"/>
-      <menuitem action="pm_delete_patch"/>
     </placeholder>
     <separator/>
     <placeholder name="unapplied">
+      <menuitem action="pm_delete_patch"/>
       <menuitem action="pm_push_to"/>
       <menuitem action="pm_fold"/>
       <menuitem action="pm_fold_to"/>
@@ -443,18 +443,18 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                  "Show files affected by the selected patch", self.show_files),
                 ("pm_rename_patch", None, "Rename", None,
                  "Rename the selected patch", self.do_rename),
-                ("pm_delete_patch", gtk.STOCK_DELETE, "Delete", None,
-                 "Delete the selected patch", self.do_delete),
             ])
         self._action_group[UNAPPLIED].add_actions(
             [
+                ("pm_delete_patch", gtk.STOCK_DELETE, "Delete", None,
+                 "Delete the selected patch", self.do_delete),
                 ("pm_push_to", icons.STOCK_PUSH_PATCH, "Push To", None,
                  "Push to the selected patch", self.do_push_to),
                 ("pm_fold", icons.STOCK_FOLD_PATCH, "Fold", None,
                  "Fold the selected patch into the top patch", self.do_fold),
                 ("pm_fold_to", icons.STOCK_FOLD_PATCH, "Fold To", None,
                  "Fold patches up to the selected patch into the top patch", self.do_fold_to),
-                ("pm_duplicate", gtk.STOCK_DELETE, "Delete", None,
+                ("pm_duplicate", gtk.STOCK_COPY, "Duplicate", None,
                  "Duplicate the selected patch behind the top patch", self.do_duplicate),
             ])
         self._action_group[UNAPPLIED_AND_INTERDIFF].add_actions(
@@ -720,7 +720,11 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         else:
             dialog.destroy()
     def do_delete(self, action=None):
-        gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
+        patch = self.get_selected_patch()
+        res, sout, serr = self._ifce.PM.do_delete_patch(patch)
+        if res is not cmd_result.OK:
+            self._report_any_problems((res, sout, serr))
+        self.set_contents()
     def do_fold(self, action=None):
         gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
     def do_fold_to(self, action=None):
