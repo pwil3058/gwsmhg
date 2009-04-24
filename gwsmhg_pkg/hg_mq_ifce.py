@@ -525,6 +525,13 @@ class PMInterface:
         return self._run_cmd_on_console("hg qdelete %s" % patch)
     def do_fold_patch(self, patch):
         return self._run_cmd_on_console("hg qfold %s" % patch)
+    def do_import_patch(self, patch_file_name, as_patch_name=None, force=False):
+        cmd = "hg qimport "
+        if as_patch_name:
+            cmd += "-n %s " % as_patch_name
+        if force:
+            cmd += "-f "
+        return self._run_cmd_on_console(cmd + patch_file_name)
 
 class CombinedInterface:
     def __init__(self, tooltips=None):

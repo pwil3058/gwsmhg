@@ -745,7 +745,37 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             if patch == next:
                 return
     def do_duplicate(self, action=None):
-        gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
+        patch = self.get_selected_patch()
+        dialog = DuplicatePatchDialog(patch, parent=None, ifce=self._ifce, modal=False)
+        if dialog.run() == gtk.RESPONSE_CANCEL:
+            dialog.destroy()
+            return
+        duplicate_patch_name = dialog.get_duplicate_patch_name()
+        duplicate_patch_descr = dialog.get_duplicate_patch_descr()
+        dialog.destroy()
+        if not duplicate_patch_name:
+            return
+        self._show_busy()
+        old_pfname = self._ifce.PM.get_patch_file_name(patch)
+        res, sout, serr = self._ifce.PM.do_import_patch(old_pfname, duplicate_patch_name)
+        self._unshow_busy()
+        if res == cmd_result.ERROR_SUGGEST_FORCE:
+            if ask_force_refresh_or_cancel(os.linesep.join([sout, serr]), res) == gutils.FORCE:
+                self._show_busy()
+                res, sout, serr = self._ifce.PM.do_import_patch(old_pfname, duplicate_patch_name, force=True)
+                self._unshow_busy()
+            else:
+                return
+        if res is not cmd_result.OK:
+            self._report_any_problems((res, sout, serr))
+            if res & cmd_result.ERROR:
+                return
+        self.set_contents()
+        self._show_busy()
+        res, sout, serr = self._ifce.PM.do_set_patch_description(duplicate_patch_name, duplicate_patch_descr)
+        self._unshow_busy()
+        if res is not cmd_result.OK:
+            self._report_any_problems((res, sout, serr))
     def do_interdiff(self, action=None):
         gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
     def do_update_workspace(self, action=None):
@@ -786,13 +816,16 @@ class PatchManagementWidget(gtk.VBox, gutils.TooltipsUser):
         hpane.add2(self._patch_list)
         self.pack_start(hpane)
 
-class PatchDescrEditWidget(gtk.VBox, cmd_result.ProblemReporter):
-    def __init__(self, patch, ifce, tooltips=None):
+class NewPatchDescrEditWidget(gtk.VBox, cmd_result.ProblemReporter):
+    def __init__(self, ifce, view=None, tooltips=None):
         gtk.VBox.__init__(self)
         cmd_result.ProblemReporter.__init__(self)
         self._ifce = ifce
         # TextView for change message
-        self.view = text_edit.PatchSummaryView(patch, ifce)
+        if view:
+            self.view = view
+        else:
+            self.view = text_edit.NewPatchSummaryView(ifce)
         hbox = gtk.HBox()
         menubar = self.view.get_ui_widget("/patch_summary_menubar")
         hbox.pack_start(menubar, fill=True, expand=False)
@@ -803,8 +836,13 @@ class PatchDescrEditWidget(gtk.VBox, cmd_result.ProblemReporter):
         self.pack_start(hbox, expand=False)
         self.pack_start(gutils.wrap_in_scrolled_window(self.view))
         self.show_all()
-        self.view.load_summary()
         self.set_focus_child(self.view)
+
+class PatchDescrEditWidget(NewPatchDescrEditWidget):
+    def __init__(self, patch, ifce, tooltips=None):
+        self.view = text_edit.PatchSummaryView(patch, ifce)
+        NewPatchDescrEditWidget.__init__(self, ifce, view=self.view)
+        self.view.load_summary()
     def get_save_button(self):
         return self.view.save_button
 
@@ -830,4 +868,39 @@ class PatchDescrEditDialog(gtk.Dialog):
                     self.destroy()
             else:
                 self.destroy()
+
+class DuplicatePatchDialog(gtk.Dialog):
+    def __init__(self, patch, parent, ifce, modal=False):
+        if modal:
+            flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
+        else:
+            flags = gtk.DIALOG_DESTROY_WITH_PARENT
+        gtk.Dialog.__init__(self, "Duplicate \"%s\": %s" % (patch, utils.path_rel_home(os.getcwd())),
+            parent, flags, (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
+        hbox = gtk.HBox()
+        vbox = gtk.VBox()
+        vbox.pack_start(gtk.Label("Duplicate Patch:"))
+        vbox.pack_start(gtk.Label(" As Patch Named:"))
+        hbox.pack_start(vbox, fill=False, expand=False)
+        vbox = gtk.VBox()
+        entry = gtk.Entry()
+        entry.set_text(patch)
+        entry.set_editable(False)
+        vbox.pack_start(entry)
+        self.new_name_entry = gtk.Entry()
+        self.new_name_entry.set_width_chars(32)
+        vbox.pack_start(self.new_name_entry)
+        hbox.pack_start(vbox)
+        hbox.show_all()
+        self.vbox.pack_start(hbox)
+        self.edit_descr_widget = NewPatchDescrEditWidget(ifce, tooltips=None)
+        res, old_descr, serr = ifce.PM.get_patch_description(patch)
+        if not res:
+            self.edit_descr_widget.view.get_buffer().set_text(old_descr)
+        self.vbox.pack_start(self.edit_descr_widget)
+        self.set_focus_child(self.edit_descr_widget.view)
+    def get_duplicate_patch_name(self):
+        return self.new_name_entry.get_text()
+    def get_duplicate_patch_descr(self):
+        return self.edit_descr_widget.view.get_msg()
 

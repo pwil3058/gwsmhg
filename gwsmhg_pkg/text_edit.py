@@ -249,9 +249,8 @@ class ChangeSummaryView(SummaryView):
         SummaryView.__init__(self, buffer, table, ifce)
         self.change_summary_merge_id = self._ui_manager.add_ui_from_string(CHANGE_SUMMARY_UI_DESCR)
 
-class PatchSummaryBuffer(SummaryBuffer):
-    def __init__(self, patch, table=None, ifce=None):
-        self.patch = patch
+class NewPatchSummaryBuffer(SummaryBuffer):
+    def __init__(self, table=None, ifce=None):
         if not table:
             table = gtksourceview.SourceTagTable()
         SummaryBuffer.__init__(self, table=table, ifce=ifce)
@@ -259,12 +258,32 @@ class PatchSummaryBuffer(SummaryBuffer):
         self._action_group.add_actions(
             [
                 ("menu_summary", None, "_Description"),
+                ("patch_summary_insert_from", gtk.STOCK_PASTE, "_Insert from", "",
+                 "Insert contents of a file at cursor position", self._insert_summary_from_acb),
+            ])
+    def _insert_summary_from_acb(self, action=None):
+        file_name = gutils.ask_file_name("Enter file name", existing=True)
+        try:
+            save_file = open(file_name, 'r')
+            self.insert_at_cursor(save_file.read())
+            save_file.close()
+            self.set_modified(True)
+        except:
+            gutils.inform_user("Insert at cursor from file failed!")
+
+class PatchSummaryBuffer(NewPatchSummaryBuffer):
+    def __init__(self, patch, table=None, ifce=None):
+        self.patch = patch
+        if not table:
+            table = gtksourceview.SourceTagTable()
+        NewPatchSummaryBuffer.__init__(self, table=table, ifce=ifce)
+        self._ifce = ifce
+        self._action_group.add_actions(
+            [
                 ("patch_summary_save", gtk.STOCK_SAVE, "_Save", "",
                  "Save commit summary", self._save_summary_acb),
                 ("patch_summary_load", gtk.STOCK_REVERT_TO_SAVED, "_Reload", "",
                  "Load summary from saved file", self._load_summary_acb),
-                ("patch_summary_insert_from", gtk.STOCK_PASTE, "_Insert from", "",
-                 "Insert contents of a file at cursor position", self._insert_summary_from_acb),
             ])
     def _save_summary_acb(self, action=None):
         text = self.get_text(self.get_start_iter(), self.get_end_iter())
@@ -287,22 +306,13 @@ class PatchSummaryBuffer(SummaryBuffer):
     def _load_summary_acb(self, action=None):
         if self._ok_to_overwrite_summary():
             self.load_summary()
-    def _insert_summary_from_acb(self, action=None):
-        file_name = gutils.ask_file_name("Enter file name", existing=True)
-        try:
-            save_file = open(file_name, 'r')
-            self.insert_at_cursor(save_file.read())
-            save_file.close()
-            self.set_modified(True)
-        except:
-            gutils.inform_user("Insert at cursor from file failed!")
 
-PATCH_SUMMARY_UI_DESCR = \
+NEW_PATCH_SUMMARY_UI_DESCR = \
 '''
 <ui>
   <menubar name="patch_summary_menubar">
     <menu name="patch_summary_menu" action="menu_summary">
-      <menuitem action="patch_summary_load"/>
+      <separator/>
       <menuitem action="patch_summary_insert_from"/>
     </menu>
   </menubar>
@@ -314,11 +324,31 @@ PATCH_SUMMARY_UI_DESCR = \
 </ui>
 '''
 
-class PatchSummaryView(SummaryView):
-    def __init__(self, patch, ifce, buffer=None, table=None):
+class NewPatchSummaryView(SummaryView):
+    def __init__(self, ifce, buffer=None, table=None):
         if not buffer:
-            buffer = PatchSummaryBuffer(patch, table, ifce)
+            buffer = NewPatchSummaryBuffer(table, ifce)
         SummaryView.__init__(self, buffer, table, ifce)
+        self.patch_summary_merge_id = self._ui_manager.add_ui_from_string(NEW_PATCH_SUMMARY_UI_DESCR)
+
+PATCH_SUMMARY_UI_DESCR = \
+'''
+<ui>
+  <menubar name="patch_summary_menubar">
+    <menu name="patch_summary_menu" action="menu_summary">
+      <menuitem action="patch_summary_load"/>
+      <separator/>
+    </menu>
+  </menubar>
+  <toolbar name="patch_summary_toolbar">
+  </toolbar>
+</ui>
+'''
+
+class PatchSummaryView(NewPatchSummaryView):
+    def __init__(self, patch, ifce, table=None):
+        buffer = PatchSummaryBuffer(patch, table, ifce)
+        NewPatchSummaryView.__init__(self, ifce, buffer, table)
         self.patch_summary_merge_id = self._ui_manager.add_ui_from_string(PATCH_SUMMARY_UI_DESCR)
         action = buffer._action_group.get_action("patch_summary_save")
         self.save_button = gutils.ActionButton(action, use_underline=False)
