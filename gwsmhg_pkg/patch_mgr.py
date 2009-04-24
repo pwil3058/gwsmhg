@@ -13,7 +13,7 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import gtk, gobject, pango, os
+import gtk, gobject, pango, os, tempfile
 from gwsmhg_pkg import cmd_result, gutils, file_tree, icons, text_edit, utils
 
 class PatchFileTreeStore(file_tree.FileTreeStore):
@@ -777,7 +777,45 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         if res is not cmd_result.OK:
             self._report_any_problems((res, sout, serr))
     def do_interdiff(self, action=None):
-        gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
+        patch = self.get_selected_patch()
+        dialog = DuplicatePatchDialog(patch, verb="Interdiff", parent=None, ifce=self._ifce, modal=False)
+        if dialog.run() == gtk.RESPONSE_CANCEL:
+            dialog.destroy()
+            return
+        interdiff_patch_name = dialog.get_duplicate_patch_name()
+        interdiff_patch_descr = dialog.get_duplicate_patch_descr()
+        dialog.destroy()
+        if not interdiff_patch_name:
+            return
+        self._show_busy()
+        top_patch = self._ifce.PM.top_patch()
+        if top_patch:
+            top_pfname = self._ifce.PM.get_patch_file_name(top_patch)
+            old_pfname = self._ifce.PM.get_patch_file_name(patch)
+            res, diff, serr = utils.run_cmd("interdiff %s %s" % (top_pfname, old_pfname))
+            if res is not cmd_result.OK:
+                self._report_any_problems((res, diff, serr))
+                return
+            temp_pfname = tempfile.mktemp()
+            tf = open(temp_pfname, 'w')
+            tf.write(os.linesep.join([interdiff_patch_descr, diff]))
+            tf.close()
+        else:
+            temp_pfname = self._ifce.PM.get_patch_file_name(patch)
+        res, sout, serr = self._ifce.PM.do_import_patch(temp_pfname, interdiff_patch_name)
+        self._unshow_busy()
+        if res == cmd_result.ERROR_SUGGEST_FORCE:
+            if ask_force_refresh_or_cancel(os.linesep.join([sout, serr]), res) == gutils.FORCE:
+                self._show_busy()
+                res, sout, serr = self._ifce.PM.do_import_patch(temp_pfname, interdiff_patch_name, force=True)
+                self._unshow_busy()
+        if top_patch:
+            os.remove(temp_pfname)
+        if res is not cmd_result.OK:
+            self._report_any_problems((res, sout, serr))
+            if res & cmd_result.ERROR:
+                return
+        self.set_contents()
     def do_update_workspace(self, action=None):
         gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
     def do_new_patch(self, action=None):
@@ -870,16 +908,16 @@ class PatchDescrEditDialog(gtk.Dialog):
                 self.destroy()
 
 class DuplicatePatchDialog(gtk.Dialog):
-    def __init__(self, patch, parent, ifce, modal=False):
+    def __init__(self, patch, parent, ifce, verb="Duplicate", modal=False):
         if modal:
             flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
         else:
             flags = gtk.DIALOG_DESTROY_WITH_PARENT
-        gtk.Dialog.__init__(self, "Duplicate \"%s\": %s" % (patch, utils.path_rel_home(os.getcwd())),
+        gtk.Dialog.__init__(self, "%s \"%s\": %s" % (verb, patch, utils.path_rel_home(os.getcwd())),
             parent, flags, (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
         hbox = gtk.HBox()
         vbox = gtk.VBox()
-        vbox.pack_start(gtk.Label("Duplicate Patch:"))
+        vbox.pack_start(gtk.Label("%s Patch:" % verb))
         vbox.pack_start(gtk.Label(" As Patch Named:"))
         hbox.pack_start(vbox, fill=False, expand=False)
         vbox = gtk.VBox()
