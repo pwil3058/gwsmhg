@@ -838,7 +838,40 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         if result[0] is not cmd_result.OK:
             self._report_any_problems(result)
     def do_new_patch(self, action=None):
-        gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
+        dialog = NewPatchDialog(parent=None, ifce=self._ifce, modal=False)
+        if dialog.run() == gtk.RESPONSE_CANCEL:
+            dialog.destroy()
+            return
+        new_patch_name = dialog.get_new_patch_name()
+        new_patch_descr = dialog.get_new_patch_descr()
+        dialog.destroy()
+        if not new_patch_name:
+            return
+        force = False
+        while True:
+            self._show_busy()
+            res, sout, serr = self._ifce.PM.do_new_patch(new_patch_name, force=force)
+            self._unshow_busy()
+            if res & cmd_result.SUGGEST_FORCE_OR_REFRESH:
+                ans = gutils.ask_force_refresh_or_cancel(os.linesep.join([sout, serr]), res, parent=None)
+                if ans is gtk.RESPONSE_CANCEL:
+                    return
+                if ans is gutils.REFRESH:
+                    self.do_refresh()
+                elif ans is gutils.FORCE:
+                    force = True
+            elif res is not cmd_result.OK:
+                self._report_any_problems((res, sout, serr))
+                return
+            else:
+                break
+        self.set_contents()
+        if new_patch_descr:
+            self._show_busy()
+            res, sout, serr = self._ifce.PM.do_set_patch_description(new_patch_name, new_patch_descr)
+            self._unshow_busy()
+            if res is not cmd_result.OK:
+                self._report_any_problems((res, sout, serr))
     def do_fold_external_patch(self, action=None):
         gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
     def do_import_external_patch(self, action=None):
@@ -955,9 +988,32 @@ class DuplicatePatchDialog(gtk.Dialog):
         if not res:
             self.edit_descr_widget.view.get_buffer().set_text(old_descr)
         self.vbox.pack_start(self.edit_descr_widget)
-        self.set_focus_child(self.edit_descr_widget.view)
+        self.set_focus_child(self.new_name_entry)
     def get_duplicate_patch_name(self):
         return self.new_name_entry.get_text()
     def get_duplicate_patch_descr(self):
+        return self.edit_descr_widget.view.get_msg()
+
+class NewPatchDialog(gtk.Dialog):
+    def __init__(self, parent, ifce, modal=False):
+        if modal:
+            flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
+        else:
+            flags = gtk.DIALOG_DESTROY_WITH_PARENT
+        gtk.Dialog.__init__(self, "New Patch: %s" % utils.path_rel_home(os.getcwd()),
+            parent, flags, (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
+        hbox = gtk.HBox()
+        hbox.pack_start(gtk.Label("New Patch Name:"), fill=False, expand=False)
+        self.new_name_entry = gtk.Entry()
+        self.new_name_entry.set_width_chars(32)
+        hbox.pack_start(self.new_name_entry)
+        hbox.show_all()
+        self.vbox.pack_start(hbox)
+        self.edit_descr_widget = NewPatchDescrEditWidget(ifce, tooltips=None)
+        self.vbox.pack_start(self.edit_descr_widget)
+        self.set_focus_child(self.new_name_entry)
+    def get_new_patch_name(self):
+        return self.new_name_entry.get_text()
+    def get_new_patch_descr(self):
         return self.edit_descr_widget.view.get_msg()
 

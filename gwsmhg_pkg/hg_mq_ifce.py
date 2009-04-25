@@ -562,6 +562,17 @@ class PMInterface:
             return self._run_cmd_on_console("hg qpop -a -n patches.%d" % biggest)
         else:
             return (cmd_result.INFO, "Saved patch directory not found.", "")
+    def do_new_patch(self, patch_name_raw, force=False):
+        patch_name = re.sub('\s', '_', patch_name_raw)
+        if force:
+            res, sout, serr = self._run_cmd_on_console("hg qnew -f %s" % patch_name)
+        else:
+            res, sout, serr = self._run_cmd_on_console("hg qnew %s" % patch_name)
+        for call_back in self._qpush_notification_cbs:
+            call_back()
+        if res & cmd_result.SUGGEST_REFRESH:
+            res |= cmd_result.SUGGEST_FORCE
+        return (res, sout, serr)
 
 class CombinedInterface:
     def __init__(self, tooltips=None):
