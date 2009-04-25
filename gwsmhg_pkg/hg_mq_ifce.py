@@ -296,6 +296,22 @@ class SCMInterface:
             return self._run_cmd_on_console(cmd, stdout_expected=True)
     def do_exec_tool_cmd(self, cmd):
         return self._run_cmd_on_console("hg " + cmd, stdout_expected=True)
+    def do_update_workspace(self, rev=None, clean=False):
+        cmd = "hg update"
+        if clean:
+            cmd += " -C"
+        if rev:
+            cmd += " -r %s" %rev
+        return self._run_cmd_on_console(cmd)
+    def do_pull(self, rev=None, update=False, source=None):
+        cmd = "hg pull"
+        if update:
+            cmd += " -u"
+        if rev:
+            cmd += " -r %s" %rev
+        if source:
+            cmd += " %s" % source
+        return self._run_cmd_on_console(cmd)
 
 class PMInterface:
     def __init__(self, console_log=None):
@@ -532,6 +548,20 @@ class PMInterface:
         if force:
             cmd += "-f "
         return self._run_cmd_on_console(cmd + patch_file_name)
+    def do_clean_up_after_update(self):
+        pde = re.compile("^patches\.(\d+)$")
+        biggest = None
+        for item in os.listdir(".hg"):
+            if os.path.isdir(os.sep.join([".hg", item])):
+                match = pde.match(item)
+                if match:
+                    num = int(match.group(1))
+                    if not biggest or num > biggest:
+                        biggest = num
+        if biggest:
+            return self._run_cmd_on_console("hg qpop -a -n patches.%d" % biggest)
+        else:
+            return (cmd_result.INFO, "Saved patch directory not found.", "")
 
 class CombinedInterface:
     def __init__(self, tooltips=None):

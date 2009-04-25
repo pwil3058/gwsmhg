@@ -210,6 +210,7 @@ class gwsm(gtk.Window, gutils.BusyIndicator):
         self._notebook.append_page(gutils.wrap_in_scrolled_window(self._tags_view), gtk.Label("Tags"))
         self._branches_view = change_set.BranchesView(self._ifce)
         self._notebook.append_page(gutils.wrap_in_scrolled_window(self._branches_view), gtk.Label("Branches"))
+        self._notebook.set_current_page(0)
         # Now lay the widgets out
         vbox = gtk.VBox()
         vbox.pack_start(self._menubar, expand=False)
