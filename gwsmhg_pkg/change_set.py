@@ -59,6 +59,8 @@ class ParentsView(gutils.TableView):
         self.rtoc.stop_cycle()
         self.refresh_contents()
         self.rtoc.restart_cycle()
+    def update_for_chdir(self):
+        self.refresh_after_commit()
 
 class HeadsView(gutils.TableView):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=False, auto_refresh_interval=30000):
@@ -91,6 +93,8 @@ class HeadsView(gutils.TableView):
         self.rtoc.stop_cycle()
         self.refresh_contents()
         self.rtoc.restart_cycle()
+    def update_for_chdir(self):
+        self.refresh_after_commit()
 
 TAG_TABLE_PRECIS_DESCR = \
 [
@@ -135,6 +139,8 @@ class TagsView(gutils.TableView):
         self.rtoc.stop_cycle()
         self.refresh_contents()
         self.rtoc.restart_cycle()
+    def update_for_chdir(self):
+        self.refresh_after_commit()
 
 BRANCH_TABLE_PRECIS_DESCR = \
 [
@@ -179,4 +185,6 @@ class BranchesView(gutils.TableView):
         self.rtoc.stop_cycle()
         self.refresh_contents()
         self.rtoc.restart_cycle()
+    def update_for_chdir(self):
+        self.refresh_after_commit()
 

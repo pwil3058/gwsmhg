@@ -245,11 +245,12 @@ class gwsm(gtk.Window, gutils.BusyIndicator):
     def _reset_after_cd(self):
         self._show_busy()
         self._ifce.log.append_entry("New Working Directory: %s" % os.getcwd())
-        self._parent_view.refresh_after_commit()
-        self._heads_view.refresh_after_commit()
-        self._tags_view.refresh_after_commit()
-        self._branches_view.refresh_after_commit()
-        self._file_tree_widget.file_tree.repopulate_tree()
+        self._parent_view.update_for_chdir()
+        self._heads_view.update_for_chdir()
+        self._tags_view.update_for_chdir()
+        self._branches_view.update_for_chdir()
+        self._file_tree_widget.update_for_chdir()
+        self._patch_mgr.update_for_chdir()
         self._update_title()
         self._unshow_busy()
     def _change_wd_acb(self, action=None):

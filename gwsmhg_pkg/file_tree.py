@@ -1123,6 +1123,8 @@ class ScmCwdFilesWidget(gtk.VBox):
             hbox.pack_start(button)
         self.pack_start(hbox, expand=False)
         self.show_all()
+    def update_for_chdir(self):
+        self.file_tree.repopulate_tree()
 
 class ScmChangeFileTreeStore(FileTreeStore):
     def __init__(self, ifce, show_hidden=True, view=None, file_mask=None):

@@ -336,6 +336,8 @@ class TopPatchFilesWidget(gtk.VBox):
         self.pack_start(self.menu_bar, expand=False)
         self.pack_start(scw, expand=True, fill=True)
         self.show_all()
+    def update_for_chdir(self):
+        self.file_tree.get_model().repopulate()
 
 PM_PATCHES_UI_DESCR = \
 '''
@@ -953,6 +955,8 @@ class PatchListWidget(gtk.VBox, gutils.TooltipsUser):
         self.menu_bar = self.list_view.get_ui_widget("/patch_list_menubar")
         self.pack_start(self.menu_bar, expand=False)
         self.pack_start(gutils.wrap_in_scrolled_window(self.list_view))
+    def update_for_chdir(self):
+        self.list_view.set_contents()
 
 class PatchManagementWidget(gtk.VBox, gutils.TooltipsUser):
     def __init__(self, ifce, tooltips=None):
@@ -971,6 +975,9 @@ class PatchManagementWidget(gtk.VBox, gutils.TooltipsUser):
         hpane.add1(self._file_tree)
         hpane.add2(self._patch_list)
         self.pack_start(hpane)
+    def update_for_chdir(self):
+        self._file_tree.update_for_chdir()
+        self._patch_list.update_for_chdir()
 
 class NewPatchDescrEditWidget(gtk.VBox, cmd_result.ProblemReporter):
     def __init__(self, ifce, view=None, tooltips=None):
