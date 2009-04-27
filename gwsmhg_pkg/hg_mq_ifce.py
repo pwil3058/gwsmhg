@@ -334,9 +334,10 @@ class PMInterface:
         self._qpush_notification_cbs = []
         self._qpop_notification_cbs = []
         self._qfinish_notification_cbs = []
-    def _map_cmd_result(self, result, stdout_expected=True):
+        self._adding_re = re.compile("^adding\s.*$")
+    def _map_cmd_result(self, result, stdout_expected=True, ignore_err_re=None):
         if not result[0]:
-            return cmd_result.map_cmd_result(result, stdout_expected=stdout_expected)
+            return cmd_result.map_cmd_result(result, stdout_expected=stdout_expected, ignore_err_re=ignore_err_re)
         else:
             flags = cmd_result.ERROR
             if result[2].find('use -f to force') is not -1:
@@ -346,9 +347,9 @@ class PMInterface:
             if result[2].find('(revert --all, qpush to recover)') is not -1:
                 flags |= cmd_result.SUGGEST_RECOVER
             return (flags, result[1], result[2])
-    def _run_cmd_on_console(self, cmd, stdout_expected=True):
+    def _run_cmd_on_console(self, cmd, stdout_expected=True, ignore_err_re=None):
         result = utils.run_cmd_in_console(cmd, self._console_log)
-        return self._map_cmd_result(result, stdout_expected)
+        return self._map_cmd_result(result, stdout_expected, ignore_err_re=ignore_err_re)
     def get_status_row_data(self):
         return (self.status_deco_map, self.extra_info_sep, self.modified_dir_status, self.default_nonexistant_status)
     def add_qrefresh_notification_cb(self, notification_cb):
@@ -547,7 +548,10 @@ class PMInterface:
             cmd += "-n %s " % as_patch_name
         if force:
             cmd += "-f "
-        return self._run_cmd_on_console(cmd + patch_file_name)
+        res, sout, serr = self._run_cmd_on_console(cmd + patch_file_name, ignore_err_re=self._adding_re)
+        if res and re.search("already exists", serr):
+            res |= cmd_result.SUGGEST_FORCE_OR_RENAME
+        return (res, sout, serr)
     def do_clean_up_after_update(self):
         pde = re.compile("^patches\.(\d+)$")
         biggest = None

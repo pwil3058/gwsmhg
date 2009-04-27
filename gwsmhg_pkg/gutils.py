@@ -135,6 +135,8 @@ FORCE = 1
 REFRESH = 2
 RECOVER = 3
 EDIT = 4
+SKIP = 5
+SKIP_ALL = 6
 
 def ask_force_refresh_or_cancel(question, flags, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
@@ -150,6 +152,14 @@ def ask_recover_or_cancel(question, parent=None):
 
 def ask_edit_force_or_cancel(question, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, "_Edit", EDIT, "_Force", FORCE)
+    return ask_question(question, parent, buttons)
+
+def ask_rename_force_or_cancel(question, parent=None):
+    buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, "_Rename", EDIT, "_Force", FORCE)
+    return ask_question(question, parent, buttons)
+
+def ask_rename_force_or_skip(question, parent=None):
+    buttons = ("_Rename", EDIT, "_Force", FORCE, "_Skip", SKIP, "Skip _All", SKIP_ALL)
     return ask_question(question, parent, buttons)
 
 def inform_user(msg, parent=None, problem_type=gtk.MESSAGE_ERROR):
@@ -187,6 +197,13 @@ class ReadTextDialog(gtk.Dialog):
         self.entry.set_text(suggestion)
         hbox.pack_start(self.entry)
         self.show_all()
+
+def get_modified_string(title, prompt, string):
+    dialog = ReadTextDialog(title, prompt, string)
+    if dialog.run() == gtk.RESPONSE_OK:
+        string = dialog.entry.get_text()
+    dialog.destroy()
+    return string
 
 class PopupUser:
     def __init__(self):

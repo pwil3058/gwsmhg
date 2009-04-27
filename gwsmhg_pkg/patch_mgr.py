@@ -345,6 +345,7 @@ PM_PATCHES_UI_DESCR = \
       <menuitem action="save_queue_state"/>
       <menuitem action="pm_pop_all"/>
       <menuitem action="pm_push_all"/>
+      <menuitem action="pm_import_patch_series"/>
     </menu>
     <menu name="patches_ws_menu" action="menu_patches_ws">
       <menuitem action="save_queue_state_for_update"/>
@@ -358,9 +359,9 @@ PM_PATCHES_UI_DESCR = \
     <toolitem name="Refresh" action="pm_refresh_top_patch"/>
     <toolitem name="Push" action="pm_push"/>
     <toolitem name="Pop" action="pm_pop"/>
+    <separator/>
     <toolitem name="New" action="pm_new"/>
     <toolitem name="Import" action="pm_import_external_patch"/>
-    <toolitem name="Fold" action="pm_fold_external_patch"/>
   </toolbar>
   <menubar name="patch_list_menubar">
     <menu name="patch_list_menu" action="menu_patch_list">
@@ -487,8 +488,6 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                  "Pop all remaining applied patches", self.do_pop_all),
                 ("pm_refresh_top_patch", gtk.STOCK_REFRESH, "Refresh", None,
                  "Refresh the top patch", self.do_refresh),
-                ("pm_fold_external_patch", icons.STOCK_FOLD_PATCH, "Fold", None,
-                 "Fold an external patch into the top patch", self.do_fold_external_patch),
             ])
         self._action_group[POP_NOT_POSSIBLE].add_actions(
             [
@@ -510,6 +509,8 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                  "Create a new patch", self.do_new_patch),
                 ("pm_import_external_patch", icons.STOCK_IMPORT_PATCH, "Import", None,
                  "Import an external patch", self.do_import_external_patch),
+                ("pm_import_patch_series", icons.STOCK_IMPORT_PATCH, "Import Patch Series", None,
+                 "Import an external patch (mq/quilt style) series", self.do_import_external_patch_series),
                 ("pm_clean_up_after_update", gtk.STOCK_CLEAR, "Clean Up", None,
                  "Clean up left over heads after repostory and patch series update", self.do_clean_up_after_update),
             ])
@@ -872,10 +873,75 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             self._unshow_busy()
             if res is not cmd_result.OK:
                 self._report_any_problems((res, sout, serr))
-    def do_fold_external_patch(self, action=None):
-        gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
     def do_import_external_patch(self, action=None):
-        gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
+        patch_file_name = gutils.ask_file_name("Select patch file to be imported")
+        force = False
+        patch_name = None
+        while True:
+            self._show_busy()
+            res, sout, serr = self._ifce.PM.do_import_patch(patch_file_name, patch_name, force)
+            self._unshow_busy()
+            if res & cmd_result.SUGGEST_FORCE_OR_RENAME:
+                question = os.linesep.join([sout, serr, "Force import of patch, rename patch or cancel import?"])
+                ans = gutils.ask_rename_force_or_cancel(question, parent=None)
+                if ans == gtk.RESPONSE_CANCEL:
+                    return
+                elif ans == gutils.FORCE:
+                    force = True
+                    continue
+                elif ans == gutils.EDIT:
+                    if not patch_name:
+                        patch_name = os.path.basename(patch_file_name)
+                    patch_name = gutils.get_modified_string("Rename Patch", "New Name :", patch_name)
+                    continue
+            if res is not cmd_result.OK:
+                self._report_any_problems((res, sout, serr))
+            break
+        self.set_contents()
+    def do_import_external_patch_series(self, action=None):
+        patch_series_dir = gutils.ask_dir_name("Select patch series to be imported")
+        series_fn = os.sep.join([patch_series_dir, "series"])
+        if (not os.path.exists(series_fn) and os.path.isfile(series_fn)):
+            self._report_any_problems((cmd_result.ERROR, "", "Series file not found."))
+            return
+        sf = open(series_fn, 'r')
+        series = sf.readlines()
+        sf.close()
+        series.reverse()
+        index = 0
+        while index < len(series):
+            base_name = series[index].strip()
+            if base_name == "" or base_name[0] == "#":
+                index += 1
+                continue
+            patch_file_name = os.sep.join([patch_series_dir, base_name])
+            force = False
+            patch_name = None
+            while True:
+                self._show_busy()
+                res, sout, serr = self._ifce.PM.do_import_patch(patch_file_name, patch_name, force)
+                self._unshow_busy()
+                if res & cmd_result.SUGGEST_FORCE_OR_RENAME:
+                    question = os.linesep.join([sout, serr, "Force import of patch, rename patch or skip patch?"])
+                    ans = gutils.ask_rename_force_or_skip(question, parent=None)
+                    if ans == gutils.SKIP_ALL:
+                        index = len(series)
+                        break
+                    elif ans == gutils.SKIP:
+                        break
+                    elif ans == gutils.FORCE:
+                        force = True
+                        continue
+                    elif ans == gutils.EDIT:
+                        if not patch_name:
+                            patch_name = os.path.basename(patch_file_name)
+                        patch_name = gutils.get_modified_string("Rename Patch", "New Name :", patch_name)
+                        continue
+                if res is not cmd_result.OK:
+                    self._report_any_problems((res, sout, serr))
+                break
+            self.set_contents()
+            index += 1
 
 class PatchListWidget(gtk.VBox, gutils.TooltipsUser):
     def __init__(self, ifce, tooltips=None):

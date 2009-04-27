@@ -25,6 +25,7 @@ ERROR = 4
 SUGGEST_FORCE = 8
 SUGGEST_REFRESH = 16
 SUGGEST_RECOVER = 32
+SUGGEST_RENAME = 64
 SUGGEST_FORCE_OR_REFRESH = SUGGEST_FORCE | SUGGEST_REFRESH
 INFO_SUGGEST_FORCE = INFO | SUGGEST_FORCE
 WARNING_SUGGEST_FORCE = WARNING | SUGGEST_FORCE
@@ -35,10 +36,11 @@ ERROR_SUGGEST_REFRESH = ERROR | SUGGEST_REFRESH
 INFO_SUGGEST_FORCE_OR_REFRESH = INFO | SUGGEST_FORCE_OR_REFRESH
 WARNING_SUGGEST_FORCE_OR_REFRESH = WARNING | SUGGEST_FORCE_OR_REFRESH
 ERROR_SUGGEST_FORCE_OR_REFRESH = ERROR | SUGGEST_FORCE_OR_REFRESH
+SUGGEST_FORCE_OR_RENAME = SUGGEST_FORCE | SUGGEST_RENAME
 
-def map_cmd_result(result, stdout_expected=False):
+def map_cmd_result(result, stdout_expected=False, ignore_err_re=None):
     if result[0] == 0:
-        if result[2]:
+        if result[2] and not (ignore_err_re and ignore_err_re.match(result[2])):
             outres = WARNING
         elif not stdout_expected and result[1]:
             outres = INFO
