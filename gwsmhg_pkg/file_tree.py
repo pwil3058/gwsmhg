@@ -882,7 +882,8 @@ class ScmCwdFileTreeView(CwdFileTreeView):
     def __init__(self, ifce, tooltips=None, auto_refresh=False, show_hidden=False):
         self._ifce = ifce
         model = ScmCwdFileTreeStore(ifce=self._ifce, show_hidden=show_hidden)
-        self._ifce.SCM.add_commit_notification_cb(self.update_after_commit)
+        self._ifce.SCM.add_notification_cb(["commit"], self.update_after_commit)
+        self._ifce.PM.add_notification_cb(self._ifce.PM.file_state_changing_cmds, self.update_after_commit)
         CwdFileTreeView.__init__(self, model=model, tooltips=tooltips, auto_refresh=auto_refresh, console_log=ifce.log, show_status=True)
         self._action_group[SELECTION].add_actions(
             [
@@ -955,22 +956,22 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         if not ask or self._confirm_list_action(file_list, "About to be removed. OK?"):
             model = self.get_model()
             self._show_busy()
-            result = model._ifce.SCM.remove_files(file_list)
+            result = model._ifce.SCM.do_remove_files(file_list)
             self._show_busy()
             if self._check_if_force(result):
-                result = model._ifce.SCM.remove_files(file_list, force=True)
+                result = model._ifce.SCM.do_remove_files(file_list, force=True)
             self.update_tree()
             self._report_any_problems(result)
     def remove_selected_files_acb(self, menu_item):
         self._remove_named_files(self.get_selected_files())
     def add_files_to_repo(self, file_list):
         self._show_busy()
-        result = self._ifce.SCM.add_files(file_list)
+        result = self._ifce.SCM.do_add_files(file_list)
         self._unshow_busy()
         self.update_tree()
         self._report_any_problems(result)
     def add_all_files_to_repo(self):
-        operation = self._ifce.SCM.add_files
+        operation = self._ifce.SCM.do_add_files
         self._show_busy()
         res, info, serr = operation([], dry_run=True)
         self._unshow_busy()
@@ -987,7 +988,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         self.add_files_to_repo(self.get_selected_files())
     def add_all_files_to_repo_acb(self, menu_item):
         self.add_all_files_to_repo()
-    def update_after_commit(self, files_in_commit):
+    def update_after_commit(self, files_in_commit=[]):
         self.get_model().del_files_from_displayable_nonexistants(files_in_commit)
         self.update_tree()
     def commit_changes(self, file_list):
@@ -1019,9 +1020,9 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         return (response, target)
     def _move_or_copy_files(self, file_list, reqop, ask=True):
         if reqop == "c":
-            operation = self._ifce.SCM.copy_files
+            operation = self._ifce.SCM.do_copy_files
         elif reqop == "m":
-            operation = self._ifce.SCM.move_files
+            operation = self._ifce.SCM.do_move_files
         else:
             raise "Invalid operation requested"
         response, target = self._get_target(file_list)
@@ -1070,7 +1071,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
     def revert_named_files(self, file_list, ask=True):
         if ask:
             self._show_busy()
-            res, sout, serr = self._ifce.SCM.revert_files(file_list, dry_run=True)
+            res, sout, serr = self._ifce.SCM.do_revert_files(file_list, dry_run=True)
             self._unshow_busy()
             if res == cmd_result.OK:
                 if sout:
@@ -1085,7 +1086,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             ok = True
         if ok:
             self._show_busy()
-            result = self._ifce.SCM.revert_files(file_list)
+            result = self._ifce.SCM.do_revert_files(file_list)
             self.get_model().del_files_from_displayable_nonexistants(file_list)
             self._show_busy()
             self.update_tree()
@@ -1127,7 +1128,7 @@ class ScmCwdFilesWidget(gtk.VBox):
         self.file_tree.repopulate_tree()
 
 class ScmChangeFileTreeStore(FileTreeStore):
-    def __init__(self, ifce, show_hidden=True, view=None, file_mask=None):
+    def __init__(self, ifce, show_hidden=True, view=None, file_mask=[]):
         self._file_mask = file_mask
         self._ifce = ifce
         row_data = apply(FileTreeRowData, self._ifce.SCM.get_status_row_data())
@@ -1183,7 +1184,7 @@ SCM_CHANGE_UI_DESCR = \
 '''
 
 class ScmChangeFileTreeView(FileTreeView):
-    def __init__(self, ifce, tooltips=None, auto_refresh=False, show_hidden=True, file_mask=None):
+    def __init__(self, ifce, tooltips=None, auto_refresh=False, show_hidden=True, file_mask=[]):
         self.removeds = []
         self.model = ScmChangeFileTreeStore(ifce, show_hidden=show_hidden, file_mask=file_mask)
         self.model.set_view(self)
@@ -1253,7 +1254,7 @@ class ScmChangeFileTreeView(FileTreeView):
 import gutils
 
 class ScmCommitWidget(gtk.VPaned, cmd_result.ProblemReporter):
-    def __init__(self, ifce, tooltips=None, file_mask=None):
+    def __init__(self, ifce, tooltips=None, file_mask=[]):
         gtk.VPaned.__init__(self)
         cmd_result.ProblemReporter.__init__(self)
         self._ifce = ifce
@@ -1297,11 +1298,11 @@ class ScmCommitWidget(gtk.VPaned, cmd_result.ProblemReporter):
     def get_file_mask(self):
         return self.files.get_file_mask()
     def do_commit(self):
-        result = self._ifce.SCM.commit_change(self.get_msg(), self.get_file_mask())
+        result = self._ifce.SCM.do_commit_change(self.get_msg(), self.get_file_mask())
         self._report_any_problems(result)
         return result[0] == cmd_result.OK
 
-class ScmCommitDialog(gtk.Dialog):
+class ScmCommitDialog(gtk.Dialog, gutils.BusyIndicator):
     def __init__(self, parent, ifce, filelist=None, modal=False):
         if modal or (parent and parent.get_modal()):
             flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
@@ -1309,6 +1310,7 @@ class ScmCommitDialog(gtk.Dialog):
             flags = gtk.DIALOG_DESTROY_WITH_PARENT
         gtk.Dialog.__init__(self, "Commit Changes: %s" % utils.path_rel_home(os.getcwd()), parent, flags,
             (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
+        gutils.BusyIndicator.__init__(self)
         self.commit_widget = ScmCommitWidget(ifce=ifce, tooltips=None, file_mask=filelist)
         self.vbox.pack_start(self.commit_widget)
         self.connect("response", self._handle_response_cb)
@@ -1318,7 +1320,9 @@ class ScmCommitDialog(gtk.Dialog):
     def update_files(self):
         self.commit_widget.files.update_tree()
     def _finish_up(self, clear_save=False):
+        self._show_busy()
         self.commit_widget.view.get_buffer().finish_up(clear_save)
+        self._unshow_busy()
         self.destroy()
     def _handle_response_cb(self, dialog, response_id):
         if response_id == gtk.RESPONSE_OK:

@@ -29,12 +29,13 @@ LOG_TABLE_PRECIS_DESCR = \
 LOG_TABLE_PRECIS_AGE = gutils.find_label_index(LOG_TABLE_PRECIS_DESCR, "Age")
 
 class ParentsView(gutils.TableView):
-    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=True, auto_refresh_interval=30000):
+    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=False, auto_refresh_interval=30000):
         gutils.TableView.__init__(self, LOG_TABLE_PRECIS_DESCR, sel_mode=sel_mode)
         self._ifce = ifce
-        self._ifce.SCM.add_commit_notification_cb(self.refresh_after_commit)
+        self._ifce.SCM.add_notification_cb(["commit"], self.refresh_after_commit)
         self._normal_interval = auto_refresh_interval
         self.rtoc = gutils.RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
+        self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.refresh_after_commit)
         self.refresh_contents()
         self.rtoc.set_function(self.refresh_contents)
         self.show_all()
@@ -66,7 +67,8 @@ class HeadsView(gutils.TableView):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=False, auto_refresh_interval=30000):
         gutils.TableView.__init__(self, LOG_TABLE_PRECIS_DESCR, sel_mode=sel_mode)
         self._ifce = ifce
-        self._ifce.SCM.add_commit_notification_cb(self.refresh_after_commit)
+        self._ifce.SCM.add_notification_cb(["commit"], self.refresh_after_commit)
+        self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.refresh_after_commit)
         self._normal_interval = auto_refresh_interval
         self.rtoc = gutils.RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
         self.refresh_contents()
@@ -112,7 +114,8 @@ class TagsView(gutils.TableView):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=False, auto_refresh_interval=3600000):
         gutils.TableView.__init__(self, TAG_TABLE_PRECIS_DESCR, sel_mode=sel_mode)
         self._ifce = ifce
-        self._ifce.SCM.add_commit_notification_cb(self.refresh_after_commit)
+        self._ifce.SCM.add_notification_cb(["commit"], self.refresh_after_commit)
+        self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.refresh_after_commit)
         self._normal_interval = auto_refresh_interval
         self.rtoc = gutils.RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
         self.refresh_contents()
@@ -158,7 +161,8 @@ class BranchesView(gutils.TableView):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=False, auto_refresh_interval=3600000):
         gutils.TableView.__init__(self, BRANCH_TABLE_PRECIS_DESCR, sel_mode=sel_mode)
         self._ifce = ifce
-        self._ifce.SCM.add_commit_notification_cb(self.refresh_after_commit)
+        self._ifce.SCM.add_notification_cb(["commit"], self.refresh_after_commit)
+        self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.refresh_after_commit)
         self._normal_interval = auto_refresh_interval
         self.rtoc = gutils.RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
         self.refresh_contents()

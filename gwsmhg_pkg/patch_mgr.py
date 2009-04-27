@@ -155,10 +155,9 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
     def __init__(self, ifce, tooltips=None, auto_refresh=False):
         self._ifce = ifce
         model = PatchFileTreeStore(ifce=ifce)
-        model._ifce.PM.add_qrefresh_notification_cb(self.update_tree)
-        model._ifce.PM.add_qpop_notification_cb(self.repopulate_tree)
-        model._ifce.PM.add_qpush_notification_cb(self.repopulate_tree)
-        model._ifce.PM.add_qfinish_notification_cb(self.repopulate_tree)
+        model._ifce.PM.add_notification_cb(["qrefresh", "qfold", "qsave"], self.update_tree)
+        model._ifce.PM.add_notification_cb(["qpop", "qpush", "qfinish", "qsave-pfu", "qrestore", "qnew"], self.repopulate_tree)
+        model._ifce.SCM.add_notification_cb(["add", "copy", "remove", "rename", "revert"], self.update_tree)
         file_tree.CwdFileTreeView.__init__(self, model=model, tooltips=tooltips, auto_refresh=auto_refresh, show_status=True)
         model.set_view(self)
         self._action_group[file_tree.SELECTION].add_actions(
@@ -410,12 +409,12 @@ PUSH_POP_INDIFFERENT = "pm_push_pop_indifferent"
 
 class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicator):
     def __init__(self, ifce):
-        cmd_result.ProblemReporter.__init__(self)
-        gutils.BusyIndicator.__init__(self)
         self._ifce = ifce
         self.store = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_INT,
                                    gobject.TYPE_STRING, gobject.TYPE_STRING)
         gtk.TreeView.__init__(self, self.store)
+        cmd_result.ProblemReporter.__init__(self)
+        gutils.BusyIndicator.__init__(self)
         text_cell = gtk.CellRendererText()
         icon_cell = gtk.CellRendererPixbuf()
         tvcolumn = gtk.TreeViewColumn("patch_list")
