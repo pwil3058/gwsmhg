@@ -24,23 +24,6 @@ class BaseInterface:
         self._console_log = console_log
         self.name = name
         self._notification_cbs = {}
-    def add_notification_cb(self, cmd_list, cb):
-        for cmd in cmd_list:
-            if self._notification_cbs.has_key(cmd):
-                self._notification_cbs[cmd].append(cb)
-            else:
-                self._notification_cbs[cmd] = [cb]
-    def _do_cmd_notification(self, cmd, data=None):
-        if self._notification_cbs.has_key(cmd):
-            for cb in self._notification_cbs[cmd]:
-                if data is not None:
-                    cb(data)
-                else:
-                    cb()
-
-class SCMInterface(BaseInterface):
-    def __init__(self, console_log):
-        BaseInterface.__init__(self, "hg", console_log)
         self.status_deco_map = {
             None: (pango.STYLE_NORMAL, "black"),
             "M": (pango.STYLE_NORMAL, "blue"),
@@ -56,28 +39,21 @@ class SCMInterface(BaseInterface):
         self.default_nonexistant_status = "!"
         self.ignored_statuses = ("I",)
         self.modification_statuses = ("M", "A", "R", "!")
-        self.tracked_statuses = (None, "C") + self.modification_statuses
         self._name_envars = DEFAULT_NAME_EVARS
         self._email_envars = DEFAULT_EMAIL_VARS
-    def _run_cmd_on_console(self, cmd, stdout_expected=True):
-        result = utils.run_cmd_in_console(cmd, self._console_log)
-        return cmd_result.map_cmd_result(result, stdout_expected)
-    def get_patches_applied(self):
-        res = utils.run_cmd("hg qtop")
-        return res[0] == 0
-    def get_default_commit_save_file(self):
-        return os.path.join(".hg", "gwsmhg.saved.commit")
-    def get_status_row_data(self):
-        return (self.status_deco_map, self.extra_info_sep, self.modified_dir_status, self.default_nonexistant_status)
-    def _get_first_in_envar(self, envar_list):
-        for envar in envar_list:
-            try:
-                value = os.environ[envar]
-                if value is not "":
-                    return value
-            except KeyError:
-                continue
-        return ""
+    def add_notification_cb(self, cmd_list, cb):
+        for cmd in cmd_list:
+            if self._notification_cbs.has_key(cmd):
+                self._notification_cbs[cmd].append(cb)
+            else:
+                self._notification_cbs[cmd] = [cb]
+    def _do_cmd_notification(self, cmd, data=None):
+        if self._notification_cbs.has_key(cmd):
+            for cb in self._notification_cbs[cmd]:
+                if data is not None:
+                    cb(data)
+                else:
+                    cb()
     def get_author_name_and_email(self):
         res, uiusername, serr = utils.run_cmd("hg showconfig ui.username")
         if res == 0 and uiusername:
@@ -89,6 +65,89 @@ class SCMInterface(BaseInterface):
         if not email:
             email = "UNKNOWN"
         return "%s <%s>" % (name, email)
+    def get_status_row_data(self):
+        return (self.status_deco_map, self.extra_info_sep, self.modified_dir_status, self.default_nonexistant_status)
+    def _map_result(self, result, stdout_expected=False):
+        outres, sout, serr = cmd_result.map_cmd_result(result, stdout_expected)
+        if outres != cmd_result.OK:
+            for force_suggested in ["use -f to force", "not overwriting - file exists"]:
+                if serr.find(force_suggested) != -1 or sout.find(force_suggested) != -1:
+                    outres += cmd_result.SUGGEST_FORCE
+        return (outres, sout, serr)
+    def do_add_files(self, file_list, dry_run=False):
+        cmd = "hg add"
+        if dry_run:
+            cmd += " -n --verbose"
+        if file_list:
+            cmd = " ".join([cmd] + file_list)
+        if dry_run:
+            return self._map_result(utils.run_cmd(cmd), stdout_expected=True)
+        else:
+            result = self._run_cmd_on_console(cmd)
+            self._do_cmd_notification("add")
+            return result
+    def do_copy_files(self, file_list, target, force=False, dry_run=False):
+        cmd = "hg copy "
+        if dry_run:
+            cmd += "-n --verbose "
+        if force:
+            cmd += "-f "
+        cmd = " ".join([cmd] + file_list + [target])
+        if dry_run:
+            return self._map_result(utils.run_cmd(cmd), stdout_expected=True)
+        else:
+            result = self._run_cmd_on_console(cmd)
+            self._do_cmd_notification("copy")
+            return result
+    def do_move_files(self, file_list, target, force=False, dry_run=False):
+        cmd = "hg rename "
+        if dry_run:
+            cmd += "-n --verbose "
+        if force:
+            cmd += "-f "
+        cmd = " ".join([cmd] + file_list + [target])
+        if dry_run:
+            return self._map_result(utils.run_cmd(cmd), stdout_expected=True)
+        else:
+            result = self._run_cmd_on_console(cmd)
+            self._do_cmd_notification("rename")
+            return result
+    def do_revert_files(self, file_list, dry_run=False):
+        cmd = "hg revert "
+        if dry_run:
+            cmd += "-n --verbose "
+        if file_list:
+            cmd += " ".join(file_list)
+        else:
+            cmd += "--all"
+        if dry_run:
+            return self._map_result(utils.run_cmd(cmd), stdout_expected=True)
+        else:
+            result = self._run_cmd_on_console(cmd, stdout_expected=True)
+            self._do_cmd_notification("revert")
+            return result
+
+class SCMInterface(BaseInterface):
+    def __init__(self, console_log):
+        BaseInterface.__init__(self, "hg", console_log)
+        self.tracked_statuses = (None, "C") + self.modification_statuses
+    def _run_cmd_on_console(self, cmd, stdout_expected=True):
+        result = utils.run_cmd_in_console(cmd, self._console_log)
+        return cmd_result.map_cmd_result(result, stdout_expected)
+    def get_patches_applied(self):
+        res = utils.run_cmd("hg qtop")
+        return res[0] == 0
+    def get_default_commit_save_file(self):
+        return os.path.join(".hg", "gwsmhg.saved.commit")
+    def _get_first_in_envar(self, envar_list):
+        for envar in envar_list:
+            try:
+                value = os.environ[envar]
+                if value is not "":
+                    return value
+            except KeyError:
+                continue
+        return ""
     def get_root(self, dir=None):
         if dir:
             old_dir = os.getcwd()
@@ -163,13 +222,6 @@ class SCMInterface(BaseInterface):
                 others.append((name, status, None))
             index += 1
         return (res, (ignored, others, modified), serr)
-    def _map_result(self, result, stdout_expected=False):
-        outres, sout, serr = cmd_result.map_cmd_result(result, stdout_expected)
-        if outres != cmd_result.OK:
-            for force_suggested in ["use -f to force", "not overwriting - file exists"]:
-                if serr.find(force_suggested) != -1 or sout.find(force_suggested) != -1:
-                    outres += cmd_result.SUGGEST_FORCE
-        return (outres, sout, serr)
     def get_parents_data(self, rev=None):
         cmd = 'hg parents --template "{rev}:{date|age}:{tags}:{branches}:{author|person}:{desc|firstline}' + os.linesep + '"'
         if not rev:
@@ -226,18 +278,6 @@ class SCMInterface(BaseInterface):
             res, sout, serr = utils.run_cmd(cmd + str(tag[1]))
             tag += sout.split(":", 3)
         return (res, tag_list, serr)
-    def do_add_files(self, file_list, dry_run=False):
-        cmd = "hg add"
-        if dry_run:
-            cmd += " -n --verbose"
-        if file_list:
-            cmd = " ".join([cmd] + file_list)
-        if dry_run:
-            return self._map_result(utils.run_cmd(cmd), stdout_expected=True)
-        else:
-            result = self._run_cmd_on_console(cmd)
-            self._do_cmd_notification("add")
-            return result
     def do_commit_change(self, msg, file_list=[]):
         cmd = "hg -v commit"
         if msg:
@@ -261,32 +301,6 @@ class SCMInterface(BaseInterface):
             result = self._run_cmd_on_console("hg remove " + " ".join(file_list))
         self._do_cmd_notification("remove")
         return result
-    def do_copy_files(self, file_list, target, force=False, dry_run=False):
-        cmd = "hg copy "
-        if dry_run:
-            cmd += "-n --verbose "
-        if force:
-            cmd += "-f "
-        cmd = " ".join([cmd] + file_list + [target])
-        if dry_run:
-            return self._map_result(utils.run_cmd(cmd), stdout_expected=True)
-        else:
-            result = self._run_cmd_on_console(cmd)
-            self._do_cmd_notification("copy")
-            return result
-    def do_move_files(self, file_list, target, force=False, dry_run=False):
-        cmd = "hg rename "
-        if dry_run:
-            cmd += "-n --verbose "
-        if force:
-            cmd += "-f "
-        cmd = " ".join([cmd] + file_list + [target])
-        if dry_run:
-            return self._map_result(utils.run_cmd(cmd), stdout_expected=True)
-        else:
-            result = self._run_cmd_on_console(cmd)
-            self._do_cmd_notification("rename")
-            return result
     def get_diff_for_files(self, file_list, fromrev, torev=None):
         # because of the likelihood of a multiple parents we'll never use the
         # zero rev option so fromrev is compulsory
@@ -299,20 +313,6 @@ class SCMInterface(BaseInterface):
         if res != 0:
             res = cmd_result.ERROR
         return (res, sout, serr)
-    def do_revert_files(self, file_list, dry_run=False):
-        cmd = "hg revert "
-        if dry_run:
-            cmd += "-n --verbose "
-        if file_list:
-            cmd += " ".join(file_list)
-        else:
-            cmd += "--all"
-        if dry_run:
-            return self._map_result(utils.run_cmd(cmd), stdout_expected=True)
-        else:
-            result = self._run_cmd_on_console(cmd, stdout_expected=True)
-            self._do_cmd_notification("revert")
-            return result
     def do_exec_tool_cmd(self, cmd):
         return self._run_cmd_on_console("hg " + cmd, stdout_expected=True)
     def do_update_workspace(self, rev=None, clean=False):
@@ -335,19 +335,6 @@ class SCMInterface(BaseInterface):
 class PMInterface(BaseInterface):
     def __init__(self, console_log):
         BaseInterface.__init__(self, "MQ", console_log)
-        self.status_deco_map = {
-            None: (pango.STYLE_NORMAL, "black"),
-            "M": (pango.STYLE_NORMAL, "blue"),
-            "A": (pango.STYLE_NORMAL, "darkgreen"),
-            "R": (pango.STYLE_NORMAL, "red"),
-            "!": (pango.STYLE_ITALIC, "pink"),
-        }
-        self.extra_info_sep = " <- "
-        self.modified_dir_status = "M"
-        self.default_nonexistant_status = "!"
-        self.modification_statuses = ("M", "A", "R", "!")
-        self._name_envars = DEFAULT_NAME_EVARS
-        self._email_envars = DEFAULT_EMAIL_VARS
         self._adding_re = re.compile("^adding\s.*$")
         self.file_state_changing_cmds = ["qfold", "qsave", "qpop", "qpush", "qfinish", "qsave-pfu", "qrestore", "qnew"]
         self.tag_changing_cmds = self.file_state_changing_cmds + ["qrename", "qdelete", "qimport"]
@@ -367,8 +354,6 @@ class PMInterface(BaseInterface):
     def _run_cmd_on_console(self, cmd, stdout_expected=True, ignore_err_re=None):
         result = utils.run_cmd_in_console(cmd, self._console_log)
         return self._map_cmd_result(result, stdout_expected, ignore_err_re=ignore_err_re)
-    def get_status_row_data(self):
-        return (self.status_deco_map, self.extra_info_sep, self.modified_dir_status, self.default_nonexistant_status)
     def get_parents(self, patch):
         cmd = os.linesep.join(['hg parents --template "{rev}', '" -r %s' % patch])
         res, sout, serr = utils.run_cmd(cmd)
