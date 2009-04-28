@@ -522,10 +522,10 @@ SELECTION_INDIFFERENT = "sel_indifferent"
 NO_SELECTION_NOT_PATCHED = "sel_none_not_patched"
 SELECTION_NOT_PATCHED = "sel_made_not_patched" 
 
-class _ViewWithActionGroups(gtk.TreeView, gutils.BusyIndicator, gutils.TooltipsUser):
-    def __init__(self, model=None, tooltips=None):
+class _ViewWithActionGroups(gtk.TreeView, gutils.BusyIndicatorUser, gutils.TooltipsUser):
+    def __init__(self, busy_indicator, model=None, tooltips=None):
         gutils.TooltipsUser.__init__(self, tooltips)
-        gutils.BusyIndicator.__init__(self)
+        gutils.BusyIndicatorUser.__init__(self, busy_indicator)
         gtk.TreeView.__init__(self, model)
         self._ui_manager = gtk.UIManager()
         self._action_group = {}
@@ -604,10 +604,10 @@ _KEYVAL_c = gtk.gdk.keyval_from_name('c')
 _KEYVAL_C = gtk.gdk.keyval_from_name('C')
 
 class FileTreeView(_ViewWithActionGroups, gutils.PopupUser):
-    def __init__(self, model=None, tooltips=None, auto_refresh=False, show_hidden=False, show_status=False):
+    def __init__(self, busy_indicator, model=None, tooltips=None, auto_refresh=False, show_hidden=False, show_status=False):
         if model is None:
             model = FileTreeStore(show_hidden=show_hidden)
-        _ViewWithActionGroups.__init__(self, model=model, tooltips=tooltips)
+        _ViewWithActionGroups.__init__(self, busy_indicator, model=model, tooltips=tooltips)
         gutils.PopupUser.__init__(self)
         self._refresh_interval = 10000 # milliseconds
         self._create_column(show_status)
@@ -711,12 +711,13 @@ CWD_UI_DESCR = \
 '''
 
 class CwdFileTreeView(FileTreeView, cmd_result.ProblemReporter):
-    def __init__(self, model=None, tooltips=None, auto_refresh=False, show_hidden=False, show_status=False, console_log=None):
+    def __init__(self, busy_indicator, model=None, tooltips=None, auto_refresh=False, show_hidden=False, show_status=False, console_log=None):
         cmd_result.ProblemReporter.__init__(self)
         self._console_log = console_log
         if not model:
             model = CwdFileTreeStore(show_hidden=show_hidden)
-        FileTreeView.__init__(self, model=model, tooltips=tooltips, auto_refresh=auto_refresh, show_status=show_status)
+        FileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
+            tooltips=tooltips, auto_refresh=auto_refresh, show_status=show_status)
         self._action_group[SELECTION].add_actions(
             [
                 ("edit_files", gtk.STOCK_EDIT, "_Edit", None,
@@ -879,12 +880,13 @@ SCM_CWD_UI_DESCR = \
 '''
 
 class ScmCwdFileTreeView(CwdFileTreeView):
-    def __init__(self, ifce, tooltips=None, auto_refresh=False, show_hidden=False):
+    def __init__(self, ifce, busy_indicator, tooltips=None, auto_refresh=False, show_hidden=False):
         self._ifce = ifce
         model = ScmCwdFileTreeStore(ifce=self._ifce, show_hidden=show_hidden)
         self._ifce.SCM.add_notification_cb(["commit"], self.update_after_commit)
         self._ifce.PM.add_notification_cb(self._ifce.PM.file_state_changing_cmds, self.update_after_commit)
-        CwdFileTreeView.__init__(self, model=model, tooltips=tooltips, auto_refresh=auto_refresh, console_log=ifce.log, show_status=True)
+        CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
+            tooltips=tooltips, auto_refresh=auto_refresh, console_log=ifce.log, show_status=True)
         self._action_group[SELECTION].add_actions(
             [
                 ("scm_remove_files", gtk.STOCK_REMOVE, "_Remove", None,
@@ -1097,12 +1099,12 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         self.revert_named_files([])
 
 class ScmCwdFilesWidget(gtk.VBox):
-    def __init__(self, ifce, tooltips=None, auto_refresh=False, show_hidden=False):
+    def __init__(self, ifce, busy_indicator, tooltips=None, auto_refresh=False, show_hidden=False):
         gtk.VBox.__init__(self)
         self._tooltips = tooltips
         # file tree view wrapped in scrolled window
-        self.file_tree = ScmCwdFileTreeView(ifce=ifce, tooltips=tooltips, auto_refresh=auto_refresh,
-                                            show_hidden=show_hidden)
+        self.file_tree = ScmCwdFileTreeView(ifce=ifce, busy_indicator=busy_indicator,
+            tooltips=tooltips, auto_refresh=auto_refresh, show_hidden=show_hidden)
         scw = gtk.ScrolledWindow()
         scw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
         self.file_tree.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
@@ -1302,7 +1304,7 @@ class ScmCommitWidget(gtk.VPaned, cmd_result.ProblemReporter):
         self._report_any_problems(result)
         return result[0] == cmd_result.OK
 
-class ScmCommitDialog(gtk.Dialog, gutils.BusyIndicator):
+class ScmCommitDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
     def __init__(self, parent, ifce, filelist=None, modal=False):
         if modal or (parent and parent.get_modal()):
             flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
@@ -1311,6 +1313,7 @@ class ScmCommitDialog(gtk.Dialog, gutils.BusyIndicator):
         gtk.Dialog.__init__(self, "Commit Changes: %s" % utils.path_rel_home(os.getcwd()), parent, flags,
             (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
         gutils.BusyIndicator.__init__(self)
+        gutils.BusyIndicatorUser.__init__(self, self)
         self.commit_widget = ScmCommitWidget(ifce=ifce, tooltips=None, file_mask=filelist)
         self.vbox.pack_start(self.commit_widget)
         self.connect("response", self._handle_response_cb)

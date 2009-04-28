@@ -239,16 +239,24 @@ class TooltipsUser:
 class BusyIndicator:
     def __init__(self):
         pass
-    def _show_busy(self, really=True):
-        if not really:
-            return
-        self.window.set_cursor(gtk.gdk.Cursor(gtk.gdk.WATCH))
-        while gtk.events_pending():
-            gtk.main_iteration()
-    def _unshow_busy(self, really=True):
-        if not really:
-            return
-        self.window.set_cursor(None)
+    def show_busy(self):
+        if self.window:
+            self.window.set_cursor(gtk.gdk.Cursor(gtk.gdk.WATCH))
+            while gtk.events_pending():
+                gtk.main_iteration()
+    def unshow_busy(self):
+        if self.window:
+            self.window.set_cursor(None)
+
+class BusyIndicatorUser:
+    def __init__(self, busy_indicator):
+        self._busy_indicator = busy_indicator
+    def get_busy_indicator(self):
+        return self._busy_indicator
+    def _show_busy(self):
+        self._busy_indicator.show_busy()
+    def _unshow_busy(self):
+        self._busy_indicator.unshow_busy()
 
 _KEYVAL_UP_ARROW = gtk.gdk.keyval_from_name('Up')
 _KEYVAL_DOWN_ARROW = gtk.gdk.keyval_from_name('Down')

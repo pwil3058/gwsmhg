@@ -102,9 +102,10 @@ class WSPathView(gutils.TableView):
         model[path][WS_ALIAS] = new_text
         self.save_to_file()
 
-class WSOpenDialog(gtk.Dialog, gutils.BusyIndicator):
+class WSOpenDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
     def __init__(self, parent=None):
         gutils.BusyIndicator.__init__(self)
+        gutils.BusyIndicatorUser.__init__(self, self)
         gtk.Dialog.__init__(self, title="gwsmg: Select Workspace/Directory", parent=parent,
                             flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                             buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
@@ -156,10 +157,11 @@ GWSM_UI_DESCR = \
 </ui>
 '''
 
-class gwsm(gtk.Window, gutils.BusyIndicator):
+class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser):
     def __init__(self, ifce):
         gtk.Window.__init__(self, gtk.WINDOW_TOPLEVEL)
         gutils.BusyIndicator.__init__(self)
+        gutils.BusyIndicatorUser.__init__(self, self)
         self.connect("destroy", self._quit)
         self._action_group = gtk.ActionGroup("gwsm")
         self._action_group.add_actions(
@@ -176,7 +178,7 @@ class gwsm(gtk.Window, gutils.BusyIndicator):
         self._menubar = self._ui_manager.get_widget("/gwsm_menubar")
         self._tooltips = gtk.Tooltips()
         self._tooltips.enable()
-        self._ifce = ifce(tooltips=self._tooltips)
+        self._ifce = ifce(busy_indicator=self.get_busy_indicator(), tooltips=self._tooltips)
         # see if we're in a valid work space and if not offer a selection
         rootdir = self._ifce.SCM.get_root()
         if not rootdir:
@@ -199,10 +201,12 @@ class gwsm(gtk.Window, gutils.BusyIndicator):
             os.chdir(rootdir)
             open_dialog = None # we need this later
         self._parent_view = change_set.ParentsView(self._ifce)
-        self._file_tree_widget = file_tree.ScmCwdFilesWidget(ifce=self._ifce, tooltips=self._tooltips)
+        self._file_tree_widget = file_tree.ScmCwdFilesWidget(ifce=self._ifce,
+            busy_indicator=self.get_busy_indicator(), tooltips=self._tooltips)
         self._notebook = gtk.Notebook()
         self._notebook.set_size_request(640, 360)
-        self._patch_mgr = patch_mgr.PatchManagementWidget(ifce=self._ifce, tooltips=self._tooltips)
+        self._patch_mgr = patch_mgr.PatchManagementWidget(ifce=self._ifce,
+            busy_indicator=self.get_busy_indicator(), tooltips=self._tooltips)
         self._notebook.append_page(self._patch_mgr, gtk.Label(self._ifce.PM.name))
         self._heads_view = change_set.HeadsView(self._ifce)
         self._notebook.append_page(gutils.wrap_in_scrolled_window(self._heads_view), gtk.Label("Heads"))

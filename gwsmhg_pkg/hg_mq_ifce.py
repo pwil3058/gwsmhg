@@ -558,8 +558,8 @@ class PMInterface(BaseInterface):
         return (res, sout, serr)
 
 class CombinedInterface:
-    def __init__(self, tooltips=None):
-        self.log = console.ConsoleLog(tooltips=tooltips)
+    def __init__(self, busy_indicator, tooltips=None):
+        self.log = console.ConsoleLog(busy_indicator=busy_indicator, tooltips=tooltips)
         self.SCM = SCMInterface(self.log)
         self.PM = PMInterface(self.log)
 

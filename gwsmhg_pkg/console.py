@@ -96,11 +96,11 @@ CONSOLE_LOG_UI_DESCR = \
 '''
 
 class ConsoleLog(gtk.VBox, cmd_result.ProblemReporter,
-                 gutils.BusyIndicator, gutils.TooltipsUser):
-    def __init__(self, table=None, tooltips=None):
+                 gutils.BusyIndicatorUser, gutils.TooltipsUser):
+    def __init__(self, busy_indicator, table=None, tooltips=None):
         gtk.VBox.__init__(self)
         cmd_result.ProblemReporter.__init__(self)
-        gutils.BusyIndicator.__init__(self)
+        gutils.BusyIndicatorUser.__init__(self, busy_indicator)
         gutils.TooltipsUser.__init__(self, tooltips)
         self._buffer = ConsoleLogBuffer()
         self._view = ConsoleLogView(buffer=self._buffer)
