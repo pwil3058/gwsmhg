@@ -72,14 +72,14 @@ def run_cmd_in_console(cmd, console):
                       [sub.stderr] * (not stderr_eof)
         ready = select.select(to_check_in, [], [], 0)
         if sub.stdout in ready[0]:
-            ochunk = sub.stdout.read(1)
+            ochunk = sub.stdout.read()
             if ochunk == '':
                 stdout_eof = True
             else:
                 console.append_stdout(ochunk)
                 outd += ochunk
         if sub.stderr in ready[0]:
-            echunk = sub.stderr.read(1)
+            echunk = sub.stderr.read()
             if echunk == '':
                 stderr_eof = True
             else:

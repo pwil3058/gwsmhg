@@ -313,8 +313,6 @@ class SCMInterface(BaseInterface):
         if res != 0:
             res = cmd_result.ERROR
         return (res, sout, serr)
-    def do_exec_tool_cmd(self, cmd):
-        return self._run_cmd_on_console("hg " + cmd, stdout_expected=True)
     def do_update_workspace(self, rev=None, clean=False):
         cmd = "hg update"
         if clean:
@@ -336,6 +334,7 @@ class PMInterface(BaseInterface):
     def __init__(self, console_log):
         BaseInterface.__init__(self, "MQ", console_log)
         self._adding_re = re.compile("^adding\s.*$")
+        self._qpush_re = re.compile("^applying\s.*$", re.M)
         self.file_state_changing_cmds = ["qfold", "qsave", "qpop", "qpush", "qfinish", "qsave-pfu", "qrestore", "qnew"]
         self.tag_changing_cmds = self.file_state_changing_cmds + ["qrename", "qdelete", "qimport"]
         self.file_state_changing_cmds += ["add", "copy", "remove", "rename", "revert"]
@@ -456,19 +455,19 @@ class PMInterface(BaseInterface):
             mflag = ""
         if patch is None:
             if force:
-                result = self._run_cmd_on_console("hg qpush %s -f" % mflag)
+                result = self._run_cmd_on_console("hg qpush %s -f" % mflag, ignore_err_re=self._qpush_re)
             else:
-                result = self._run_cmd_on_console("hg qpush %s" % mflag)
+                result = self._run_cmd_on_console("hg qpush %s" % mflag, ignore_err_re=self._qpush_re)
         elif patch is "":
             if force:
-                result = self._run_cmd_on_console("hg qpush %s -f -a" % mflag)
+                result = self._run_cmd_on_console("hg qpush %s -f -a" % mflag, ignore_err_re=self._qpush_re)
             else:
-                result = self._run_cmd_on_console("hg qpush %s -a" % mflag)
+                result = self._run_cmd_on_console("hg qpush %s -a" % mflag, ignore_err_re=self._qpush_re)
         else:
             if force:
-                result = self._run_cmd_on_console("hg qgoto %s -f %s" % (mflag, patch))
+                result = self._run_cmd_on_console("hg qgoto %s -f %s" % (mflag, patch), ignore_err_re=self._qpush_re)
             else:
-                result = self._run_cmd_on_console("hg qgoto %s %s" % (mflag, patch))
+                result = self._run_cmd_on_console("hg qgoto %s %s" % (mflag, patch), ignore_err_re=self._qpush_re)
         self._do_cmd_notification("qpush")
         return result
     def get_patch_file_name(self, patch):
