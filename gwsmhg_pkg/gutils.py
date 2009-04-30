@@ -258,6 +258,22 @@ class BusyIndicatorUser:
     def _unshow_busy(self):
         self._busy_indicator.unshow_busy()
 
+class MappedManager:
+    def __init__(self):
+        self.is_mapped = False
+        self.connect("map", self._map_cb)
+        self.connect("unmap", self._unmap_cb)
+    def _map_cb(self, widget=None):
+        self.is_mapped = True
+        self.map_action()
+    def _unmap_cb(self, widget=None):
+        self.is_mapped = False
+        self.unmap_action()
+    def map_action(self):
+        pass
+    def unmap_action(self):
+        pass
+
 _KEYVAL_UP_ARROW = gtk.gdk.keyval_from_name('Up')
 _KEYVAL_DOWN_ARROW = gtk.gdk.keyval_from_name('Down')
 
@@ -433,12 +449,13 @@ def find_label_index(descr, label):
 #    ["Description", gobject.TYPE_STRING, True, [("cell-background", "white")]],
 #]
 
-class TableView(gtk.TreeView):
+class TableView(gtk.TreeView, MappedManager):
     def __init__(self, descr, sel_mode=gtk.SELECTION_SINGLE, perm_headers=False,
                  bgnd=["white", "#F0F0F0"], popup=None):
         self._model = apply(gtk.ListStore, self._get_type_list(descr))
         self._perm_headers = perm_headers
         gtk.TreeView.__init__(self, self._model)
+        MappedManager.__init__(self)
         lenbgnd = len(bgnd)
         self._ncols = len(descr)
         for colid in range(self._ncols):
@@ -497,4 +514,39 @@ class TableView(gtk.TreeView):
                 row_data.append(store.get_value(iter, col))
             list.append(row_data)
         return list
+
+class AutoRefreshTableView(TableView, BusyIndicatorUser):
+    def __init__(self, descr, busy_indicator, sel_mode=gtk.SELECTION_SINGLE, perm_headers=False,
+                 bgnd=["white", "#F0F0F0"], popup=None,
+                 auto_refresh_on=False, auto_refresh_interval=30000):
+        TableView.__init__(self, descr=descr, sel_mode=sel_mode,
+            perm_headers=False, bgnd=bgnd, popup=popup)
+        BusyIndicatorUser.__init__(self, busy_indicator)
+        self._normal_interval = auto_refresh_interval
+        self.rtoc = RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
+        self._needs_refresh = True
+        self.refresh_contents()
+        self.rtoc.set_function(self._refresh_contents)
+        self.show_all()
+    def map_action(self):
+        if self._needs_refresh:
+            self._show_busy()
+            self._refresh_contents()
+            self._unshow_busy()
+        self.rtoc.restart_cycle()
+    def unmap_action(self):
+        self.rtoc.stop_cycle()
+    def _refresh_contents(self):
+        self._needs_refresh = False
+    def refresh_contents(self):
+        self.rtoc.stop_cycle()
+        self._refresh_contents()
+        self.rtoc.restart_cycle()
+    def refresh_contents_if_mapped(self, *args):
+        if self.is_mapped:
+            self.refresh_contents()
+        else:
+            self._needs_refresh = True
+    def update_for_chdir(self):
+        self.refresh_contents()
 
