@@ -344,7 +344,6 @@ PM_PATCHES_UI_DESCR = \
 <ui>
   <menubar name="patches_menubar">
     <menu name="patches_menu" action="menu_patches">
-      <menuitem action="save_queue_state"/>
       <menuitem action="pm_pop_all"/>
       <menuitem action="pm_push_all"/>
       <menuitem action="pm_import_patch_series"/>
@@ -502,8 +501,6 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             [
                 ("menu_patches", None, "_Patches"),
                 ("menu_patches_ws", None, "_Workspace Update"),
-                ("save_queue_state", gtk.STOCK_SAVE, "Save Queue State", None,
-                 "Save the current patch queue state", self.do_save_queue_state),
                 ("menu_patch_list", None, "Patch _List"),
                 ("refresh_patch_list", gtk.STOCK_REFRESH, "Update Patch List", None,
                  "Refresh/update the patch list display", self.set_contents),
