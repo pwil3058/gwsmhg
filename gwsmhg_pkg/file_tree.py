@@ -1186,11 +1186,13 @@ SCM_CHANGE_UI_DESCR = \
 '''
 
 class ScmChangeFileTreeView(FileTreeView):
-    def __init__(self, ifce, tooltips=None, auto_refresh=False, show_hidden=True, file_mask=[]):
+    def __init__(self, ifce, busy_indicator, tooltips=None, auto_refresh=False, show_hidden=True, file_mask=[]):
+        self._ifce = ifce
         self.removeds = []
         self.model = ScmChangeFileTreeStore(ifce, show_hidden=show_hidden, file_mask=file_mask)
         self.model.set_view(self)
-        FileTreeView.__init__(self, model=self.model, tooltips=tooltips, auto_refresh=auto_refresh, show_status=True)
+        FileTreeView.__init__(self, model=self.model, busy_indicator=busy_indicator,
+            tooltips=tooltips, auto_refresh=auto_refresh, show_status=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.set_headers_visible(False)
         self._action_group[SELECTION].add_actions(
@@ -1256,7 +1258,7 @@ class ScmChangeFileTreeView(FileTreeView):
 import gutils
 
 class ScmCommitWidget(gtk.VPaned, cmd_result.ProblemReporter):
-    def __init__(self, ifce, tooltips=None, file_mask=[]):
+    def __init__(self, ifce, busy_indicator, tooltips=None, file_mask=[]):
         gtk.VPaned.__init__(self)
         cmd_result.ProblemReporter.__init__(self)
         self._ifce = ifce
@@ -1275,6 +1277,7 @@ class ScmCommitWidget(gtk.VPaned, cmd_result.ProblemReporter):
         self.add1(vbox)
         # TreeView of files in change set
         self.files = ScmChangeFileTreeView(ifce=self._ifce,
+                                          busy_indicator=busy_indicator,
                                           tooltips=tooltips,
                                           auto_refresh=False,
                                           show_hidden=True,
@@ -1314,7 +1317,7 @@ class ScmCommitDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser
             (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
         gutils.BusyIndicator.__init__(self)
         gutils.BusyIndicatorUser.__init__(self, self)
-        self.commit_widget = ScmCommitWidget(ifce=ifce, tooltips=None, file_mask=filelist)
+        self.commit_widget = ScmCommitWidget(ifce=ifce, busy_indicator=self.get_busy_indicator(), tooltips=None, file_mask=filelist)
         self.vbox.pack_start(self.commit_widget)
         self.connect("response", self._handle_response_cb)
         self.set_focus_child(self.commit_widget.view)

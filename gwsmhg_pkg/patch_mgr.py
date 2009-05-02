@@ -65,11 +65,11 @@ PATCH_FILES_UI_DESCR = \
 '''
 
 class PatchFileTreeView(file_tree.CwdFileTreeView):
-    def __init__(self, ifce, patch=None, tooltips=None):
+    def __init__(self, ifce, busy_indicator, patch=None, tooltips=None):
         self._ifce = ifce
         self._patch = patch
         model = PatchFileTreeStore(ifce=ifce, patch=patch)
-        file_tree.CwdFileTreeView.__init__(self, model=model,
+        file_tree.CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
              tooltips=tooltips, auto_refresh=False, show_status=True)
         model.set_view(self)
         self._action_group[file_tree.SELECTION].add_actions(
@@ -100,14 +100,16 @@ class PatchFileTreeView(file_tree.CwdFileTreeView):
 #                                     file_list=self.get_selected_files(), modal=False)
 #        dialog.show()
 
-class PatchFilesDialog(gtk.Dialog):
+class PatchFilesDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
     def __init__(self, ifce, patch, tooltips=None):
         title = "patch: %s files: %s" % (patch, utils.path_rel_home(os.getcwd()))
         gtk.Dialog.__init__(self, title, None, gtk.DIALOG_DESTROY_WITH_PARENT,
                             (gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE))
+        gutils.BusyIndicator.__init__(self)
+        gutils.BusyIndicatorUser.__init__(self, self)
         self._tooltips = tooltips
         # file tree view wrapped in scrolled window
-        self.file_tree = PatchFileTreeView(ifce=ifce, patch=patch, tooltips=tooltips)
+        self.file_tree = PatchFileTreeView(ifce=ifce, busy_indicator=self.get_busy_indicator(), patch=patch, tooltips=tooltips)
         self.file_tree.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.file_tree.set_headers_visible(False)
         self.file_tree.set_size_request(240, 320)
@@ -1034,7 +1036,7 @@ class PatchManagementWidget(gtk.VBox, gutils.TooltipsUser):
             tooltips=self._tooltips)
         self._menu_bar = self._patch_list.list_view.get_ui_widget("/patches_menubar")
         self._tool_bar = self._patch_list.list_view.get_ui_widget("/patches_toolbar")
-        self._tool_bar.set_icon_size(gtk.ICON_SIZE_SMALL_TOOLBAR)
+        #self._tool_bar.set_icon_size(gtk.ICON_SIZE_SMALL_TOOLBAR)
         #self._tool_bar.set_style(gtk.TOOLBAR_BOTH_HORIZ)
         self.pack_start(self._menu_bar, expand=False)
         self.pack_start(self._tool_bar, expand=False)
