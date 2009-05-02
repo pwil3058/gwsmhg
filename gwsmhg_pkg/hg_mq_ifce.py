@@ -126,6 +126,15 @@ class BaseInterface:
             result = self._run_cmd_on_console(cmd, stdout_expected=True)
             self._do_cmd_notification("revert")
             return result
+    def do_pull(self, rev=None, update=False, source=None):
+        cmd = "hg pull"
+        if update:
+            cmd += " -u"
+        if rev:
+            cmd += " -r %s" % rev
+        if source:
+            cmd += " %s" % source
+        return self._run_cmd_on_console(cmd)
 
 class SCMInterface(BaseInterface):
     def __init__(self, console_log):
@@ -330,13 +339,67 @@ class SCMInterface(BaseInterface):
             cmd += " %s" % source
         return self._run_cmd_on_console(cmd)
 
+class _WsUpdateStateTagMgr:
+    def __init__(self):
+        self._saved_state_msg = "hg patches saved state"
+        self._common_hdr = "gwsmhg.ws."
+        self._main_tag = self._common_hdr + "update"
+        self._state_tag_hdr = self._common_hdr + "state."
+        self._patches_copy_tag_hdr = self._common_hdr + "copy."
+        self._get_copy_re = re.compile("^copy\s*\S*\s*to\s*(\S*)\n$")
+        self._common_tag_re = re.compile("^" + self._common_hdr + "(\S*)$")
+        self._state_tag_re = re.compile("^" + self._state_tag_hdr + "(\S*)$")
+        self._patches_copy_tag_re = re.compile("^" + self._patches_copy_tag_hdr + "(\S*)$")
+    def initialize(self, serr, state):
+        if self.tip_is_patches_saved_state():
+            tag_list = [self._main_tag]
+            match = self._get_copy_re.match(serr)
+            if match:
+                tag_list.append(self._patches_copy_tag_hdr + os.path.basename(match.group(1)))
+            utils.run_cmd("hg tag --rev tip --local %s" % " ".join(tag_list))
+        self.set_state_tag(state)
+    def is_in_progress(self):
+        res, sout, serr = utils.run_cmd('hg log --template "{desc|firstline}" --rev %s' % self._main_tag)
+        return res == 0
+    def tip_is_patches_saved_state(self):
+        res, sout, serr = utils.run_cmd('hg log --template "{desc|firstline}" --rev tip')
+        return sout == self._saved_state_msg
+    def parent_is_patches_saved_state(self):
+        res, sout, serr = utils.run_cmd('hg parent --template "{desc|firstline}"')
+        return sout == self._saved_state_msg
+    def _get_tag_list(self, regex):
+        res, sout, serr = utils.run_cmd('hg log --template "{tags}\n" --rev %s' % self._main_tag)
+        result = []
+        for tag in sout.split():
+            if regex.match(tag):
+                result.append(tag)
+        return result
+    def set_state_tag(self, state):
+        state_tags = self._get_tag_list(self._state_tag_re)
+        utils.run_cmd('hg tag --local --remove %s' % " ".join(state_tags))
+        utils.run_cmd('hg tag --local --rev %s %s%s' % (self._main_tag, self._state_tag_hdr, state))
+    def get_state_is_in(self, state_list):
+        state_tags = self._get_tag_list(self._state_tag_re)
+        for state in state_list:
+            if "".join([self._state_tag_hdr, state]) in state_tags:
+                return True
+        return False
+    def get_patches_copy_dir(self):
+        tags = self._get_tag_list(self._patches_copy_tag_re)
+        return tags[0]
+    def clear_tags(self):
+        update_tags = self._get_tag_list(self._common_tag_re)
+        if update_tags:
+            utils.run_cmd('hg tag --local --remove %s' % " ".join(update_tags))
+
 class PMInterface(BaseInterface):
     def __init__(self, console_log):
         BaseInterface.__init__(self, "MQ", console_log)
+        self._ws_update_mgr = _WsUpdateStateTagMgr()
         self._adding_re = re.compile("^adding\s.*$")
-        self._qpush_re = re.compile("^applying\s.*$", re.M)
+        self._qpush_re = re.compile("^(merging|applying)\s.*$", re.M)
         self.file_state_changing_cmds = ["qfold", "qsave", "qpop", "qpush", "qfinish", "qsave-pfu", "qrestore", "qnew"]
-        self.tag_changing_cmds = self.file_state_changing_cmds + ["qrename", "qdelete", "qimport"]
+        self.tag_changing_cmds = self.file_state_changing_cmds + ["qrename", "qdelete", "qimport", "update", "pull"]
         self.file_state_changing_cmds += ["add", "copy", "remove", "rename", "revert"]
     def _map_cmd_result(self, result, stdout_expected=True, ignore_err_re=None):
         if not result[0]:
@@ -407,13 +470,13 @@ class PMInterface(BaseInterface):
     def get_patch_is_applied(self, patch):
         res, op, err = utils.run_cmd("hg qapplied %s" % patch)
         return op.strip() == patch
-    def top_patch(self):
+    def get_top_patch(self):
         res, sout, serr = utils.run_cmd("hg qtop")
         if res:
             return None
         else:
             return sout.strip()
-    def base_patch(self):
+    def get_base_patch(self):
         res, sout, serr = utils.run_cmd("hg qapplied")
         if res or not sout:
             return None
@@ -469,6 +532,8 @@ class PMInterface(BaseInterface):
             else:
                 result = self._run_cmd_on_console("hg qgoto %s %s" % (mflag, patch), ignore_err_re=self._qpush_re)
         self._do_cmd_notification("qpush")
+        if not result[0] and merge and len(self.get_unapplied_patches()) == 0:
+            self._ws_update_mgr.set_state_tag("merged")
         return result
     def get_patch_file_name(self, patch):
         return os.path.join(os.getcwd(), ".hg", "patches", patch)
@@ -498,14 +563,6 @@ class PMInterface(BaseInterface):
         result = self._run_cmd_on_console("hg qfinish %s" % patch)
         self._do_cmd_notification("qfinish")
         return result
-    def do_save_queue_state(self):
-        result = self._run_cmd_on_console("hg qsave")
-        self._do_cmd_notification("qsave")
-        return result
-    def do_save_queue_state_for_update(self):
-        result = self._run_cmd_on_console("hg qsave -e -c")
-        self._do_cmd_notification("qsave-pfu")
-        return result
     def do_rename_patch(self, old_name, new_name):
         result = self._run_cmd_on_console("hg qrename %s %s" % (old_name, new_name))
         self._do_cmd_notification("qrename")
@@ -529,22 +586,6 @@ class PMInterface(BaseInterface):
             res |= cmd_result.SUGGEST_FORCE_OR_RENAME
         self._do_cmd_notification("qimport")
         return (res, sout, serr)
-    def do_clean_up_after_update(self):
-        pde = re.compile("^patches\.(\d+)$")
-        biggest = None
-        for item in os.listdir(".hg"):
-            if os.path.isdir(os.sep.join([".hg", item])):
-                match = pde.match(item)
-                if match:
-                    num = int(match.group(1))
-                    if not biggest or num > biggest:
-                        biggest = num
-        if biggest:
-            result = self._run_cmd_on_console("hg qpop -a -n patches.%d" % biggest)
-            self._do_cmd_notification("qpop")
-            return result
-        else:
-            return (cmd_result.INFO, "Saved patch directory not found.", "")
     def do_new_patch(self, patch_name_raw, force=False):
         patch_name = re.sub('\s', '_', patch_name_raw)
         if force:
@@ -555,6 +596,69 @@ class PMInterface(BaseInterface):
         if res & cmd_result.SUGGEST_REFRESH:
             res |= cmd_result.SUGGEST_FORCE
         return (res, sout, serr)
+    def do_save_queue_state_for_update(self):
+        result = self._run_cmd_on_console("hg qsave -e -c")
+        print result, self._ws_update_mgr.tip_is_patches_saved_state()
+        self._ws_update_mgr.initialize(result[2], "qsaved")
+        self._do_cmd_notification("qsave-pfu")
+        return result
+    def do_pull(self, rev=None, source=None):
+        result = BaseInterface.do_pull(self, rev=rev, source=source)
+        if not result[0]:
+            self._ws_update_mgr.set_state_tag("pulled")
+            self._do_cmd_notification("pull")
+        return result
+    def do_update_workspace(self, rev=None):
+        cmd = "hg update -C"
+        if rev:
+            cmd += " -r %s" %rev
+        result = self._run_cmd_on_console(cmd)
+        if not result[0]:
+            self._do_cmd_notification("update")
+            self._ws_update_mgr.set_state_tag("updated")
+        return result
+    def do_clean_up_after_update(self):
+        pcd = self._ws_update_mgr.get_patches_copy_dir()
+        if pcd:
+            top_patch = self.get_top_patch()
+            if top_patch:
+                utils.run_cmd("hg qpop -a")
+            self._ws_update_mgr.clear_tags()
+            result = self._run_cmd_on_console("hg qpop -a -n %s" % pcd)
+            if top_patch:
+                utils.run_cmd("hg qgoto %s" % top_patch)
+                self._do_cmd_notification("qpush")
+            else:
+                self._do_cmd_notification("qpop")
+            return result
+        else:
+            return (cmd_result.INFO, "Saved patch directory not found.", "")
+    def get_ws_update_qsave_ready(self, unapplied_count=None):
+        if unapplied_count is None:
+            unapplied_count = len(self.get_unappplied_patches())
+        return not unapplied_count and not self._ws_update_mgr.is_in_progress()
+    def get_ws_update_ready(self, applied_count=None):
+        if applied_count is None:
+            applied_count = len(self.get_appplied_patches())
+        if self._ws_update_mgr.tip_is_patches_saved_state():
+            return False
+        return not applied_count and self._ws_update_mgr.get_state_is_in(["pulled"])
+    def get_ws_update_merge_ready(self, unapplied_count=None):
+        if unapplied_count is None:
+            unapplied_count = len(self.get_unappplied_patches())
+        if self._ws_update_mgr.parent_is_patches_saved_state():
+            return False
+        return unapplied_count and self._ws_update_mgr.get_state_is_in(["updated"])
+    def get_ws_update_clean_up_ready(self, applied_count=None):
+        return self._ws_update_mgr.get_state_is_in(["merged"])
+    def get_ws_update_pull_ready(self, applied_count=None):
+        if applied_count is None:
+            applied_count = len(self.get_appplied_patches())
+        return not applied_count and self._ws_update_mgr.get_state_is_in(["qsaved"])
+    def get_ws_update_to_ready(self, applied_count=None):
+        if applied_count is None:
+            applied_count = len(self.get_appplied_patches())
+        return not applied_count and self._ws_update_mgr.get_state_is_in(["qsaved", "pulled"])
 
 class CombinedInterface:
     def __init__(self, busy_indicator, tooltips=None):
