@@ -13,7 +13,7 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import gtk, gobject, pango, os, tempfile
+import gtk, gobject, pango, os, tempfile, re
 from gwsmhg_pkg import cmd_result, gutils, file_tree, icons, text_edit, utils, diff
 
 class PatchFileTreeStore(file_tree.FileTreeStore):
@@ -997,11 +997,13 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         sf.close()
         series.reverse()
         index = 0
+        patch_name_re = re.compile("\s*([^\s#]*)[\s#]*.*$")
         while index < len(series):
-            base_name = series[index].strip()
-            if base_name == "" or base_name[0] == "#":
+            match = patch_name_re.match(series[index])
+            if not match:
                 index += 1
                 continue
+            base_name = match.group(1)
             patch_file_name = os.sep.join([patch_series_dir, base_name])
             force = False
             patch_name = None
@@ -1022,7 +1024,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                         continue
                     elif ans == gutils.EDIT:
                         if not patch_name:
-                            patch_name = os.path.basename(patch_file_name)
+                            patch_name = base_name
                         patch_name = gutils.get_modified_string("Rename Patch", "New Name :", patch_name)
                         continue
                 if res is not cmd_result.OK:

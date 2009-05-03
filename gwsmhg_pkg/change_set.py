@@ -38,7 +38,7 @@ class ParentsView(gutils.AutoRefreshTableView):
         self.show_all()
     def _refresh_contents(self):
         res, parents, serr = self._ifce.SCM.get_parents_data()
-        if res == cmd_result.OK:
+        if res == cmd_result.OK and parents:
             desired_interval = self._normal_interval
             self.set_contents(parents)
             # if any parent's age is expressed in seconds then update every second
@@ -66,7 +66,7 @@ class HeadsView(gutils.AutoRefreshTableView):
         self.show_all()
     def _refresh_contents(self):
         res, heads, serr = self._ifce.SCM.get_heads_data()
-        if res == cmd_result.OK:
+        if res == cmd_result.OK and heads:
             desired_interval = self._normal_interval
             self.set_contents(heads)
             # if any head's age is expressed in seconds then update every second
@@ -106,7 +106,7 @@ class TagsView(gutils.AutoRefreshTableView):
         self.show_all()
     def _refresh_contents(self):
         res, tags, serr = self._ifce.SCM.get_tags_data()
-        if res == cmd_result.OK:
+        if res == cmd_result.OK and tags:
             desired_interval = self._normal_interval
             self.set_contents(tags)
             # if any tag's age is expressed in seconds then update every second
@@ -146,7 +146,7 @@ class BranchesView(gutils.AutoRefreshTableView):
         self.show_all()
     def _refresh_contents(self):
         res, branches, serr = self._ifce.SCM.get_branches_data()
-        if res == cmd_result.OK:
+        if res == cmd_result.OK and branches:
             desired_interval = self._normal_interval
             self.set_contents(branches)
             # if any branch's age is expressed in seconds then update every second

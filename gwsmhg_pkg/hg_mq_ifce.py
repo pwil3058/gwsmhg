@@ -287,7 +287,8 @@ class SCMInterface(BaseInterface):
         tag_list = []
         for line in sout.splitlines(False):
             dat = de.match(line)
-            tag_list.append([dat.group(1), int(dat.group(2))])
+            if dat:
+                tag_list.append([dat.group(1), int(dat.group(2))])
         cmd = 'hg log --template "{branches}:{date|age}:{author|person}:{desc|firstline}" --rev '
         for tag in tag_list:
             res, sout, serr = utils.run_cmd(cmd + str(tag[1]))
