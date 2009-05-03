@@ -402,6 +402,7 @@ PM_PATCHES_UI_DESCR = \
     <placeholder name="applied_indifferent">
       <menuitem action="pm_edit_patch_descr"/>
       <menuitem action="pm_view_patch_files"/>
+      <menuitem action="pm_view_patch_diff"/>
       <menuitem action="pm_rename_patch"/>
     </placeholder>
     <separator/>
@@ -495,6 +496,8 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                  "Edit the selected patch's description", self.do_edit_description),
                 ("pm_view_patch_files", gtk.STOCK_FILE, "Files", None,
                  "Show files affected by the selected patch", self.show_files),
+                ("pm_view_patch_diff", icons.STOCK_DIFF, "Diff", None,
+                 "Show diff for the selected patch", self.show_diff_acb),
                 ("pm_rename_patch", None, "QRename", None,
                  "Rename the selected patch", self.do_rename),
             ])
@@ -770,6 +773,11 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
     def show_files(self, action=None):
         patch = self.get_selected_patch()
         dialog = PatchFilesDialog(ifce=self._ifce, patch=patch)
+        dialog.show()
+    def show_diff_acb(self, action=None):
+        patch = self.get_selected_patch()
+        dialog = diff.PmDiffTextDialog(parent=self._get_gtk_window(), patch=patch,
+                                       ifce=self._ifce, modal=False)
         dialog.show()
     def do_rename(self, action=None):
         patch = self.get_selected_patch()
