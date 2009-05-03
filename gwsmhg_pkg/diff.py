@@ -40,13 +40,11 @@ class tws_line_count_display(gtk.HBox):
                 self._entry.modify_base(state, gtk.gdk.Color("#00FF00"))
 
 class DiffTextBuffer(gtksourceview.SourceBuffer, cmd_result.ProblemReporter):
-    def __init__(self, ifce, file_list=[], fromrev=None, torev=None, table=None):
+    def __init__(self, ifce, file_list=[], table=None):
         cmd_result.ProblemReporter.__init__(self)
         if not table:
             table = gtksourceview.SourceTagTable()
         gtksourceview.SourceBuffer.__init__(self, table)
-        self._fromrev = fromrev
-        self._torev = torev
         self._file_list = file_list
         self._ifce = ifce
         self._tws_change_cbs = []
@@ -63,12 +61,6 @@ class DiffTextBuffer(gtksourceview.SourceBuffer, cmd_result.ProblemReporter):
                 ("diff_refresh", gtk.STOCK_REFRESH, "_Refresh", None,
                  "Refresh contents of the diff", self._refresh_acb),
             ])
-        if not torev:
-            self.a_name_list = ["diff_save", "diff_save_as", "diff_refresh"]
-        else:
-            # the diff between two revs is immutable so refresh is redundant
-            self.a_name_list = ["diff_save", "diff_save_as"]
-        self.diff_buttons = gutils.ActionButtonList([self._action_group], self.a_name_list)
         self._save_file = None
         self.check_set_save_sensitive()
         self.tws_display = tws_line_count_display()
@@ -123,9 +115,10 @@ class DiffTextBuffer(gtksourceview.SourceBuffer, cmd_result.ProblemReporter):
         else:
             self._append_tagged_text(line, self.index_tag)
         return 0
+    def _get_diff_text(self):
+        return ""
     def set_contents(self):
-        res, text, serr = self._ifce.SCM.get_diff_for_files(self._file_list, self._fromrev, self._torev)
-        self._report_any_problems((res, text, serr))
+        text = self._get_diff_text()
         old_count = len(self.tws_list)
         self.begin_not_undoable_action()
         self.set_text("")
@@ -193,9 +186,7 @@ class DiffTextBuffer(gtksourceview.SourceBuffer, cmd_result.ProblemReporter):
         return gutils.ActionHButtonBox([self._action_group], action_name_list=self.a_name_list)
 
 class DiffTextView(gtksourceview.SourceView):
-    def __init__(self, ifce, file_list=[], fromrev=None, torev=None):
-        self._file_list = file_list
-        buffer = DiffTextBuffer(ifce, file_list, fromrev=fromrev, torev=torev)
+    def __init__(self, ifce, buffer):
         gtksourceview.SourceView.__init__(self, buffer)
         fdesc = pango.FontDescription("mono, 10")
         self.modify_font(fdesc)
@@ -238,9 +229,9 @@ class DiffTextView(gtksourceview.SourceView):
         self.scroll_to_iter(self.get_buffer().get_tws_last_iter(), 0.01)
 
 class DiffTextWidget(gtk.VBox):
-    def __init__(self, parent, ifce, file_list=[], fromrev=None, torev=None):
+    def __init__(self, parent, diff_view):
         gtk.VBox.__init__(self)
-        self.diff_view = DiffTextView(ifce=ifce, file_list=file_list, fromrev=fromrev, torev=torev)
+        self.diff_view = diff_view
         self.pack_start(gutils.wrap_in_scrolled_window(self.diff_view))
         self._tws_nav_buttons_packed = False
         buffer = self.diff_view.get_buffer()
@@ -257,7 +248,33 @@ class DiffTextWidget(gtk.VBox):
             self.diff_view.set_cursor_visible(True)
             self._tws_nav_buttons_packed = True
 
-class DiffTextDialog(gtk.Dialog):
+class ScmDiffTextBuffer(DiffTextBuffer):
+    def __init__(self, ifce, file_list=[], fromrev=None, torev=None, table=None):
+        DiffTextBuffer.__init__(self, ifce=ifce, file_list=file_list, table=table)
+        self._fromrev = fromrev
+        self._torev = torev
+        if not torev:
+            self.a_name_list = ["diff_save", "diff_save_as", "diff_refresh"]
+        else:
+            # the diff between two revs is immutable so refresh is redundant
+            self.a_name_list = ["diff_save", "diff_save_as"]
+        self.diff_buttons = gutils.ActionButtonList([self._action_group], self.a_name_list)
+    def _get_diff_text(self):
+        res, text, serr = self._ifce.SCM.get_diff_for_files(self._file_list, self._fromrev, self._torev)
+        self._report_any_problems((res, text, serr))
+        return text
+
+class ScmDiffTextView(DiffTextView):
+    def __init__(self, ifce, file_list=[], fromrev=None, torev=None):
+        buffer = ScmDiffTextBuffer(ifce, file_list, fromrev=fromrev, torev=torev)
+        DiffTextView.__init__(self, ifce=ifce, buffer=buffer)
+
+class ScmDiffTextWidget(DiffTextWidget):
+    def __init__(self, parent, ifce, file_list=[], fromrev=None, torev=None):
+        diff_view = ScmDiffTextView(ifce=ifce, file_list=file_list, fromrev=fromrev, torev=torev)
+        DiffTextWidget.__init__(self, parent=parent, diff_view=diff_view)
+
+class ScmDiffTextDialog(gtk.Dialog):
     def __init__(self, parent, ifce, file_list=[], fromrev=None, torev=None, modal=False):
         if modal or (parent and parent.get_modal()):
             flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
@@ -288,7 +305,7 @@ class DiffTextDialog(gtk.Dialog):
             nb = gtk.Notebook()
             for parent in parents:
                 vbox = gtk.VBox()
-                dtw = DiffTextWidget(self, ifce, file_list, fromrev=parent, torev=torev)
+                dtw = ScmDiffTextWidget(self, ifce, file_list, fromrev=parent, torev=torev)
                 vbox.pack_start(dtw)
                 hbox = gtk.HBox()
                 tws_display = dtw.diff_view.get_buffer().tws_display
@@ -300,12 +317,62 @@ class DiffTextDialog(gtk.Dialog):
                 nb.append_page(vbox,tab_label=tab_label)
             self.vbox.add(nb)
         else:
-            dtw = DiffTextWidget(self, ifce, file_list, fromrev=parents[0], torev=torev)
+            dtw = ScmDiffTextWidget(self, ifce, file_list, fromrev=parents[0], torev=torev)
             self.vbox.pack_start(dtw)
             tws_display = dtw.diff_view.get_buffer().tws_display
             self.action_area.pack_end(tws_display, expand=False, fill=False)
             for button in dtw.diff_view.get_buffer().diff_buttons.list:
                 self.action_area.pack_start(button)
+        self.add_buttons(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
+        self.connect("response", self._close_cb)
+        self.show_all()
+    def _close_cb(self, dialog, response_id):
+        self.destroy()
+
+class PmDiffTextBuffer(DiffTextBuffer):
+    def __init__(self, ifce, file_list=[], patch=None, table=None):
+        DiffTextBuffer.__init__(self, ifce=ifce, file_list=file_list, table=table)
+        self._patch = patch
+        if not patch:
+            self.a_name_list = ["diff_save", "diff_save_as", "diff_refresh"]
+        else:
+            # the diff between two revs is immutable so refresh is redundant
+            self.a_name_list = ["diff_save", "diff_save_as"]
+        self.diff_buttons = gutils.ActionButtonList([self._action_group], self.a_name_list)
+    def _get_diff_text(self):
+        res, text, serr = self._ifce.PM.get_diff_for_files(self._file_list, self._patch)
+        self._report_any_problems((res, text, serr))
+        return text
+
+class PmDiffTextView(DiffTextView):
+    def __init__(self, ifce, file_list=[], patch=None):
+        buffer = PmDiffTextBuffer(ifce, file_list, patch=patch)
+        DiffTextView.__init__(self, ifce=ifce, buffer=buffer)
+
+class PmDiffTextWidget(DiffTextWidget):
+    def __init__(self, parent, ifce, file_list=[], patch=None):
+        diff_view = PmDiffTextView(ifce=ifce, file_list=file_list, patch=patch)
+        DiffTextWidget.__init__(self, parent=parent, diff_view=diff_view)
+
+class PmDiffTextDialog(gtk.Dialog):
+    def __init__(self, parent, ifce, file_list=[], patch=None, modal=False):
+        if modal or (parent and parent.get_modal()):
+            flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
+        else:
+            flags = gtk.DIALOG_DESTROY_WITH_PARENT
+        title = "diff: %s" % utils.path_rel_home(os.getcwd())
+        mutable = patch is None
+        if patch:
+            title += " Patch: %s" % patch
+        else:
+            title += " Patch: []"
+        gtk.Dialog.__init__(self, title, parent, flags, ())
+        dtw = PmDiffTextWidget(self, ifce, file_list, patch=patch)
+        self.vbox.pack_start(dtw)
+        tws_display = dtw.diff_view.get_buffer().tws_display
+        self.action_area.pack_end(tws_display, expand=False, fill=False)
+        for button in dtw.diff_view.get_buffer().diff_buttons.list:
+            self.action_area.pack_start(button)
         self.add_buttons(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
         self.connect("response", self._close_cb)
         self.show_all()

@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import gtk, gobject, pango, os, tempfile
-from gwsmhg_pkg import cmd_result, gutils, file_tree, icons, text_edit, utils
+from gwsmhg_pkg import cmd_result, gutils, file_tree, icons, text_edit, utils, diff
 
 class PatchFileTreeStore(file_tree.FileTreeStore):
     def __init__(self, ifce, patch=None, view=None):
@@ -70,7 +70,7 @@ class PatchFileTreeView(file_tree.CwdFileTreeView):
         self._patch = patch
         model = PatchFileTreeStore(ifce=ifce, patch=patch)
         file_tree.CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
-             tooltips=tooltips, auto_refresh=False, show_status=True)
+             tooltips=tooltips, auto_refresh=False, show_status=True, console_log=ifce.log)
         model.set_view(self)
         self._action_group[file_tree.SELECTION].add_actions(
             [
@@ -80,7 +80,7 @@ class PatchFileTreeView(file_tree.CwdFileTreeView):
         self._action_group[file_tree.NO_SELECTION].add_actions(
             [
                 ("pm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
-                 "Display the diff for all changes", self.diff_selected_files_acb),
+                 "Display the diff for all changes", self.diff_all_files_acb),
             ])
         self._action_group[file_tree.SELECTION_INDIFFERENT].add_actions(
             [
@@ -94,11 +94,16 @@ class PatchFileTreeView(file_tree.CwdFileTreeView):
         model.repopulate()
         self.cwd_merge_id = self._ui_manager.add_ui_from_string(PATCH_FILES_UI_DESCR)
     def diff_selected_files_acb(self, action=None):
-        gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
-#        dialog = diff.DiffTextDialog(parent=self._get_gtk_window(),
-#                                     pm_ifce=self._ifce.PM,
-#                                     file_list=self.get_selected_files(), modal=False)
-#        dialog.show()
+        dialog = diff.PmDiffTextDialog(parent=self._get_gtk_window(),
+                                       ifce=self._ifce, patch=self._patch,
+                                       file_list=self.get_selected_files(),
+                                       modal=False)
+        dialog.show()
+    def diff_all_files_acb(self, action=None):
+        dialog = diff.PmDiffTextDialog(parent=self._get_gtk_window(),
+                                       ifce=self._ifce, patch=self._patch,
+                                       modal=False)
+        dialog.show()
 
 class PatchFilesDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
     def __init__(self, ifce, patch, tooltips=None):
@@ -159,8 +164,8 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
         model = PatchFileTreeStore(ifce=ifce)
         model._ifce.PM.add_notification_cb(["qrefresh", "qfold", "qsave"], self.update_tree)
         model._ifce.PM.add_notification_cb(["qpop", "qpush", "qfinish", "qsave-pfu", "qrestore", "qnew"], self.repopulate_tree)
-        model._ifce.SCM.add_notification_cb(["add", "copy", "remove", "rename", "revert"], self.update_tree)
-        file_tree.CwdFileTreeView.__init__(self, busy_indicator=busy_indicator,
+        model._ifce.SCM.add_notification_cb(["add", "copy", "remove", "rename", "revert", "delete"], self.update_tree)
+        file_tree.CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, console_log=ifce.log,
             model=model, tooltips=tooltips, auto_refresh=auto_refresh, show_status=True)
         model.set_view(self)
         self._action_group[file_tree.SELECTION].add_actions(
@@ -184,7 +189,7 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
         self._action_group[file_tree.NO_SELECTION].add_actions(
             [
                 ("pm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
-                 "Display the diff for all changes", self.diff_selected_files_acb),
+                 "Display the diff for all changes", self.diff_all_files_acb),
                 ("pm_revert_files_all", gtk.STOCK_UNDO, "Rever_t", None,
                  "Revert all changes in working directory", self.revert_all_files_acb),
             ])
@@ -208,6 +213,15 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
             return response == gtk.RESPONSE_OK
         else:
             return False
+    def new_file(self, new_file_name):
+        result = file_tree.CwdFileTreeView.new_file(self, new_file_name)
+        if not result[0]:
+            res, sout, serr = self._ifce.PM.do_add_files([new_file_name])
+            if res:
+                return (res, sout, serr)
+        return result
+    def delete_files(self, file_list):
+        return self._ifce.PM.do_delete_files(file_list)
     def _remove_named_files(self, file_list, ask=True):
         if not ask or self._confirm_list_action(file_list, "About to be removed. OK?"):
             model = self.get_model()
@@ -255,6 +269,7 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
                     self._show_busy()
                     res, sout, serr = operation(file_list, target, force=force, dry_run=True)
                     self._unshow_busy()
+                    print res, sout, serr
                     if res == cmd_result.OK:
                         ok = self._confirm_list_action(sout.splitlines(), "About to be actioned. OK?")
                         break
@@ -287,15 +302,19 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
     def move_selected_files_acb(self, action=None):
         self.move_files(self.get_selected_files())
     def diff_selected_files_acb(self, action=None):
-        gutils.inform_user('Not yet implemented', problem_type=gtk.MESSAGE_INFO)
-#        dialog = diff.DiffTextDialog(parent=self._get_gtk_window(),
-#                                     pm_ifce=self._ifce.PM,
-#                                     file_list=self.get_selected_files(), modal=False)
-#        dialog.show()
+        dialog = diff.PmDiffTextDialog(parent=self._get_gtk_window(),
+                                       ifce=self._ifce,
+                                       file_list=self.get_selected_files(),
+                                       modal=False)
+        dialog.show()
+    def diff_all_files_acb(self, action=None):
+        dialog = diff.PmDiffTextDialog(parent=self._get_gtk_window(),
+                                       ifce=self._ifce, modal=False)
+        dialog.show()
     def revert_named_files(self, file_list, ask=True):
         if ask:
             self._show_busy()
-            res, sout, serr = self._ifce.PM.revert_files(file_list, dry_run=True)
+            res, sout, serr = self._ifce.PM.do_revert_files(file_list, dry_run=True)
             self._unshow_busy()
             if res == cmd_result.OK:
                 if sout:
@@ -310,7 +329,7 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
             ok = True
         if ok:
             self._show_busy()
-            result = self._ifce.PM.revert_files(file_list)
+            result = self._ifce.PM.do_revert_files(file_list)
             self.get_model().del_files_from_displayable_nonexistants(file_list)
             self._show_busy()
             self.update_tree()

@@ -126,6 +126,26 @@ class BaseInterface:
             result = self._run_cmd_on_console(cmd, stdout_expected=True)
             self._do_cmd_notification("revert")
             return result
+    def do_delete_files(self, file_list):
+        if self._console_log:
+            self._console_log.start_cmd("Deleting: %s" % " ".join(file_list))
+        serr = ""
+        for filename in file_list:
+            try:
+                os.remove(filename)
+                if self._console_log:
+                    self._console_log.append_stdout(("Deleted: %s" + os.linesep) % filename)
+            except os.error, value:
+                errmsg = ("%s: %s" + os.linesep) % (value[1], filename)
+                serr += errmsg
+                if self._console_log:
+                    self._console_log.append_stderr(errmsg)
+        if self._console_log:
+            self._console_log.end_cmd()
+        self._do_cmd_notification("delete")
+        if serr:
+            return (cmd_result.ERROR, "", serr)
+        return (cmd_result.OK, "", "")
     def do_pull(self, rev=None, update=False, source=None):
         cmd = "hg pull"
         if update:
@@ -400,7 +420,7 @@ class PMInterface(BaseInterface):
         self._qpush_re = re.compile("^(merging|applying)\s.*$", re.M)
         self.file_state_changing_cmds = ["qfold", "qsave", "qpop", "qpush", "qfinish", "qsave-pfu", "qrestore", "qnew"]
         self.tag_changing_cmds = self.file_state_changing_cmds + ["qrename", "qdelete", "qimport", "update", "pull"]
-        self.file_state_changing_cmds += ["add", "copy", "remove", "rename", "revert"]
+        self.file_state_changing_cmds += ["add", "copy", "remove", "rename", "revert", "delete"]
     def _map_cmd_result(self, result, stdout_expected=True, ignore_err_re=None):
         if not result[0]:
             return cmd_result.map_cmd_result(result, stdout_expected=stdout_expected, ignore_err_re=ignore_err_re)
@@ -416,10 +436,14 @@ class PMInterface(BaseInterface):
     def _run_cmd_on_console(self, cmd, stdout_expected=True, ignore_err_re=None):
         result = utils.run_cmd_in_console(cmd, self._console_log)
         return self._map_cmd_result(result, stdout_expected, ignore_err_re=ignore_err_re)
-    def get_parents(self, patch):
-        cmd = os.linesep.join(['hg parents --template "{rev}', '" -r %s' % patch])
-        res, sout, serr = utils.run_cmd(cmd)
-        return sout.splitlines(False)
+    def get_parent(self, patch):
+        parent = "qparent"
+        for applied_patch in self.get_applied_patches():
+            if patch == applied_patch:
+                return parent
+            else:
+                parent = applied_patch
+        return None
     def get_file_status_list(self, patch=None):
         if patch and not self.get_patch_is_applied(patch):
             pfn = self.get_patch_file_name(patch)
@@ -428,17 +452,17 @@ class PMInterface(BaseInterface):
                 return (cmd_result.OK, file_list, "")
             else:
                 return (cmd_result.WARNING, "", file_list)
-        res, top, serr = utils.run_cmd("hg qtop")
-        if res:
+        top = self.get_top_patch()
+        if not top:
             # either we're not in an mq playground or no patches are applied
             return (cmd_result.OK, [], "")
         cmd = "hg status -mardC"
         if patch:
             cmd += " --rev %s" % patch
-            parents = self.get_parents(patch)
+            parent = self.get_parent(patch)
         else:
-            parents = self.get_parents("qtip")
-        cmd += " --rev %s" % parents[0] # use the newest parent
+            parent = self.get_parent(top)
+        cmd += " --rev %s" % parent
         res, sout, serr = utils.run_cmd(cmd)
         if res != 0:
             return (res, [], sout + serr)
@@ -468,8 +492,7 @@ class PMInterface(BaseInterface):
                 return []
         return op.splitlines(False)
     def get_patch_is_applied(self, patch):
-        res, op, err = utils.run_cmd("hg qapplied %s" % patch)
-        return op.strip() == patch
+        return patch in self.get_applied_patches()
     def get_top_patch(self):
         res, sout, serr = utils.run_cmd("hg qtop")
         if res:
@@ -488,6 +511,32 @@ class PMInterface(BaseInterface):
             return None
         else:
             return sout.strip()
+    def get_diff_for_files(self, file_list=[], patch=None):
+        if patch:
+            parent = self.get_parent(patch)
+            if not parent:
+                # the patch is not applied
+                pfn = self.get_patch_file_name(patch)
+                result, diff = putils.get_patch_diff(pfn, file_list)
+                if result:
+                    return (cmd_result.OK, diff, "")
+                else:
+                    return (cmd_result.WARNING, "", diff)
+        else:
+            top = self.get_top_patch()
+            if top:
+                parent = self.get_parent(top)
+            else:
+                return (cmd_result.OK, "", "")
+        cmd = "hg diff --rev %s " % parent
+        if patch:
+            cmd += "--rev %s " % patch
+        if file_list:
+            cmd += " ".join(file_list)
+        res, sout, serr = utils.run_cmd(cmd)
+        if res != 0:
+            res = cmd_result.ERROR
+        return (res, sout, serr)
     def do_refresh(self):
         result = self._run_cmd_on_console("hg qrefresh")
         if not result[0]:
@@ -596,6 +645,21 @@ class PMInterface(BaseInterface):
         if res & cmd_result.SUGGEST_REFRESH:
             res |= cmd_result.SUGGEST_FORCE
         return (res, sout, serr)
+    def do_remove_files(self, file_list, force=False):
+        applied_count = len(self.get_applied_patches())
+        if not file_list or applied_count == 0:
+            return (cmd_result.OK, "", "")
+        elif applied_count == 1:
+            parent = "qparent"
+        else:
+            res, sout, serr = utils.run_cmd("hg qprev")
+            parent = sout.strip()
+        cmd = "hg revert --rev %s " % parent
+        if force:
+            cmd += "-f "
+        result = self._run_cmd_on_console(" ".join([cmd] + file_list)) 
+        self._do_cmd_notification("remove")
+        return result
     def do_save_queue_state_for_update(self):
         result = self._run_cmd_on_console("hg qsave -e -c")
         print result, self._ws_update_mgr.tip_is_patches_saved_state()

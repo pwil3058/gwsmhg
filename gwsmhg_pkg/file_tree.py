@@ -931,6 +931,15 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                 ("menu_files", None, "_Files"),
             ])
         self.cwd_merge_id = self._ui_manager.add_ui_from_string(SCM_CWD_UI_DESCR)
+    def new_file(self, new_file_name):
+        result = CwdFileTreeView.new_file(self, new_file_name)
+        if not result[0]:
+            res, sout, serr = self._ifce.SCM.do_add_files([new_file_name])
+            if res:
+                return (res, sout, serr)
+        return result
+    def delete_files(self, file_list):
+        return self._ifce.SCM.do_delete_files(file_list)
     def _selection_changed_cb(self, selection):
         if self._ifce.SCM.get_patches_applied():
             self._action_group[NO_SELECTION_NOT_PATCHED].set_sensitive(False)
@@ -1067,7 +1076,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
     def move_selected_files_acb(self, action=None):
         self.move_files(self.get_selected_files())
     def diff_selected_files_acb(self, action=None):
-        dialog = diff.DiffTextDialog(parent=self._get_gtk_window(), ifce=self._ifce,
+        dialog = diff.ScmDiffTextDialog(parent=self._get_gtk_window(), ifce=self._ifce,
                                      file_list=self.get_selected_files(), modal=False)
         dialog.show()
     def revert_named_files(self, file_list, ask=True):
@@ -1244,13 +1253,13 @@ class ScmChangeFileTreeView(FileTreeView):
         self.update_tree()
     def _diff_selected_files_acb(self, action=None):
         parent = self._get_gtk_window()
-        dialog = diff.DiffTextDialog(parent=parent, ifce=self._ifce,
+        dialog = diff.ScmDiffTextDialog(parent=parent, ifce=self._ifce,
                                      file_list=self.get_selected_files(),
                                      modal=False)
         dialog.show()
     def _diff_all_files_acb(self, action=None):
         parent = self._get_gtk_window()
-        dialog = diff.DiffTextDialog(parent=parent, ifce=self._ifce,
+        dialog = diff.ScmDiffTextDialog(parent=parent, ifce=self._ifce,
                                      file_list=self.get_file_mask(),
                                      modal=False)
         dialog.show()

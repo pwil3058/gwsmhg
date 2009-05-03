@@ -183,6 +183,21 @@ def get_patch_diff_lines(path):
         return (False, [])
     return (True,  lines[patch[0]:])
 
+def get_patch_diff(path, file_list=[]):
+    if not file_list:
+        res, diff_lines = get_patch_diff_lines(path)
+        return (res, os.linesep.join(diff_lines) + os.linesep)
+    if not utils.which("filterdiff"):
+        return (False, "This functionality requires \"filterdiff\" from \"patchutils\"")
+    cmd = "filterdiff -p 1"
+    for file in file_list:
+        cmd += " -i %s" % file
+    res, so, se = utils.run_cmd("%s %s" % (cmd, path))
+    if res == 0:
+        return (True, so)
+    else:
+        return (False, so + se)
+
 def append_lines_to_file(file, lines):
     for line in lines:
         file.write(line + os.linesep)
