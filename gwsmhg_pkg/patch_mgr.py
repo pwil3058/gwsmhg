@@ -269,7 +269,6 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
                     self._show_busy()
                     res, sout, serr = operation(file_list, target, force=force, dry_run=True)
                     self._unshow_busy()
-                    print res, sout, serr
                     if res == cmd_result.OK:
                         ok = self._confirm_list_action(sout.splitlines(), "About to be actioned. OK?")
                         break

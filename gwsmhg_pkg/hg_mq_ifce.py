@@ -662,7 +662,6 @@ class PMInterface(BaseInterface):
         return result
     def do_save_queue_state_for_update(self):
         result = self._run_cmd_on_console("hg qsave -e -c")
-        print result, self._ws_update_mgr.tip_is_patches_saved_state()
         self._ws_update_mgr.initialize(result[2], "qsaved")
         self._do_cmd_notification("qsave-pfu")
         return result
