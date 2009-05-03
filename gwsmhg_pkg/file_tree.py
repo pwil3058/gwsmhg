@@ -885,6 +885,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         model = ScmCwdFileTreeStore(ifce=self._ifce, show_hidden=show_hidden)
         self._ifce.SCM.add_notification_cb(["commit"], self.update_after_commit)
         self._ifce.PM.add_notification_cb(self._ifce.PM.file_state_changing_cmds, self.update_after_commit)
+        self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.update_menu_sensitivity)
         CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
             tooltips=tooltips, auto_refresh=auto_refresh, console_log=ifce.log, show_status=True)
         self._action_group[SELECTION].add_actions(
@@ -940,14 +941,18 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         return result
     def delete_files(self, file_list):
         return self._ifce.SCM.do_delete_files(file_list)
-    def _selection_changed_cb(self, selection):
-        if self._ifce.SCM.get_patches_applied():
+    def update_menu_sensitivity(self, selection=None):
+        if self._ifce.PM.get_in_progress():
             self._action_group[NO_SELECTION_NOT_PATCHED].set_sensitive(False)
             self._action_group[SELECTION_NOT_PATCHED].set_sensitive(False)
         else:
+            if not selection:
+                selection = self.get_selection()
             sel_sz = selection.count_selected_rows()
             self._action_group[NO_SELECTION_NOT_PATCHED].set_sensitive(sel_sz == 0)
             self._action_group[SELECTION_NOT_PATCHED].set_sensitive(sel_sz > 0)
+    def _selection_changed_cb(self, selection):
+        self.update_menu_sensitivity(selection)
         _ViewWithActionGroups._selection_changed_cb(self, selection)
     def get_scm_name(self):
         return self._ifce.SCM.name

@@ -163,9 +163,6 @@ class SCMInterface(BaseInterface):
     def _run_cmd_on_console(self, cmd, stdout_expected=True):
         result = utils.run_cmd_in_console(cmd, self._console_log)
         return cmd_result.map_cmd_result(result, stdout_expected)
-    def get_patches_applied(self):
-        res = utils.run_cmd("hg qtop")
-        return res[0] == 0
     def get_default_commit_save_file(self):
         return os.path.join(".hg", "gwsmhg.saved.commit")
     def _get_first_in_envar(self, envar_list):
@@ -482,6 +479,8 @@ class PMInterface(BaseInterface):
             file_list.append((name, status, extra_info))
             index += 1
         return (res, file_list, serr)
+    def get_in_progress(self):
+        return self.get_top_patch() or self._ws_update_mgr.is_in_progress()
     def get_applied_patches(self):
         res, op, err = utils.run_cmd("hg qapplied")
         if res != 0:
