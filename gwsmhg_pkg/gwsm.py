@@ -15,6 +15,7 @@
 
 import os, gtk, gobject, sys
 from gwsmhg_pkg import console, change_set, file_tree, gutils, utils, patch_mgr
+from gwsmhg_pkg import icons
 
 WS_TABLE_DESCR = \
 [
@@ -111,6 +112,8 @@ class WSOpenDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
                             buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
                                     gtk.STOCK_OK, gtk.RESPONSE_OK)
                            )
+        if not parent:
+            self.set_icon_from_file(icons.app_icon_file)
         hbox = gtk.HBox()
         self.path_view = WSPathView()
         self.path_view.get_selection().connect("changed", self._selection_cb)
@@ -162,6 +165,7 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser):
         gtk.Window.__init__(self, gtk.WINDOW_TOPLEVEL)
         gutils.BusyIndicator.__init__(self)
         gutils.BusyIndicatorUser.__init__(self, self)
+        self.set_icon_from_file(icons.app_icon_file)
         self.connect("destroy", self._quit)
         self._action_group = gtk.ActionGroup("gwsm")
         self._action_group.add_actions(

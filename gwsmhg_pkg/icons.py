@@ -23,6 +23,7 @@ STOCK_FOLD_PATCH = "stock_fold_patch"
 STOCK_FINISH_PATCH = "stock_finish_patch"
 STOCK_IMPORT_PATCH = "stock_import_patch"
 STOCK_APPLIED = "stock_applied"
+APP_ICON = "gwsmhg"
 
 _icon_name_list = \
     [ STOCK_COMMIT, STOCK_DIFF, STOCK_POP_PATCH, STOCK_PUSH_PATCH,
@@ -39,6 +40,8 @@ if not os.path.exists(libdir) or not os.path.isdir(libdir):
         if os.path.exists(libdir) and os.path.isdir(libdir):
             break
         prefix = os.path.dirname(prefix)
+
+app_icon_file = os.path.join(os.path.dirname(libdir), APP_ICON + os.extsep + "png")
 
 factory = gtk.IconFactory()
 
