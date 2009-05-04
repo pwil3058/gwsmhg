@@ -384,6 +384,8 @@ PM_PATCHES_UI_DESCR = \
     <toolitem name="Push" action="pm_push"/>
     <toolitem name="Pop" action="pm_pop"/>
     <separator/>
+    <toolitem name="PushMerge" action="pm_push_merge"/>
+    <separator/>
     <toolitem name="New" action="pm_new"/>
     <toolitem name="Import" action="pm_import_external_patch"/>
   </toolbar>
@@ -530,6 +532,8 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             ])
         self._action_group[WS_UPDATE_MERGE_READY].add_actions(
             [
+                ("pm_push_merge", icons.STOCK_PUSH_PATCH, "QPush (Merge)", None,
+                 "Apply the next unapplied patch merging with equivalent saved patch", self.do_push_merge),
                 ("pm_push_all_with_merge", icons.STOCK_PUSH_PATCH, "QPush All (Merge)", None,
                  "Apply all remaining unapplied patches with \"merge\" option enabled", self.do_push_all_with_merge),
             ])
@@ -726,6 +730,8 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                 break
     def do_push(self, action=None):
         self._do_push_to()
+    def do_push_merge(self, action=None):
+        self._do_push_to(merge=True)
     def do_push_all(self, action=None):
         self._do_push_to("", merge=False)
     def do_push_all_with_merge(self, action=None):
