@@ -19,11 +19,11 @@ from gwsmhg_pkg import text_edit, utils, cmd_result, console, putils
 DEFAULT_NAME_EVARS = ["GIT_AUTHOR_NAME", "GECOS"]
 DEFAULT_EMAIL_VARS = ["GIT_AUTHOR_EMAIL", "EMAIL_ADDRESS"]
 
-class BaseInterface:
+class BaseInterface(utils.action_notifier):
     def __init__(self, name, console_log):
+        utils.action_notifier.__init__(self)
         self._console_log = console_log
         self.name = name
-        self._notification_cbs = {}
         self.status_deco_map = {
             None: (pango.STYLE_NORMAL, "black"),
             "M": (pango.STYLE_NORMAL, "blue"),
@@ -41,19 +41,6 @@ class BaseInterface:
         self.modification_statuses = ("M", "A", "R", "!")
         self._name_envars = DEFAULT_NAME_EVARS
         self._email_envars = DEFAULT_EMAIL_VARS
-    def add_notification_cb(self, cmd_list, cb):
-        for cmd in cmd_list:
-            if self._notification_cbs.has_key(cmd):
-                self._notification_cbs[cmd].append(cb)
-            else:
-                self._notification_cbs[cmd] = [cb]
-    def _do_cmd_notification(self, cmd, data=None):
-        if self._notification_cbs.has_key(cmd):
-            for cb in self._notification_cbs[cmd]:
-                if data is not None:
-                    cb(data)
-                else:
-                    cb()
     def get_author_name_and_email(self):
         res, uiusername, serr = utils.run_cmd("hg showconfig ui.username")
         if res == 0 and uiusername:

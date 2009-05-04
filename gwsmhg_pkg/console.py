@@ -95,13 +95,14 @@ CONSOLE_LOG_UI_DESCR = \
 </ui>
 '''
 
-class ConsoleLog(gtk.VBox, cmd_result.ProblemReporter,
+class ConsoleLog(gtk.VBox, cmd_result.ProblemReporter, utils.action_notifier,
                  gutils.BusyIndicatorUser, gutils.TooltipsUser):
     def __init__(self, busy_indicator, table=None, tooltips=None):
         gtk.VBox.__init__(self)
         cmd_result.ProblemReporter.__init__(self)
         gutils.BusyIndicatorUser.__init__(self, busy_indicator)
         gutils.TooltipsUser.__init__(self, tooltips)
+        utils.action_notifier.__init__(self)
         self._buffer = ConsoleLogBuffer()
         self._view = ConsoleLogView(buffer=self._buffer)
         self._action_group = gtk.ActionGroup("console_log")
@@ -157,4 +158,5 @@ class ConsoleLog(gtk.VBox, cmd_result.ProblemReporter,
             result = (cmd_result.OK, "", "")
         self._unshow_busy()
         self._report_any_problems(result)
+        self._do_cmd_notification("manual_cmd")
 

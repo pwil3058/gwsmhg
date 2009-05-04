@@ -35,6 +35,7 @@ class ParentsView(gutils.AutoRefreshTableView):
             auto_refresh_on=auto_refresh_on, auto_refresh_interval=auto_refresh_interval,
             busy_indicator=self._ifce.log.get_busy_indicator())
         self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.refresh_contents_if_mapped)
+        self._ifce.log.add_notification_cb(["manual_cmd"], self.refresh_contents_if_mapped)
         self.show_all()
     def _refresh_contents(self):
         res, parents, serr = self._ifce.SCM.get_parents_data()
@@ -63,6 +64,7 @@ class HeadsView(gutils.AutoRefreshTableView):
             busy_indicator=self._ifce.log.get_busy_indicator())
         self._ifce.SCM.add_notification_cb(["commit"], self.refresh_contents_if_mapped)
         self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.refresh_contents_if_mapped)
+        self._ifce.log.add_notification_cb(["manual_cmd"], self.refresh_contents_if_mapped)
         self.show_all()
     def _refresh_contents(self):
         res, heads, serr = self._ifce.SCM.get_heads_data()
@@ -103,6 +105,7 @@ class TagsView(gutils.AutoRefreshTableView):
             busy_indicator=self._ifce.log.get_busy_indicator())
         self._ifce.SCM.add_notification_cb(["commit"], self.refresh_contents_if_mapped)
         self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.refresh_contents_if_mapped)
+        self._ifce.log.add_notification_cb(["manual_cmd"], self.refresh_contents_if_mapped)
         self.show_all()
     def _refresh_contents(self):
         res, tags, serr = self._ifce.SCM.get_tags_data()
@@ -143,6 +146,7 @@ class BranchesView(gutils.AutoRefreshTableView):
             busy_indicator=self._ifce.log.get_busy_indicator())
         self._ifce.SCM.add_notification_cb(["commit"], self.refresh_contents_if_mapped)
         self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.refresh_contents_if_mapped)
+        self._ifce.log.add_notification_cb(["manual_cmd"], self.refresh_contents_if_mapped)
         self.show_all()
     def _refresh_contents(self):
         res, branches, serr = self._ifce.SCM.get_branches_data()

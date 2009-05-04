@@ -883,6 +883,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
     def __init__(self, ifce, busy_indicator, tooltips=None, auto_refresh=False, show_hidden=False):
         self._ifce = ifce
         model = ScmCwdFileTreeStore(ifce=self._ifce, show_hidden=show_hidden)
+        self._ifce.log.add_notification_cb(["manual_cmd"], self.update_after_commit)
         self._ifce.SCM.add_notification_cb(["commit"], self.update_after_commit)
         self._ifce.PM.add_notification_cb(self._ifce.PM.file_state_changing_cmds, self.update_after_commit)
         self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.update_menu_sensitivity)

@@ -104,3 +104,20 @@ def which(cmd):
             return potential_path
     return None
 
+class action_notifier:
+    def __init__(self):
+        self._notification_cbs = {}
+    def add_notification_cb(self, cmd_list, cb):
+        for cmd in cmd_list:
+            if self._notification_cbs.has_key(cmd):
+                self._notification_cbs[cmd].append(cb)
+            else:
+                self._notification_cbs[cmd] = [cb]
+    def _do_cmd_notification(self, cmd, data=None):
+        if self._notification_cbs.has_key(cmd):
+            for cb in self._notification_cbs[cmd]:
+                if data is not None:
+                    cb(data)
+                else:
+                    cb()
+

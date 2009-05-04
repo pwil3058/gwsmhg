@@ -165,6 +165,7 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
         model._ifce.PM.add_notification_cb(["qrefresh", "qfold", "qsave"], self.update_tree)
         model._ifce.PM.add_notification_cb(["qpop", "qpush", "qfinish", "qsave-pfu", "qrestore", "qnew"], self.repopulate_tree)
         model._ifce.SCM.add_notification_cb(["add", "copy", "remove", "rename", "revert", "delete"], self.update_tree)
+        self._ifce.log.add_notification_cb(["manual_cmd"], self.update_tree)
         file_tree.CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, console_log=ifce.log,
             model=model, tooltips=tooltips, auto_refresh=auto_refresh, show_status=True)
         model.set_view(self)
@@ -467,6 +468,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         gtk.TreeView.__init__(self, self.store)
         cmd_result.ProblemReporter.__init__(self)
         gutils.BusyIndicatorUser.__init__(self, busy_indicator)
+        self._ifce.log.add_notification_cb(["manual_cmd"], self.set_contents)
         text_cell = gtk.CellRendererText()
         icon_cell = gtk.CellRendererPixbuf()
         tvcolumn = gtk.TreeViewColumn("patch_list")
