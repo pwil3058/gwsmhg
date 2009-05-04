@@ -204,7 +204,7 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser):
         else:
             os.chdir(rootdir)
             open_dialog = None # we need this later
-        self._parent_view = change_set.ParentsView(self._ifce)
+        self._parent_view = change_set.ParentsTableView(self._ifce)
         self._file_tree_widget = file_tree.ScmCwdFilesWidget(ifce=self._ifce,
             busy_indicator=self.get_busy_indicator(), tooltips=self._tooltips)
         self._notebook = gtk.Notebook()
@@ -212,11 +212,11 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser):
         self._patch_mgr = patch_mgr.PatchManagementWidget(ifce=self._ifce,
             busy_indicator=self.get_busy_indicator(), tooltips=self._tooltips)
         self._notebook.append_page(self._patch_mgr, gtk.Label(self._ifce.PM.name))
-        self._heads_view = change_set.HeadsView(self._ifce)
+        self._heads_view = change_set.HeadsTableView(self._ifce)
         self._notebook.append_page(gutils.wrap_in_scrolled_window(self._heads_view), gtk.Label("Heads"))
-        self._tags_view = change_set.TagsView(self._ifce)
+        self._tags_view = change_set.TagsTableView(self._ifce)
         self._notebook.append_page(gutils.wrap_in_scrolled_window(self._tags_view), gtk.Label("Tags"))
-        self._branches_view = change_set.BranchesView(self._ifce)
+        self._branches_view = change_set.BranchesTableView(self._ifce)
         self._notebook.append_page(gutils.wrap_in_scrolled_window(self._branches_view), gtk.Label("Branches"))
         self._notebook.set_current_page(0)
         # Now lay the widgets out

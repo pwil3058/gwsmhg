@@ -13,8 +13,8 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import gtk, gobject
-from gwsmhg_pkg import cmd_result, gutils
+import gtk, gobject, os
+from gwsmhg_pkg import cmd_result, gutils, utils
 
 LOG_TABLE_PRECIS_DESCR = \
 [
@@ -27,8 +27,9 @@ LOG_TABLE_PRECIS_DESCR = \
 ]
 
 LOG_TABLE_PRECIS_AGE = gutils.find_label_index(LOG_TABLE_PRECIS_DESCR, "Age")
+LOG_TABLE_PRECIS_REV = gutils.find_label_index(LOG_TABLE_PRECIS_DESCR, "Rev")
 
-class ParentsView(gutils.AutoRefreshTableView):
+class ParentsTableView(gutils.AutoRefreshTableView):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=False, auto_refresh_interval=30000):
         self._ifce = ifce
         gutils.AutoRefreshTableView.__init__(self, LOG_TABLE_PRECIS_DESCR, sel_mode=sel_mode,
@@ -56,7 +57,7 @@ class ParentsView(gutils.AutoRefreshTableView):
             self.set_contents([])
         gutils.AutoRefreshTableView._refresh_contents(self)
 
-class HeadsView(gutils.AutoRefreshTableView):
+class HeadsTableView(gutils.AutoRefreshTableView):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=False, auto_refresh_interval=30000):
         self._ifce = ifce
         gutils.AutoRefreshTableView.__init__(self, LOG_TABLE_PRECIS_DESCR, sel_mode=sel_mode,
@@ -85,6 +86,38 @@ class HeadsView(gutils.AutoRefreshTableView):
             self.set_contents([])
         gutils.AutoRefreshTableView._refresh_contents(self)
 
+class HeadsSelectView(gutils.TableView):
+    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
+        self._ifce = ifce
+        gutils.TableView.__init__(self, LOG_TABLE_PRECIS_DESCR, sel_mode=sel_mode)
+        self._set_contents()
+        self.show_all()
+    def _set_contents(self):
+        res, heads, serr = self._ifce.SCM.get_heads_data()
+        if res == cmd_result.OK and heads:
+            self.set_contents(heads)
+        else:
+            self.set_contents([])
+    def get_selected_head(self):
+        data = self.get_selected_data([LOG_TABLE_PRECIS_REV])
+        return str(data[0][0])
+
+class HeadSelectDialog(gtk.Dialog):
+    def __init__(self, ifce, parent=None):
+        gtk.Dialog.__init__(self, title="gwsmg: Select Head", parent=parent,
+                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
+                            buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                    gtk.STOCK_OK, gtk.RESPONSE_OK)
+                           )
+        if not parent:
+            self.set_icon_from_file(icons.app_icon_file)
+        self.heads_view = HeadsSelectView(ifce=ifce)
+        self.vbox.pack_start(gutils.wrap_in_scrolled_window(self.heads_view))
+        self.show_all()
+        self.heads_view.get_selection().unselect_all()
+    def get_head(self):
+        return self.heads_view.get_selected_head()
+
 TAG_TABLE_PRECIS_DESCR = \
 [
     ["Tag", gobject.TYPE_STRING, False, []],
@@ -97,7 +130,7 @@ TAG_TABLE_PRECIS_DESCR = \
 
 TAG_TABLE_PRECIS_AGE = gutils.find_label_index(TAG_TABLE_PRECIS_DESCR, "Age")
 
-class TagsView(gutils.AutoRefreshTableView):
+class TagsTableView(gutils.AutoRefreshTableView):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=False, auto_refresh_interval=3600000):
         self._ifce = ifce
         gutils.AutoRefreshTableView.__init__(self, TAG_TABLE_PRECIS_DESCR, sel_mode=sel_mode,
@@ -126,6 +159,50 @@ class TagsView(gutils.AutoRefreshTableView):
             self.set_contents([])
         gutils.AutoRefreshTableView._refresh_contents(self)
 
+TAG_LIST_DESCR = \
+[
+    ["Tag", gobject.TYPE_STRING, False, []],
+]
+
+TAG_LIST_TAG = gutils.find_label_index(TAG_LIST_DESCR, "Tag")
+
+class TagsSelectView(gutils.TableView):
+    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
+        self._ifce = ifce
+        gutils.TableView.__init__(self, TAG_LIST_DESCR,
+                                  sel_mode=sel_mode, perm_headers=False)
+        self._set_contents()
+        self.show_all()
+    def _set_contents(self):
+        res, tags, serr = self._ifce.SCM.get_tags_list()
+        if res == cmd_result.OK and tags:
+            seq_list = []
+            for tag in tags:
+                seq_list.append([tag])
+            self.set_contents(seq_list)
+        else:
+            self.set_contents([])
+    def get_selected_tag(self):
+        data = self.get_selected_data([TAG_LIST_TAG])
+        return str(data[0][0])
+
+class TagSelectDialog(gtk.Dialog):
+    def __init__(self, ifce, parent=None):
+        gtk.Dialog.__init__(self, title="gwsmg: Select Tag", parent=parent,
+                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
+                            buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                    gtk.STOCK_OK, gtk.RESPONSE_OK)
+                           )
+        if not parent:
+            self.set_icon_from_file(icons.app_icon_file)
+        self.tags_view = TagsSelectView(ifce=ifce)
+        self.tags_view.set_headers_visible(False)
+        self.vbox.pack_start(gutils.wrap_in_scrolled_window(self.tags_view))
+        self.show_all()
+        self.tags_view.get_selection().unselect_all()
+    def get_tag(self):
+        return self.tags_view.get_selected_tag()
+
 BRANCH_TABLE_PRECIS_DESCR = \
 [
     ["Branch", gobject.TYPE_STRING, False, []],
@@ -138,7 +215,7 @@ BRANCH_TABLE_PRECIS_DESCR = \
 
 BRANCH_TABLE_PRECIS_AGE = gutils.find_label_index(BRANCH_TABLE_PRECIS_DESCR, "Age")
 
-class BranchesView(gutils.AutoRefreshTableView):
+class BranchesTableView(gutils.AutoRefreshTableView):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=False, auto_refresh_interval=3600000):
         self._ifce = ifce
         gutils.AutoRefreshTableView.__init__(self, BRANCH_TABLE_PRECIS_DESCR, sel_mode=sel_mode,
@@ -166,4 +243,98 @@ class BranchesView(gutils.AutoRefreshTableView):
         else:
             self.set_contents([])
         gutils.AutoRefreshTableView._refresh_contents(self)
+
+BRANCH_LIST_DESCR = \
+[
+    ["Branch", gobject.TYPE_STRING, False, []],
+]
+
+BRANCH_LIST_BRANCH = gutils.find_label_index(BRANCH_LIST_DESCR, "Branch")
+
+class BranchesSelectView(gutils.TableView):
+    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
+        self._ifce = ifce
+        gutils.TableView.__init__(self, BRANCH_LIST_DESCR,
+                                  sel_mode=sel_mode, perm_headers=False)
+        self._set_contents()
+        self.show_all()
+    def _set_contents(self):
+        res, branches, serr = self._ifce.SCM.get_branches_list()
+        if res == cmd_result.OK and branches:
+            seq_list = []
+            for branch in branches:
+                seq_list.append([branch])
+            self.set_contents(seq_list)
+        else:
+            self.set_contents([])
+    def get_selected_branch(self):
+        data = self.get_selected_data([BRANCH_LIST_BRANCH])
+        return str(data[0][0])
+
+class BranchSelectDialog(gtk.Dialog):
+    def __init__(self, ifce, parent=None):
+        gtk.Dialog.__init__(self, title="gwsmg: Select Branch", parent=parent,
+                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
+                            buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                    gtk.STOCK_OK, gtk.RESPONSE_OK)
+                           )
+        if not parent:
+            self.set_icon_from_file(icons.app_icon_file)
+        self.branches_view = BranchesSelectView(ifce=ifce)
+        self.branches_view.set_headers_visible(False)
+        self.vbox.pack_start(gutils.wrap_in_scrolled_window(self.branches_view))
+        self.show_all()
+        self.branches_view.get_selection().unselect_all()
+    def get_branch(self):
+        return self.branches_view.get_selected_branch()
+
+class ChangeSetSelectDialog(gtk.Dialog):
+    def __init__(self, ifce, parent=None):
+        title = "gwsmg: Select Change Set: %s" % utils.path_rel_home(os.getcwd())
+        gtk.Dialog.__init__(self, title=title, parent=parent,
+                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
+                            buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                    gtk.STOCK_OK, gtk.RESPONSE_OK)
+                           )
+        self._ifce = ifce
+        hbox = gtk.HBox()
+        self._tags_button = gtk.Button(label="Browse _Tags")
+        self._tags_button.connect("clicked", self._browse_tags_cb)
+        self._branches_button = gtk.Button(label="Browse _Branches")
+        self._branches_button.connect("clicked", self._browse_branches_cb)
+        self._heads_button = gtk.Button(label="Browse _Heads")
+        self._heads_button.connect("clicked", self._browse_heads_cb)
+        for button in self._tags_button, self._branches_button, self._heads_button:
+            hbox.pack_start(button, expand=False, fill=False)
+        self.vbox.pack_start(hbox)
+        hbox = gtk.HBox()
+        hbox.pack_start(gtk.Label("Change Set:"))
+        self._path = gutils.EntryWithHistory()
+        self._path.set_width_chars(32)
+        self._path.connect("activate", self._path_cb)
+        hbox.pack_start(self._path, expand=True, fill=True)
+        self.vbox.pack_start(hbox, expand=False, fill=False)
+        self.show_all()
+    def _browse_tags_cb(self, button=None):
+        dialog = TagSelectDialog(ifce=self._ifce, parent=self)
+        response = dialog.run()
+        if response == gtk.RESPONSE_OK:
+            self._path.set_text(dialog.get_tag())
+        dialog.destroy()
+    def _browse_branches_cb(self, button=None):
+        dialog = BranchSelectDialog(ifce=self._ifce, parent=self)
+        response = dialog.run()
+        if response == gtk.RESPONSE_OK:
+            self._path.set_text(dialog.get_branch())
+        dialog.destroy()
+    def _browse_heads_cb(self, button=None):
+        dialog = HeadSelectDialog(ifce=self._ifce, parent=self)
+        response = dialog.run()
+        if response == gtk.RESPONSE_OK:
+            self._path.set_text(dialog.get_head())
+        dialog.destroy()
+    def _path_cb(self, entry=None):
+        self.response(gtk.RESPONSE_OK)
+    def get_change_set(self):
+        return self._path.get_text()
 

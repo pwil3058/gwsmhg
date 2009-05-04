@@ -14,7 +14,8 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import gtk, gobject, pango, os, tempfile, re
-from gwsmhg_pkg import cmd_result, gutils, file_tree, icons, text_edit, utils, diff
+from gwsmhg_pkg import cmd_result, gutils, file_tree, icons, text_edit, utils
+from gwsmhg_pkg import change_set, diff
 
 class PatchFileTreeStore(file_tree.FileTreeStore):
     def __init__(self, ifce, patch=None, view=None):
@@ -914,10 +915,10 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         if result[0] is not cmd_result.OK:
             self._report_any_problems(result)
     def do_update_workspace_to(self, action=None):
-        dialog = gutils.ReadTextDialog("gwsmhg: Update To Revision", "Enter revision:")
+        dialog = change_set.ChangeSetSelectDialog(ifce=self._ifce)
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
-            rev = dialog.entry.get_text()
+            rev = dialog.get_change_set()
             dialog.destroy()
             if rev:
                 self._show_busy()
