@@ -390,8 +390,13 @@ class _WsUpdateStateTagMgr:
                 return True
         return False
     def get_patches_copy_dir(self):
-        tags = self._get_tag_list(self._patches_copy_tag_re)
-        return tags[0]
+        res, sout, serr = utils.run_cmd('hg log --template "{tags}\n" --rev %s' % self._main_tag)
+        result = []
+        for tag in sout.split():
+            match = self._patches_copy_tag_re.match(tag)
+            if match:
+                return match.group(1)
+        return None
     def clear_tags(self):
         update_tags = self._get_tag_list(self._common_tag_re)
         if update_tags:
