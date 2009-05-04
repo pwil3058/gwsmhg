@@ -344,68 +344,53 @@ class SCMInterface(BaseInterface):
             cmd += " %s" % source
         return self._run_cmd_on_console(cmd)
 
-class _WsUpdateStateTagMgr:
+class _WsUpdateStateMgr:
+    # We save this data in a file so that it survives closing/opening the GUI
     def __init__(self):
         self._saved_state_msg = "hg patches saved state"
-        self._common_hdr = "gwsmhg.ws."
-        self._main_tag = self._common_hdr + "update"
-        self._state_tag_hdr = self._common_hdr + "state."
-        self._patches_copy_tag_hdr = self._common_hdr + "copy."
+        self._state_file = ".hg/gwsmhg.pm.wsu.state"
+        self._copy_file = ".hg/gwsmhg.pm.wsu.patches.copy"
         self._get_copy_re = re.compile("^copy\s*\S*\s*to\s*(\S*)\n$")
-        self._common_tag_re = re.compile("^" + self._common_hdr + "(\S*)$")
-        self._state_tag_re = re.compile("^" + self._state_tag_hdr + "(\S*)$")
-        self._patches_copy_tag_re = re.compile("^" + self._patches_copy_tag_hdr + "(\S*)$")
-    def initialize(self, serr, state):
-        if self.tip_is_patches_saved_state():
-            tag_list = [self._main_tag]
-            match = self._get_copy_re.match(serr)
-            if match:
-                tag_list.append(self._patches_copy_tag_hdr + os.path.basename(match.group(1)))
-            utils.run_cmd("hg tag --rev tip --local %s" % " ".join(tag_list))
-        self.set_state_tag(state)
+    def _write_to_named_file(self, fname, text):
+        file = open(fname, 'w')
+        file.write(text)
+        file.close()
+    def _read_from_named_file(self, fname):
+        file = open(fname, 'r')
+        text = file.read()
+        file.close()
+        return text.strip()
+    def start(self, serr, state):
+        match = self._get_copy_re.match(serr)
+        if match:
+            self._write_to_named_file(self._copy_file, os.path.basename(match.group(1)))
+        self.set_state(state)
     def is_in_progress(self):
-        res, sout, serr = utils.run_cmd('hg log --template "{desc|firstline}" --rev %s' % self._main_tag)
-        return res == 0
+        return os.path.exists(self._state_file)
     def tip_is_patches_saved_state(self):
         res, sout, serr = utils.run_cmd('hg log --template "{desc|firstline}" --rev tip')
         return sout == self._saved_state_msg
     def parent_is_patches_saved_state(self):
         res, sout, serr = utils.run_cmd('hg parent --template "{desc|firstline}"')
         return sout == self._saved_state_msg
-    def _get_tag_list(self, regex):
-        res, sout, serr = utils.run_cmd('hg log --template "{tags}\n" --rev %s' % self._main_tag)
-        result = []
-        for tag in sout.split():
-            if regex.match(tag):
-                result.append(tag)
-        return result
-    def set_state_tag(self, state):
-        state_tags = self._get_tag_list(self._state_tag_re)
-        utils.run_cmd('hg tag --local --remove %s' % " ".join(state_tags))
-        utils.run_cmd('hg tag --local --rev %s %s%s' % (self._main_tag, self._state_tag_hdr, state))
+    def set_state(self, state):
+        self._write_to_named_file(self._state_file, state)
     def get_state_is_in(self, state_list):
-        state_tags = self._get_tag_list(self._state_tag_re)
-        for state in state_list:
-            if "".join([self._state_tag_hdr, state]) in state_tags:
-                return True
-        return False
+        if not os.path.exists(self._state_file):
+            return False
+        state = self._read_from_named_file(self._state_file)
+        return state in state_list
     def get_patches_copy_dir(self):
-        res, sout, serr = utils.run_cmd('hg log --template "{tags}\n" --rev %s' % self._main_tag)
-        result = []
-        for tag in sout.split():
-            match = self._patches_copy_tag_re.match(tag)
-            if match:
-                return match.group(1)
-        return None
-    def clear_tags(self):
-        update_tags = self._get_tag_list(self._common_tag_re)
-        if update_tags:
-            utils.run_cmd('hg tag --local --remove %s' % " ".join(update_tags))
+        return self._read_from_named_file(self._copy_file)
+    def finish(self):
+        for path in self._copy_file, self._state_file:
+            if os.path.exists(path):
+                os.remove(path)
 
 class PMInterface(BaseInterface):
     def __init__(self, console_log):
         BaseInterface.__init__(self, "MQ", console_log)
-        self._ws_update_mgr = _WsUpdateStateTagMgr()
+        self._ws_update_mgr = _WsUpdateStateMgr()
         self._adding_re = re.compile("^adding\s.*$")
         self._qpush_re = re.compile("^(merging|applying)\s.*$", re.M)
         self.file_state_changing_cmds = ["qfold", "qsave", "qpop", "qpush", "qfinish", "qsave-pfu", "qrestore", "qnew"]
@@ -574,7 +559,7 @@ class PMInterface(BaseInterface):
                 result = self._run_cmd_on_console("hg qgoto %s %s" % (mflag, patch), ignore_err_re=self._qpush_re)
         self._do_cmd_notification("qpush")
         if not result[0] and merge and len(self.get_unapplied_patches()) == 0:
-            self._ws_update_mgr.set_state_tag("merged")
+            self._ws_update_mgr.set_state("merged")
         return result
     def get_patch_file_name(self, patch):
         return os.path.join(os.getcwd(), ".hg", "patches", patch)
@@ -654,13 +639,13 @@ class PMInterface(BaseInterface):
         return result
     def do_save_queue_state_for_update(self):
         result = self._run_cmd_on_console("hg qsave -e -c")
-        self._ws_update_mgr.initialize(result[2], "qsaved")
+        self._ws_update_mgr.start(result[2], "qsaved")
         self._do_cmd_notification("qsave-pfu")
         return result
     def do_pull(self, rev=None, source=None):
         result = BaseInterface.do_pull(self, rev=rev, source=source)
         if not result[0]:
-            self._ws_update_mgr.set_state_tag("pulled")
+            self._ws_update_mgr.set_state("pulled")
             self._do_cmd_notification("pull")
         return result
     def do_update_workspace(self, rev=None):
@@ -670,7 +655,7 @@ class PMInterface(BaseInterface):
         result = self._run_cmd_on_console(cmd)
         if not result[0]:
             self._do_cmd_notification("update")
-            self._ws_update_mgr.set_state_tag("updated")
+            self._ws_update_mgr.set_state("updated")
         return result
     def do_clean_up_after_update(self):
         pcd = self._ws_update_mgr.get_patches_copy_dir()
@@ -678,7 +663,7 @@ class PMInterface(BaseInterface):
             top_patch = self.get_top_patch()
             if top_patch:
                 utils.run_cmd("hg qpop -a")
-            self._ws_update_mgr.clear_tags()
+            self._ws_update_mgr.finish()
             result = self._run_cmd_on_console("hg qpop -a -n %s" % pcd)
             if top_patch:
                 utils.run_cmd("hg qgoto %s" % top_patch)
