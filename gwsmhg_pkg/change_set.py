@@ -90,6 +90,7 @@ class HeadsSelectView(gutils.TableView):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
         self._ifce = ifce
         gutils.TableView.__init__(self, LOG_TABLE_PRECIS_DESCR, sel_mode=sel_mode)
+        self.set_size_request(640, 240)
         self._set_contents()
         self.show_all()
     def _set_contents(self):
@@ -117,6 +118,39 @@ class HeadSelectDialog(gtk.Dialog):
         self.heads_view.get_selection().unselect_all()
     def get_head(self):
         return self.heads_view.get_selected_head()
+
+class HistorySelectView(gutils.TableView):
+    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
+        self._ifce = ifce
+        gutils.TableView.__init__(self, LOG_TABLE_PRECIS_DESCR, sel_mode=sel_mode)
+        self.set_size_request(640, 240)
+        self._set_contents()
+        self.show_all()
+    def _set_contents(self):
+        res, history, serr = self._ifce.SCM.get_history_data()
+        if res == cmd_result.OK and history:
+            self.set_contents(history)
+        else:
+            self.set_contents([])
+    def get_selected_rev(self):
+        data = self.get_selected_data([LOG_TABLE_PRECIS_REV])
+        return str(data[0][0])
+
+class HistorySelectDialog(gtk.Dialog):
+    def __init__(self, ifce, parent=None):
+        gtk.Dialog.__init__(self, title="gwsmg: Select From History", parent=parent,
+                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
+                            buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                    gtk.STOCK_OK, gtk.RESPONSE_OK)
+                           )
+        if not parent:
+            self.set_icon_from_file(icons.app_icon_file)
+        self.history_view = HistorySelectView(ifce=ifce)
+        self.vbox.pack_start(gutils.wrap_in_scrolled_window(self.history_view))
+        self.show_all()
+        self.history_view.get_selection().unselect_all()
+    def get_rev(self):
+        return self.history_view.get_selected_rev()
 
 TAG_TABLE_PRECIS_DESCR = \
 [
@@ -171,6 +205,7 @@ class TagsSelectView(gutils.TableView):
         self._ifce = ifce
         gutils.TableView.__init__(self, TAG_LIST_DESCR,
                                   sel_mode=sel_mode, perm_headers=False)
+        self.set_size_request(160, 320)
         self._set_contents()
         self.show_all()
     def _set_contents(self):
@@ -256,6 +291,7 @@ class BranchesSelectView(gutils.TableView):
         self._ifce = ifce
         gutils.TableView.__init__(self, BRANCH_LIST_DESCR,
                                   sel_mode=sel_mode, perm_headers=False)
+        self.set_size_request(160, 320)
         self._set_contents()
         self.show_all()
     def _set_contents(self):
@@ -288,8 +324,10 @@ class BranchSelectDialog(gtk.Dialog):
     def get_branch(self):
         return self.branches_view.get_selected_branch()
 
-class ChangeSetSelectDialog(gtk.Dialog):
+class ChangeSetSelectDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
     def __init__(self, ifce, parent=None):
+        gutils.BusyIndicator.__init__(self)
+        gutils.BusyIndicatorUser.__init__(self, self)
         title = "gwsmg: Select Change Set: %s" % utils.path_rel_home(os.getcwd())
         gtk.Dialog.__init__(self, title=title, parent=parent,
                             flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
@@ -304,7 +342,9 @@ class ChangeSetSelectDialog(gtk.Dialog):
         self._branches_button.connect("clicked", self._browse_branches_cb)
         self._heads_button = gtk.Button(label="Browse _Heads")
         self._heads_button.connect("clicked", self._browse_heads_cb)
-        for button in self._tags_button, self._branches_button, self._heads_button:
+        self._history_button = gtk.Button(label="Browse H_istory")
+        self._history_button.connect("clicked", self._browse_history_cb)
+        for button in self._tags_button, self._branches_button, self._heads_button, self._history_button:
             hbox.pack_start(button, expand=False, fill=False)
         self.vbox.pack_start(hbox)
         hbox = gtk.HBox()
@@ -316,22 +356,36 @@ class ChangeSetSelectDialog(gtk.Dialog):
         self.vbox.pack_start(hbox, expand=False, fill=False)
         self.show_all()
     def _browse_tags_cb(self, button=None):
+        self._show_busy()
         dialog = TagSelectDialog(ifce=self._ifce, parent=self)
+        self._unshow_busy()
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
             self._path.set_text(dialog.get_tag())
         dialog.destroy()
     def _browse_branches_cb(self, button=None):
+        self._show_busy()
         dialog = BranchSelectDialog(ifce=self._ifce, parent=self)
+        self._unshow_busy()
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
             self._path.set_text(dialog.get_branch())
         dialog.destroy()
     def _browse_heads_cb(self, button=None):
+        self._show_busy()
         dialog = HeadSelectDialog(ifce=self._ifce, parent=self)
+        self._unshow_busy()
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
             self._path.set_text(dialog.get_head())
+        dialog.destroy()
+    def _browse_history_cb(self, button=None):
+        self._show_busy()
+        dialog = HistorySelectDialog(ifce=self._ifce, parent=self)
+        self._unshow_busy()
+        response = dialog.run()
+        if response == gtk.RESPONSE_OK:
+            self._path.set_text(dialog.get_rev())
         dialog.destroy()
     def _path_cb(self, entry=None):
         self.response(gtk.RESPONSE_OK)

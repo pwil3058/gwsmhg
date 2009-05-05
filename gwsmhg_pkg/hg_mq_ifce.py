@@ -263,6 +263,17 @@ class SCMInterface(BaseInterface):
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return (res, plist, serr)
+    def get_history_data(self):
+        cmd = 'hg log --template "{rev}:{date|age}:{tags}:{branches}:{author|person}:{desc|firstline}' + os.linesep + '"'
+        res, sout, serr = utils.run_cmd(cmd)
+        if res != 0:
+            return (res, sout, serr)
+        plist = []
+        for line in sout.splitlines():
+            pdata = line.split(":", 5)
+            pdata[0] = int(pdata[0])
+            plist.append(pdata)
+        return (res, plist, serr)
     def get_tags_data(self):
         res, sout, serr = utils.run_cmd("hg tags")
         if res:
