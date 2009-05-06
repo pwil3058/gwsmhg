@@ -449,13 +449,12 @@ def find_label_index(descr, label):
 #    ["Description", gobject.TYPE_STRING, True, [("cell-background", "white")]],
 #]
 
-class TableView(gtk.TreeView, MappedManager):
-    def __init__(self, descr, sel_mode=gtk.SELECTION_SINGLE, perm_headers=False,
-                 bgnd=["white", "#F0F0F0"], popup=None):
+class TableView(gtk.TreeView):
+    def __init__(self, descr, sel_mode=gtk.SELECTION_SINGLE,
+                 perm_headers=False, bgnd=["white", "#F0F0F0"], popup=None):
         self._model = apply(gtk.ListStore, self._get_type_list(descr))
         self._perm_headers = perm_headers
         gtk.TreeView.__init__(self, self._model)
-        MappedManager.__init__(self)
         lenbgnd = len(bgnd)
         self._ncols = len(descr)
         for colid in range(self._ncols):
@@ -494,6 +493,7 @@ class TableView(gtk.TreeView, MappedManager):
         if not self._perm_headers:
             self.set_headers_visible(self._model.iter_n_children(None) > 0)
         self.get_selection().unselect_all()
+        self.columns_autosize()
     def get_contents(self):
         list = []
         iter = self._model.get_iter_first()
@@ -515,33 +515,29 @@ class TableView(gtk.TreeView, MappedManager):
             list.append(row_data)
         return list
 
-class AutoRefreshTableView(TableView, BusyIndicatorUser):
-    def __init__(self, descr, busy_indicator, sel_mode=gtk.SELECTION_SINGLE, perm_headers=False,
-                 bgnd=["white", "#F0F0F0"], popup=None,
-                 auto_refresh_on=False, auto_refresh_interval=30000):
+class MapManagedTableView(TableView, MappedManager, BusyIndicatorUser):
+    def __init__(self, descr, busy_indicator, sel_mode=gtk.SELECTION_SINGLE,
+                 perm_headers=False, bgnd=["white", "#F0F0F0"], popup=None):
         TableView.__init__(self, descr=descr, sel_mode=sel_mode,
-            perm_headers=False, bgnd=bgnd, popup=popup)
+            perm_headers=perm_headers, bgnd=bgnd, popup=popup)
+        MappedManager.__init__(self)
         BusyIndicatorUser.__init__(self, busy_indicator)
-        self._normal_interval = auto_refresh_interval
-        self.rtoc = RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
         self._needs_refresh = True
+        self.set_headers_visible(perm_headers)
         self.refresh_contents()
-        self.rtoc.set_function(self._refresh_contents)
-        self.show_all()
+        self.get_selection().set_mode(sel_mode)
+        self.get_selection().unselect_all()
     def map_action(self):
         if self._needs_refresh:
             self._show_busy()
             self._refresh_contents()
             self._unshow_busy()
-        self.rtoc.restart_cycle()
     def unmap_action(self):
-        self.rtoc.stop_cycle()
+        pass
     def _refresh_contents(self):
         self._needs_refresh = False
     def refresh_contents(self):
-        self.rtoc.stop_cycle()
         self._refresh_contents()
-        self.rtoc.restart_cycle()
     def refresh_contents_if_mapped(self, *args):
         if self.is_mapped:
             self.refresh_contents()
@@ -549,4 +545,25 @@ class AutoRefreshTableView(TableView, BusyIndicatorUser):
             self._needs_refresh = True
     def update_for_chdir(self):
         self.refresh_contents()
+
+class AutoRefreshTableView(MapManagedTableView):
+    def __init__(self, descr, busy_indicator, sel_mode=gtk.SELECTION_SINGLE, perm_headers=False,
+                 bgnd=["white", "#F0F0F0"], popup=None,
+                 auto_refresh_on=False, auto_refresh_interval=30000):
+        self.rtoc = RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
+        self._normal_interval = auto_refresh_interval
+        MapManagedTableView.__init__(self, descr=descr, sel_mode=sel_mode,
+            perm_headers=False, bgnd=bgnd, popup=popup, busy_indicator=busy_indicator)
+        self.rtoc.set_function(self._refresh_contents)
+        self.show_all()
+    def map_action(self):
+        MapManagedTableView.map_action(self)
+        self.rtoc.restart_cycle()
+    def unmap_action(self):
+        self.rtoc.stop_cycle()
+        MapManagedTableView.unmap_action(self)
+    def refresh_contents(self):
+        self.rtoc.stop_cycle()
+        self._refresh_contents()
+        self.rtoc.restart_cycle()
 

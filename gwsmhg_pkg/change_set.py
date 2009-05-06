@@ -119,6 +119,23 @@ class HeadSelectDialog(gtk.Dialog):
     def get_head(self):
         return self.heads_view.get_selected_head()
 
+class HistoryTableView(gutils.MapManagedTableView):
+    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
+        self._ifce = ifce
+        gutils.MapManagedTableView.__init__(self, LOG_TABLE_PRECIS_DESCR, sel_mode=sel_mode,
+            busy_indicator=self._ifce.log.get_busy_indicator())
+        self._ifce.SCM.add_notification_cb(["commit"], self.refresh_contents_if_mapped)
+        self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.refresh_contents_if_mapped)
+        self._ifce.log.add_notification_cb(["manual_cmd"], self.refresh_contents_if_mapped)
+        self.show_all()
+    def _refresh_contents(self):
+        res, heads, serr = self._ifce.SCM.get_history_data()
+        if res == cmd_result.OK and heads:
+            self.set_contents(heads)
+        else:
+            self.set_contents([])
+        gutils.MapManagedTableView._refresh_contents(self)
+
 class HistorySelectView(gutils.TableView):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
         self._ifce = ifce
