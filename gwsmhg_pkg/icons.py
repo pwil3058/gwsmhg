@@ -23,11 +23,13 @@ STOCK_FOLD_PATCH = "stock_fold_patch"
 STOCK_FINISH_PATCH = "stock_finish_patch"
 STOCK_IMPORT_PATCH = "stock_import_patch"
 STOCK_APPLIED = "stock_applied"
+STOCK_MERGE = "stock_merge"
 APP_ICON = "gwsmhg"
 
 _icon_name_list = \
     [ STOCK_COMMIT, STOCK_DIFF, STOCK_POP_PATCH, STOCK_PUSH_PATCH,
-      STOCK_FOLD_PATCH, STOCK_FINISH_PATCH, STOCK_IMPORT_PATCH, STOCK_APPLIED
+      STOCK_FOLD_PATCH, STOCK_FINISH_PATCH, STOCK_IMPORT_PATCH, STOCK_APPLIED,
+      STOCK_MERGE,
     ]
 
 # first look in the source directory

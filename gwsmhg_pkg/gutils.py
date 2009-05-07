@@ -454,6 +454,7 @@ class TableView(gtk.TreeView):
                  perm_headers=False, bgnd=["white", "#F0F0F0"], popup=None):
         self._model = apply(gtk.ListStore, self._get_type_list(descr))
         self._perm_headers = perm_headers
+        self._popup = popup
         gtk.TreeView.__init__(self, self._model)
         lenbgnd = len(bgnd)
         self._ncols = len(descr)
@@ -471,16 +472,19 @@ class TableView(gtk.TreeView):
         self.get_selection().set_mode(sel_mode)
         self.get_selection().unselect_all()
         self.connect("button_press_event", self._handle_button_press_cb)
-    def _handle_button_press_cb(self, widget, event, popup=None):
+    def _handle_button_press_cb(self, widget, event):
         if event.type == gtk.gdk.BUTTON_PRESS:
-            if event.button == 3 and popup:
-                menu = self._ui_manager.get_widget(popup)
+            if event.button == 3 and self._popup:
+                self._set_action_sensitivities()
+                menu = self._ui_manager.get_widget(self._popup)
                 menu.popup(None, None, None, event.button, event.time)
                 return True
             elif event.button == 2:
                 self.get_selection().unselect_all()
                 return True
         return False
+    def _set_action_sensitivities(self):
+        pass
     def _get_type_list(self, descr):
         list = []
         for cdescr in descr:
@@ -515,15 +519,41 @@ class TableView(gtk.TreeView):
             list.append(row_data)
         return list
 
+BASIC_TABLE_UI_DESCR = \
+'''
+<ui>
+  <popup name="table_popup">
+    <placeholder name="top"/>
+    <placeholder name="middle"/>
+    <placeholder name="bottom">
+        <menuitem action="table_refresh_contents"/>
+    </placeholder>
+  </popup>
+</ui>
+'''
+
+ALWAYS_ON = "always_on"
+
 class MapManagedTableView(TableView, MappedManager, BusyIndicatorUser):
     def __init__(self, descr, busy_indicator, sel_mode=gtk.SELECTION_SINGLE,
-                 perm_headers=False, bgnd=["white", "#F0F0F0"], popup=None):
+                 perm_headers=False, bgnd=["white", "#F0F0F0"]):
         TableView.__init__(self, descr=descr, sel_mode=sel_mode,
-            perm_headers=perm_headers, bgnd=bgnd, popup=popup)
+            perm_headers=perm_headers, bgnd=bgnd, popup="/table_popup")
         MappedManager.__init__(self)
         BusyIndicatorUser.__init__(self, busy_indicator)
         self._needs_refresh = True
         self.set_headers_visible(perm_headers)
+        self._ui_manager = gtk.UIManager()
+        self._action_group = {}
+        for condition in [ALWAYS_ON]:
+            self._action_group[condition] = gtk.ActionGroup(condition)
+            self._ui_manager.insert_action_group(self._action_group[condition], -1)
+        self._action_group[ALWAYS_ON].add_actions(
+            [
+                ("table_refresh_contents", gtk.STOCK_REFRESH, "Refresh", None,
+                 "Refresh the tables contents", self._refresh_contents_acb),
+            ])
+        self.cwd_merge_id = [self._ui_manager.add_ui_from_string(BASIC_TABLE_UI_DESCR)]
         self.refresh_contents()
         self.get_selection().set_mode(sel_mode)
         self.get_selection().unselect_all()
@@ -543,17 +573,21 @@ class MapManagedTableView(TableView, MappedManager, BusyIndicatorUser):
             self.refresh_contents()
         else:
             self._needs_refresh = True
+    def _refresh_contents_acb(self, action):
+        self._show_busy()
+        self.refresh_contents()
+        self._unshow_busy()
     def update_for_chdir(self):
         self.refresh_contents()
 
 class AutoRefreshTableView(MapManagedTableView):
-    def __init__(self, descr, busy_indicator, sel_mode=gtk.SELECTION_SINGLE, perm_headers=False,
-                 bgnd=["white", "#F0F0F0"], popup=None,
+    def __init__(self, descr, busy_indicator, sel_mode=gtk.SELECTION_SINGLE,
+                 perm_headers=False, bgnd=["white", "#F0F0F0"],
                  auto_refresh_on=False, auto_refresh_interval=30000):
         self.rtoc = RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
         self._normal_interval = auto_refresh_interval
         MapManagedTableView.__init__(self, descr=descr, sel_mode=sel_mode,
-            perm_headers=False, bgnd=bgnd, popup=popup, busy_indicator=busy_indicator)
+            perm_headers=False, bgnd=bgnd, busy_indicator=busy_indicator)
         self.rtoc.set_function(self._refresh_contents)
         self.show_all()
     def map_action(self):

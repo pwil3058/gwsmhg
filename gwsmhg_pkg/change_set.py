@@ -14,7 +14,124 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import gtk, gobject, os
-from gwsmhg_pkg import cmd_result, gutils, utils
+from gwsmhg_pkg import cmd_result, gutils, utils, icons
+
+CS_TABLE_BASIC_UI_DESCR = \
+'''
+<ui>
+  <popup name="table_popup">
+    <placeholder name="top">
+      <menuitem action="cs_summary"/>
+    </placeholder>
+    <separator/>
+    <placeholder name="middle">
+      <menuitem action="cs_update_ws_to"/>
+      <menuitem action="cs_merge_ws_with"/>
+    </placeholder>
+    <separator/>
+    <placeholder name="bottom"/>
+  </popup>
+</ui>
+'''
+
+UNIQUE_SELECTION = "unique_selection"
+UNIQUE_SELECTION_NOT_PMIC = "unique_selection_not_pmic"
+
+class PrecisType:
+    def __init__(self, descr, get_data):
+        self.descr = descr
+        self.get_data = get_data
+
+class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
+    def __init__(self, ifce, ptype, sel_mode=gtk.SELECTION_SINGLE):
+        self._ifce = ifce
+        self._ptype = ptype
+        cmd_result.ProblemReporter.__init__(self)
+        gutils.MapManagedTableView.__init__(self, descr=ptype.descr, sel_mode=sel_mode,
+            busy_indicator=self._ifce.log.get_busy_indicator())
+        self._ifce.SCM.add_notification_cb(["commit"], self.refresh_contents_if_mapped)
+        self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.refresh_contents_if_mapped)
+        self._ifce.log.add_notification_cb(["manual_cmd"], self.refresh_contents_if_mapped)
+        for condition in [UNIQUE_SELECTION, UNIQUE_SELECTION_NOT_PMIC]:
+            self._action_group[condition] = gtk.ActionGroup(condition)
+            self._ui_manager.insert_action_group(self._action_group[condition], -1)
+        self._action_group[UNIQUE_SELECTION].add_actions(
+            [
+                ("cs_summary", gtk.STOCK_INFO, "Summary", None,
+                 "View a summary of the selected change set", self._view_cs_summary_acb),
+            ])
+        self._action_group[UNIQUE_SELECTION_NOT_PMIC].add_actions(
+            [
+                ("cs_update_ws_to", gtk.STOCK_JUMP_TO, "Update To", None,
+                 "Update the work space to the selected change set",
+                 self._update_ws_to_cs_acb),
+                ("cs_merge_ws_with", icons.STOCK_MERGE, "Merge With", None,
+                 "Merge the work space with the selected change set",
+                 self._merge_ws_with_cs_acb),
+            ])
+        self.cwd_merge_id.append(self._ui_manager.add_ui_from_string(CS_TABLE_BASIC_UI_DESCR))
+        self.show_all()
+    def _set_action_sensitivities(self):
+        sel = self.get_selection().count_selected_rows() != 0
+        self._action_group[UNIQUE_SELECTION].set_sensitive(sel)
+        self._action_group[UNIQUE_SELECTION_NOT_PMIC].set_sensitive(sel and not self._ifce.PM.get_in_progress())
+    def _refresh_contents(self):
+        res, data, serr = self._ptype.get_data()
+        if res == cmd_result.OK and data:
+            self.set_contents(data)
+        else:
+            self.set_contents([])
+        gutils.MapManagedTableView._refresh_contents(self)
+    def _view_cs_summary_acb(self, action):
+        rev = self.get_selected_data([0])[0][0]
+        pass
+    def _update_ws_to_cs_acb(self, action):
+        rev = self.get_selected_data([0])[0][0]
+        self._show_busy()
+        result = self._ifce.SCM.do_update_workspace(rev=str(rev))
+        self._unshow_busy()
+        self._report_any_problems(result)
+    def _merge_ws_with_cs_acb(self, action):
+        rev = self.get_selected_data([0])[0][0]
+        self._show_busy()
+        result = self._ifce.SCM.do_merge_workspace(rev=str(rev))
+        self._unshow_busy()
+        self._report_any_problems(result)
+
+class AUPrecisTableView(PrecisTableView):
+    def __init__(self, ifce, ptype, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=True, auto_refresh_interval=3600000):
+        self.rtoc = gutils.RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
+        self._normal_interval = auto_refresh_interval
+        self.rtoc.set_function(self._refresh_contents)
+        PrecisTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
+    def _refresh_contents(self):
+        res, parents, serr = self._ptype.get_data()
+        if res == cmd_result.OK and parents:
+            desired_interval = self._normal_interval
+            self.set_contents(parents)
+            # if any parent's age is expressed in seconds then update every second
+            # they're in time order so only need to look at first one
+            if parents[0][LOG_TABLE_PRECIS_AGE].find("sec") != -1:
+                desired_interval = 1000
+            elif parents[0][LOG_TABLE_PRECIS_AGE].find("min") != -1:
+                desired_interval = 60000
+            elif parents[0][LOG_TABLE_PRECIS_AGE].find("hour") != -1:
+                    desired_interval = 3600000
+            if desired_interval is not self.rtoc.get_interval():
+                self.rtoc.set_interval(desired_interval)
+        else:
+            self.set_contents([])
+        gutils.MapManagedTableView._refresh_contents(self)
+    def map_action(self):
+        PrecisTableView.map_action(self)
+        self.rtoc.restart_cycle()
+    def unmap_action(self):
+        self.rtoc.stop_cycle()
+        PrecisTableView.unmap_action(self)
+    def refresh_contents(self):
+        self.rtoc.stop_cycle()
+        self._refresh_contents()
+        self.rtoc.restart_cycle()
 
 LOG_TABLE_PRECIS_DESCR = \
 [
@@ -29,62 +146,21 @@ LOG_TABLE_PRECIS_DESCR = \
 LOG_TABLE_PRECIS_AGE = gutils.find_label_index(LOG_TABLE_PRECIS_DESCR, "Age")
 LOG_TABLE_PRECIS_REV = gutils.find_label_index(LOG_TABLE_PRECIS_DESCR, "Rev")
 
-class ParentsTableView(gutils.AutoRefreshTableView):
-    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=False, auto_refresh_interval=30000):
-        self._ifce = ifce
-        gutils.AutoRefreshTableView.__init__(self, LOG_TABLE_PRECIS_DESCR, sel_mode=sel_mode,
-            auto_refresh_on=auto_refresh_on, auto_refresh_interval=auto_refresh_interval,
-            busy_indicator=self._ifce.log.get_busy_indicator())
-        self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.refresh_contents_if_mapped)
-        self._ifce.log.add_notification_cb(["manual_cmd"], self.refresh_contents_if_mapped)
-        self.show_all()
-    def _refresh_contents(self):
-        res, parents, serr = self._ifce.SCM.get_parents_data()
-        if res == cmd_result.OK and parents:
-            desired_interval = self._normal_interval
-            self.set_contents(parents)
-            # if any parent's age is expressed in seconds then update every second
-            # they're in time order so only need to look at first one
-            if parents[0][LOG_TABLE_PRECIS_AGE].find("sec") != -1:
-                desired_interval = 1000
-            elif parents[0][LOG_TABLE_PRECIS_AGE].find("min") != -1:
-                desired_interval = 30000
-            elif parents[0][LOG_TABLE_PRECIS_AGE].find("hour") != -1:
-                    desired_interval = 1800000
-            if desired_interval is not self.rtoc.get_interval():
-                self.rtoc.set_interval(desired_interval)
-        else:
-            self.set_contents([])
-        gutils.AutoRefreshTableView._refresh_contents(self)
+class ParentsTableView(AUPrecisTableView):
+    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=True, auto_refresh_interval=3600000):
+        ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, ifce.SCM.get_parents_data)
+        AUPrecisTableView.__init__(self, ifce, ptype, sel_mode=sel_mode,
+                                   auto_refresh_on=auto_refresh_on,
+                                   auto_refresh_interval=auto_refresh_interval)
+        self._ifce.SCM.add_notification_cb(["update", "merge"], self.refresh_contents_if_mapped)
+        self._action_group[UNIQUE_SELECTION_NOT_PMIC].get_action("cs_update_ws_to").set_visible(False)
+        self._action_group[UNIQUE_SELECTION_NOT_PMIC].get_action("cs_merge_ws_with").set_visible(False)
+        self._action_group[gutils.ALWAYS_ON].get_action("table_refresh_contents").set_visible(False)
 
-class HeadsTableView(gutils.AutoRefreshTableView):
-    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=False, auto_refresh_interval=30000):
-        self._ifce = ifce
-        gutils.AutoRefreshTableView.__init__(self, LOG_TABLE_PRECIS_DESCR, sel_mode=sel_mode,
-            auto_refresh_on=auto_refresh_on, auto_refresh_interval=auto_refresh_interval,
-            busy_indicator=self._ifce.log.get_busy_indicator())
-        self._ifce.SCM.add_notification_cb(["commit"], self.refresh_contents_if_mapped)
-        self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.refresh_contents_if_mapped)
-        self._ifce.log.add_notification_cb(["manual_cmd"], self.refresh_contents_if_mapped)
-        self.show_all()
-    def _refresh_contents(self):
-        res, heads, serr = self._ifce.SCM.get_heads_data()
-        if res == cmd_result.OK and heads:
-            desired_interval = self._normal_interval
-            self.set_contents(heads)
-            # if any head's age is expressed in seconds then update every second
-            # they're in time order so only need to look at first one
-            if heads[0][LOG_TABLE_PRECIS_AGE].find("sec") != -1:
-                desired_interval = 1000
-            elif heads[0][LOG_TABLE_PRECIS_AGE].find("min") != -1:
-                desired_interval = 30000
-            elif heads[0][LOG_TABLE_PRECIS_AGE].find("hour") != -1:
-                    desired_interval = 1800000
-            if desired_interval is not self.rtoc.get_interval():
-                self.rtoc.set_interval(desired_interval)
-        else:
-            self.set_contents([])
-        gutils.AutoRefreshTableView._refresh_contents(self)
+class HeadsTableView(PrecisTableView):
+    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
+        ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, ifce.SCM.get_heads_data)
+        PrecisTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
 
 class HeadsSelectView(gutils.TableView):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
@@ -119,22 +195,10 @@ class HeadSelectDialog(gtk.Dialog):
     def get_head(self):
         return self.heads_view.get_selected_head()
 
-class HistoryTableView(gutils.MapManagedTableView):
+class HistoryTableView(PrecisTableView):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
-        self._ifce = ifce
-        gutils.MapManagedTableView.__init__(self, LOG_TABLE_PRECIS_DESCR, sel_mode=sel_mode,
-            busy_indicator=self._ifce.log.get_busy_indicator())
-        self._ifce.SCM.add_notification_cb(["commit"], self.refresh_contents_if_mapped)
-        self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.refresh_contents_if_mapped)
-        self._ifce.log.add_notification_cb(["manual_cmd"], self.refresh_contents_if_mapped)
-        self.show_all()
-    def _refresh_contents(self):
-        res, heads, serr = self._ifce.SCM.get_history_data()
-        if res == cmd_result.OK and heads:
-            self.set_contents(heads)
-        else:
-            self.set_contents([])
-        gutils.MapManagedTableView._refresh_contents(self)
+        ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, ifce.SCM.get_history_data)
+        PrecisTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
 
 class HistorySelectView(gutils.TableView):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
@@ -181,34 +245,10 @@ TAG_TABLE_PRECIS_DESCR = \
 
 TAG_TABLE_PRECIS_AGE = gutils.find_label_index(TAG_TABLE_PRECIS_DESCR, "Age")
 
-class TagsTableView(gutils.AutoRefreshTableView):
-    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=False, auto_refresh_interval=3600000):
-        self._ifce = ifce
-        gutils.AutoRefreshTableView.__init__(self, TAG_TABLE_PRECIS_DESCR, sel_mode=sel_mode,
-            auto_refresh_on=auto_refresh_on, auto_refresh_interval=auto_refresh_interval,
-            busy_indicator=self._ifce.log.get_busy_indicator())
-        self._ifce.SCM.add_notification_cb(["commit"], self.refresh_contents_if_mapped)
-        self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.refresh_contents_if_mapped)
-        self._ifce.log.add_notification_cb(["manual_cmd"], self.refresh_contents_if_mapped)
-        self.show_all()
-    def _refresh_contents(self):
-        res, tags, serr = self._ifce.SCM.get_tags_data()
-        if res == cmd_result.OK and tags:
-            desired_interval = self._normal_interval
-            self.set_contents(tags)
-            # if any tag's age is expressed in seconds then update every second
-            # they're in time order so only need to look at first one
-            if tags[0][TAG_TABLE_PRECIS_AGE].find("sec") != -1:
-                desired_interval = 1000
-            elif tags[0][TAG_TABLE_PRECIS_AGE].find("min") != -1:
-                desired_interval = 30000
-            elif tags[0][TAG_TABLE_PRECIS_AGE].find("hour") != -1:
-                    desired_interval = 1800000
-            if desired_interval is not self.rtoc.get_interval():
-                self.rtoc.set_interval(desired_interval)
-        else:
-            self.set_contents([])
-        gutils.AutoRefreshTableView._refresh_contents(self)
+class TagsTableView(PrecisTableView):
+    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
+        ptype = PrecisType(TAG_TABLE_PRECIS_DESCR, ifce.SCM.get_tags_data)
+        PrecisTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
 
 TAG_LIST_DESCR = \
 [
@@ -267,34 +307,10 @@ BRANCH_TABLE_PRECIS_DESCR = \
 
 BRANCH_TABLE_PRECIS_AGE = gutils.find_label_index(BRANCH_TABLE_PRECIS_DESCR, "Age")
 
-class BranchesTableView(gutils.AutoRefreshTableView):
-    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=False, auto_refresh_interval=3600000):
-        self._ifce = ifce
-        gutils.AutoRefreshTableView.__init__(self, BRANCH_TABLE_PRECIS_DESCR, sel_mode=sel_mode,
-            auto_refresh_on=auto_refresh_on, auto_refresh_interval=auto_refresh_interval,
-            busy_indicator=self._ifce.log.get_busy_indicator())
-        self._ifce.SCM.add_notification_cb(["commit"], self.refresh_contents_if_mapped)
-        self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.refresh_contents_if_mapped)
-        self._ifce.log.add_notification_cb(["manual_cmd"], self.refresh_contents_if_mapped)
-        self.show_all()
-    def _refresh_contents(self):
-        res, branches, serr = self._ifce.SCM.get_branches_data()
-        if res == cmd_result.OK and branches:
-            desired_interval = self._normal_interval
-            self.set_contents(branches)
-            # if any branch's age is expressed in seconds then update every second
-            # they're in time order so only need to look at first one
-            if branches[0][BRANCH_TABLE_PRECIS_AGE].find("sec") != -1:
-                desired_interval = 1000
-            elif branches[0][BRANCH_TABLE_PRECIS_AGE].find("min") != -1:
-                desired_interval = 30000
-            elif branches[0][BRANCH_TABLE_PRECIS_AGE].find("hour") != -1:
-                    desired_interval = 1800000
-            if desired_interval is not self.rtoc.get_interval():
-                self.rtoc.set_interval(desired_interval)
-        else:
-            self.set_contents([])
-        gutils.AutoRefreshTableView._refresh_contents(self)
+class BranchesTableView(PrecisTableView):
+    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
+        ptype = PrecisType(BRANCH_TABLE_PRECIS_DESCR, ifce.SCM.get_branches_data)
+        PrecisTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
 
 BRANCH_LIST_DESCR = \
 [

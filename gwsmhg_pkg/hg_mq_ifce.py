@@ -365,7 +365,18 @@ class SCMInterface(BaseInterface):
             cmd += " -C"
         if rev:
             cmd += " -r %s" %rev
-        return self._run_cmd_on_console(cmd)
+        result = self._run_cmd_on_console(cmd)
+        self._do_cmd_notification("update")
+        return result
+    def do_merge_workspace(self, rev=None, force=False):
+        cmd = "hg merge"
+        if force:
+            cmd += " -f"
+        if rev:
+            cmd += " -r %s" %rev
+        result = self._run_cmd_on_console(cmd)
+        self._do_cmd_notification("merge")
+        return result
     def do_pull(self, rev=None, update=False, source=None):
         cmd = "hg pull"
         if update:

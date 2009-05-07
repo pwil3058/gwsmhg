@@ -23,7 +23,7 @@ pixmaps = []
 for name in ['stock_commit.png', 'stock_diff.png', 'stock_applied.png',
              'stock_finish_patch.png', 'stock_fold_patch.png',
              'stock_import_patch.png', 'stock_pop_patch.png',
-             'stock_push_patch.png'
+             'stock_push_patch.png', 'stock_merge.png',
             ]:
     pixmaps.append(os.sep.join(["pixmaps", name]))
 
