@@ -289,7 +289,7 @@ class SCMInterface(BaseInterface):
             res, sout, serr = utils.run_cmd(cmd + str(tag[1]))
             tag += sout.split(":", 3)
         return (res, tag_list, serr)
-    def get_tags_list(self):
+    def get_tags_list_for_table(self):
         res, sout, serr = utils.run_cmd("hg tags")
         if res:
             return (res, sout, serr)
@@ -298,7 +298,7 @@ class SCMInterface(BaseInterface):
         for line in sout.splitlines(False):
             dat = de.match(line)
             if dat:
-                tag_list.append(dat.group(1))
+                tag_list.append([dat.group(1)])
         return (res, tag_list, serr)
     def get_branches_data(self):
         res, sout, serr = utils.run_cmd("hg branches")
@@ -314,7 +314,7 @@ class SCMInterface(BaseInterface):
             res, sout, serr = utils.run_cmd(cmd + str(tag[1]))
             tag += sout.split(":", 3)
         return (res, tag_list, serr)
-    def get_branches_list(self):
+    def get_branches_list_for_table(self):
         res, sout, serr = utils.run_cmd("hg branches")
         if res:
             return (res, sout, serr)
@@ -322,7 +322,7 @@ class SCMInterface(BaseInterface):
         tag_list = []
         for line in sout.splitlines(False):
             dat = de.match(line)
-            tag_list.append(dat.group(1))
+            tag_list.append([dat.group(1)])
         return (res, tag_list, serr)
     def do_commit_change(self, msg, file_list=[]):
         cmd = "hg -v commit"
