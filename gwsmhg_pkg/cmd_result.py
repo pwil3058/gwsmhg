@@ -68,10 +68,10 @@ class ProblemReporter(gutils.PopupUser):
     def _report_info(self, msg):
         self._report_problem(msg, gtk.MESSAGE_INFO)
     def _report_any_problems(self, result):
-        if result[0] in [ERROR, ERROR_SUGGEST_FORCE]:
+        if result[0] & ERROR:
             self._report_error(result[1] + result[2])
-        elif result[0] in [WARNING, WARNING_SUGGEST_FORCE]:
+        elif result[0] & WARNING:
             self._report_warning(result[1] + result[2])
-        elif result[0] in [INFO, INFO_SUGGEST_FORCE]:
+        elif result[0] & INFO:
             self._report_info(result[1] + result[2])
 
