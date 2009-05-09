@@ -687,6 +687,24 @@ class PMInterface(BaseInterface):
             res = cmd_result.ERROR
         self._console_log.end_cmd()
         return (res, "", serr)
+    def get_description_is_finish_ready(self, patch):
+        pfn = self.get_patch_file_name(patch)
+        res, pf_descr_lines = putils.get_patch_descr_lines(pfn)
+        pf_descr = os.linesep.join(pf_descr_lines).strip()
+        if not pf_descr:
+            return False
+        res, rep_descr, sout = utils.run_cmd('hg log --template "{desc}" --rev %s' % patch)
+        if pf_descr != rep_descr.strip():
+            top = self.get_top_patch()
+            if top == patch:
+                utils.run_cmd('hg qrefresh')
+            else:
+                # let's hope the user doesn't mind having the top patch refreshed
+                utils.run_cmd('hg qrefresh')
+                utils.run_cmd('hg qgoto %s' % patch)
+                utils.run_cmd('hg qrefresh')
+                utils.run_cmd('hg qgoto %s' % top)
+        return True
     def do_finish_patch(self, patch):
         result = self._run_cmd_on_console("hg qfinish %s" % patch)
         self._do_cmd_notification("qfinish")

@@ -744,10 +744,9 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                 break
             while True:
                 self._show_busy()
-                res, sout, serr = self._ifce.PM.get_patch_description(next)
-                descr = sout.strip()
+                ok = self._ifce.PM.get_description_is_finish_ready(next)
                 self._unshow_busy()
-                if descr:
+                if ok:
                     break
                 msg = os.linesep.join(
                     ['"%s" has an empty description.' % next,
