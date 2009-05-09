@@ -235,6 +235,65 @@ class SCMInterface(BaseInterface):
                 others.append((name, status, None))
             index += 1
         return (res, (ignored, others, modified), serr)
+    def get_change_set_summary(self, rev):
+        template_lines = \
+            [
+                '{desc|firstline}',
+                '{rev}',
+                '{node}',
+                '{date|isodate}',
+                '{date|age}',
+                '{author|person}',
+                '{author|email}',
+                '{tags}',
+                '{branches}',
+                '{desc}',
+                '',
+            ]
+        template = os.linesep.join(template_lines)
+        res, sout, serr = utils.run_cmd('hg log --template "%s" --rev %s' % (template, rev))
+        if res:
+            return (res, sout, serr)
+        lines = sout.splitlines(False)
+        summary = {}
+        summary['PRECIS'] = lines[template_lines.index('{desc|firstline}')]
+        summary['REV'] = lines[template_lines.index('{rev}')]
+        summary['NODE'] = lines[template_lines.index('{node}')]
+        summary['DATE'] = lines[template_lines.index('{date|isodate}')]
+        summary['AGE'] = lines[template_lines.index('{date|age}')]
+        summary['AUTHOR'] = lines[template_lines.index('{author|person}')]
+        summary['EMAIL'] = lines[template_lines.index('{author|email}')]
+        summary['TAGS'] = lines[template_lines.index('{tags}')]
+        summary['BRANCHES'] = lines[template_lines.index('{branches}')]
+        summary['DESCR'] = os.linesep.join(lines[template_lines.index('{desc}'):])
+        return (res, summary, serr)
+    def get_change_set_files(self, rev):
+        res, parents, serr = self.get_parents(rev)
+        template = os.linesep.join(['{files}', '{file_adds}', '{file_dels}', ''])
+        res, sout, serr = utils.run_cmd('hg log --template "%s" --rev %s' % (template, rev))
+        if res:
+            return (res, sout, serr)
+        lines = sout.splitlines(False)
+        file_names = lines[0].split()
+        added_files = lines[1].split()
+        deleted_files = lines[2].split()
+        files = []
+        for name in file_names:
+            if name in added_files:
+                extra_info = None
+                for parent in parents:
+                    cmd = "hg status -aC --rev %s --rev %s %s" % (parent, rev, name)
+                    res, sout, serr = utils.run_cmd(cmd)
+                    lines = sout.splitlines(False)
+                    if len(lines) > 1 and lines[1][0] == " ":
+                        extra_info = lines[1].strip()
+                        break
+                files.append((name, "A", extra_info))
+            elif name in deleted_files:
+                files.append((name, "R", None))
+            else:
+                files.append((name, "M", None))
+        return (cmd_result.OK, files, "")
     def get_parents_data(self, rev=None):
         cmd = 'hg parents --template "{rev}:{date|age}:{tags}:{branches}:{author|person}:{desc|firstline}' + os.linesep + '"'
         if not rev:
