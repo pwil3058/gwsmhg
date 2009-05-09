@@ -796,22 +796,19 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             if patch == new_name:
                 return
             res, sout, serr = self._ifce.PM.do_rename_patch(patch, new_name)
-            if res is not cmd_result.OK:
-                self._report_any_problems((res, sout, serr))
+            self._report_any_problems((res, sout, serr))
             self.set_contents()
         else:
             dialog.destroy()
     def do_delete(self, action=None):
         patch = self.get_selected_patch()
         res, sout, serr = self._ifce.PM.do_delete_patch(patch)
-        if res is not cmd_result.OK:
-            self._report_any_problems((res, sout, serr))
+        self._report_any_problems((res, sout, serr))
         self.set_contents()
     def do_fold(self, action=None):
         patch = self.get_selected_patch()
         res, sout, serr = self._ifce.PM.do_fold_patch(patch)
-        if res is not cmd_result.OK:
-            self._report_any_problems((res, sout, serr))
+        self._report_any_problems((res, sout, serr))
         self.set_contents()
     def do_fold_to(self, action=None):
         patch = self.get_selected_patch()
@@ -856,8 +853,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         self._show_busy()
         res, sout, serr = self._ifce.PM.do_set_patch_description(duplicate_patch_name, duplicate_patch_descr)
         self._unshow_busy()
-        if res is not cmd_result.OK:
-            self._report_any_problems((res, sout, serr))
+        self._report_any_problems((res, sout, serr))
     def do_interdiff(self, action=None):
         patch = self.get_selected_patch()
         dialog = DuplicatePatchDialog(patch, verb="Interdiff", parent=None, ifce=self._ifce, modal=False)
@@ -903,22 +899,19 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         res, sout, serr = self._ifce.PM.do_save_queue_state_for_update()
         self._unshow_busy()
         self.set_contents()
-        if res is not cmd_result.OK:
-            self._report_any_problems((res, sout, serr))
+        self._report_any_problems((res, sout, serr))
     def do_pull_to_repository(self, action=None):
         self._show_busy()
         result = self._ifce.PM.do_pull()
         self._set_ws_update_menu_sensitivity()
         self._unshow_busy()
-        if result[0] is not cmd_result.OK:
-            self._report_any_problems(result)
+        self._report_any_problems(result)
     def do_update_workspace(self, action=None):
         self._show_busy()
         result = self._ifce.PM.do_update_workspace()
         self._set_ws_update_menu_sensitivity()
         self._unshow_busy()
-        if result[0] is not cmd_result.OK:
-            self._report_any_problems(result)
+        self._report_any_problems(result)
     def do_update_workspace_to(self, action=None):
         dialog = change_set.ChangeSetSelectDialog(ifce=self._ifce)
         response = dialog.run()
@@ -930,8 +923,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                 result = self._ifce.PM.do_update_workspace(rev=rev)
                 self._set_ws_update_menu_sensitivity()
                 self._unshow_busy()
-                if result[0] is not cmd_result.OK:
-                    self._report_any_problems(result)
+                self._report_any_problems(result)
         else:
             dialog.destroy()
     def do_clean_up_after_update(self, action=None):
@@ -939,8 +931,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         result = self._ifce.PM.do_clean_up_after_update()
         self._unshow_busy()
         self.set_contents()
-        if result[0] is not cmd_result.OK:
-            self._report_any_problems(result)
+        self._report_any_problems(result)
     def do_new_patch(self, action=None):
         dialog = NewPatchDialog(parent=None, ifce=self._ifce, modal=False)
         if dialog.run() == gtk.RESPONSE_CANCEL:
@@ -974,8 +965,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             self._show_busy()
             res, sout, serr = self._ifce.PM.do_set_patch_description(new_patch_name, new_patch_descr)
             self._unshow_busy()
-            if res is not cmd_result.OK:
-                self._report_any_problems((res, sout, serr))
+            self._report_any_problems((res, sout, serr))
     def do_import_external_patch(self, action=None):
         patch_file_name = gutils.ask_file_name("Select patch file to be imported")
         force = False
@@ -997,8 +987,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                         patch_name = os.path.basename(patch_file_name)
                     patch_name = gutils.get_modified_string("Rename Patch", "New Name :", patch_name)
                     continue
-            if res is not cmd_result.OK:
-                self._report_any_problems((res, sout, serr))
+            self._report_any_problems((res, sout, serr))
             break
         self.set_contents()
     def do_import_external_patch_series(self, action=None):
@@ -1042,8 +1031,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                             patch_name = base_name
                         patch_name = gutils.get_modified_string("Rename Patch", "New Name :", patch_name)
                         continue
-                if res is not cmd_result.OK:
-                    self._report_any_problems((res, sout, serr))
+                self._report_any_problems((res, sout, serr))
                 break
             self.set_contents()
             index += 1
