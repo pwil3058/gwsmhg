@@ -379,3 +379,52 @@ class PmDiffTextDialog(gtk.Dialog):
     def _close_cb(self, dialog, response_id):
         self.destroy()
 
+#class IncomingDiffTextDialog(parent=parent, ifce=self._ifce,
+#                                     rev=self._rev, path=self._path, modal=False)
+
+class IncomingDiffTextBuffer(DiffTextBuffer):
+    def __init__(self, ifce, rev, path=None, table=None):
+        DiffTextBuffer.__init__(self, ifce=ifce, table=table)
+        self._path = path
+        self._rev = rev
+        self.a_name_list = ["diff_save", "diff_save_as"]
+        self.diff_buttons = gutils.ActionButtonList([self._action_group], self.a_name_list)
+    def _get_diff_text(self):
+        res, text, serr = self._ifce.SCM.get_incoming_diff(self._rev, self._path)
+        self._report_any_problems((res, text, serr))
+        return text
+
+class IncomingDiffTextView(DiffTextView):
+    def __init__(self, ifce, rev, path=None):
+        buffer = IncomingDiffTextBuffer(ifce, rev=rev, path=path)
+        DiffTextView.__init__(self, ifce=ifce, buffer=buffer)
+
+class IncomingDiffTextWidget(DiffTextWidget):
+    def __init__(self, parent, ifce, rev, path=None):
+        diff_view = IncomingDiffTextView(ifce=ifce, rev=rev, path=path)
+        DiffTextWidget.__init__(self, parent=parent, diff_view=diff_view)
+
+class IncomingDiffTextDialog(gtk.Dialog):
+    def __init__(self, parent, ifce, rev, path=None, modal=False):
+        if modal or (parent and parent.get_modal()):
+            flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
+        else:
+            flags = gtk.DIALOG_DESTROY_WITH_PARENT
+        title = "diff: [%s]" % rev
+        if path:
+            title += " Path: %s" % path
+        else:
+            title += " Path: default"
+        gtk.Dialog.__init__(self, title, parent, flags, ())
+        dtw = IncomingDiffTextWidget(self, ifce, rev=rev, path=path)
+        self.vbox.pack_start(dtw)
+        tws_display = dtw.diff_view.get_buffer().tws_display
+        self.action_area.pack_end(tws_display, expand=False, fill=False)
+        for button in dtw.diff_view.get_buffer().diff_buttons.list:
+            self.action_area.pack_start(button)
+        self.add_buttons(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
+        self.connect("response", self._close_cb)
+        self.show_all()
+    def _close_cb(self, dialog, response_id):
+        self.destroy()
+

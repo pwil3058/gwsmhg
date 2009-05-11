@@ -13,7 +13,7 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, os.path, tempfile, pango, re
+import os, os.path, tempfile, pango, re, tempfile
 from gwsmhg_pkg import text_edit, utils, cmd_result, console, putils
 
 DEFAULT_NAME_EVARS = ["GIT_AUTHOR_NAME", "GECOS"]
@@ -147,6 +147,22 @@ class SCMInterface(BaseInterface):
     def __init__(self, console_log):
         BaseInterface.__init__(self, "hg", console_log)
         self.tracked_statuses = (None, "C") + self.modification_statuses
+        self.cs_summary_template_lines = \
+            [
+                '{desc|firstline}',
+                '{rev}',
+                '{node}',
+                '{date|isodate}',
+                '{date|age}',
+                '{author|person}',
+                '{author|email}',
+                '{tags}',
+                '{branches}',
+                '{desc}',
+                '',
+            ]
+        self.cs_summary_template = os.linesep.join(self.cs_summary_template_lines)
+        self.cs_table_template = '{rev}:{date|age}:{tags}:{branches}:{author|person}:{desc|firstline}' + os.linesep
     def _run_cmd_on_console(self, cmd, stdout_expected=True):
         result = utils.run_cmd_in_console(cmd, self._console_log)
         return cmd_result.map_cmd_result(result, stdout_expected)
@@ -235,38 +251,27 @@ class SCMInterface(BaseInterface):
                 others.append((name, status, None))
             index += 1
         return (res, (ignored, others, modified), serr)
-    def get_change_set_summary(self, rev):
-        template_lines = \
-            [
-                '{desc|firstline}',
-                '{rev}',
-                '{node}',
-                '{date|isodate}',
-                '{date|age}',
-                '{author|person}',
-                '{author|email}',
-                '{tags}',
-                '{branches}',
-                '{desc}',
-                '',
-            ]
-        template = os.linesep.join(template_lines)
-        res, sout, serr = utils.run_cmd('hg log --template "%s" --rev %s' % (template, rev))
-        if res:
-            return (res, sout, serr)
+    def _css_line_index(self, tempfrag):
+        return self.cs_summary_template_lines.index(tempfrag)
+    def _process_change_set_summary(self, res, sout, serr):
         lines = sout.splitlines(False)
         summary = {}
-        summary['PRECIS'] = lines[template_lines.index('{desc|firstline}')]
-        summary['REV'] = lines[template_lines.index('{rev}')]
-        summary['NODE'] = lines[template_lines.index('{node}')]
-        summary['DATE'] = lines[template_lines.index('{date|isodate}')]
-        summary['AGE'] = lines[template_lines.index('{date|age}')]
-        summary['AUTHOR'] = lines[template_lines.index('{author|person}')]
-        summary['EMAIL'] = lines[template_lines.index('{author|email}')]
-        summary['TAGS'] = lines[template_lines.index('{tags}')]
-        summary['BRANCHES'] = lines[template_lines.index('{branches}')]
-        summary['DESCR'] = os.linesep.join(lines[template_lines.index('{desc}'):])
+        summary['PRECIS'] = lines[self._css_line_index('{desc|firstline}')]
+        summary['REV'] = lines[self._css_line_index('{rev}')]
+        summary['NODE'] = lines[self._css_line_index('{node}')]
+        summary['DATE'] = lines[self._css_line_index('{date|isodate}')]
+        summary['AGE'] = lines[self._css_line_index('{date|age}')]
+        summary['AUTHOR'] = lines[self._css_line_index('{author|person}')]
+        summary['EMAIL'] = lines[self._css_line_index('{author|email}')]
+        summary['TAGS'] = lines[self._css_line_index('{tags}')]
+        summary['BRANCHES'] = lines[self._css_line_index('{branches}')]
+        summary['DESCR'] = os.linesep.join(lines[self._css_line_index('{desc}'):])
         return (res, summary, serr)
+    def get_change_set_summary(self, rev):
+        res, sout, serr = utils.run_cmd('hg log --template "%s" --rev %s' % (self.cs_summary_template, rev))
+        if res:
+            return (res, sout, serr)
+        return self._process_change_set_summary(res, sout, serr)
     def get_change_set_files(self, rev):
         res, parents, serr = self.get_parents(rev)
         template = os.linesep.join(['{files}', '{file_adds}', '{file_dels}', ''])
@@ -295,7 +300,7 @@ class SCMInterface(BaseInterface):
                 files.append((name, "M", None))
         return (cmd_result.OK, files, "")
     def get_parents_data(self, rev=None):
-        cmd = 'hg parents --template "{rev}:{date|age}:{tags}:{branches}:{author|person}:{desc|firstline}' + os.linesep + '"'
+        cmd = 'hg parents --template "%s"' % self.cs_table_template
         if not rev:
             qbase = self._get_qbase()
             if qbase:
@@ -311,8 +316,19 @@ class SCMInterface(BaseInterface):
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return (res, plist, serr)
-    def get_heads_data(self):
-        cmd = 'hg heads --template "{rev}:{date|age}:{tags}:{branches}:{author|person}:{desc|firstline}' + os.linesep + '"'
+    def get_path_table_data(self):
+        path_re = re.compile("^(\S*)\s+=\s+(\S*)\s*$")
+        res, sout, serr = utils.run_cmd("hg paths")
+        paths = []
+        for line in sout.splitlines(False):
+            match = path_re.match(line)
+            if match:
+                paths.append([match.group(1), match.group(2)])
+        return (res, paths, serr)
+    def get_outgoing_table_data(self, path=None):
+        cmd = 'hg -q outgoing --template "%s"' % self.cs_table_template
+        if path:
+            cmd += " %s" % path
         res, sout, serr = utils.run_cmd(cmd)
         if res != 0:
             return (res, sout, serr)
@@ -322,8 +338,129 @@ class SCMInterface(BaseInterface):
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return (res, plist, serr)
-    def get_history_data(self):
-        cmd = 'hg log --template "{rev}:{date|age}:{tags}:{branches}:{author|person}:{desc|firstline}' + os.linesep + '"'
+    def get_incoming_table_data(self, path=None):
+        cmd = 'hg -q incoming --template "%s"' % self.cs_table_template
+        if path:
+            cmd += " %s" % path
+        res, sout, serr = utils.run_cmd(cmd)
+        if res != 0:
+            return (res, sout, serr)
+        plist = []
+        for line in sout.splitlines():
+            pdata = line.split(":", 5)
+            pdata[0] = int(pdata[0])
+            plist.append(pdata)
+        return (res, plist, serr)
+    def get_incoming_change_set_summary(self, rev, path=None):
+        cmd = 'hg -q incoming --template "%s" -nl 1 --rev %s' % (self.cs_summary_template, rev)
+        if path:
+            cmd += ' %s' % path
+        res, sout, serr = utils.run_cmd(cmd)
+        if res:
+            return (res, sout, serr)
+        return self._process_change_set_summary(res, sout, serr)
+    def get_incoming_change_set_files(self, rev, path=None):
+        template = os.linesep.join(['{files}', '{file_adds}', '{file_dels}', ''])
+        cmd = 'hg -q incoming --template "%s" -nl 1 --rev %s' % (template, rev)
+        if path:
+            cmd += ' %s' % path
+        res, sout, serr = utils.run_cmd(cmd)
+        if res:
+            return (res, sout, serr)
+        lines = sout.splitlines(False)
+        file_names = lines[0].split()
+        added_files = lines[1].split()
+        deleted_files = lines[2].split()
+        files = []
+        if not file_names:
+            res, parents, serr = self.get_incoming_parents(rev, path)
+            if res or len(parents) < 2:
+                return (cmd_result.OK, files, "")
+            # 'incoming --template "{files}"' is still broken so try lsdiff
+            res, diff, serr = self.get_incoming_diff(rev, path)
+            tf, tfn = tempfile.mkstemp()
+            os.write(tf, diff)
+            os.close(tf)
+            ok, file_list = putils.get_patch_files(tfn)
+            os.remove(tfn)
+            if ok:
+                return (cmd_result.OK, file_list, "")
+            else:
+                return (cmd_result.ERROR, "", file_list)
+        for name in file_names:
+            if name in added_files:
+                files.append((name, "A", None))
+            elif name in deleted_files:
+                files.append((name, "R", None))
+            else:
+                files.append((name, "M", None))
+        return (cmd_result.OK, files, "")
+    def get_incoming_parents(self, rev, path=None):
+        cmd = 'hg -q incoming --template "{parents}" -nl 1 --rev %s' % rev
+        if path:
+            cmd += ' %s' % path
+        res, psout, serr = utils.run_cmd(cmd)
+        if res != 0:
+            return (res, psout, serr)
+        if psout:
+            parents = []
+            for item in psout.split():
+                parents.append(item.split(":"))
+        else:
+            parents = [str(int(rev) + 1)]
+        return (res, parents, serr)
+    def get_incoming_parents_table_data(self, rev, path=None):
+        res, parents, serr = self.get_incoming_parents(rev, path)
+        if res != 0:
+            return (res, parents, serr)
+        plist = []
+        base_cmd = 'hg -q incoming --template "%s" -nl 1' % self.cs_table_template
+        for parent in parents:
+            if path:
+                cmd = base_cmd + " --rev %s %s" % (parent[0], path)
+            else:
+                cmd = base_cmd + " --rev %s" % parent[0]
+            res, sout, serr = utils.run_cmd(cmd)
+            if res == 1:
+                # the parent is local
+                res, sublist, serr = self.get_history_data(rev=parent[1])
+                plist += sublist
+                continue
+            if res != 0:
+                return (res, sout, serr)
+            pdata = sout.strip().split(":", 5)
+            pdata[0] = int(pdata[0])
+            plist.append(pdata)
+        return (res, plist, serr)
+    def get_incoming_diff(self, rev, path=None):
+        cmd = 'hg incoming --patch -nl 1 --rev %s' % rev
+        if path:
+            cmd += ' %s' % path
+        res, sout, serr = utils.run_cmd(cmd)
+        if res:
+            return (res, sout, serr)
+        lines = sout.splitlines(False)
+        diffstat_si, patch_data = putils.trisect_patch_lines(lines)
+        if not patch_data:
+            return (res, "", err)
+        else:
+            patch = os.linesep.join(lines[patch_data[0]:])
+            return (res, patch, serr)
+    def get_heads_data(self):
+        cmd = 'hg heads --template "%s"' % self.cs_table_template
+        res, sout, serr = utils.run_cmd(cmd)
+        if res != 0:
+            return (res, sout, serr)
+        plist = []
+        for line in sout.splitlines():
+            pdata = line.split(":", 5)
+            pdata[0] = int(pdata[0])
+            plist.append(pdata)
+        return (res, plist, serr)
+    def get_history_data(self, rev=None):
+        cmd = 'hg log --template "%s"' % self.cs_table_template
+        if rev:
+            cmd += " --rev %s" % rev
         res, sout, serr = utils.run_cmd(cmd)
         if res != 0:
             return (res, sout, serr)
@@ -364,15 +501,15 @@ class SCMInterface(BaseInterface):
         if res:
             return (res, sout, serr)
         de = re.compile("^(\S+)\s*(\d+):")
-        tag_list = []
+        branch_list = []
         for line in sout.splitlines(False):
             dat = de.match(line)
-            tag_list.append([dat.group(1), int(dat.group(2))])
+            branch_list.append([dat.group(1), int(dat.group(2))])
         cmd = 'hg log --template "{tags}:{date|age}:{author|person}:{desc|firstline}" --rev '
-        for tag in tag_list:
-            res, sout, serr = utils.run_cmd(cmd + str(tag[1]))
-            tag += sout.split(":", 3)
-        return (res, tag_list, serr)
+        for branch in branch_list:
+            res, sout, serr = utils.run_cmd(cmd + str(branch[1]))
+            branch += sout.split(":", 3)
+        return (res, branch_list, serr)
     def get_branches_list_for_table(self):
         res, sout, serr = utils.run_cmd("hg branches")
         if res:

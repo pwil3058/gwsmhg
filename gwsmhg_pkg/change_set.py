@@ -43,12 +43,14 @@ class PrecisType:
         self.get_data = get_data
 
 class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
-    def __init__(self, ifce, ptype, sel_mode=gtk.SELECTION_SINGLE):
+    def __init__(self, ifce, ptype, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None):
         self._ifce = ifce
         self._ptype = ptype
+        if not busy_indicator:
+            busy_indicator = self._ifce.log.get_busy_indicator()
         cmd_result.ProblemReporter.__init__(self)
         gutils.MapManagedTableView.__init__(self, descr=ptype.descr, sel_mode=sel_mode,
-            busy_indicator=self._ifce.log.get_busy_indicator())
+            busy_indicator=busy_indicator)
         self._ifce.SCM.add_notification_cb(["commit"], self.refresh_contents_if_mapped)
         self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.refresh_contents_if_mapped)
         self._ifce.log.add_notification_cb(["manual_cmd"], self.refresh_contents_if_mapped)
@@ -72,7 +74,7 @@ class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
         self.cwd_merge_id.append(self._ui_manager.add_ui_from_string(CS_TABLE_BASIC_UI_DESCR))
         self.show_all()
     def _set_action_sensitivities(self):
-        sel = self.get_selection().count_selected_rows() != 0
+        sel = self.get_selection().count_selected_rows() == 1
         self._action_group[UNIQUE_SELECTION].set_sensitive(sel)
         self._action_group[UNIQUE_SELECTION_NOT_PMIC].set_sensitive(sel and not self._ifce.PM.get_in_progress())
     def _refresh_contents(self):
@@ -90,7 +92,10 @@ class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
             return ""
     def _view_cs_summary_acb(self, action):
         rev = self.get_selected_change_set()
-        ChangeSetSummaryDialog(self._ifce, rev).show()
+        self._show_busy()
+        dialog = ChangeSetSummaryDialog(self._ifce, rev)
+        self._unshow_busy()
+        dialog.show()
     def _update_ws_to_cs_acb(self, action):
         rev = self.get_selected_change_set()
         self._show_busy()
@@ -366,18 +371,24 @@ class FileTreeView(file_tree.FileTreeView):
         self.expand_all()
     def _diff_selected_files_acb(self, action=None):
         parent = self._get_gtk_window()
+        self._show_busy()
         dialog = diff.ScmDiffTextDialog(parent=parent, ifce=self._ifce,
                                      file_list=self.get_selected_files(),
                                      torev=self._rev, modal=False)
+        self._unshow_busy()
         dialog.show()
     def _diff_all_files_acb(self, action=None):
         parent = self._get_gtk_window()
+        self._show_busy()
         dialog = diff.ScmDiffTextDialog(parent=parent, ifce=self._ifce,
                                      torev=self._rev, modal=False)
+        self._unshow_busy()
         dialog.show()
 
 class ChangeSetSummaryDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
     def __init__(self, ifce, rev, parent=None):
+        self._rev = rev
+        self._ifce = ifce
         gutils.BusyIndicator.__init__(self)
         gutils.BusyIndicatorUser.__init__(self, self)
         title = "gwsmg: Change Set: %s : %s" % (rev, utils.path_rel_home(os.getcwd()))
@@ -386,7 +397,7 @@ class ChangeSetSummaryDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndica
                             buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
                            )
         self._ifce = ifce
-        res, summary, serr = ifce.SCM.get_change_set_summary(rev)
+        res, summary, serr = self.get_change_set_summary()
         self._add_labelled_texts([("Precis:", summary['PRECIS'])])
         self._add_labelled_texts([("Revision:", summary['REV']), ("Node:", summary['NODE'])])
         self._add_labelled_texts([("Date:", summary['DATE']), ("Age:", summary['AGE'])])
@@ -406,17 +417,23 @@ class ChangeSetSummaryDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndica
         vpaned2 = gtk.VPaned()
         vbox = gtk.VBox()
         self._add_label("File(s):", vbox)
-        ftv = FileTreeView(ifce, rev, busy_indicator=self.get_busy_indicator())
-        vbox.pack_start(gutils.wrap_in_scrolled_window(ftv), expand=True)
+        self.ftv = self.get_file_tree_view()
+        vbox.pack_start(gutils.wrap_in_scrolled_window(self.ftv), expand=True)
         vpaned2.add1(vbox)
         vbox = gtk.VBox()
         self._add_label("Parent(s):", vbox)
-        ptv = ParentsTableView(ifce, rev)
+        ptv = self.get_parents_view()
         vbox.pack_start(gutils.wrap_in_scrolled_window(ptv), expand=True)
         vpaned2.add2(vbox)
         vpaned1.add2(vpaned2)
         self.connect("response", self._close_cb)
         self.show_all()
+    def get_change_set_summary(self):
+        return self._ifce.SCM.get_change_set_summary(self._rev)
+    def get_file_tree_view(self):
+        return FileTreeView(self._ifce, self._rev, busy_indicator=self.get_busy_indicator())
+    def get_parents_view(self):
+        return ParentsTableView(self._ifce, self._rev)
     def _add_label(self, text, component=None):
         hbox = gtk.HBox()
         hbox.pack_start(gtk.Label(text), expand=False, fill=False)
