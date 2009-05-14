@@ -113,11 +113,27 @@ class action_notifier:
                 self._notification_cbs[cmd].append(cb)
             else:
                 self._notification_cbs[cmd] = [cb]
+    def del_notification_cb(self, cmd_list, cb):
+        for cmd in cmd_list:
+            if self._notification_cbs.has_key(cmd):
+                try:
+                    i = self._notification_cbs[cmd].index(cb)
+                    self._notification_cbs[cmd].index(cb)[i:i+1] = []
+                except:
+                    pass
     def _do_cmd_notification(self, cmd, data=None):
         if self._notification_cbs.has_key(cmd):
+            failures = []
             for cb in self._notification_cbs[cmd]:
-                if data is not None:
-                    cb(data)
-                else:
-                    cb()
+                # the callee may no longer exist and may not have removed
+                # its callbacks so handle failure
+                try:
+                    if data is not None:
+                        cb(data)
+                    else:
+                        cb()
+                except:
+                    failures.append(cmd)
+            if failures:
+                self.del_notification_cb(failures, cb)
 
