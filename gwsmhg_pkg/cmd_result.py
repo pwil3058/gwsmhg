@@ -38,6 +38,32 @@ WARNING_SUGGEST_FORCE_OR_REFRESH = WARNING | SUGGEST_FORCE_OR_REFRESH
 ERROR_SUGGEST_FORCE_OR_REFRESH = ERROR | SUGGEST_FORCE_OR_REFRESH
 SUGGEST_FORCE_OR_RENAME = SUGGEST_FORCE | SUGGEST_RENAME
 
+BASIC_VALUES_MASK = OK | INFO | WARNING | ERROR
+
+def basic_value(res):
+    return res & BASIC_VALUES_MASK
+
+def is_ok(res):
+    return basic_value(res) == OK
+
+def is_info(res):
+    return basic_value(res) == INFO
+
+def is_less_than_info(res):
+    return basic_value(res) < INFO
+
+def is_warning(res):
+    return basic_value(res) == WARNING
+
+def is_less_than_warning(res):
+    return basic_value(res) < WARNING
+
+def is_error(res):
+    return basic_value(res) == ERROR
+
+def is_less_than_error(res):
+    return basic_value(res) < ERROR
+
 def map_cmd_result(result, stdout_expected=False, ignore_err_re=None):
     if result[0] == 0:
         if result[2] and not (ignore_err_re and ignore_err_re.match(result[2])):

@@ -1320,7 +1320,7 @@ class ScmCommitWidget(gtk.VPaned, cmd_result.ProblemReporter):
     def do_commit(self):
         result = self._ifce.SCM.do_commit_change(self.get_msg(), self.get_file_mask())
         self._report_any_problems(result)
-        return result[0] == cmd_result.OK
+        return cmd_result.is_less_than_error(result[0])
 
 class ScmCommitDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
     def __init__(self, parent, ifce, filelist=None, modal=False):
