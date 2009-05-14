@@ -573,14 +573,14 @@ class SCMInterface(BaseInterface):
         result = self._run_cmd_on_console(cmd)
         self._do_cmd_notification("merge")
         return result
-    def do_pull(self, rev=None, update=False, source=None):
-        cmd = "hg pull"
-        if update:
-            cmd += " -u"
+    def do_push_to(self, rev=None, force=False, path=None):
+        cmd = "hg push"
+        if force:
+            cmd += " -f"
         if rev:
             cmd += " -r %s" %rev
-        if source:
-            cmd += " %s" % source
+        if path:
+            cmd += " %s" % path
         return self._run_cmd_on_console(cmd)
 
 class _WsUpdateStateMgr:
