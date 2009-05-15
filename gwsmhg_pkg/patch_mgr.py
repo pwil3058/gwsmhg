@@ -902,7 +902,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         self._report_any_problems((res, sout, serr))
     def do_pull_to_repository(self, action=None):
         self._show_busy()
-        result = self._ifce.PM.do_pull()
+        result = self._ifce.PM.do_pull_from()
         self._set_ws_update_menu_sensitivity()
         self._unshow_busy()
         self._report_any_problems(result)

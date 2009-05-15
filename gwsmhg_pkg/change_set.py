@@ -210,15 +210,20 @@ class ParentsTableView(AUPrecisTableView):
     def get_parents_data(self):
         return self._ifce.SCM.get_parents_data(self._rev)
 
-class HeadsTableView(PrecisTableView):
+class ChangeSetTableView(PrecisTableView):
+    def __init__(self, ifce, ptype, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None):
+        PrecisTableView.__init__(self, ifce=ifce, ptype=ptype, sel_mode=sel_mode)
+        self._ifce.SCM.add_notification_cb(["pull"], self.refresh_contents_if_mapped)
+
+class HeadsTableView(ChangeSetTableView):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
         ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, ifce.SCM.get_heads_data)
-        PrecisTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
+        ChangeSetTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
 
-class HistoryTableView(PrecisTableView):
+class HistoryTableView(ChangeSetTableView):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
         ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, ifce.SCM.get_history_data)
-        PrecisTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
+        ChangeSetTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
 
 TAG_TABLE_PRECIS_DESCR = \
 [
@@ -230,10 +235,10 @@ TAG_TABLE_PRECIS_DESCR = \
     ["Description", gobject.TYPE_STRING, True, []],
 ]
 
-class TagsTableView(PrecisTableView):
+class TagsTableView(ChangeSetTableView):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
         ptype = PrecisType(TAG_TABLE_PRECIS_DESCR, ifce.SCM.get_tags_data)
-        PrecisTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
+        ChangeSetTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
 
 TAG_LIST_DESCR = \
 [
@@ -250,10 +255,10 @@ BRANCH_TABLE_PRECIS_DESCR = \
     ["Description", gobject.TYPE_STRING, True, []],
 ]
 
-class BranchesTableView(PrecisTableView):
+class BranchesTableView(ChangeSetTableView):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
         ptype = PrecisType(BRANCH_TABLE_PRECIS_DESCR, ifce.SCM.get_branches_data)
-        PrecisTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
+        ChangeSetTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
 
 BRANCH_LIST_DESCR = \
 [

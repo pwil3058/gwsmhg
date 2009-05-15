@@ -106,7 +106,7 @@ class PathTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
     def _pull_from_acb(self, action):
         path = self.get_selected_path()
         self._show_busy()
-        result = self._ifce.SCM.do_pull_from(path=path)
+        result = self._ifce.SCM.do_pull_from(source=path)
         self._unshow_busy()
         self._report_any_problems(result)
     def _push_to_acb(self, action):
@@ -117,10 +117,10 @@ class PathTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
         self._report_any_problems(result)
 
 
-class PathCSTableView(change_set.PrecisTableView):
+class PathCSTableView(change_set.ChangeSetTableView):
     def __init__(self, ifce, get_data, path=None, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None):
         ptype = change_set.PrecisType(change_set.LOG_TABLE_PRECIS_DESCR, get_data)
-        change_set.PrecisTableView.__init__(self, ifce, ptype, sel_mode=sel_mode,
+        change_set.ChangeSetTableView.__init__(self, ifce, ptype, sel_mode=sel_mode,
             busy_indicator=busy_indicator)
         self._action_group[change_set.UNIQUE_SELECTION_NOT_PMIC].set_visible(False)
         self.set_size_request(640, 160)

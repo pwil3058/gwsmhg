@@ -133,7 +133,7 @@ class BaseInterface(utils.action_notifier):
         if serr:
             return (cmd_result.ERROR, "", serr)
         return (cmd_result.OK, "", "")
-    def do_pull(self, rev=None, update=False, source=None):
+    def do_pull_from(self, rev=None, update=False, source=None):
         cmd = "hg pull"
         if update:
             cmd += " -u"
@@ -141,7 +141,10 @@ class BaseInterface(utils.action_notifier):
             cmd += " -r %s" % rev
         if source:
             cmd += " %s" % source
-        return self._run_cmd_on_console(cmd)
+        result = self._run_cmd_on_console(cmd)
+        if cmd_result.is_less_than_error(result[0]):
+            self._do_cmd_notification("pull")
+        return result
 
 class SCMInterface(BaseInterface):
     def __init__(self, console_log):
@@ -899,11 +902,10 @@ class PMInterface(BaseInterface):
         self._ws_update_mgr.start(result[2], "qsaved")
         self._do_cmd_notification("qsave-pfu")
         return result
-    def do_pull(self, rev=None, source=None):
-        result = BaseInterface.do_pull(self, rev=rev, source=source)
-        if not result[0]:
+    def do_pull_from(self, rev=None, source=None):
+        result = BaseInterface.do_pull_from(self, rev=rev, source=source)
+        if cmd_result.is_less_than_error(result[0]):
             self._ws_update_mgr.set_state("pulled")
-            self._do_cmd_notification("pull")
         return result
     def do_update_workspace(self, rev=None):
         cmd = "hg update -C"
