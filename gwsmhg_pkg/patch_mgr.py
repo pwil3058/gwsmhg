@@ -15,7 +15,7 @@
 
 import gtk, gobject, pango, os, tempfile, re
 from gwsmhg_pkg import cmd_result, gutils, file_tree, icons, text_edit, utils
-from gwsmhg_pkg import change_set, diff
+from gwsmhg_pkg import change_set, diff, path
 
 class PatchFileTreeStore(file_tree.FileTreeStore):
     def __init__(self, ifce, patch=None, view=None):
@@ -902,10 +902,20 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         self._report_any_problems((res, sout, serr))
     def do_pull_to_repository(self, action=None):
         self._show_busy()
-        result = self._ifce.PM.do_pull_from()
-        self._set_ws_update_menu_sensitivity()
+        dialog = path.PullDialog(self._ifce)
         self._unshow_busy()
-        self._report_any_problems(result)
+        response = dialog.run()
+        if response == gtk.RESPONSE_OK:
+            source = dialog.get_path()
+            rev = dialog.get_revision()
+            dialog.destroy()
+            self._show_busy()
+            result = self._ifce.PM.do_pull_from(source=source, rev=rev)
+            self._set_ws_update_menu_sensitivity()
+            self._unshow_busy()
+            self._report_any_problems(result)
+        else:
+            dialog.destroy()
     def do_update_workspace(self, action=None):
         self._show_busy()
         result = self._ifce.PM.do_update_workspace()

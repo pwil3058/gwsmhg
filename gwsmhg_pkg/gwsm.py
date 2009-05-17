@@ -40,7 +40,7 @@ class WSPathView(gutils.TableView):
         self._alias_ctr = self.get_column(WS_ALIAS).get_cell_renderers()[0]
         self._alias_ctr.connect("edited", self._edited_cb, self.get_model())
         self.set_size_request(480, 160)
-        model = self.get_model()
+#        model = self.get_model()
 #        model.set_sort_func(WS_ALIAS, self._sort_func, WS_ALIAS)
 #        model.set_sort_func(WS_PATH, self._sort_func, WS_PATH)
         self.read_saved_ws_file()

@@ -13,7 +13,7 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import gtk, gobject
+import gtk, gobject, os
 from gwsmhg_pkg import gutils, cmd_result, change_set, icons, file_tree, diff
 
 PATH_TABLE_PRECIS_DESCR = \
@@ -254,4 +254,119 @@ class OutgoingCSDialog(PathCSDialog):
             title="Outgoing")
     def get_data(self):
         return self._ifce.SCM.get_outgoing_table_data(self._path)
+
+class PathSelectTableView(gutils.TableView, cmd_result.ProblemReporter):
+    def __init__(self, ifce):
+        self._ifce = ifce
+        cmd_result.ProblemReporter.__init__(self)
+        gutils.TableView.__init__(self, descr=PATH_TABLE_PRECIS_DESCR, sel_mode=gtk.SELECTION_SINGLE)
+        self.populate()
+        self.show_all()
+    def populate(self):
+        res, data, serr = self._ifce.SCM.get_path_table_data()
+        if res == cmd_result.OK and data:
+            self.set_contents(data)
+        else:
+            self.set_contents([])
+    def get_selected_path_alias(self):
+        data = self.get_selected_data([0])
+        if len(data):
+            return data[0][0]
+        else:
+            return ""
+    def get_selected_path(self):
+        data = self.get_selected_data([1])
+        if len(data):
+            return data[0][0]
+        else:
+            return ""
+
+class PullDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
+    def __init__(self, ifce, parent=None):
+        self._ifce = ifce
+        gutils.BusyIndicator.__init__(self)
+        gutils.BusyIndicatorUser.__init__(self, self)
+        gtk.Dialog.__init__(self, title="gwsmg: Pull From (Up To)", parent=parent,
+                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
+                            buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                    gtk.STOCK_OK, gtk.RESPONSE_OK)
+                           )
+        if not parent:
+            self.set_icon_from_file(icons.app_icon_file)
+        hbox = gtk.HBox()
+        self.path_view = PathSelectTableView(ifce=ifce)
+        self.path_view.get_selection().connect("changed", self._selection_cb)
+        hbox.pack_start(gutils.wrap_in_scrolled_window(self.path_view))
+        self._select_button = gtk.Button(label="_Select")
+        self._select_button.connect("clicked", self._select_cb)
+        hbox.pack_start(self._select_button, expand=False, fill=False)
+        self.vbox.pack_start(hbox)
+        hbox = gtk.HBox()
+        hbox.pack_start(gtk.Label("Path:"))
+        self._path = gutils.EntryWithHistory()
+        self._path.set_width_chars(32)
+        self._path.set_text("default")
+        self._path.connect("activate", self._path_cb)
+        hbox.pack_start(self._path, expand=True, fill=True)
+        self._browse_path_button = gtk.Button(label="_Browse")
+        self._browse_path_button.connect("clicked", self._browse_path_cb)
+        hbox.pack_start(self._browse_path_button, expand=False, fill=False)
+        self.vbox.pack_start(hbox, expand=False, fill=False)
+        hbox = gtk.HBox()
+        self._upto_toggle = gtk.CheckButton(label="Up To Revision:")
+        self._upto_toggle.connect("toggled", self._toggle_cb)
+        hbox.pack_start(self._upto_toggle, expand=False, fill=False)
+        self._revision = gutils.EntryWithHistory()
+        self._revision.set_width_chars(32)
+        self._revision.set_sensitive(self._upto_toggle.get_active())
+        self._revision.connect("activate", self._revision_cb)
+        hbox.pack_start(self._revision, expand=True, fill=True)
+        self._incoming_button = gtk.Button(label="_Incoming")
+        self._incoming_button.connect("clicked", self._incoming_cb)
+        self._incoming_button.set_sensitive(self._upto_toggle.get_active())
+        hbox.pack_start(self._incoming_button, expand=False, fill=False)
+        self.vbox.pack_start(hbox, expand=False, fill=False)
+        self.show_all()
+        self.path_view.get_selection().unselect_all()
+    def _selection_cb(self, selection=None):
+        self._select_button.set_sensitive(selection.count_selected_rows())
+    def _select_cb(self, button=None):
+        path = self.path_view.get_selected_path_alias()
+        self._path.set_text(path)
+    def _toggle_cb(self, toggle=None):
+        self._revision.set_sensitive(self._upto_toggle.get_active())
+        self._incoming_button.set_sensitive(self._upto_toggle.get_active())
+    def _path_cb(self, entry=None):
+        self.response(gtk.RESPONSE_OK)
+    def _revision_cb(self, entry=None):
+        self.response(gtk.RESPONSE_OK)
+    def _browse_path_cb(self, button=None):
+        dirname = gutils.ask_dir_name("gwsmhg: Browse for Path", existing=True, parent=self)
+        if dirname:
+            self._path.set_text(dirname)
+    def _get_incoming_data(self):
+        return self._ifce.SCM.get_incoming_table_data(self.get_path())
+    def _incoming_cb(self, button=None):
+        self._show_busy()
+        title = "Choose Revision"
+        ptype = change_set.PrecisType(descr=change_set.LOG_TABLE_PRECIS_DESCR,
+            get_data=self._get_incoming_data)
+        dialog = change_set.SelectDialog(ifce=self._ifce, ptype=ptype, title=title, parent=self)
+        self._unshow_busy()
+        response = dialog.run()
+        if response == gtk.RESPONSE_OK:
+            self._revision.set_text(dialog.get_change_set())
+        dialog.destroy()
+    def get_path(self):
+        path = os.path.expanduser(self._path.get_text())
+        if path:
+            return path
+        else:
+            return None
+    def get_revision(self):
+        revision = self._revision.get_text()
+        if revision:
+            return revision
+        else:
+            return None
 
