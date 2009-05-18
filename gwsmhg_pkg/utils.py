@@ -118,7 +118,15 @@ class action_notifier:
             if self._notification_cbs.has_key(cmd):
                 try:
                     i = self._notification_cbs[cmd].index(cb)
-                    self._notification_cbs[cmd].index(cb)[i:i+1] = []
+                    del self._notification_cbs[cmd][i]
+                except:
+                    pass
+    def del_cmd_notification_cbs(self, cmd, cb_list):
+        if self._notification_cbs.has_key(cmd):
+            for cb in cb_list:
+                try:
+                    i = self._notification_cbs[cmd].index(cb)
+                    del self._notification_cbs[cmd][i]
                 except:
                     pass
     def _do_cmd_notification(self, cmd, data=None):
@@ -133,7 +141,7 @@ class action_notifier:
                     else:
                         cb()
                 except:
-                    failures.append(cmd)
+                    failures.append(cb)
             if failures:
-                self.del_notification_cb(failures, cb)
+                self.del_cmd_notification_cbs(cmd, failures)
 
