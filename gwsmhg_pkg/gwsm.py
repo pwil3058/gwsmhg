@@ -15,7 +15,7 @@
 
 import os, gtk, gobject, sys
 from gwsmhg_pkg import console, change_set, file_tree, gutils, utils, patch_mgr
-from gwsmhg_pkg import icons, path
+from gwsmhg_pkg import icons, path, cmd_result
 
 WS_TABLE_DESCR = \
 [
@@ -154,21 +154,36 @@ GWSM_UI_DESCR = \
   <menubar name="gwsm_menubar">
     <menu name="gwsm_wd" action="gwsm_working_directory">
       <menuitem action="gwsm_change_wd"/>
+      <menuitem action="gwsm_init_wd"/>
       <menuitem action="gwsm_quit"/>
     </menu>
   </menubar>
 </ui>
 '''
 
-class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser):
+ALWAYS_AVAILABLE="gwsm_always_avail"
+IN_VALID_SCM_REPO="gwsm_in_valid_repo"
+NOT_IN_VALID_SCM_REPO="gwsm_not_in_valid_repo"
+
+GWSM_CONDITIONS = [ALWAYS_AVAILABLE,
+                   IN_VALID_SCM_REPO,
+                   NOT_IN_VALID_SCM_REPO,
+                  ]
+
+class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_result.ProblemReporter):
     def __init__(self, ifce):
         gtk.Window.__init__(self, gtk.WINDOW_TOPLEVEL)
         gutils.BusyIndicator.__init__(self)
         gutils.BusyIndicatorUser.__init__(self, self)
+        cmd_result.ProblemReporter.__init__(self)
         self.set_icon_from_file(icons.app_icon_file)
         self.connect("destroy", self._quit)
-        self._action_group = gtk.ActionGroup("gwsm")
-        self._action_group.add_actions(
+        self._action_group = {}
+        self._ui_manager = gtk.UIManager()
+        for condition in GWSM_CONDITIONS:
+            self._action_group[condition] = gtk.ActionGroup(condition)
+            self._ui_manager.insert_action_group(self._action_group[condition], -1)
+        self._action_group[ALWAYS_AVAILABLE].add_actions(
             [
                 ("gwsm_working_directory", None, "_Working Directory"),
                 ("gwsm_change_wd", gtk.STOCK_OPEN, "_Open", "",
@@ -176,8 +191,11 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser):
                 ("gwsm_quit", gtk.STOCK_QUIT, "_Quit", "",
                  "Quit", self._quit),
             ])
-        self._ui_manager = gtk.UIManager()
-        self._ui_manager.insert_action_group(self._action_group, -1)
+        self._action_group[NOT_IN_VALID_SCM_REPO].add_actions(
+            [
+                ("gwsm_init_wd", gtk.STOCK_APPLY, "_Initialise", "",
+                 "Initialise the current working directory", self._init_wd_acb),
+            ])
         self._ui_manager.add_ui_from_string(GWSM_UI_DESCR)
         self._menubar = self._ui_manager.get_widget("/gwsm_menubar")
         self._tooltips = gtk.Tooltips()
@@ -204,6 +222,7 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser):
         else:
             os.chdir(rootdir)
             open_dialog = None # we need this later
+        self._update_sensitivities()
         self._parent_view = change_set.ParentsTableView(self._ifce)
         self._file_tree_widget = file_tree.ScmCwdFilesWidget(ifce=self._ifce,
             busy_indicator=self.get_busy_indicator(), tooltips=self._tooltips)
@@ -245,17 +264,22 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser):
         gtk.main_quit()
     def _update_title(self):
         self.set_title("gwsm%s: %s" % (self._ifce.SCM.name, utils.path_rel_home(os.getcwd())))
-    def _change_wd(self, newdir=None):
-        if newdir:
-            os.chdir(newdir)
-        else:
-            newdir = os.getcwd()
-        # This is where'll we get the appropriate SCM interface in later versions
-        newrootdir = self._ifce.SCM.get_root()
-        if newrootdir and newrootdir != newdir:
-            os.chdir(newrootdir)
+    def _update_sensitivities(self):
+        in_valid_repo = self._ifce.SCM.get_root() != None
+        self._action_group[NOT_IN_VALID_SCM_REPO].set_sensitive(not in_valid_repo)
+        self._action_group[IN_VALID_SCM_REPO].set_sensitive(in_valid_repo)
+#    def _change_wd(self, newdir=None):
+#        if newdir:
+#            os.chdir(newdir)
+#        else:
+#            newdir = os.getcwd()
+#        # This is where'll we get the appropriate SCM interface in later versions
+#        newrootdir = self._ifce.SCM.get_root()
+#        if newrootdir and newrootdir != newdir:
+#            os.chdir(newrootdir)
     def _reset_after_cd(self):
         self._show_busy()
+        self._update_sensitivities()
         self._ifce.log.append_entry("New Working Directory: %s" % os.getcwd())
         self._parent_view.update_for_chdir()
         self._history_view.update_for_chdir()
@@ -286,4 +310,15 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser):
                     self._reset_after_cd()
         else:
             open_dialog.destroy()
+    def _init_wd_acb(self, action=None):
+        result = self._ifce.SCM.do_init()
+        self._report_any_problems(result)
+        if self._ifce.SCM.get_root():
+            file = open(SAVED_WS_FILE_NAME, 'a')
+            cwd = utils.path_rel_home(os.getcwd())
+            alias = os.path.basename(cwd)
+            file.write(os.pathsep.join([alias, cwd]))
+            file.write(os.linesep)
+            file.close()
+            
 

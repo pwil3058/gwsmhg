@@ -219,6 +219,7 @@ class HeadsTableView(ChangeSetTableView):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
         ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, ifce.SCM.get_heads_data)
         ChangeSetTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
+        self._ifce.SCM.add_notification_cb(["init"], self.refresh_contents_if_mapped)
 
 class HistoryTableView(ChangeSetTableView):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):

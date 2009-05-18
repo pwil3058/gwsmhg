@@ -523,6 +523,14 @@ class SCMInterface(BaseInterface):
             dat = de.match(line)
             tag_list.append([dat.group(1)])
         return (res, tag_list, serr)
+    def do_init(self, dir=None):
+        if dir:
+            cmd = "hg init %s" % dir
+        else:
+            cmd = "hg init"
+        result = self._run_cmd_on_console(cmd)
+        self._do_cmd_notification("init")
+        return result
     def do_commit_change(self, msg, file_list=[]):
         cmd = "hg -v commit"
         if msg:
