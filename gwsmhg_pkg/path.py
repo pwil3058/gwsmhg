@@ -208,17 +208,79 @@ class IncomingCSSummaryDialog(change_set.ChangeSetSummaryDialog):
     def get_parents_view(self):
         return IncomingParentsTableView(self._ifce, self._rev, self._path)
 
+INCOMING_TABLE_UI_DESCR = \
+'''
+<ui>
+  <popup name="table_popup">
+    <placeholder name="top">
+      <menuitem action="cs_pull_to"/>
+    </placeholder>
+    <separator/>
+    <placeholder name="middle">
+    </placeholder>
+    <separator/>
+    <placeholder name="bottom"/>
+  </popup>
+</ui>
+'''
+
 class IncomingTableView(PathCSTableView):
     def __init__(self, ifce, get_data, path=None, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None):
         self._path = path
         PathCSTableView.__init__(self, ifce=ifce, get_data=get_data, path=path,
             sel_mode=sel_mode, busy_indicator=busy_indicator)
+        self._action_group[UNIQUE_SELECTION].add_actions(
+            [
+                ("cs_pull_to", gtk.STOCK_EXECUTE, "Pull To", None,
+                 "Pull up to the selected change set", self._pull_to_cs_acb),
+            ])
+        self.cwd_merge_id.append(self._ui_manager.add_ui_from_string(INCOMING_TABLE_UI_DESCR))
+    def _pull_to_cs_acb(self, action):
+        rev = self.get_selected_change_set()
+        self._show_busy()
+        self._ifce.SCM.do_pull_from(rev=rev, source=self._path)
+        self._refresh_contents()
+        self._unshow_busy()
     def _view_cs_summary_acb(self, action):
         rev = self.get_selected_change_set()
         self._show_busy()
         dialog = IncomingCSSummaryDialog(self._ifce, rev, self._path)
         self._unshow_busy()
         dialog.show()
+
+OUTGOING_TABLE_UI_DESCR = \
+'''
+<ui>
+  <popup name="table_popup">
+    <placeholder name="top">
+      <menuitem action="cs_push_to"/>
+    </placeholder>
+    <separator/>
+    <placeholder name="middle">
+    </placeholder>
+    <separator/>
+    <placeholder name="bottom"/>
+  </popup>
+</ui>
+'''
+
+class OutgoingTableView(PathCSTableView):
+    def __init__(self, ifce, get_data, path=None, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None):
+        self._path = path
+        PathCSTableView.__init__(self, ifce=ifce, get_data=get_data, path=path,
+            sel_mode=sel_mode, busy_indicator=busy_indicator)
+        self._action_group[UNIQUE_SELECTION].add_actions(
+            [
+                ("cs_push_to", gtk.STOCK_EXECUTE, "Push To", None,
+                 "Push up to the selected change set", self._push_to_cs_acb),
+            ])
+        self.cwd_merge_id.append(self._ui_manager.add_ui_from_string(OUTGOING_TABLE_UI_DESCR))
+    def _push_to_cs_acb(self, action):
+        rev = self.get_selected_change_set()
+        self._show_busy()
+        self._ifce.SCM.do_push_to(rev=rev, path=self._path)
+        self._refresh_contents()
+        self._unshow_busy()
 
 class PathCSDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
     def __init__(self, ifce, get_data, title, path=None, table=PathCSTableView, parent=None):
@@ -251,7 +313,7 @@ class IncomingCSDialog(PathCSDialog):
 class OutgoingCSDialog(PathCSDialog):
     def __init__(self, ifce, path):
         PathCSDialog.__init__(self, ifce=ifce, get_data=self.get_data, path=path,
-            title="Outgoing")
+            title="Outgoing", table=OutgoingTableView)
     def get_data(self):
         return self._ifce.SCM.get_outgoing_table_data(self._path)
 
