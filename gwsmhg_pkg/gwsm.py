@@ -310,6 +310,7 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
         self.show_all()
         self._update_title()
         self._parent_view.get_selection().unselect_all()
+        self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self._update_sensitivities)
         if open_dialog:
             open_dialog._unshow_busy()
             open_dialog.destroy()
@@ -319,8 +320,13 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
         self.set_title("gwsm%s: %s" % (self._ifce.SCM.name, utils.path_rel_home(os.getcwd())))
     def _update_sensitivities(self):
         in_valid_repo = self._ifce.SCM.get_root() != None
+        if in_valid_repo:
+            pm_ic = self._ifce.PM.get_in_progress()
+        else:
+            pm_ic = False
         self._action_group[NOT_IN_VALID_SCM_REPO].set_sensitive(not in_valid_repo)
         self._action_group[IN_VALID_SCM_REPO].set_sensitive(in_valid_repo)
+        self._action_group[IN_VALID_SCM_REPO_NOT_PMIC].set_sensitive(in_valid_repo and not pm_ic)
 #    def _change_wd(self, newdir=None):
 #        if newdir:
 #            os.chdir(newdir)
