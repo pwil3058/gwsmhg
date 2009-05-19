@@ -705,11 +705,11 @@ class PMInterface(BaseInterface):
             return (cmd_result.OK, [], "")
         cmd = "hg status -mardC"
         if patch:
-            cmd += " --rev %s" % patch
             parent = self.get_parent(patch)
+            cmd += " --rev %s --rev %s" % (parent, patch)
         else:
             parent = self.get_parent(top)
-        cmd += " --rev %s" % parent
+            cmd += " --rev %s" % parent
         res, sout, serr = utils.run_cmd(cmd)
         if res != 0:
             return (res, [], sout + serr)
