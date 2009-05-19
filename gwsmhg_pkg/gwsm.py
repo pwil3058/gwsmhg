@@ -15,7 +15,7 @@
 
 import os, gtk, gobject, sys
 from gwsmhg_pkg import console, change_set, file_tree, gutils, utils, patch_mgr
-from gwsmhg_pkg import icons, path, cmd_result
+from gwsmhg_pkg import icons, path, cmd_result, diff
 
 WS_TABLE_DESCR = \
 [
@@ -151,6 +151,22 @@ class WSOpenDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
 GWSM_UI_DESCR = \
 '''
 <ui>
+  <toolbar name="gwsm_toolbar">
+    <placeholder name="gwsm_ws_tools">
+      <toolitem name="Diff" action="gwsm_diff_ws"/>
+      <toolitem name="Commit" action="gwsm_commit_ws"/>
+      <toolitem name="Tag" action="gwsm_tag_ws"/>
+      <toolitem name="Branch" action="gwsm_branch_ws"/>
+      <toolitem name="Checkout" action="gwsm_checkout_ws"/>
+      <toolitem name="Update" action="gwsm_update_ws"/>
+    </placeholder>
+    <separator/>
+    <placeholder name="gwsm_repo_tools">
+      <toolitem name="Pull" action="gwsm_pull_repo"/>
+      <toolitem name="Push" action="gwsm_push_repo"/>
+      <toolitem name="Verify" action="gwsm_verify_repo"/>
+    </placeholder>
+  </toolbar>
   <menubar name="gwsm_menubar">
     <menu name="gwsm_wd" action="gwsm_working_directory">
       <menuitem action="gwsm_change_wd"/>
@@ -164,10 +180,12 @@ GWSM_UI_DESCR = \
 ALWAYS_AVAILABLE="gwsm_always_avail"
 IN_VALID_SCM_REPO="gwsm_in_valid_repo"
 NOT_IN_VALID_SCM_REPO="gwsm_not_in_valid_repo"
+IN_VALID_SCM_REPO_NOT_PMIC="gwsm_in_valid_repo_not_pmic"
 
 GWSM_CONDITIONS = [ALWAYS_AVAILABLE,
                    IN_VALID_SCM_REPO,
                    NOT_IN_VALID_SCM_REPO,
+                   IN_VALID_SCM_REPO_NOT_PMIC,
                   ]
 
 class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_result.ProblemReporter):
@@ -178,26 +196,6 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
         cmd_result.ProblemReporter.__init__(self)
         self.set_icon_from_file(icons.app_icon_file)
         self.connect("destroy", self._quit)
-        self._action_group = {}
-        self._ui_manager = gtk.UIManager()
-        for condition in GWSM_CONDITIONS:
-            self._action_group[condition] = gtk.ActionGroup(condition)
-            self._ui_manager.insert_action_group(self._action_group[condition], -1)
-        self._action_group[ALWAYS_AVAILABLE].add_actions(
-            [
-                ("gwsm_working_directory", None, "_Working Directory"),
-                ("gwsm_change_wd", gtk.STOCK_OPEN, "_Open", "",
-                 "Change current working directory", self._change_wd_acb),
-                ("gwsm_quit", gtk.STOCK_QUIT, "_Quit", "",
-                 "Quit", self._quit),
-            ])
-        self._action_group[NOT_IN_VALID_SCM_REPO].add_actions(
-            [
-                ("gwsm_init_wd", gtk.STOCK_APPLY, "_Initialise", "",
-                 "Initialise the current working directory", self._init_wd_acb),
-            ])
-        self._ui_manager.add_ui_from_string(GWSM_UI_DESCR)
-        self._menubar = self._ui_manager.get_widget("/gwsm_menubar")
         self._tooltips = gtk.Tooltips()
         self._tooltips.enable()
         self._ifce = ifce(busy_indicator=self.get_busy_indicator(), tooltips=self._tooltips)
@@ -222,6 +220,60 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
         else:
             os.chdir(rootdir)
             open_dialog = None # we need this later
+        self._action_group = {}
+        self._ui_manager = gtk.UIManager()
+        for condition in GWSM_CONDITIONS:
+            self._action_group[condition] = gtk.ActionGroup(condition)
+            self._ui_manager.insert_action_group(self._action_group[condition], -1)
+        self._action_group[ALWAYS_AVAILABLE].add_actions(
+            [
+                ("gwsm_working_directory", None, "_Working Directory"),
+                ("gwsm_change_wd", gtk.STOCK_OPEN, "_Open", "",
+                 "Change current working directory", self._change_wd_acb),
+                ("gwsm_quit", gtk.STOCK_QUIT, "_Quit", "",
+                 "Quit", self._quit),
+            ])
+        self._action_group[NOT_IN_VALID_SCM_REPO].add_actions(
+            [
+                ("gwsm_init_wd", gtk.STOCK_APPLY, "_Initialise", "",
+                 "Initialise the current working directory", self._init_wd_acb),
+            ])
+        self._action_group[IN_VALID_SCM_REPO].add_actions(
+            [
+                ("gwsm_diff_ws", icons.STOCK_DIFF, "Diff", "",
+                 "View diff(s) for the current working directory",
+                 self._diff_ws_acb),
+                ("gwsm_pull_repo", icons.STOCK_PULL, "Pull", "",
+                 "Pull all available changes from the default path",
+                 self._pull_repo_acb),
+                ("gwsm_verify_repo", icons.STOCK_VERIFY, "Verify", "",
+                 "Verify the integrity of the repository",
+                 self._verify_repo_acb),
+            ])
+        self._action_group[IN_VALID_SCM_REPO_NOT_PMIC].add_actions(
+            [
+                ("gwsm_commit_ws", icons.STOCK_COMMIT, "Commit", "",
+                 "Commit all changes in the current working directory", 
+                 self._commit_ws_acb),
+                ("gwsm_tag_ws", icons.STOCK_TAG, "Tag", "",
+                 "Tag the parent of the current working directory", 
+                 self._tag_ws_acb),
+                ("gwsm_branch_ws", icons.STOCK_BRANCH, "Branch", "",
+                 "Set the branch for the current working directory", 
+                 self._branch_ws_acb),
+                ("gwsm_checkout_ws", icons.STOCK_CHECKOUT, "Checkout", "",
+                 "Check out a different revision in the current working directory", 
+                 self._checkout_ws_acb),
+                ("gwsm_update_ws", icons.STOCK_UPDATE, "Update", "",
+                 "Update the current working directory to the tip of the current branch", 
+                 self._update_ws_acb),
+                ("gwsm_push_repo", icons.STOCK_PUSH, "Push", "",
+                 "Push all available changes to the default path",
+                 self._push_repo_acb),
+            ])
+        self._ui_manager.add_ui_from_string(GWSM_UI_DESCR)
+        self._menubar = self._ui_manager.get_widget("/gwsm_menubar")
+        self._toolbar = self._ui_manager.get_widget("/gwsm_toolbar")
         self._update_sensitivities()
         self._parent_view = change_set.ParentsTableView(self._ifce)
         self._file_tree_widget = file_tree.ScmCwdFilesWidget(ifce=self._ifce,
@@ -246,6 +298,7 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
         vbox = gtk.VBox()
         vbox.pack_start(self._menubar, expand=False)
         vbox.pack_start(self._parent_view, expand=False)
+        vbox.pack_start(self._toolbar, expand=False)
         hpane = gtk.HPaned()
         vbox.pack_start(hpane, expand=True)
         hpane.add1(self._file_tree_widget)
@@ -320,5 +373,80 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
             file.write(os.pathsep.join([alias, cwd]))
             file.write(os.linesep)
             file.close()
-            
+    def _diff_ws_acb(self, action=None):
+        self._show_busy()
+        dialog = diff.ScmDiffTextDialog(parent=self, ifce=self._ifce, modal=False)
+        self._unshow_busy()
+        dialog.show()
+    def _commit_ws_acb(self, action=None):
+        self._show_busy()
+        dialog = file_tree.ScmCommitDialog(parent=self, ifce=self._ifce)
+        self._unshow_busy()
+        dialog.show()
+    def _tag_ws_acb(self, action=None):
+        self._show_busy()
+        dialog = gutils.ReadTextAndToggleDialog(title="gwsmhg: Specify Tag",
+            prompt="Tag:", toggle_prompt="Local", toggle_state=False, parent=self)
+        self._unshow_busy()
+        response = dialog.run()
+        if response == gtk.RESPONSE_CANCEL:
+            dialog.destroy()
+        else:
+            tag = dialog.entry.get_text()
+            local = dialog.toggle.get_active()
+            dialog.destroy()
+            self._show_busy()
+            result = self._ifce.SCM.do_set_tag(tag=tag, local=local)
+            self._unshow_busy()
+            self._report_any_problems(result)
+    def _branch_ws_acb(self, action=None):
+        self._show_busy()
+        dialog = gutils.ReadTextDialog(title="gwsmhg: Specify Branch",
+            prompt="Branch:", parent=self)
+        self._unshow_busy()
+        response = dialog.run()
+        if response == gtk.RESPONSE_CANCEL:
+            dialog.destroy()
+        else:
+            branch = dialog.entry.get_text()
+            dialog.destroy()
+            self._show_busy()
+            result = self._ifce.SCM.do_set_branch(branch=branch)
+            self._unshow_busy()
+            self._report_any_problems(result)
+    def _checkout_ws_acb(self, action=None):
+        self._show_busy()
+        dialog = change_set.ChangeSetSelectDialog(ifce=self._ifce, parent=self)
+        self._unshow_busy()
+        response = dialog.run()
+        if response == gtk.RESPONSE_CANCEL:
+            dialog.destroy()
+        else:
+            rev = dialog.get_change_set()
+            dialog.destroy()
+            if rev:
+                self._show_busy()
+                result = self._ifce.SCM.do_update_workspace(rev=rev, clean=False)
+                self._unshow_busy()
+                self._report_any_problems(result)
+    def _update_ws_acb(self, action=None):
+        self._show_busy()
+        result = self._ifce.SCM.do_update_workspace(rev=None, clean=False)
+        self._unshow_busy()
+        self._report_any_problems(result)
+    def _pull_repo_acb(self, action=None):
+        self._show_busy()
+        result = self._ifce.SCM.do_pull_from()
+        self._unshow_busy()
+        self._report_any_problems(result)
+    def _push_repo_acb(self, action=None):
+        self._show_busy()
+        result = self._ifce.SCM.do_push_to()
+        self._unshow_busy()
+        self._report_any_problems(result)
+    def _verify_repo_acb(self, action=None):
+        self._show_busy()
+        result = self._ifce.SCM.do_verify_repo()
+        self._unshow_busy()
+        self._report_any_problems(result)
 

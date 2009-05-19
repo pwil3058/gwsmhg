@@ -24,12 +24,21 @@ STOCK_FINISH_PATCH = "stock_finish_patch"
 STOCK_IMPORT_PATCH = "stock_import_patch"
 STOCK_APPLIED = "stock_applied"
 STOCK_MERGE = "stock_merge"
+STOCK_TAG = "stock_tag"
+STOCK_BRANCH = "stock_branch"
 APP_ICON = "gwsmhg"
+
+# Icons that have to be designed eventually (using GtK stock in the meantime)
+STOCK_PULL = gtk.STOCK_GO_FORWARD
+STOCK_PUSH = gtk.STOCK_GO_BACK
+STOCK_VERIFY = STOCK_APPLIED
+STOCK_CHECKOUT = gtk.STOCK_EXECUTE
+STOCK_UPDATE = gtk.STOCK_EXECUTE
 
 _icon_name_list = \
     [ STOCK_COMMIT, STOCK_DIFF, STOCK_POP_PATCH, STOCK_PUSH_PATCH,
       STOCK_FOLD_PATCH, STOCK_FINISH_PATCH, STOCK_IMPORT_PATCH, STOCK_APPLIED,
-      STOCK_MERGE,
+      STOCK_MERGE, STOCK_TAG, STOCK_BRANCH,
     ]
 
 # first look in the source directory

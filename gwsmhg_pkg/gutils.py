@@ -187,15 +187,23 @@ class ReadTextDialog(gtk.Dialog):
             self.set_position(gtk.WIN_POS_MOUSE)
         else:
             self.set_position(gtk.WIN_POS_CENTER_ON_PARENT)
-        hbox = gtk.HBox()
-        self.vbox.add(hbox)
-        hbox.show()
+        self.hbox = gtk.HBox()
+        self.vbox.add(self.hbox)
+        self.hbox.show()
         if prompt:
-            hbox.pack_start(gtk.Label(prompt), fill=False, expand=False)
+            self.hbox.pack_start(gtk.Label(prompt), fill=False, expand=False)
         self.entry = gtk.Entry()
         self.entry.set_width_chars(32)
         self.entry.set_text(suggestion)
-        hbox.pack_start(self.entry)
+        self.hbox.pack_start(self.entry)
+        self.show_all()
+
+class ReadTextAndToggleDialog(ReadTextDialog):
+    def __init__(self, title=None, prompt=None, suggestion="", toggle_prompt=None, toggle_state=False, parent=None):
+        ReadTextDialog.__init__(self, title=title, prompt=prompt, suggestion=suggestion, parent=parent)
+        self.toggle = gtk.CheckButton(label=toggle_prompt)
+        self.toggle.set_active(toggle_state)
+        self.hbox.pack_start(self.toggle)
         self.show_all()
 
 def get_modified_string(title, prompt, string):

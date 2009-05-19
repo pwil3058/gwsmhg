@@ -593,6 +593,28 @@ class SCMInterface(BaseInterface):
         if path:
             cmd += " %s" % path
         return self._run_cmd_on_console(cmd)
+    def do_verify_repo(self):
+        return self._run_cmd_on_console("hg verify")
+    def do_set_tag(self, tag, rev=None, local=False, force=False):
+        cmd = "hg tag"
+        if force:
+            cmd += " -f"
+        if local:
+            cmd += " -l"
+        if rev:
+            cmd += " -r %s" %rev
+        cmd += " %s" % tag
+        result = self._run_cmd_on_console(cmd)
+        self._do_cmd_notification("tag")
+        return result        
+    def do_set_branch(self, branch, force=False):
+        cmd = "hg tag"
+        if force:
+            cmd += " -f"
+        cmd += " %s" % branch
+        result = self._run_cmd_on_console(cmd)
+        self._do_cmd_notification("branch")
+        return result        
 
 class _WsUpdateStateMgr:
     # We save this data in a file so that it survives closing/opening the GUI

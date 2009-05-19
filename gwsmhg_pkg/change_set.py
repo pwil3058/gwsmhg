@@ -51,7 +51,7 @@ class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
         cmd_result.ProblemReporter.__init__(self)
         gutils.MapManagedTableView.__init__(self, descr=ptype.descr, sel_mode=sel_mode,
             busy_indicator=busy_indicator)
-        self._ifce.SCM.add_notification_cb(["commit"], self.refresh_contents_if_mapped)
+        self._ifce.SCM.add_notification_cb(["commit", "tag", "branch"], self.refresh_contents_if_mapped)
         self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.refresh_contents_if_mapped)
         self._ifce.log.add_notification_cb(["manual_cmd"], self.refresh_contents_if_mapped)
         for condition in [UNIQUE_SELECTION, UNIQUE_SELECTION_NOT_PMIC]:
