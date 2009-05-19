@@ -41,18 +41,16 @@ PATH_TABLE_UI_DESCR = \
 </ui>
 '''
 
-UNIQUE_SELECTION = "unique_selection"
-
 class PathTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
         self._ifce = ifce
         cmd_result.ProblemReporter.__init__(self)
         gutils.MapManagedTableView.__init__(self, descr=PATH_TABLE_PRECIS_DESCR,
             sel_mode=sel_mode, busy_indicator=self._ifce.log.get_busy_indicator())
-        for condition in [UNIQUE_SELECTION]:
+        for condition in [change_set.UNIQUE_SELECTION, change_set.UNIQUE_SELECTION_NOT_PMIC]:
             self._action_group[condition] = gtk.ActionGroup(condition)
             self._ui_manager.insert_action_group(self._action_group[condition], -1)
-        self._action_group[UNIQUE_SELECTION].add_actions(
+        self._action_group[change_set.UNIQUE_SELECTION].add_actions(
             [
                 ("view_incoming_from_path", gtk.STOCK_INFO, "Incoming", None,
                  "View the incoming change sets available to pull from the selected path",
@@ -63,6 +61,9 @@ class PathTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
                 ("pull_from_path", gtk.STOCK_EXECUTE, "Pull", None,
                  "Pull all available change sets from the selected path",
                  self._pull_from_acb),
+            ])
+        self._action_group[change_set.UNIQUE_SELECTION_NOT_PMIC].add_actions(
+            [
                 ("push_to_path", gtk.STOCK_EXECUTE, "Push", None,
                  "Push all available change sets to the selected path",
                  self._push_to_acb),
@@ -71,7 +72,8 @@ class PathTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
         self.show_all()
     def _set_action_sensitivities(self):
         sel = self.get_selection().count_selected_rows() == 1
-        self._action_group[UNIQUE_SELECTION].set_sensitive(sel)
+        self._action_group[change_set.UNIQUE_SELECTION].set_sensitive(sel)
+        self._action_group[change_set.UNIQUE_SELECTION_NOT_PMIC].set_sensitive(sel and not self._ifce.PM.get_in_progress())
     def _refresh_contents(self):
         res, data, serr = self._ifce.SCM.get_path_table_data()
         if res == cmd_result.OK and data:
@@ -122,7 +124,8 @@ class PathCSTableView(change_set.ChangeSetTableView):
         ptype = change_set.PrecisType(change_set.LOG_TABLE_PRECIS_DESCR, get_data)
         change_set.ChangeSetTableView.__init__(self, ifce, ptype, sel_mode=sel_mode,
             busy_indicator=busy_indicator)
-        self._action_group[change_set.UNIQUE_SELECTION_NOT_PMIC].set_visible(False)
+        self._action_group[change_set.UNIQUE_SELECTION_NOT_PMIC].get_action("cs_update_ws_to").set_visible(False)
+        self._action_group[change_set.UNIQUE_SELECTION_NOT_PMIC].get_action("cs_merge_ws_with").set_visible(False)
         self.set_size_request(640, 160)
 
 class IncomingParentsTableView(PathCSTableView):
@@ -229,7 +232,7 @@ class IncomingTableView(PathCSTableView):
         self._path = path
         PathCSTableView.__init__(self, ifce=ifce, get_data=get_data, path=path,
             sel_mode=sel_mode, busy_indicator=busy_indicator)
-        self._action_group[UNIQUE_SELECTION].add_actions(
+        self._action_group[change_set.UNIQUE_SELECTION].add_actions(
             [
                 ("cs_pull_to", gtk.STOCK_EXECUTE, "Pull To", None,
                  "Pull up to the selected change set", self._pull_to_cs_acb),
@@ -269,7 +272,7 @@ class OutgoingTableView(PathCSTableView):
         self._path = path
         PathCSTableView.__init__(self, ifce=ifce, get_data=get_data, path=path,
             sel_mode=sel_mode, busy_indicator=busy_indicator)
-        self._action_group[UNIQUE_SELECTION].add_actions(
+        self._action_group[change_set.UNIQUE_SELECTION_NOT_PMIC].add_actions(
             [
                 ("cs_push_to", gtk.STOCK_EXECUTE, "Push To", None,
                  "Push up to the selected change set", self._push_to_cs_acb),
