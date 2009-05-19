@@ -439,7 +439,7 @@ class ChangeSetSummaryDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndica
     def get_file_tree_view(self):
         return FileTreeView(self._ifce, self._rev, busy_indicator=self.get_busy_indicator())
     def get_parents_view(self):
-        return ParentsTableView(self._ifce, self._rev)
+        return ParentsTableView(self._ifce, self._rev, auto_refresh_on=False)
     def _add_label(self, text, component=None):
         hbox = gtk.HBox()
         hbox.pack_start(gtk.Label(text), expand=False, fill=False)
