@@ -15,6 +15,7 @@
 
 import gtk, gobject, os
 from gwsmhg_pkg import cmd_result, gutils, utils, icons, file_tree, diff
+from gwsmhg_pkg import text_edit
 
 CS_TABLE_BASIC_UI_DESCR = \
 '''
@@ -221,10 +222,98 @@ class HeadsTableView(ChangeSetTableView):
         ChangeSetTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
         self._ifce.SCM.add_notification_cb(["init"], self.refresh_contents_if_mapped)
 
+TAG_MSG_UI_DESCR = \
+'''
+<ui>
+  <toolbar name="tag_message_toolbar">
+    <toolitem action="summary_ack"/>
+    <toolitem action="summary_sign_off"/>
+    <toolitem action="summary_author"/>
+  </toolbar>
+</ui>
+'''
+
+class TagMessageWidget(gtk.VBox):
+    def __init__(self, ifce):
+        gtk.VBox.__init__(self)
+        self.view = text_edit.SummaryView(ifce=ifce)
+        self.view.get_ui_manager().add_ui_from_string(TAG_MSG_UI_DESCR)
+        hbox = gtk.HBox()
+        hbox.pack_start(gtk.Label("Message"), expand=False, fill=False)
+        toolbar = self.view.get_ui_widget("/tag_message_toolbar")
+        toolbar.set_style(gtk.TOOLBAR_ICONS)
+        toolbar.set_orientation(gtk.ORIENTATION_HORIZONTAL)
+        hbox.pack_end(toolbar, fill=False, expand=False)
+        self.pack_start(hbox, expand=False)
+        self.pack_start(gutils.wrap_in_scrolled_window(self.view))
+        self.show_all()
+    def get_msg(self):
+        return self.view.get_msg()
+
+class SetTagDialog(gutils.ReadTextAndToggleDialog, cmd_result.ProblemReporter):
+    def __init__(self, ifce, rev=None, parent=None):
+        self._ifce = ifce
+        self._rev = rev
+        cmd_result.ProblemReporter.__init__(self)
+        gutils.ReadTextAndToggleDialog.__init__(self, title="gwsmhg: Specify Tag",
+            prompt="Tag:", toggle_prompt="Local", toggle_state=False, parent=parent)
+        self.vbox.add(gtk.Label("Message"))
+        self.message = TagMessageWidget(ifce=ifce)
+        self.vbox.add(self.message)
+        self.connect("response", self._response_cb)
+        self.show_all()
+    def _response_cb(self, dialog, response_id):
+        self.hide()
+        if response_id == gtk.RESPONSE_CANCEL:
+            self.destroy()
+        else:
+            tag = self.entry.get_text()
+            local = self.toggle.get_active()
+            msg = self.message.get_msg()
+            result = self._ifce.SCM.do_set_tag(tag=tag, local=local, msg=msg, rev=self._rev)
+            if result[0] & cmd_result.SUGGEST_FORCE:
+                ans = gutils.ask_rename_force_or_cancel(result[1] + result[2], result[0])
+                if ans == gutils.EDIT:
+                    self.show()
+                    return
+                if ans == gutils.FORCE:
+                    result = self._ifce.SCM.do_set_tag(tag=tag, local=local, msg=msg, rev=self._rev, force=True)
+                    self._report_any_problems(result)
+            else:
+                self._report_any_problems(result)
+            self.destroy()
+
+HISTORY_TABLE_UI_DESCR = \
+'''
+<ui>
+  <popup name="table_popup">
+    <placeholder name="top"/>
+    <separator/>
+    <placeholder name="middle">
+      <menuitem action="cs_tag_selected"/>
+    </placeholder>
+    <separator/>
+    <placeholder name="bottom"/>
+  </popup>
+</ui>
+'''
+
 class HistoryTableView(ChangeSetTableView):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
         ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, ifce.SCM.get_history_data)
         ChangeSetTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
+        self._action_group[UNIQUE_SELECTION_NOT_PMIC].add_actions(
+            [
+                ("cs_tag_selected", icons.STOCK_TAG, "Tag", None,
+                 "Tag the selected change set",
+                 self._tag_cs_acb),
+            ])
+        self.cwd_merge_id.append(self._ui_manager.add_ui_from_string(HISTORY_TABLE_UI_DESCR))
+    def _tag_cs_acb(self, action=None):
+        rev = self.get_selected_change_set()
+        self._show_busy()
+        SetTagDialog(ifce=self._ifce, rev=str(rev)).run()
+        self._unshow_busy()
 
 TAG_TABLE_PRECIS_DESCR = \
 [

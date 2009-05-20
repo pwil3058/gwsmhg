@@ -166,9 +166,19 @@ class SCMInterface(BaseInterface):
             ]
         self.cs_summary_template = os.linesep.join(self.cs_summary_template_lines)
         self.cs_table_template = '{rev}:{date|age}:{tags}:{branches}:{author|person}:{desc|firstline}' + os.linesep
+    def _map_cmd_result(self, result, stdout_expected=True, ignore_err_re=None):
+        if not result[0]:
+            return cmd_result.map_cmd_result(result, stdout_expected=stdout_expected, ignore_err_re=ignore_err_re)
+        else:
+            flags = cmd_result.ERROR
+            if result[2].find('use -f to force') is not -1:
+                flags |= cmd_result.SUGGEST_FORCE
+            if result[2].find('already exists') is not -1:
+                flags |= cmd_result.SUGGEST_RENAME
+            return (flags, result[1], result[2])
     def _run_cmd_on_console(self, cmd, stdout_expected=True):
         result = utils.run_cmd_in_console(cmd, self._console_log)
-        return cmd_result.map_cmd_result(result, stdout_expected)
+        return self._map_cmd_result(result, stdout_expected)
     def get_default_commit_save_file(self):
         return os.path.join(".hg", "gwsmhg.saved.commit")
     def _get_first_in_envar(self, envar_list):
@@ -595,17 +605,22 @@ class SCMInterface(BaseInterface):
         return self._run_cmd_on_console(cmd)
     def do_verify_repo(self):
         return self._run_cmd_on_console("hg verify")
-    def do_set_tag(self, tag, rev=None, local=False, force=False):
+    def do_set_tag(self, tag, rev=None, local=False, force=False, msg=None):
+        if not tag:
+            return (cmd_result.OK, "", "")
         cmd = "hg tag"
         if force:
             cmd += " -f"
         if local:
             cmd += " -l"
         if rev:
-            cmd += " -r %s" %rev
+            cmd += " -r %s" % rev
+        if msg:
+            cmd += ' -m "%s"' % msg.replace('"', '\\"')
         cmd += " %s" % tag
         result = self._run_cmd_on_console(cmd)
-        self._do_cmd_notification("tag")
+        if cmd_result.is_less_than_error(result[0]):
+            self._do_cmd_notification("tag")
         return result        
     def do_set_branch(self, branch, force=False):
         cmd = "hg tag"

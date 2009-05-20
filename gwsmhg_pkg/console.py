@@ -141,14 +141,19 @@ class ConsoleLog(gtk.VBox, cmd_result.ProblemReporter, utils.action_notifier,
         self._buffer.clear()
     def start_cmd(self, cmd):
         self._buffer.start_cmd(cmd)
+        while gtk.events_pending(): gtk.main_iteration()
     def append_stdout(self, msg):
         self._buffer.append_stdout(msg)
+        while gtk.events_pending(): gtk.main_iteration()
     def append_stderr(self, msg):
         self._buffer.append_stderr(msg)
+        while gtk.events_pending(): gtk.main_iteration()
     def end_cmd(self):
         self._buffer.end_cmd()
+        while gtk.events_pending(): gtk.main_iteration()
     def append_entry(self, msg):
         self._buffer.append_entry(msg)
+        while gtk.events_pending(): gtk.main_iteration()
     def _cmd_entry_cb(self, entry):
         self._show_busy()
         text = entry.get_text_and_clear_to_history()

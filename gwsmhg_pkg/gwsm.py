@@ -391,20 +391,8 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
         dialog.show()
     def _tag_ws_acb(self, action=None):
         self._show_busy()
-        dialog = gutils.ReadTextAndToggleDialog(title="gwsmhg: Specify Tag",
-            prompt="Tag:", toggle_prompt="Local", toggle_state=False, parent=self)
+        change_set.SetTagDialog(ifce=self._ifce, parent=self).run()
         self._unshow_busy()
-        response = dialog.run()
-        if response == gtk.RESPONSE_CANCEL:
-            dialog.destroy()
-        else:
-            tag = dialog.entry.get_text()
-            local = dialog.toggle.get_active()
-            dialog.destroy()
-            self._show_busy()
-            result = self._ifce.SCM.do_set_tag(tag=tag, local=local)
-            self._unshow_busy()
-            self._report_any_problems(result)
     def _branch_ws_acb(self, action=None):
         self._show_busy()
         dialog = gutils.ReadTextDialog(title="gwsmhg: Specify Branch",
