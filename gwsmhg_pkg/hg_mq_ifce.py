@@ -819,31 +819,31 @@ class PMInterface(BaseInterface):
                 result = self._run_cmd_on_console("hg qpop -a")
         else:
             if force:
-                result = self._run_cmd_on_console("hg qgoto -f %s" % patch)
+                result = self._run_cmd_on_console("hg qpop -f %s" % patch)
             else:
-                result = self._run_cmd_on_console("hg qgoto %s" % patch)
+                result = self._run_cmd_on_console("hg qpop %s" % patch)
         self._do_cmd_notification("qpop")
         return result
     def do_push_to(self, patch=None, force=False, merge=False):
         if merge:
-            mflag = "-m"
+            cmd = "hg -y qpush -m"
         else:
-            mflag = ""
+            cmd = "hg qpush"
         if patch is None:
             if force:
-                result = self._run_cmd_on_console("hg qpush %s -f" % mflag, ignore_err_re=self._qpush_re)
+                result = self._run_cmd_on_console("%s -f" % cmd, ignore_err_re=self._qpush_re)
             else:
-                result = self._run_cmd_on_console("hg qpush %s" % mflag, ignore_err_re=self._qpush_re)
+                result = self._run_cmd_on_console(cmd, ignore_err_re=self._qpush_re)
         elif patch is "":
             if force:
-                result = self._run_cmd_on_console("hg qpush %s -f -a" % mflag, ignore_err_re=self._qpush_re)
+                result = self._run_cmd_on_console("%s -f -a" % cmd, ignore_err_re=self._qpush_re)
             else:
-                result = self._run_cmd_on_console("hg qpush %s -a" % mflag, ignore_err_re=self._qpush_re)
+                result = self._run_cmd_on_console("%s -a" % cmd, ignore_err_re=self._qpush_re)
         else:
             if force:
-                result = self._run_cmd_on_console("hg qgoto %s -f %s" % (mflag, patch), ignore_err_re=self._qpush_re)
+                result = self._run_cmd_on_console("%s -f %s" % (cmd, patch), ignore_err_re=self._qpush_re)
             else:
-                result = self._run_cmd_on_console("hg qgoto %s %s" % (mflag, patch), ignore_err_re=self._qpush_re)
+                result = self._run_cmd_on_console("%s %s" % (cmd, patch), ignore_err_re=self._qpush_re)
         self._do_cmd_notification("qpush")
         if not result[0] and merge and len(self.get_unapplied_patches()) == 0:
             self._ws_update_mgr.set_state("merged")
