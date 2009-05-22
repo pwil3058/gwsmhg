@@ -15,11 +15,13 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import subprocess, os, signal, errno, gtk, select
+import subprocess, os, signal, errno, gtk, select, urlparse
 
 HOME = os.path.expanduser("~")
 
 def path_rel_home(path):
+    if urlparse.urlparse(path).scheme:
+        return path
     path = os.path.abspath(path)
     len_home = len(HOME)
     if len(path) >= len_home and HOME == path[:len_home]:

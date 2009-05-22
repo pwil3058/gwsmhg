@@ -629,7 +629,14 @@ class SCMInterface(BaseInterface):
         cmd += " %s" % branch
         result = self._run_cmd_on_console(cmd)
         self._do_cmd_notification("branch")
-        return result        
+        return result
+    def do_clone_as(self, path, target=None):
+        cmd = "hg clone %s" % path
+        if target:
+            cmd += " %s" % target
+        result = self._run_cmd_on_console(cmd)
+        self._do_cmd_notification("clone")
+        return result
 
 class _WsUpdateStateMgr:
     # We save this data in a file so that it survives closing/opening the GUI

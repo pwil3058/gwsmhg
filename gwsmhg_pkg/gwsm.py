@@ -15,138 +15,7 @@
 
 import os, gtk, gobject, sys
 from gwsmhg_pkg import console, change_set, file_tree, gutils, utils, patch_mgr
-from gwsmhg_pkg import icons, path, cmd_result, diff
-
-WS_TABLE_DESCR = \
-[
-    ["Alias", gobject.TYPE_STRING, True, [("editable", True)]],
-    ["Path", gobject.TYPE_STRING, True, []],
-]
-
-WS_PATH = gutils.find_label_index(WS_TABLE_DESCR, "Path")
-WS_ALIAS = gutils.find_label_index(WS_TABLE_DESCR, "Alias")
-
-GSWMHG_D_NAME = os.sep.join([utils.HOME, ".gwsmhg.d"])
-SAVED_WS_FILE_NAME = os.sep.join([GSWMHG_D_NAME, "workspaces"]) 
-
-if not os.path.exists(GSWMHG_D_NAME):
-    os.mkdir(GSWMHG_D_NAME, 0775)
-
-class WSPathView(gutils.TableView):
-    def __init__(self):
-        gutils.TableView.__init__(self, WS_TABLE_DESCR,
-                                  sel_mode=gtk.SELECTION_SINGLE,
-                                  perm_headers=True)
-        self._alias_ctr = self.get_column(WS_ALIAS).get_cell_renderers()[0]
-        self._alias_ctr.connect("edited", self._edited_cb, self.get_model())
-        self.set_size_request(480, 160)
-#        model = self.get_model()
-#        model.set_sort_func(WS_ALIAS, self._sort_func, WS_ALIAS)
-#        model.set_sort_func(WS_PATH, self._sort_func, WS_PATH)
-        self.read_saved_ws_file()
-#        model.set_sort_column_id(WS_ALIAS, gtk.SORT_ASCENDING)
-#        self.set_headers_clickable(True)
-#    def _sort_func(self, model, iter1, iter2, index):
-#        v1 = model.get_value(iter1, index)
-#        v2 = model.get_value(iter2, index)
-#        if v1 < v2:
-#            return -1
-#        elif v1 > v2:
-#            return 1
-#        else:
-#            return 0
-    def read_saved_ws_file(self):
-        valid_ws_list = []
-        if not os.path.exists(SAVED_WS_FILE_NAME):
-            self.set_contents([])
-            return
-        file = open(SAVED_WS_FILE_NAME, 'r')
-        lines = file.readlines()
-        file.close()
-        for line in lines:
-            data = line.strip().split(os.pathsep, 1)
-            if os.path.exists(os.path.expanduser(data[WS_PATH])):
-                valid_ws_list.append(data)
-        self.set_contents(valid_ws_list)
-        self._write_list_to_file(valid_ws_list)
-        self.get_selection().unselect_all()
-    def _write_list_to_file(self, list):
-        file = open(SAVED_WS_FILE_NAME, 'w')
-        for ws in list:
-            file.write(os.pathsep.join(ws))
-            file.write(os.linesep)
-        file.close()
-    def add_ws(self, wspath, alias=""):
-        if os.path.exists(wspath):
-            store = self.get_model()
-            iter = store.get_iter_first()
-            while iter:
-                if os.path.samefile(os.path.expanduser(store.get_value(iter, WS_PATH)), wspath):
-                    if alias:
-                        store.set_value(iter, WS_ALIAS, alias)
-                    return
-                iter = store.iter_next(iter)
-            if not alias:
-                alias = os.path.basename(wspath)
-            data = ["",""]
-            data[WS_PATH] = utils.path_rel_home(wspath)
-            data[WS_ALIAS] = alias
-            store.append(data)
-            self.save_to_file()
-    def save_to_file(self):
-        list = self.get_contents()
-        self._write_list_to_file(list)
-    def get_selected_ws(self):
-        data = self.get_selected_data([WS_PATH, WS_ALIAS])
-        return data[0]
-    def _edited_cb(self, cell, wspath, new_text, model):
-        model[wspath][WS_ALIAS] = new_text
-        self.save_to_file()
-
-class WSOpenDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
-    def __init__(self, parent=None):
-        gutils.BusyIndicator.__init__(self)
-        gutils.BusyIndicatorUser.__init__(self, self)
-        gtk.Dialog.__init__(self, title="gwsmg: Select Workspace/Directory", parent=parent,
-                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
-                            buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                                    gtk.STOCK_OK, gtk.RESPONSE_OK)
-                           )
-        if not parent:
-            self.set_icon_from_file(icons.app_icon_file)
-        hbox = gtk.HBox()
-        self.wspath_view = WSPathView()
-        self.wspath_view.get_selection().connect("changed", self._selection_cb)
-        hbox.pack_start(gutils.wrap_in_scrolled_window(self.wspath_view))
-        self._select_button = gtk.Button(label="_Select")
-        self._select_button.connect("clicked", self._select_cb)
-        hbox.pack_start(self._select_button, expand=False, fill=False)
-        self.vbox.pack_start(hbox)
-        hbox = gtk.HBox()
-        hbox.pack_start(gtk.Label("Directory:"))
-        self._wspath = gutils.EntryWithHistory()
-        self._wspath.set_width_chars(32)
-        self._wspath.connect("activate", self._wspath_cb)
-        hbox.pack_start(self._wspath, expand=True, fill=True)
-        self._browse_button = gtk.Button(label="_Browse")
-        self._browse_button.connect("clicked", self._browse_cb)
-        hbox.pack_start(self._browse_button, expand=False, fill=False)
-        self.vbox.pack_start(hbox, expand=False, fill=False)
-        self.show_all()
-        self.wspath_view.get_selection().unselect_all()
-    def _selection_cb(self, selection=None):
-        self._select_button.set_sensitive(selection.count_selected_rows())
-    def _select_cb(self, button=None):
-        wspath = self.wspath_view.get_selected_ws()
-        self._wspath.set_text(wspath[0])
-    def _wspath_cb(self, entry=None):
-        self.response(gtk.RESPONSE_OK)
-    def _browse_cb(self, button=None):
-        dirname = gutils.ask_dir_name("gwsmhg: Browse for Directory", existing=True, parent=self)
-        if dirname:
-            self._wspath.set_text(utils.path_rel_home(dirname))
-    def get_wspath(self):
-        return os.path.expanduser(self._wspath.get_text())
+from gwsmhg_pkg import icons, path, cmd_result, diff, config
 
 GWSM_UI_DESCR = \
 '''
@@ -171,6 +40,7 @@ GWSM_UI_DESCR = \
     <menu name="gwsm_wd" action="gwsm_working_directory">
       <menuitem action="gwsm_change_wd"/>
       <menuitem action="gwsm_init_wd"/>
+      <menuitem action="gwsm_clone_repo_in_wd"/>
       <menuitem action="gwsm_quit"/>
     </menu>
   </menubar>
@@ -202,16 +72,16 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
         # see if we're in a valid work space and if not offer a selection
         rootdir = self._ifce.SCM.get_root()
         if not rootdir:
-            open_dialog = WSOpenDialog()
+            open_dialog = config.WSOpenDialog()
             if open_dialog.run() == gtk.RESPONSE_OK:
-                wspath = open_dialog.get_wspath()
+                wspath = open_dialog.get_path()
                 if wspath:
                     try:
                         os.chdir(wspath)
                         rootdir = self._ifce.SCM.get_root()
                         if rootdir:
                             os.chdir(rootdir)
-                            open_dialog.wspath_view.add_ws(rootdir)
+                            open_dialog.ap_view.add_ap(rootdir)
                     except:
                         pass
             else:
@@ -237,6 +107,9 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
             [
                 ("gwsm_init_wd", gtk.STOCK_APPLY, "_Initialise", "",
                  "Initialise the current working directory", self._init_wd_acb),
+                ("gwsm_clone_repo_in_wd", icons.STOCK_CLONE, "_Clone", "",
+                 "Clone a repository cd into the resultant working directory",
+                 self._clone_repo_acb),
             ])
         self._action_group[IN_VALID_SCM_REPO].add_actions(
             [
@@ -351,9 +224,9 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
         self._update_title()
         self._unshow_busy()
     def _change_wd_acb(self, action=None):
-        open_dialog = WSOpenDialog(parent=self)
+        open_dialog = config.WSOpenDialog(parent=self)
         if open_dialog.run() == gtk.RESPONSE_OK:
-            wspath = open_dialog.get_wspath()
+            wspath = open_dialog.get_path()
             if not wspath:
                 open_dialog.destroy()
             else:
@@ -362,7 +235,7 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
                 rootdir = self._ifce.SCM.get_root()
                 if rootdir:
                     os.chdir(rootdir)
-                    open_dialog.wspath_view.add_ws(rootdir)
+                    open_dialog.ap_view.add_ap(rootdir)
                     wspath = rootdir
                 open_dialog.destroy()
                 if not os.path.samefile(old_wspath, os.path.expanduser(wspath)):
@@ -373,12 +246,28 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
         result = self._ifce.SCM.do_init()
         self._report_any_problems(result)
         if self._ifce.SCM.get_root():
-            file = open(SAVED_WS_FILE_NAME, 'a')
-            cwd = utils.path_rel_home(os.getcwd())
-            alias = os.path.basename(cwd)
-            file.write(os.pathsep.join([alias, cwd]))
-            file.write(os.linesep)
-            file.close()
+            config.append_saved_ws(path=os.getcwd())
+    def _clone_repo_acb(self, action=None):
+        clone_dialog = config.RepoSelectDialog(parent=self)
+        if clone_dialog.run() == gtk.RESPONSE_OK:
+            clone_dialog.hide()
+            cloned_path = clone_dialog.get_path()
+            if not cloned_path:
+                clone_dialog.destroy()
+                return
+            target = clone_dialog.get_target()
+            self._show_busy()
+            result = self._ifce.SCM.do_clone_as(cloned_path, target)
+            self._unshow_busy()
+            if result[0]:
+                self._report_any_problems(result)
+                return
+            os.chdir(target)
+            config.append_saved_ws(path=os.getcwd(), alias=target)
+            self._reset_after_cd()
+            clone_dialog.ap_view.add_ap(cloned_path)
+        else:
+            clone_dialog.destroy()
     def _diff_ws_acb(self, action=None):
         self._show_busy()
         dialog = diff.ScmDiffTextDialog(parent=self, ifce=self._ifce, modal=False)

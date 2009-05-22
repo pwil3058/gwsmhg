@@ -609,7 +609,7 @@ class FileTreeView(_ViewWithActionGroups, gutils.PopupUser):
             model = FileTreeStore(show_hidden=show_hidden)
         _ViewWithActionGroups.__init__(self, busy_indicator, model=model, tooltips=tooltips)
         gutils.PopupUser.__init__(self)
-        self._refresh_interval = 10000 # milliseconds
+        self._refresh_interval = 60000 # milliseconds
         self._create_column(show_status)
         self.connect("row-expanded", model.on_row_expanded_cb)
         self.connect("row-collapsed", model.on_row_collapsed_cb)
