@@ -287,14 +287,14 @@ class OutgoingTableView(PathCSTableView):
 
 class PathCSDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
     def __init__(self, ifce, get_data, title, path=None, table=PathCSTableView, parent=None):
-        gutils.BusyIndicator.__init__(self)
-        gutils.BusyIndicatorUser.__init__(self, self)
         self._path = path
         self._ifce = ifce
         gtk.Dialog.__init__(self, title="gwsmg: %s: %s" % (title, path), parent=parent,
                             flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                             buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
                            )
+        gutils.BusyIndicator.__init__(self)
+        gutils.BusyIndicatorUser.__init__(self, self)
         if not parent:
             self.set_icon_from_file(icons.app_icon_file)
         self._view = table(ifce=ifce, get_data=get_data, path=path,

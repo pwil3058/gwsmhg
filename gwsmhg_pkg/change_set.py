@@ -213,7 +213,7 @@ class ParentsTableView(AUPrecisTableView):
 
 class ChangeSetTableView(PrecisTableView):
     def __init__(self, ifce, ptype, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None):
-        PrecisTableView.__init__(self, ifce=ifce, ptype=ptype, sel_mode=sel_mode)
+        PrecisTableView.__init__(self, ifce=ifce, ptype=ptype, sel_mode=sel_mode, busy_indicator=busy_indicator)
         self._ifce.SCM.add_notification_cb(["pull"], self.refresh_contents_if_mapped)
 
 class HeadsTableView(ChangeSetTableView):
