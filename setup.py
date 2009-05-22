@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-### Copyright (C) 2007 Peter Williams <pwil3058@bigpond.net.au>
+### Copyright (C) 2007 Peter Williams <peter_ono@users.sourceforge.net>
 
 ### This program is free software; you can redistribute it and/or modify
 ### it under the terms of the GNU General Public License as published by
