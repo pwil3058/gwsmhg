@@ -112,12 +112,13 @@ class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
 
 class AUPrecisTableView(PrecisTableView):
     def __init__(self, ifce, ptype, age_col, sel_mode=gtk.SELECTION_SINGLE,
+        busy_indicator=None,
         auto_refresh_on=True, auto_refresh_interval=3600000):
         self._age_col = age_col
         self.rtoc = gutils.RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
         self._normal_interval = auto_refresh_interval
         self.rtoc.set_function(self._refresh_contents)
-        PrecisTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
+        PrecisTableView.__init__(self, ifce, ptype, sel_mode=sel_mode, busy_indicator=busy_indicator)
     def _refresh_contents(self):
         res, parents, serr = self._ptype.get_data()
         if res == cmd_result.OK and parents:
@@ -197,13 +198,16 @@ LOG_TABLE_PRECIS_DESCR = \
 LOG_TABLE_PRECIS_AGE = gutils.find_label_index(LOG_TABLE_PRECIS_DESCR, "Age")
 
 class ParentsTableView(AUPrecisTableView):
-    def __init__(self, ifce, rev=None, sel_mode=gtk.SELECTION_SINGLE, auto_refresh_on=True, auto_refresh_interval=3600000):
+    def __init__(self, ifce, rev=None, sel_mode=gtk.SELECTION_SINGLE,
+        busy_indicator=None,
+        auto_refresh_on=True, auto_refresh_interval=3600000):
         self._rev = rev
         ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, self.get_parents_data)
         AUPrecisTableView.__init__(self, ifce, ptype, sel_mode=sel_mode,
                                    age_col = LOG_TABLE_PRECIS_AGE,
                                    auto_refresh_on=auto_refresh_on,
-                                   auto_refresh_interval=auto_refresh_interval)
+                                   auto_refresh_interval=auto_refresh_interval,
+                                   busy_indicator=busy_indicator)
         self._ifce.SCM.add_notification_cb(["update", "merge"], self.refresh_contents_if_mapped)
         self._action_group[UNIQUE_SELECTION_NOT_PMIC].get_action("cs_update_ws_to").set_visible(False)
         self._action_group[UNIQUE_SELECTION_NOT_PMIC].get_action("cs_merge_ws_with").set_visible(False)
@@ -528,7 +532,8 @@ class ChangeSetSummaryDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndica
     def get_file_tree_view(self):
         return FileTreeView(self._ifce, self._rev, busy_indicator=self.get_busy_indicator())
     def get_parents_view(self):
-        return ParentsTableView(self._ifce, self._rev, auto_refresh_on=False)
+        return ParentsTableView(self._ifce, self._rev, auto_refresh_on=False,
+            busy_indicator=self.get_busy_indicator())
     def _add_label(self, text, component=None):
         hbox = gtk.HBox()
         hbox.pack_start(gtk.Label(text), expand=False, fill=False)

@@ -137,7 +137,11 @@ class IncomingParentsTableView(PathCSTableView):
     def _view_cs_summary_acb(self, action):
         rev = self.get_selected_change_set()
         self._show_busy()
-        dialog = IncomingCSSummaryDialog(self._ifce, rev, self._path)
+        # a parent might be local so let's check
+        if self._ifce.SCM.get_is_incoming(rev, self._path):
+            dialog = IncomingCSSummaryDialog(self._ifce, rev, self._path)
+        else:
+            dialog = change_set.ChangeSetSummaryDialog(self._ifce, rev)
         self._unshow_busy()
         dialog.show()
     def get_table_data(self):
@@ -209,7 +213,8 @@ class IncomingCSSummaryDialog(change_set.ChangeSetSummaryDialog):
     def get_file_tree_view(self):
         return IncomingFileTreeView(self._ifce, self._rev, self._path, busy_indicator=self.get_busy_indicator())
     def get_parents_view(self):
-        return IncomingParentsTableView(self._ifce, self._rev, self._path)
+        return IncomingParentsTableView(self._ifce, self._rev, self._path,
+            busy_indicator=self.get_busy_indicator())
 
 INCOMING_TABLE_UI_DESCR = \
 '''

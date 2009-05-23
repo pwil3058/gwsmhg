@@ -364,6 +364,12 @@ class SCMInterface(BaseInterface):
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return (res, plist, serr)
+    def get_is_incoming(self, rev, path=None):
+        cmd = 'hg incoming -qnl1 --template "{rev}" --rev %s' % str(rev)
+        if path:
+            cmd += ' %s' % path
+        res, sout, serr = utils.run_cmd(cmd)
+        return sout == str(rev)
     def get_incoming_change_set_summary(self, rev, path=None):
         cmd = 'hg -q incoming --template "%s" -nl 1 --rev %s' % (self.cs_summary_template, rev)
         if path:
@@ -418,9 +424,9 @@ class SCMInterface(BaseInterface):
         if psout:
             parents = []
             for item in psout.split():
-                parents.append(item.split(":"))
+                parents.append(item.split(":")[0])
         else:
-            parents = [str(int(rev) + 1)]
+            parents = [str(int(rev) - 1)]
         return (res, parents, serr)
     def get_incoming_parents_table_data(self, rev, path=None):
         res, parents, serr = self.get_incoming_parents(rev, path)
@@ -429,16 +435,16 @@ class SCMInterface(BaseInterface):
         plist = []
         base_cmd = 'hg -q incoming --template "%s" -nl 1' % self.cs_table_template
         for parent in parents:
-            if path:
-                cmd = base_cmd + " --rev %s %s" % (parent[0], path)
-            else:
-                cmd = base_cmd + " --rev %s" % parent[0]
-            res, sout, serr = utils.run_cmd(cmd)
-            if res == 1:
+            if not self.get_is_incoming(parent, path):
                 # the parent is local
-                res, sublist, serr = self.get_history_data(rev=parent[1])
+                res, sublist, serr = self.get_history_data(rev=parent)
                 plist += sublist
                 continue
+            if path:
+                cmd = base_cmd + " --rev %s %s" % (parent, path)
+            else:
+                cmd = base_cmd + " --rev %s" % parent
+            res, sout, serr = utils.run_cmd(cmd)
             if res != 0:
                 return (res, sout, serr)
             pdata = sout.strip().split(":", 5)
