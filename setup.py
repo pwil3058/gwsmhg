@@ -22,7 +22,7 @@ VERSION='0.1'
 LONG_DESCRIPTION =\
 '''
 Mercurial (hg) is a distributed source control tool and Mercurial Queues (mq)
-is a patch management tool extension to hg. gWSMhg is a PyGTK GUI wrapper for
+is a patch management tool extension to hg. gwsmhg is a PyGTK GUI wrapper for
 hg and mq allowing them to be used in an integrated manner to manage a work
 space.
 '''
