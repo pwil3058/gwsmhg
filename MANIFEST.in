@@ -1,0 +1,6 @@
+include COPYING
+include MANIFEST.in
+include gwsmhg gwsmhg.desktop gwsmhg.png
+include *.py
+include gwsmhg_pkg/*.py
+include pixmaps/*.png

@@ -19,6 +19,14 @@ import os
 
 VERSION='0.1'
 
+LONG_DESCRIPTION =\
+'''
+Mercurial (hg) is a distributed source control tool and Mercurial Queues (mq)
+is a patch management tool extension to hg. gWSMhg is a PyGTK GUI wrapper for
+hg and mq allowing them to be used in an integrated manner to manage a work
+space.
+'''
+
 pixmaps = []
 for name in ['stock_commit.png', 'stock_diff.png', 'stock_applied.png',
              'stock_finish_patch.png', 'stock_fold_patch.png',
@@ -28,12 +36,23 @@ for name in ['stock_commit.png', 'stock_diff.png', 'stock_applied.png',
             ]:
     pixmaps.append(os.sep.join(["pixmaps", name]))
 
+LICENSE='GNU General Public License (GPL) Version 2.0'
+
 setup(name='gwsmhg',
       version=VERSION,
       description='a PyGTK GUI wrapper for hg and mq',
+      long_description=LONG_DESCRIPTION,
+      classifiers=[
+          'Development Status :: 4 - Beta',
+          'Intended Audience :: Developers',
+          'License :: OSI Approved :: %s' % LICENSE,
+          'Programming Language :: Python',
+          'Topic :: Software Development :: Source Control',
+          ],
+      license=LICENSE,
       author='Peter Williams',
       author_email='peter_ono@users.sourceforge.net',
-      url='https://sourceforge.net/projects/gwsmhg/',
+      url='http://gwsmhg.sourceforge.net/',
       scripts=['gwsmhg'],
       packages=['gwsmhg_pkg'],
       data_files=[('share/pixmaps', ['gwsmhg.png']),
