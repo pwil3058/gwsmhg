@@ -41,6 +41,15 @@ class BaseInterface(utils.action_notifier):
         self.modification_statuses = ("M", "A", "R", "!")
         self._name_envars = DEFAULT_NAME_EVARS
         self._email_envars = DEFAULT_EMAIL_VARS
+    def get_extensions(self):
+        res, sout, serr = utils.run_cmd("hg showconfig extensions")
+        extens = []
+        for line in sout.splitlines(False):
+            preeq, posteq = line.split('=')
+            extens.append(preeq.split('.')[-1])
+        return extens
+    def get_extension_enabled(self, exten):
+        return exten in self.get_extensions()
     def get_author_name_and_email(self):
         res, uiusername, serr = utils.run_cmd("hg showconfig ui.username")
         if res == 0 and uiusername:
@@ -687,10 +696,24 @@ class _WsUpdateStateMgr:
             if os.path.exists(path):
                 os.remove(path)
 
+ENABLE_MQ_MSG = \
+'''
+This functionality requires Mercurial Queues (mq) to be enabled.
+To enable mq add the line:
+
+hgext.mq=
+
+to the [extensions] section of your ~.hgrc file.  e.g.
+
+[extensions]
+hgext.mq=
+'''
+
 class PMInterface(BaseInterface):
     def __init__(self, console_log):
         BaseInterface.__init__(self, "MQ", console_log)
         self._ws_update_mgr = _WsUpdateStateMgr()
+        self.not_enabled_response = (cmd_result.ERROR, ENABLE_MQ_MSG, "")
         self._adding_re = re.compile("^adding\s.*$")
         self._qpush_re = re.compile("^(merging|applying)\s.*$", re.M)
         self.file_state_changing_cmds = ["qfold", "qsave", "qpop", "qpush", "qfinish", "qsave-pfu", "qrestore", "qnew"]
@@ -711,6 +734,8 @@ class PMInterface(BaseInterface):
     def _run_cmd_on_console(self, cmd, stdout_expected=True, ignore_err_re=None):
         result = utils.run_cmd_in_console(cmd, self._console_log)
         return self._map_cmd_result(result, stdout_expected, ignore_err_re=ignore_err_re)
+    def get_enabled(self):
+        return self.get_extension_enabled('mq')
     def get_parent(self, patch):
         parent = "qparent"
         for applied_patch in self.get_applied_patches():
@@ -720,6 +745,8 @@ class PMInterface(BaseInterface):
                 parent = applied_patch
         return None
     def get_file_status_list(self, patch=None):
+        if not self.get_enabled():
+            return (cmd_result.OK, [], "")
         if patch and not self.get_patch_is_applied(patch):
             pfn = self.get_patch_file_name(patch)
             result, file_list = putils.get_patch_files(pfn, status=True)
@@ -757,13 +784,19 @@ class PMInterface(BaseInterface):
             index += 1
         return (res, file_list, serr)
     def get_in_progress(self):
+        if not self.get_enabled():
+            return False
         return self.get_top_patch() or self._ws_update_mgr.is_in_progress()
     def get_applied_patches(self):
+        if not self.get_enabled():
+            return []
         res, op, err = utils.run_cmd("hg qapplied")
         if res != 0:
                 return []
         return op.splitlines(False)
     def get_unapplied_patches(self):
+        if not self.get_enabled():
+            return []
         res, op, err = utils.run_cmd("hg qunapplied")
         if res != 0:
                 return []

@@ -895,12 +895,18 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                 return
         self.set_contents()
     def do_save_queue_state_for_update(self, action=None):
+        if not self._ifce.PM.get_enabled():
+            self._report_any_problems(self._ifce.PM.not_enabled_response)
+            return
         self._show_busy()
         res, sout, serr = self._ifce.PM.do_save_queue_state_for_update()
         self._unshow_busy()
         self.set_contents()
         self._report_any_problems((res, sout, serr))
     def do_pull_to_repository(self, action=None):
+        if not self._ifce.PM.get_enabled():
+            self._report_any_problems(self._ifce.PM.not_enabled_response)
+            return
         self._show_busy()
         dialog = path.PullDialog(self._ifce)
         self._unshow_busy()
@@ -917,12 +923,18 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         else:
             dialog.destroy()
     def do_update_workspace(self, action=None):
+        if not self._ifce.PM.get_enabled():
+            self._report_any_problems(self._ifce.PM.not_enabled_response)
+            return
         self._show_busy()
         result = self._ifce.PM.do_update_workspace()
         self._set_ws_update_menu_sensitivity()
         self._unshow_busy()
         self._report_any_problems(result)
     def do_update_workspace_to(self, action=None):
+        if not self._ifce.PM.get_enabled():
+            self._report_any_problems(self._ifce.PM.not_enabled_response)
+            return
         dialog = change_set.ChangeSetSelectDialog(ifce=self._ifce)
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
@@ -937,12 +949,18 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         else:
             dialog.destroy()
     def do_clean_up_after_update(self, action=None):
+        if not self._ifce.PM.get_enabled():
+            self._report_any_problems(self._ifce.PM.not_enabled_response)
+            return
         self._show_busy()
         result = self._ifce.PM.do_clean_up_after_update()
         self._unshow_busy()
         self.set_contents()
         self._report_any_problems(result)
     def do_new_patch(self, action=None):
+        if not self._ifce.PM.get_enabled():
+            self._report_any_problems(self._ifce.PM.not_enabled_response)
+            return
         dialog = NewPatchDialog(parent=None, ifce=self._ifce, modal=False)
         if dialog.run() == gtk.RESPONSE_CANCEL:
             dialog.destroy()
@@ -977,7 +995,12 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             self._unshow_busy()
             self._report_any_problems((res, sout, serr))
     def do_import_external_patch(self, action=None):
+        if not self._ifce.PM.get_enabled():
+            self._report_any_problems(self._ifce.PM.not_enabled_response)
+            return
         patch_file_name = gutils.ask_file_name("Select patch file to be imported")
+        if not patch_file_name:
+            return
         force = False
         patch_name = None
         while True:
@@ -1001,7 +1024,12 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             break
         self.set_contents()
     def do_import_external_patch_series(self, action=None):
+        if not self._ifce.PM.get_enabled():
+            self._report_any_problems(self._ifce.PM.not_enabled_response)
+            return
         patch_series_dir = gutils.ask_dir_name("Select patch series to be imported")
+        if not patch_series_dir:
+            return
         series_fn = os.sep.join([patch_series_dir, "series"])
         if (not os.path.exists(series_fn) and os.path.isfile(series_fn)):
             self._report_any_problems((cmd_result.ERROR, "", "Series file not found."))
