@@ -100,7 +100,7 @@ class AliasPathView(gutils.TableView):
     def _abbrev_path(self, path):
         return utils.path_rel_home(path)
     def add_ap(self, path, alias=""):
-        if os.path.exists(path):
+        if self._extant_path(path):
             store = self.get_model()
             iter = store.get_iter_first()
             while iter:
