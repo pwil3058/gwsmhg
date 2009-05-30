@@ -121,6 +121,7 @@ class FileTreeRowData:
         row[EXTRA_INFO] = extra_info
         return (exists, tuple(row))
     def formatted_file_name(self, store, tree_iter):
+        assert tree_iter is not None, "ftrd:formatted_file_name: iter is None"
         name = store.get_value(tree_iter, NAME)
         xinfo = store.get_value(tree_iter, EXTRA_INFO)
         if xinfo:
@@ -128,6 +129,7 @@ class FileTreeRowData:
         else:
             return name
     def format_file_name_crcb(self, column, cell_renderer, store, tree_iter):
+        assert tree_iter is not None, "ftrd:format_file_name_crcb: iter is None"
         cell_renderer.set_property("text", self.formatted_file_name(store, tree_iter))
 
 DEFAULT_ROW_DATA = FileTreeRowData(DEFAULT_STATUS_DECO_MAP, DEFAULT_EXTRA_INFO_SEP,
@@ -165,6 +167,7 @@ class RowDataUser:
         row[EXTRA_INFO] = extra_info
         return (exists, tuple(row))
     def formatted_file_name(self, store, tree_iter):
+        assert tree_iter is not None, "rdu:formatted_file_name: iter is None"
         name = store.get_value(tree_iter, NAME)
         xinfo = store.get_value(tree_iter, EXTRA_INFO)
         if xinfo:
@@ -172,6 +175,7 @@ class RowDataUser:
         else:
             return name
     def format_file_name_crcb(self, column, cell_renderer, store, tree_iter):
+        assert tree_iter is not None, "rdu:format_file_name_crcb: iter is None"
         cell_renderer.set_property("text", self.formatted_file_name(store, tree_iter))
 
 class FileTreeStore(gtk.TreeStore, RowDataUser):
@@ -190,12 +194,15 @@ class FileTreeStore(gtk.TreeStore, RowDataUser):
     def _get_data_for_status(self, status):
         return self.get_status_deco(status)
     def _display_this_nonexistant(self, fsobj_iter):
+        assert fsobj_iter is not None, "fts:_display_this_nonexistant: iter is None"
         return self.fs_path(fsobj_iter) in self._displayable_nonexistants
     def _add_displayable_nonexistant(self, fsobj_iter):
+        assert fsobj_iter is not None, "fts:_add_displayable_nonexistant: iter is None"
         fsobj_fspath = self.fs_path(fsobj_iter)
         if fsobj_fspath not in self._displayable_nonexistants:
             self._displayable_nonexistants.append(fsobj_fspath)
     def _del_displayable_nonexistant(self, fsobj_iter):
+        assert fsobj_iter is not None, "fts:_del_displayable_nonexistant: iter is None"
         fsobj_fspath = self.get_path(fsobj_iter)
         if fsobj_fspath in self._displayable_nonexistants:
             del self._displayable_nonexistants[self._displayable_nonexistants.index(fsobj_fspath)]
@@ -209,6 +216,7 @@ class FileTreeStore(gtk.TreeStore, RowDataUser):
     def _generate_row_tuple(self, dirpath, name, isdir=None, status=None, extra_info=None):
         return self.generate_row_tuple(dirpath, name, isdir, status, extra_info)
     def _update_iter_row_tuple(self, fsobj_iter, to_tuple):
+        assert fsobj_iter is not None, "fts:_update_iter_row_tuple: iter is None"
         for index in [STYLE, FOREGROUND, STATUS, EXTRA_INFO]:
             self.set_value(fsobj_iter, index, to_tuple[index])
     def _toggle_show_hidden_cb(self, toggleaction):
@@ -272,6 +280,7 @@ class FileTreeStore(gtk.TreeStore, RowDataUser):
         self._get_file_paths(self.get_iter_first(), path_list)
         return path_list
     def _recursive_remove(self, fsobj_iter):
+        assert fsobj_iter is not None, "fts:_recursive_remove: iter is None"
         child_iter = self.iter_children(fsobj_iter)
         if child_iter != None:
             self._del_displayable_nonexistant(child_iter)
@@ -280,12 +289,15 @@ class FileTreeStore(gtk.TreeStore, RowDataUser):
         self._del_displayable_nonexistant(fsobj_iter)
         return self.remove(fsobj_iter)
     def _remove_place_holder(self, dir_iter):
+        assert dir_iter is not None, "fts:_remove_place_holder: iter is None"
         child_iter = self.iter_children(dir_iter)
         if child_iter and self.get_value(child_iter, NAME) is None:
             self.remove(child_iter)
     def _insert_place_holder(self, dir_iter):
+        assert dir_iter is not None, "fts:_insert_place_holder: iter is None"
         self.append(dir_iter)
     def _insert_place_holder_if_needed(self, dir_iter):
+        assert dir_iter is not None, "fts:_insert_place_holder_if_needed: iter is None"
         if self.iter_n_children(dir_iter) == 0:
             self._insert_place_holder(dir_iter)
     def _find_or_insert_dir(self, parent_iter, row_tuple):
@@ -301,6 +313,7 @@ class FileTreeStore(gtk.TreeStore, RowDataUser):
             if next is None or not self.get_value(next, IS_DIR):
                 return (False, self.insert_after(parent_iter, dir_iter, row_tuple))
             dir_iter = next
+        assert dir_iter is not None, "fts:_find_or_insert_dir: iter is None"
         if self.get_value(dir_iter, NAME) == row_tuple[NAME]:
             self._update_iter_row_tuple(dir_iter, row_tuple)
             return (True, dir_iter)
@@ -313,9 +326,11 @@ class FileTreeStore(gtk.TreeStore, RowDataUser):
         for name in dirpath.split(os.sep):
             exists, row_tuple = self._generate_row_tuple(parent_dir_path, name, isdir=True, status=status, extra_info=extra_info)
             found, dir_iter = self._find_or_insert_dir(dir_iter, row_tuple)
+            assert dir_iter is not None, "fts:_find_or_insert_dir: iter is None"
             if not exists:
                 self._add_displayable_nonexistant(dir_iter)
             parent_dir_path = os.path.join(parent_dir_path, name)
+        assert dir_iter is not None, "fts:_find_or_insert_dir_2: iter is None"
         self._insert_place_holder_if_needed(dir_iter)
         return (found, dir_iter)
     def _find_or_insert_file(self, parent_iter, row_tuple):
@@ -331,11 +346,13 @@ class FileTreeStore(gtk.TreeStore, RowDataUser):
             if next is None:
                 return (False, self.insert_after(parent_iter, file_iter, row_tuple))
             file_iter = next
+        assert file_iter is not None, "fts:_find_or_insert_file: iter is None"
         while self.get_value(file_iter, NAME) < row_tuple[NAME]:
             next = self.iter_next(file_iter)
             if next is None:
                 return (False, self.insert_after(parent_iter, file_iter, row_tuple))
             file_iter = next
+        assert file_iter is not None, "fts:_find_or_insert_file: iter is None"
         if self.get_value(file_iter, NAME) == row_tuple[NAME]:
             self._update_iter_row_tuple(file_iter, row_tuple)
             return (True, file_iter)
@@ -344,7 +361,9 @@ class FileTreeStore(gtk.TreeStore, RowDataUser):
         dirpath, name = os.path.split(filepath)
         exists, row_tuple = self._generate_row_tuple(dirpath, name, isdir=False, status=file_status, extra_info=extra_info)
         dummy, dir_iter = self.find_or_insert_dir(dirpath, status=dir_status)
+        #assert dir_iter is not None, "fts:find_or_insert_file: iter is None"
         found, file_iter = self._find_or_insert_file(dir_iter, row_tuple)
+        assert file_iter is not None, "fts:find_or_insert_file_2: iter is None"
         if not exists:
             self._add_displayable_nonexistant(file_iter)
         return (found, file_iter)
@@ -372,9 +391,11 @@ class FileTreeStore(gtk.TreeStore, RowDataUser):
     def update(self, fsobj_iter=None):
         assert 0, "repopulate() must be defined in descendants"
     def on_row_expanded_cb(self, view, dir_iter, dummy):
+        assert dir_iter is not None, "fts:on_row_expanded_cb: iter is None"
         if self.iter_n_children(dir_iter) > 1:
             self._remove_place_holder(dir_iter)
     def on_row_collapsed_cb(self, view, dir_iter, dummy):
+        assert dir_iter is not None, "fts:on_row_collapsed_cb: iter is None"
         self._insert_place_holder_if_needed(dir_iter)
 
 class CwdFileTreeStore(FileTreeStore):
@@ -384,6 +405,7 @@ class CwdFileTreeStore(FileTreeStore):
         self.view = None
         self.repopulate()
     def _row_expanded(self, dir_iter):
+        assert dir_iter is not None, "cfts:_row_expanded: iter is None"
         # if view isn't set then assume that we aren't connexted to a view
         # so the row can't be expanded
         return self.view and self.view.row_expanded(self.get_path(dir_iter))
@@ -399,6 +421,7 @@ class CwdFileTreeStore(FileTreeStore):
         for dirname in dirs:
             dummy, row_tuple = self._generate_row_tuple(dirpath, dirname, isdir=True)
             dir_iter = self.append(parent_iter, row_tuple)
+            assert dir_iter is not None, "cfts:_populate: iter is None"
             self._insert_place_holder(dir_iter)
         files.sort()
         for filename in files:
@@ -430,11 +453,13 @@ class CwdFileTreeStore(FileTreeStore):
                 child_iter = self.iter_next(child_iter)
             if child_iter is None:
                 dir_iter = self.append(parent_iter, row_tuple)
+                assert dir_iter is not None, "cfts:_update_dir: iter is None"
                 self._insert_place_holder(dir_iter)
                 continue
             name = self.get_value(child_iter, NAME)
             if (not self.get_value(child_iter, IS_DIR)) or (name > dirx):
                 dir_iter = self.insert_before(parent_iter, child_iter, row_tuple)
+                assert dir_iter is not None, "cfts:_update_dir_2: iter is None"
                 self._insert_place_holder(dir_iter)
                 continue
             self._update_iter_row_tuple(child_iter, row_tuple)
@@ -483,6 +508,7 @@ class CwdFileTreeStore(FileTreeStore):
                 if self.iter_n_children(fsobj_iter) > 1:
                     self._remove_place_holder(fsobj_iter)
     def on_row_expanded_cb(self, view, dir_iter, dummy):
+        assert dir_iter is not None, "cfts:_on_row_expanded_cb: iter is None"
         self.view = view
         self._update_dir(self.fs_path(dir_iter), dir_iter)
         FileTreeStore.on_row_expanded_cb(self, view, dir_iter, dummy)
@@ -1172,6 +1198,7 @@ class ScmChangeFileTreeStore(FileTreeStore):
                     self.delete_file(f)
             for dfile, status, extra_info in dflists[MODIFIED]:
                 found, file_iter = self.find_or_insert_file(dfile, file_status=status, extra_info=extra_info)
+                assert file_iter is not None, "scfts:update: iter is None"
                 if not found and self._view:
                     self._view.expand_to_path(self.get_path(file_iter))
     def repopulate(self):
