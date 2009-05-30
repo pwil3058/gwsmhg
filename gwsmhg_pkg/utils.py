@@ -15,7 +15,7 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import subprocess, os, signal, errno, gtk, select, urlparse
+import subprocess, os, signal, errno, gtk, select, urlparse, gobject
 
 HOME = os.path.expanduser("~")
 
@@ -98,6 +98,19 @@ def run_cmd_in_console(cmd, console):
     if oldterm:
         os.environ['TERM'] = oldterm
     return [ sub.returncode, outd, errd ]
+
+def _wait_for_bgnd_cmd_timeout(pid):
+    rpid, status = os.waitpid(pid, os.WNOHANG)
+    return rpid != pid
+
+def run_cmd_in_bgnd(cmd):
+    if not cmd:
+        return False
+    pid = subprocess.Popen(cmd.split()).pid
+    if not pid:
+        return False
+    gobject.timeout_add(2000, _wait_for_bgnd_cmd_timeout, pid)
+    return True
 
 def which(cmd):
     for d in os.environ['PATH'].split(os.pathsep):

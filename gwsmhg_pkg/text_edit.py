@@ -30,19 +30,22 @@ def _edit_files_extern(filelist, editor_env_vars):
                 break
         except KeyError:
             pass
-    edlist = edstr.split()
-    editor = edlist[0]
-    options = edlist[1:]
-    if not editor in EDITORS_THAT_NEED_A_TERMINAL:
-        return apply(os.spawnlp, tuple([os.P_NOWAIT, editor, editor] + options + filelist))
-    try:
-        term  = os.environ['COLORTERM']
-    except KeyError:
+    if not edstr.split()[0] in EDITORS_THAT_NEED_A_TERMINAL:
+        cmd = '%s %s' % (edstr, " ".join(filelist))
+    else:
         try:
-            term = os.environ['TERM']
+            term  = os.environ['COLORTERM']
         except KeyError:
-            term = DEFAULT_TERMINAL
-    return apply(os.spawnlp, tuple([os.P_NOWAIT, term, term, "-e", " ".join(edlist + filelist)]))
+            try:
+                term = os.environ['TERM']
+            except KeyError:
+                term = DEFAULT_TERMINAL
+        if term == "gnome-terminal":
+            flag = '-x'
+        else:
+            flag = '-e'
+        cmd = '%s %s %s %s' % (term, flag, edstr, " ".join(filelist))
+    return utils.run_cmd_in_bgnd(cmd)
 
 def edit_files_extern(filelist):
     return _edit_files_extern(filelist, ['VISUAL', 'EDITOR'])
