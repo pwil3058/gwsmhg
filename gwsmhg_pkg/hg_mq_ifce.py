@@ -41,6 +41,8 @@ class BaseInterface(utils.action_notifier):
         self.modification_statuses = ("M", "A", "R", "!")
         self._name_envars = DEFAULT_NAME_EVARS
         self._email_envars = DEFAULT_EMAIL_VARS
+    def _inotify_warning(self, serr):
+        return serr.strip() == '(found dead inotify server socket; removing it)'
     def get_extensions(self):
         res, sout, serr = utils.run_cmd("hg showconfig extensions")
         extens = []
@@ -177,6 +179,12 @@ class SCMInterface(BaseInterface):
         self.cs_table_template = '{rev}:{date|age}:{tags}:{branches}:{author|person}:{desc|firstline}' + os.linesep
     def _map_cmd_result(self, result, stdout_expected=True, ignore_err_re=None):
         if not result[0]:
+            if self._inotify_warning(result[1]):
+                if stdout_expected:
+                    return result
+                res, sout, serr = cmd_result.map_cmd_result((result[0], result[1], ""),
+                    stdout_expected=stdout_expected, ignore_err_re=None)
+                return (res, sout, result[2])
             return cmd_result.map_cmd_result(result, stdout_expected=stdout_expected, ignore_err_re=ignore_err_re)
         else:
             flags = cmd_result.ERROR
@@ -184,6 +192,10 @@ class SCMInterface(BaseInterface):
                 flags |= cmd_result.SUGGEST_FORCE
             if result[2].find('already exists') is not -1:
                 flags |= cmd_result.SUGGEST_RENAME
+            if result[2].find('use \'hg merge\' or \'hg update -C\'') is not -1:
+                flags |= cmd_result.SUGGEST_MERGE_OR_DISCARD
+            elif result[2].find('use \'hg update -C\'') is not -1:
+                flags |= cmd_result.SUGGEST_DISCARD
             return (flags, result[1], result[2])
     def _run_cmd_on_console(self, cmd, stdout_expected=True):
         result = utils.run_cmd_in_console(cmd, self._console_log)
@@ -591,13 +603,13 @@ class SCMInterface(BaseInterface):
         if res != 0:
             res = cmd_result.ERROR
         return (res, sout, serr)
-    def do_update_workspace(self, rev=None, clean=False):
+    def do_update_workspace(self, rev=None, discard=False):
         cmd = "hg update"
-        if clean:
+        if discard:
             cmd += " -C"
         if rev:
             cmd += " -r %s" %rev
-        result = self._run_cmd_on_console(cmd)
+        result = self._run_cmd_on_console(cmd, stdout_expected=True)
         self._do_cmd_notification("update")
         return result
     def do_merge_workspace(self, rev=None, force=False):
@@ -721,6 +733,12 @@ class PMInterface(BaseInterface):
         self.file_state_changing_cmds += ["add", "copy", "remove", "rename", "revert", "delete"]
     def _map_cmd_result(self, result, stdout_expected=True, ignore_err_re=None):
         if not result[0]:
+            if self._inotify_warning(result[1]):
+                if stdout_expected:
+                    return result
+                res, sout, serr = cmd_result.map_cmd_result((result[0], result[1], ""),
+                    stdout_expected=stdout_expected, ignore_err_re=None)
+                return (res, sout, result[2])
             return cmd_result.map_cmd_result(result, stdout_expected=stdout_expected, ignore_err_re=ignore_err_re)
         else:
             flags = cmd_result.ERROR

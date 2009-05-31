@@ -98,17 +98,49 @@ class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
         self._unshow_busy()
         dialog.show()
     def _update_ws_to_cs_acb(self, action):
-        rev = self.get_selected_change_set()
+        rev = str(self.get_selected_change_set())
         self._show_busy()
-        result = self._ifce.SCM.do_update_workspace(rev=str(rev))
+        result = self._ifce.SCM.do_update_workspace(rev=rev)
         self._unshow_busy()
-        self._report_any_problems(result)
+        if result[0] & cmd_result.SUGGEST_MERGE_OR_DISCARD:
+            question = os.linesep.join(result[1:])
+            ans = gutils.ask_merge_discard_or_cancel(question, result[0])
+            if ans == gutils.DISCARD:
+                self._show_busy()
+                result = self._ifce.SCM.do_update_workspace(rev=rev, discard=True)
+                self._unshow_busy()
+                self._report_any_problems(result)
+            elif ans == gutils.MERGE:
+                self._show_busy()
+                result = self._ifce.SCM.do_merge_workspace(rev=rev, force=False)
+                self._unshow_busy()
+                if result[0] & cmd_result.SUGGEST_FORCE:
+                    question = os.linesep.join(result[1:])
+                    ans = gutils.ask_force_or_cancel(question)
+                    if ans == gutils.FORCE:
+                        self._show_busy()
+                        result = self._ifce.SCM.do_merge_workspace(rev=rev, force=True)
+                        self._unshow_busy()
+                        self._report_any_problems(result)
+                else:
+                    self._report_any_problems(result)
+        else:
+            self._report_any_problems(result)
     def _merge_ws_with_cs_acb(self, action):
-        rev = self.get_selected_change_set()
+        rev = str(self.get_selected_change_set())
         self._show_busy()
-        result = self._ifce.SCM.do_merge_workspace(rev=str(rev))
+        result = self._ifce.SCM.do_merge_workspace(rev=rev)
         self._unshow_busy()
-        self._report_any_problems(result)
+        if result[0] & cmd_result.SUGGEST_FORCE:
+            question = os.linesep.join(result[1:])
+            ans = gutils.ask_force_or_cancel(question)
+            if ans == gutils.FORCE:
+                self._show_busy()
+                result = self._ifce.SCM.do_merge_workspace(rev=rev, force=True)
+                self._unshow_busy()
+                self._report_any_problems(result)
+        else:
+            self._report_any_problems(result)
 
 class AUPrecisTableView(PrecisTableView):
     def __init__(self, ifce, ptype, age_col, sel_mode=gtk.SELECTION_SINGLE,
@@ -360,7 +392,7 @@ BRANCH_LIST_DESCR = \
 ]
 
 class ChangeSetSelectDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
-    def __init__(self, ifce, parent=None):
+    def __init__(self, ifce, discard_toggle=False, parent=None):
         gutils.BusyIndicator.__init__(self)
         gutils.BusyIndicatorUser.__init__(self, self)
         title = "gwsmg: Select Change Set: %s" % utils.path_rel_home(os.getcwd())
@@ -380,14 +412,20 @@ class ChangeSetSelectDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicat
         self._history_button = gtk.Button(label="Browse H_istory")
         self._history_button.connect("clicked", self._browse_history_cb)
         for button in self._tags_button, self._branches_button, self._heads_button, self._history_button:
-            hbox.pack_start(button, expand=False, fill=False)
-        self.vbox.pack_start(hbox)
+            hbox.pack_start(button, expand=True, fill=False)
+        self.vbox.pack_start(hbox, expand=False)
         hbox = gtk.HBox()
         hbox.pack_start(gtk.Label("Change Set:"))
         self._entry = gutils.EntryWithHistory()
         self._entry.set_width_chars(32)
         self._entry.connect("activate", self._entry_cb)
         hbox.pack_start(self._entry, expand=True, fill=True)
+        if discard_toggle:
+            self._discard_toggle = gtk.CheckButton('Discard local changes')
+            self._discard_toggle.set_active(False)
+            hbox.pack_start(self._discard_toggle, expand=False, fill=False)
+        else:
+            self._discard_toggle = None
         self.vbox.pack_start(hbox, expand=False, fill=False)
         self.show_all()
     def _browse_change_set(self, ptype, title, size=(640, 240)):
@@ -414,6 +452,10 @@ class ChangeSetSelectDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicat
         self.response(gtk.RESPONSE_OK)
     def get_change_set(self):
         return self._entry.get_text()
+    def get_discard(self):
+        if self._discard_toggle is None:
+            return False
+        return self._discard_toggle.get_active()
 
 class FileTreeStore(file_tree.FileTreeStore):
     def __init__(self, ifce, rev):

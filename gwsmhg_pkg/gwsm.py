@@ -299,7 +299,7 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
             self._report_any_problems(result)
     def _checkout_ws_acb(self, action=None):
         self._show_busy()
-        dialog = change_set.ChangeSetSelectDialog(ifce=self._ifce, parent=self)
+        dialog = change_set.ChangeSetSelectDialog(ifce=self._ifce, discard_toggle=True, parent=self)
         self._unshow_busy()
         response = dialog.run()
         if response == gtk.RESPONSE_CANCEL:
@@ -308,15 +308,39 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
             rev = dialog.get_change_set()
             dialog.destroy()
             if rev:
+                discard = dialog.get_discard()
                 self._show_busy()
-                result = self._ifce.SCM.do_update_workspace(rev=rev, clean=False)
+                result = self._ifce.SCM.do_update_workspace(rev=rev, discard=discard)
                 self._unshow_busy()
                 self._report_any_problems(result)
     def _update_ws_acb(self, action=None):
         self._show_busy()
-        result = self._ifce.SCM.do_update_workspace(rev=None, clean=False)
+        result = self._ifce.SCM.do_update_workspace(rev=None, discard=False)
         self._unshow_busy()
-        self._report_any_problems(result)
+        if result[0] & cmd_result.SUGGEST_MERGE_OR_DISCARD:
+            question = os.linesep.join(result[1:])
+            ans = gutils.ask_merge_discard_or_cancel(question, result[0], parent=self)
+            if ans == gutils.DISCARD:
+                self._show_busy()
+                result = self._ifce.SCM.do_update_workspace(rev=None, discard=True)
+                self._unshow_busy()
+                self._report_any_problems(result)
+            elif ans == gutils.MERGE:
+                self._show_busy()
+                result = self._ifce.SCM.do_merge_workspace(rev=None, force=False)
+                self._unshow_busy()
+                if result[0] & cmd_result.SUGGEST_FORCE:
+                    question = os.linesep.join(result[1:])
+                    ans = gutils.ask_force_or_cancel(question, parent=self)
+                    if ans == gutils.FORCE:
+                        self._show_busy()
+                        result = self._ifce.SCM.do_merge_workspace(rev=None, force=True)
+                        self._unshow_busy()
+                        self._report_any_problems(result)
+                else:
+                    self._report_any_problems(result)
+        else:
+            self._report_any_problems(result)
     def _pull_repo_acb(self, action=None):
         self._show_busy()
         result = self._ifce.SCM.do_pull_from()

@@ -137,6 +137,8 @@ RECOVER = 3
 EDIT = 4
 SKIP = 5
 SKIP_ALL = 6
+DISCARD = 7
+MERGE = 8
 
 def ask_force_refresh_or_cancel(question, flags, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
@@ -144,6 +146,18 @@ def ask_force_refresh_or_cancel(question, flags, parent=None):
         buttons += ("_Refresh and Retry", REFRESH)
     if flags & cmd_result.SUGGEST_FORCE:
         buttons += ("_Force", FORCE)
+    return ask_question(question, parent, buttons)
+
+def ask_force_or_cancel(question, parent=None):
+    buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, "_Force", FORCE)
+    return ask_question(question, parent, buttons)
+
+def ask_merge_discard_or_cancel(question, flags, parent=None):
+    buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
+    if flags & cmd_result.SUGGEST_MERGE:
+        buttons += ("_Merge", MERGE)
+    if flags & cmd_result.SUGGEST_DISCARD:
+        buttons += ("_Discard Changes", DISCARD)
     return ask_question(question, parent, buttons)
 
 def ask_recover_or_cancel(question, parent=None):
