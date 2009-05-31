@@ -100,8 +100,11 @@ def run_cmd_in_console(cmd, console):
     return [ sub.returncode, outd, errd ]
 
 def _wait_for_bgnd_cmd_timeout(pid):
-    rpid, status = os.waitpid(pid, os.WNOHANG)
-    return rpid != pid
+    try:
+        rpid, status = os.waitpid(pid, os.WNOHANG)
+        return rpid != pid
+    except:
+        return False
 
 def run_cmd_in_bgnd(cmd):
     if not cmd:
