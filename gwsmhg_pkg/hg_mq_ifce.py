@@ -442,12 +442,14 @@ class SCMInterface(BaseInterface):
         res, psout, serr = utils.run_cmd(cmd)
         if res != 0:
             return (res, psout, serr)
+        parents = []
         if psout:
-            parents = []
             for item in psout.split():
                 parents.append(item.split(":")[0])
         else:
-            parents = [str(int(rev) - 1)]
+            irev = int(rev)
+            if irev > 0:
+                parents = [str(irev - 1)]
         return (res, parents, serr)
     def get_incoming_parents_table_data(self, rev, path=None):
         res, parents, serr = self.get_incoming_parents(rev, path)
