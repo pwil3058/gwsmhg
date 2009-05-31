@@ -15,7 +15,7 @@
 
 import gtk, gobject, os
 from gwsmhg_pkg import cmd_result, gutils, utils, icons, file_tree, diff
-from gwsmhg_pkg import text_edit
+from gwsmhg_pkg import text_edit, tortoise
 
 CS_TABLE_BASIC_UI_DESCR = \
 '''
@@ -55,6 +55,7 @@ class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
         self._ifce.SCM.add_notification_cb(["commit", "tag", "branch"], self.refresh_contents_if_mapped)
         self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.refresh_contents_if_mapped)
         self._ifce.log.add_notification_cb(["manual_cmd"], self.refresh_contents_if_mapped)
+        tortoise.action_notifier.add_notification_cb(tortoise.tag_changers, self.refresh_contents_if_mapped)
         for condition in [UNIQUE_SELECTION, UNIQUE_SELECTION_NOT_PMIC]:
             self._action_group[condition] = gtk.ActionGroup(condition)
             self._ui_manager.insert_action_group(self._action_group[condition], -1)
@@ -241,6 +242,7 @@ class ParentsTableView(AUPrecisTableView):
                                    auto_refresh_interval=auto_refresh_interval,
                                    busy_indicator=busy_indicator)
         self._ifce.SCM.add_notification_cb(["update", "merge"], self.refresh_contents_if_mapped)
+        tortoise.action_notifier.add_notification_cb(tortoise.parent_changers, self.refresh_contents_if_mapped)
         self._action_group[UNIQUE_SELECTION_NOT_PMIC].get_action("cs_update_ws_to").set_visible(False)
         self._action_group[UNIQUE_SELECTION_NOT_PMIC].get_action("cs_merge_ws_with").set_visible(False)
         self._action_group[gutils.ALWAYS_ON].get_action("table_refresh_contents").set_visible(False)

@@ -15,7 +15,7 @@
 
 import gtk, gobject, pango, os, tempfile, re
 from gwsmhg_pkg import cmd_result, gutils, file_tree, icons, text_edit, utils
-from gwsmhg_pkg import change_set, diff, path
+from gwsmhg_pkg import change_set, diff, path, tortoise
 
 class PatchFileTreeStore(file_tree.FileTreeStore):
     def __init__(self, ifce, patch=None, view=None):
@@ -167,6 +167,7 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
         model._ifce.PM.add_notification_cb(["qpop", "qpush", "qfinish", "qsave-pfu", "qrestore", "qnew"], self.repopulate_tree)
         model._ifce.SCM.add_notification_cb(["add", "copy", "remove", "rename", "revert", "delete"], self.update_tree)
         self._ifce.log.add_notification_cb(["manual_cmd"], self.update_tree)
+        tortoise.action_notifier.add_notification_cb(tortoise.file_changers, self.update_tree)
         file_tree.CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, console_log=ifce.log,
             model=model, tooltips=tooltips, auto_refresh=auto_refresh, show_status=True)
         model.set_view(self)
@@ -845,11 +846,11 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                 self._unshow_busy()
             else:
                 return
+        self.set_contents()
         if res is not cmd_result.OK:
             self._report_any_problems((res, sout, serr))
             if res & cmd_result.ERROR:
                 return
-        self.set_contents()
         self._show_busy()
         res, sout, serr = self._ifce.PM.do_set_patch_description(duplicate_patch_name, duplicate_patch_descr)
         self._unshow_busy()
@@ -889,11 +890,9 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                 self._unshow_busy()
         if top_patch:
             os.remove(temp_pfname)
+        self.set_contents()
         if res is not cmd_result.OK:
             self._report_any_problems((res, sout, serr))
-            if res & cmd_result.ERROR:
-                return
-        self.set_contents()
     def do_save_queue_state_for_update(self, action=None):
         if not self._ifce.PM.get_enabled():
             self._report_any_problems(self._ifce.PM.not_enabled_response)
@@ -983,13 +982,11 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                     self.do_refresh()
                 elif ans is gutils.FORCE:
                     force = True
-            elif res is not cmd_result.OK:
-                self._report_any_problems((res, sout, serr))
-                return
             else:
+                self._report_any_problems((res, sout, serr))
                 break
         self.set_contents()
-        if new_patch_descr:
+        if new_patch_descr and res is not cmd_result.ERROR:
             self._show_busy()
             res, sout, serr = self._ifce.PM.do_set_patch_description(new_patch_name, new_patch_descr)
             self._unshow_busy()

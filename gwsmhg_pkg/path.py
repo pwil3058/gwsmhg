@@ -14,7 +14,8 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import gtk, gobject, os
-from gwsmhg_pkg import gutils, cmd_result, change_set, icons, file_tree, diff
+from gwsmhg_pkg import gutils, cmd_result, change_set, icons, file_tree, diff, \
+    tortoise
 
 PATH_TABLE_PRECIS_DESCR = \
 [
@@ -69,6 +70,7 @@ class PathTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
                  self._push_to_acb),
             ])
         self.cwd_merge_id.append(self._ui_manager.add_ui_from_string(PATH_TABLE_UI_DESCR))
+        tortoise.action_notifier.add_notification_cb(tortoise.path_changers, self.refresh_contents_if_mapped)
         self.show_all()
     def _set_action_sensitivities(self):
         sel = self.get_selection().count_selected_rows() == 1

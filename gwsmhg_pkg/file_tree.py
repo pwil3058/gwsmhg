@@ -14,7 +14,8 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import os, os.path, tempfile, gtk, gtk.gdk
-from gwsmhg_pkg import utils, text_edit, cmd_result, diff, console, gutils, icons
+from gwsmhg_pkg import utils, text_edit, cmd_result, diff, console, gutils, \
+    tortoise, icons
 import gtksourceview
 
 IGNORED = 0
@@ -540,13 +541,9 @@ class ConditionalImageMenuItem(gtk.ImageMenuItem, ConditionalSensitivity):
             img.set_from_stock(image_id, gtk.ICON_SIZE_MENU)
             self.set_image(img)
 
-NO_SELECTION = "sel_none"
-UNIQUE_SELECTION = "sel_unique"
-SELECTION = "sel_made"
-SELECTION_INDIFFERENT = "sel_indifferent"
-
-NO_SELECTION_NOT_PATCHED = "sel_none_not_patched"
-SELECTION_NOT_PATCHED = "sel_made_not_patched" 
+from gwsmhg_pkg.const import NO_SELECTION, UNIQUE_SELECTION, SELECTION, \
+    SELECTION_INDIFFERENT, NO_SELECTION_NOT_PATCHED, SELECTION_NOT_PATCHED, \
+    FILE_CONDITIONS
 
 class _ViewWithActionGroups(gtk.TreeView, gutils.BusyIndicatorUser, gutils.TooltipsUser):
     def __init__(self, busy_indicator, model=None, tooltips=None):
@@ -555,10 +552,7 @@ class _ViewWithActionGroups(gtk.TreeView, gutils.BusyIndicatorUser, gutils.Toolt
         gtk.TreeView.__init__(self, model)
         self._ui_manager = gtk.UIManager()
         self._action_group = {}
-        for sel_condition in NO_SELECTION, UNIQUE_SELECTION, SELECTION, SELECTION_INDIFFERENT:
-            self._action_group[sel_condition] = gtk.ActionGroup(sel_condition)
-            self._ui_manager.insert_action_group(self._action_group[sel_condition], -1)
-        for sel_condition in NO_SELECTION_NOT_PATCHED, SELECTION_NOT_PATCHED:
+        for sel_condition in FILE_CONDITIONS:
             self._action_group[sel_condition] = gtk.ActionGroup(sel_condition)
             self._ui_manager.insert_action_group(self._action_group[sel_condition], -1)
         self._action_group[SELECTION_INDIFFERENT].add_action(model.show_hidden_action)
@@ -913,6 +907,8 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         self._ifce.SCM.add_notification_cb(["commit", "update", "init"], self.update_after_commit)
         self._ifce.PM.add_notification_cb(self._ifce.PM.file_state_changing_cmds, self.update_after_commit)
         self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.update_menu_sensitivity)
+        tortoise.action_notifier.add_notification_cb(tortoise.tag_changers, self.update_menu_sensitivity)
+        tortoise.action_notifier.add_notification_cb(tortoise.file_changers, self.update_after_commit)
         CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
             tooltips=tooltips, auto_refresh=auto_refresh, console_log=ifce.log, show_status=True)
         self._action_group[SELECTION].add_actions(
@@ -925,7 +921,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                  "Copy the selected file(s)", self.copy_selected_files_acb),
                 ("scm_diff_files_selection", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for selected file(s)", self.diff_selected_files_acb),
-                ("scm_move_files_selection", gtk.STOCK_PASTE, "_Move/Rename", None,
+                ("scm_move_files_selection", icons.STOCK_RENAME, "_Move/Rename", None,
                  "Move the selected file(s)", self.move_selected_files_acb),
             ])
         self._action_group[SELECTION_NOT_PATCHED].add_actions(
@@ -937,7 +933,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             ])
         self._action_group[UNIQUE_SELECTION].add_actions(
             [
-                ("scm_rename_file", gtk.STOCK_PASTE, "Re_name/Move", None,
+                ("scm_rename_file", icons.STOCK_RENAME, "Re_name/Move", None,
                  "Rename/move the selected file", self.move_selected_files_acb),
             ])
         self._action_group[NO_SELECTION].add_actions(
@@ -959,6 +955,16 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                 ("menu_files", None, "_Files"),
             ])
         self.cwd_merge_id = self._ui_manager.add_ui_from_string(SCM_CWD_UI_DESCR)
+        if tortoise.is_available:
+            self._action_group[SELECTION_INDIFFERENT].add_action(tortoise.file_menu)
+            for condition in FILE_CONDITIONS:
+                action_list = []
+                for action in tortoise.file_group_partial_actions[condition]:
+                    action_list.append(action + tuple([self._tortoise_tool_acb]))
+                self._action_group[condition].add_actions(action_list)
+            self._ui_manager.add_ui_from_string(tortoise.FILES_UI_DESCR)
+    def _tortoise_tool_acb(self, action=None):
+        tortoise.run_tool_for_files(action, self.get_selected_files())
     def new_file(self, new_file_name):
         result = CwdFileTreeView.new_file(self, new_file_name)
         if not result[0]:
