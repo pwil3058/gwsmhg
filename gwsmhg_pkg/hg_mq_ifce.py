@@ -651,6 +651,24 @@ class SCMInterface(BaseInterface):
         if cmd_result.is_less_than_error(result[0]):
             self._do_cmd_notification("tag")
         return result        
+    def do_remove_tag(self, tag, msg=None):
+        cmd = "hg tag --remove"
+        if msg:
+            cmd += ' -m "%s"' % msg.replace('"', '\\"')
+        cmd += " %s" % tag
+        result = self._run_cmd_on_console(cmd)
+        if cmd_result.is_less_than_error(result[0]):
+            self._do_cmd_notification("tag")
+        return result        
+    def do_move_tag(self, tag, rev, msg=None):
+        cmd = "hg tag -f -r %s" % rev
+        if msg:
+            cmd += ' -m "%s"' % msg.replace('"', '\\"')
+        cmd += " %s" % tag
+        result = self._run_cmd_on_console(cmd)
+        if cmd_result.is_less_than_error(result[0]):
+            self._do_cmd_notification("tag")
+        return result        
     def do_set_branch(self, branch, force=False):
         cmd = "hg tag"
         if force:

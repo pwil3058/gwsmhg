@@ -188,8 +188,30 @@ def inform_user(msg, parent=None, problem_type=gtk.MESSAGE_ERROR):
     response = dialog.run()
     dialog.destroy()
 
-class ReadTextDialog(gtk.Dialog):
-    def __init__(self, title=None, prompt=None, suggestion="", parent=None):
+class BusyIndicator:
+    def __init__(self):
+        pass
+    def show_busy(self):
+        if self.window:
+            self.window.set_cursor(gtk.gdk.Cursor(gtk.gdk.WATCH))
+            while gtk.events_pending():
+                gtk.main_iteration()
+    def unshow_busy(self):
+        if self.window:
+            self.window.set_cursor(None)
+
+class BusyIndicatorUser:
+    def __init__(self, busy_indicator):
+        self._busy_indicator = busy_indicator
+    def get_busy_indicator(self):
+        return self._busy_indicator
+    def _show_busy(self):
+        self._busy_indicator.show_busy()
+    def _unshow_busy(self):
+        self._busy_indicator.unshow_busy()
+
+class CancelOKDialog(gtk.Dialog, BusyIndicator):
+    def __init__(self, title=None, parent=None):
         flags = gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT
         buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK)
         try:
@@ -201,6 +223,11 @@ class ReadTextDialog(gtk.Dialog):
             self.set_position(gtk.WIN_POS_MOUSE)
         else:
             self.set_position(gtk.WIN_POS_CENTER_ON_PARENT)
+        BusyIndicator.__init__(self)
+
+class ReadTextDialog(CancelOKDialog):
+    def __init__(self, title=None, prompt=None, suggestion="", parent=None):
+        CancelOKDialog.__init__(self, title, parent) 
         self.hbox = gtk.HBox()
         self.vbox.add(self.hbox)
         self.hbox.show()
@@ -257,28 +284,6 @@ class TooltipsUser:
         if self._tooltips: self._tooltips.disable()
     def set_tip(self, widget, tip_text, tip_text_private=None):
         if self._tooltips: self._tooltips.set_tip(widget, tip_text, tip_text_private)
-
-class BusyIndicator:
-    def __init__(self):
-        pass
-    def show_busy(self):
-        if self.window:
-            self.window.set_cursor(gtk.gdk.Cursor(gtk.gdk.WATCH))
-            while gtk.events_pending():
-                gtk.main_iteration()
-    def unshow_busy(self):
-        if self.window:
-            self.window.set_cursor(None)
-
-class BusyIndicatorUser:
-    def __init__(self, busy_indicator):
-        self._busy_indicator = busy_indicator
-    def get_busy_indicator(self):
-        return self._busy_indicator
-    def _show_busy(self):
-        self._busy_indicator.show_busy()
-    def _unshow_busy(self):
-        self._busy_indicator.unshow_busy()
 
 class MappedManager:
     def __init__(self):

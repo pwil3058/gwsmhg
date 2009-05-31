@@ -275,7 +275,7 @@ class TagMessageWidget(gtk.VBox):
         self.view = text_edit.SummaryView(ifce=ifce)
         self.view.get_ui_manager().add_ui_from_string(TAG_MSG_UI_DESCR)
         hbox = gtk.HBox()
-        hbox.pack_start(gtk.Label("Message"), expand=False, fill=False)
+        hbox.pack_start(gtk.Label("Message (optional)"), expand=False, fill=False)
         toolbar = self.view.get_ui_widget("/tag_message_toolbar")
         toolbar.set_style(gtk.TOOLBAR_ICONS)
         toolbar.set_orientation(gtk.ORIENTATION_HORIZONTAL)
@@ -291,9 +291,8 @@ class SetTagDialog(gutils.ReadTextAndToggleDialog, cmd_result.ProblemReporter):
         self._ifce = ifce
         self._rev = rev
         cmd_result.ProblemReporter.__init__(self)
-        gutils.ReadTextAndToggleDialog.__init__(self, title="gwsmhg: Specify Tag",
+        gutils.ReadTextAndToggleDialog.__init__(self, title="gwsmhg: Set Tag",
             prompt="Tag:", toggle_prompt="Local", toggle_state=False, parent=parent)
-        self.vbox.add(gtk.Label("Message"))
         self.message = TagMessageWidget(ifce=ifce)
         self.vbox.add(self.message)
         self.connect("response", self._response_cb)
@@ -306,14 +305,18 @@ class SetTagDialog(gutils.ReadTextAndToggleDialog, cmd_result.ProblemReporter):
             tag = self.entry.get_text()
             local = self.toggle.get_active()
             msg = self.message.get_msg()
+            self.show_busy()
             result = self._ifce.SCM.do_set_tag(tag=tag, local=local, msg=msg, rev=self._rev)
+            self.unshow_busy()
             if result[0] & cmd_result.SUGGEST_FORCE:
                 ans = gutils.ask_rename_force_or_cancel(result[1] + result[2], result[0])
                 if ans == gutils.EDIT:
                     self.show()
                     return
                 if ans == gutils.FORCE:
+                    self.show_busy()
                     result = self._ifce.SCM.do_set_tag(tag=tag, local=local, msg=msg, rev=self._rev, force=True)
+                    self.unshow_busy()
                     self._report_any_problems(result)
             else:
                 self._report_any_problems(result)
@@ -351,6 +354,64 @@ class HistoryTableView(ChangeSetTableView):
         SetTagDialog(ifce=self._ifce, rev=str(rev)).run()
         self._unshow_busy()
 
+class RemoveTagDialog(gutils.CancelOKDialog, cmd_result.ProblemReporter):
+    def __init__(self, ifce, tag=None, parent=None):
+        self._ifce = ifce
+        self._tag = tag
+        cmd_result.ProblemReporter.__init__(self)
+        gutils.CancelOKDialog.__init__(self, title="gwsmhg: Remove Tag", parent=parent)
+        hbox = gtk.HBox()
+        hbox.pack_start(gtk.Label("Removing Tag: "), expand=False, fill=False)
+        hbox.pack_start(gtk.Label(tag), expand=False, fill=False)
+        self.vbox.add(hbox)
+        self.message = TagMessageWidget(ifce=ifce)
+        self.message.view.grab_focus()
+        self.vbox.add(self.message)
+        self.connect("response", self._response_cb)
+        self.show_all()
+    def _response_cb(self, dialog, response_id):
+        self.hide()
+        if response_id == gtk.RESPONSE_CANCEL:
+            self.destroy()
+        else:
+            msg = self.message.get_msg()
+            self.show_busy()
+            result = self._ifce.SCM.do_remove_tag(tag=self._tag, msg=msg)
+            self.unshow_busy()
+            self._report_any_problems(result)
+            self.destroy()
+
+class MoveTagDialog(gutils.CancelOKDialog, cmd_result.ProblemReporter):
+    def __init__(self, ifce, tag=None, parent=None):
+        self._ifce = ifce
+        self._tag = tag
+        cmd_result.ProblemReporter.__init__(self)
+        gutils.CancelOKDialog.__init__(self, title="gwsmhg: Move Tag", parent=parent)
+        hbox = gtk.HBox()
+        hbox.pack_start(gtk.Label("Move Tag: "), expand=False, fill=False)
+        hbox.pack_start(gtk.Label(tag), expand=False, fill=False)
+        self.vbox.add(hbox)
+        self._select_widget = ChangeSetSelectWidget(ifce=ifce, label="To Change Set",
+            busy_indicator=self, discard_toggle=False)
+        self.vbox.pack_start(self._select_widget)
+        self.message = TagMessageWidget(ifce=ifce)
+        self.message.view.grab_focus()
+        self.vbox.add(self.message)
+        self.connect("response", self._response_cb)
+        self.show_all()
+    def _response_cb(self, dialog, response_id):
+        self.hide()
+        if response_id == gtk.RESPONSE_CANCEL:
+            self.destroy()
+        else:
+            rev = self._select_widget.get_change_set()
+            msg = self.message.get_msg()
+            self.show_busy()
+            result = self._ifce.SCM.do_move_tag(tag=self._tag, rev=rev, msg=msg)
+            self.unshow_busy()
+            self._report_any_problems(result)
+            self.destroy()
+
 TAG_TABLE_PRECIS_DESCR = \
 [
     ["Tag", gobject.TYPE_STRING, False, []],
@@ -361,10 +422,46 @@ TAG_TABLE_PRECIS_DESCR = \
     ["Description", gobject.TYPE_STRING, True, []],
 ]
 
+TAG_TABLE_UI_DESCR = \
+'''
+<ui>
+  <popup name="table_popup">
+    <placeholder name="top"/>
+    <separator/>
+    <placeholder name="middle">
+      <menuitem action="cs_remove_selected_tag"/>
+      <menuitem action="cs_move_selected_tag"/>
+    </placeholder>
+    <separator/>
+    <placeholder name="bottom"/>
+  </popup>
+</ui>
+'''
+
 class TagsTableView(ChangeSetTableView):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
         ptype = PrecisType(TAG_TABLE_PRECIS_DESCR, ifce.SCM.get_tags_data)
         ChangeSetTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
+        self._action_group[UNIQUE_SELECTION_NOT_PMIC].add_actions(
+            [
+                ("cs_remove_selected_tag", icons.STOCK_REMOVE, "Remove", None,
+                 "Remove the selected tag from the repository",
+                 self._remove_tag_cs_acb),
+                ("cs_move_selected_tag", icons.STOCK_MOVE, "Move", None,
+                 "Move the selected tag to another change set",
+                 self._move_tag_cs_acb),
+            ])
+        self.cwd_merge_id.append(self._ui_manager.add_ui_from_string(TAG_TABLE_UI_DESCR))
+    def _remove_tag_cs_acb(self, action=None):
+        tag = self.get_selected_change_set()
+        self._show_busy()
+        RemoveTagDialog(ifce=self._ifce, tag=tag).run()
+        self._unshow_busy()
+    def _move_tag_cs_acb(self, action=None):
+        tag = self.get_selected_change_set()
+        self._show_busy()
+        MoveTagDialog(ifce=self._ifce, tag=tag).run()
+        self._unshow_busy()
 
 TAG_LIST_DESCR = \
 [
@@ -391,16 +488,10 @@ BRANCH_LIST_DESCR = \
     ["Branch", gobject.TYPE_STRING, False, []],
 ]
 
-class ChangeSetSelectDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
-    def __init__(self, ifce, discard_toggle=False, parent=None):
-        gutils.BusyIndicator.__init__(self)
-        gutils.BusyIndicatorUser.__init__(self, self)
-        title = "gwsmg: Select Change Set: %s" % utils.path_rel_home(os.getcwd())
-        gtk.Dialog.__init__(self, title=title, parent=parent,
-                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
-                            buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                                    gtk.STOCK_OK, gtk.RESPONSE_OK)
-                           )
+class ChangeSetSelectWidget(gtk.VBox, gutils.BusyIndicatorUser):
+    def __init__(self, ifce, busy_indicator, label="Change Set:", discard_toggle=False):
+        gtk.VBox.__init__(self)
+        gutils.BusyIndicatorUser.__init__(self, busy_indicator)
         self._ifce = ifce
         hbox = gtk.HBox()
         self._tags_button = gtk.Button(label="Browse _Tags")
@@ -413,9 +504,9 @@ class ChangeSetSelectDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicat
         self._history_button.connect("clicked", self._browse_history_cb)
         for button in self._tags_button, self._branches_button, self._heads_button, self._history_button:
             hbox.pack_start(button, expand=True, fill=False)
-        self.vbox.pack_start(hbox, expand=False)
+        self.pack_start(hbox, expand=False)
         hbox = gtk.HBox()
-        hbox.pack_start(gtk.Label("Change Set:"))
+        hbox.pack_start(gtk.Label(label))
         self._entry = gutils.EntryWithHistory()
         self._entry.set_width_chars(32)
         self._entry.connect("activate", self._entry_cb)
@@ -426,11 +517,11 @@ class ChangeSetSelectDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicat
             hbox.pack_start(self._discard_toggle, expand=False, fill=False)
         else:
             self._discard_toggle = None
-        self.vbox.pack_start(hbox, expand=False, fill=False)
+        self.pack_start(hbox, expand=False, fill=False)
         self.show_all()
     def _browse_change_set(self, ptype, title, size=(640, 240)):
         self._show_busy()
-        dialog = SelectDialog(ifce=self._ifce, ptype=ptype, title=title, size=size, parent=self)
+        dialog = SelectDialog(ifce=self._ifce, ptype=ptype, title=title, size=size, parent=None)
         self._unshow_busy()
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
@@ -456,6 +547,25 @@ class ChangeSetSelectDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicat
         if self._discard_toggle is None:
             return False
         return self._discard_toggle.get_active()
+
+class ChangeSetSelectDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
+    def __init__(self, ifce, discard_toggle=False, parent=None):
+        gutils.BusyIndicator.__init__(self)
+        gutils.BusyIndicatorUser.__init__(self, self)
+        title = "gwsmg: Select Change Set: %s" % utils.path_rel_home(os.getcwd())
+        gtk.Dialog.__init__(self, title=title, parent=parent,
+                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
+                            buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                    gtk.STOCK_OK, gtk.RESPONSE_OK)
+                           )
+        self._widget = ChangeSetSelectWidget(ifce=ifce, busy_indicator=self.get_busy_indicator(),
+            discard_toggle=discard_toggle)
+        self.vbox.pack_start(self._widget)
+        self.show_all()
+    def get_change_set(self):
+        return self._widget.get_change_set()
+    def get_discard(self):
+        return self._widget.get_discard()
 
 class FileTreeStore(file_tree.FileTreeStore):
     def __init__(self, ifce, rev):
