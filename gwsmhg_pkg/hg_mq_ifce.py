@@ -623,6 +623,10 @@ class SCMInterface(BaseInterface):
         return self._run_cmd_on_console(cmd)
     def do_verify_repo(self):
         return self._run_cmd_on_console("hg verify")
+    def do_rollback_repo(self):
+        result = self._run_cmd_on_console('hg rollback')
+        self._do_cmd_notification('rollback')
+        return result
     def do_set_tag(self, tag, rev=None, local=False, force=False, msg=None):
         if not tag:
             return (cmd_result.OK, "", "")

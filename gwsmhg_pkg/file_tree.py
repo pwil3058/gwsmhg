@@ -904,7 +904,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         self._ifce = ifce
         model = ScmCwdFileTreeStore(ifce=self._ifce, show_hidden=show_hidden)
         self._ifce.log.add_notification_cb(["manual_cmd"], self.update_after_commit)
-        self._ifce.SCM.add_notification_cb(["commit", "update", "init"], self.update_after_commit)
+        self._ifce.SCM.add_notification_cb(["commit", "update", "init", "rollback"], self.update_after_commit)
         self._ifce.PM.add_notification_cb(self._ifce.PM.file_state_changing_cmds, self.update_after_commit)
         self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.update_menu_sensitivity)
         tortoise.action_notifier.add_notification_cb(tortoise.tag_changers, self.update_menu_sensitivity)

@@ -34,6 +34,8 @@ GWSM_UI_DESCR = \
       <toolitem name="Pull" action="gwsm_pull_repo"/>
       <toolitem name="Push" action="gwsm_push_repo"/>
       <toolitem name="Verify" action="gwsm_verify_repo"/>
+      <separator/>
+      <toolitem name="Rollback" action="gwsm_rollback_repo"/>
     </placeholder>
   </toolbar>
   <menubar name="gwsm_menubar">
@@ -132,6 +134,9 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
                 ("gwsm_push_repo", icons.STOCK_PUSH, "Push", "",
                  "Push all available changes to the default path",
                  self._push_repo_acb),
+                ("gwsm_rollback_repo", icons.STOCK_ROLLBACK, "Rollback", "",
+                 "Roll back the last transaction",
+                 self._rollback_repo_acb),
             ])
         self._ui_manager.add_ui_from_string(GWSM_UI_DESCR)
         if tortoise.is_available:
@@ -350,4 +355,12 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
         result = self._ifce.SCM.do_verify_repo()
         self._unshow_busy()
         self._report_any_problems(result)
+    def _rollback_repo_acb(self, action=None):
+        question = os.linesep.join(['About to roll back last transaction',
+                                    'This action is irreversible! Continue?'])
+        if gutils.ask_yes_no(question, parent=self):
+            self._show_busy()
+            result = self._ifce.SCM.do_rollback_repo()
+            self._unshow_busy()
+            self._report_any_problems(result)
 
