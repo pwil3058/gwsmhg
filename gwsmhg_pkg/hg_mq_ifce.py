@@ -573,17 +573,10 @@ class SCMInterface(BaseInterface):
     def do_commit_change(self, msg, file_list=[]):
         cmd = "hg -v commit"
         if msg:
-            # to avoid any possible problems with interaction of characters in the
-            # message with the shell we'll stick the message in a temporary file
-            msg_fd, msg_file_name = tempfile.mkstemp()
-            os.write(msg_fd, msg)
-            os.close(msg_fd)
-            cmd += " --logfile %s" % msg_file_name
+            cmd += ' -m "%s"' % msg.replace('"', '\\"')
         if file_list:
             cmd += " %s" % " ".join(file_list)
         res, sout, serr = self._run_cmd_on_console(cmd)
-        if msg:
-            os.remove(msg_file_name)
         self._do_cmd_notification("commit", sout.splitlines(False)[:-1])
         return (res, sout, serr)
     def do_remove_files(self, file_list, force=False):
