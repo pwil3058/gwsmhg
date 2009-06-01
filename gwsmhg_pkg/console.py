@@ -52,7 +52,9 @@ class ConsoleLogBuffer(gtksourceview.SourceBuffer):
         self._append_tagged_text("% ", self.bold_tag)
         self.begin_not_undoable_action()
     def _append_tagged_text(self, text, tag):
-        self.insert_with_tags(self.get_end_iter(), text, tag)
+        iter = self.get_end_iter()
+        assert iter is not None, "ConsoleLogBuffer"
+        self.insert_with_tags(iter, text, tag)
         self._view and self._view.scroll_to_mark(self._eobuf, 0.001)
     def start_cmd(self, cmd):
         self._append_tagged_text("%s: " % time.strftime("%Y-%m-%d %H:%M:%S"), self.bold_tag)

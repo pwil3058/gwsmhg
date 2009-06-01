@@ -540,6 +540,7 @@ class TableView(gtk.TreeView):
         list = []
         for row in selection:
             iter = store.get_iter(row)
+            assert iter is not None, "gutils:get_selected_data"
             row_data = []
             for col in columns:
                 row_data.append(store.get_value(iter, col))
