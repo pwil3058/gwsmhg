@@ -19,41 +19,31 @@ import gtk, gutils
 External command return values
 '''
 OK = 0
-INFO = 1
-WARNING = 2
-ERROR = 4
-SUGGEST_FORCE = 8
-SUGGEST_REFRESH = 16
-SUGGEST_RECOVER = 32
-SUGGEST_RENAME = 64
-SUGGEST_DISCARD = 128
-SUGGEST_MERGE = 256
+WARNING = 1
+ERROR = 2
+SUGGEST_FORCE = 4
+SUGGEST_REFRESH = 8
+SUGGEST_RECOVER = 16
+SUGGEST_RENAME = 32
+SUGGEST_DISCARD = 64
+SUGGEST_MERGE = 128
 SUGGEST_FORCE_OR_REFRESH = SUGGEST_FORCE | SUGGEST_REFRESH
-INFO_SUGGEST_FORCE = INFO | SUGGEST_FORCE
 WARNING_SUGGEST_FORCE = WARNING | SUGGEST_FORCE
 ERROR_SUGGEST_FORCE = ERROR | SUGGEST_FORCE
-INFO_SUGGEST_REFRESH = INFO | SUGGEST_REFRESH
 WARNING_SUGGEST_REFRESH = WARNING | SUGGEST_REFRESH
 ERROR_SUGGEST_REFRESH = ERROR | SUGGEST_REFRESH
-INFO_SUGGEST_FORCE_OR_REFRESH = INFO | SUGGEST_FORCE_OR_REFRESH
 WARNING_SUGGEST_FORCE_OR_REFRESH = WARNING | SUGGEST_FORCE_OR_REFRESH
 ERROR_SUGGEST_FORCE_OR_REFRESH = ERROR | SUGGEST_FORCE_OR_REFRESH
 SUGGEST_FORCE_OR_RENAME = SUGGEST_FORCE | SUGGEST_RENAME
 SUGGEST_MERGE_OR_DISCARD = SUGGEST_MERGE | SUGGEST_DISCARD
 
-BASIC_VALUES_MASK = OK | INFO | WARNING | ERROR
+BASIC_VALUES_MASK = OK | WARNING | ERROR
 
 def basic_value(res):
     return res & BASIC_VALUES_MASK
 
 def is_ok(res):
     return basic_value(res) == OK
-
-def is_info(res):
-    return basic_value(res) == INFO
-
-def is_less_than_info(res):
-    return basic_value(res) < INFO
 
 def is_warning(res):
     return basic_value(res) == WARNING
@@ -67,12 +57,10 @@ def is_error(res):
 def is_less_than_error(res):
     return basic_value(res) < ERROR
 
-def map_cmd_result(result, stdout_expected=False, ignore_err_re=None):
+def map_cmd_result(result, ignore_err_re=None):
     if result[0] == 0:
         if result[2] and not (ignore_err_re and ignore_err_re.match(result[2])):
             outres = WARNING
-        elif not stdout_expected and result[1]:
-            outres = INFO
         else:
             outres = OK
     else:
@@ -94,13 +82,9 @@ class ProblemReporter(gutils.PopupUser):
         self._report_problem(msg)
     def _report_warning(self, msg):
         self._report_problem(msg, gtk.MESSAGE_WARNING)
-    def _report_info(self, msg):
-        self._report_problem(msg, gtk.MESSAGE_INFO)
     def _report_any_problems(self, result):
         if result[0] & ERROR:
             self._report_error(result[1] + result[2])
         elif result[0] & WARNING:
             self._report_warning(result[1] + result[2])
-        elif result[0] & INFO:
-            self._report_info(result[1] + result[2])
 

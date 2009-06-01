@@ -65,8 +65,8 @@ class BaseInterface(utils.action_notifier):
         return "%s <%s>" % (name, email)
     def get_status_row_data(self):
         return (self.status_deco_map, self.extra_info_sep, self.modified_dir_status, self.default_nonexistant_status)
-    def _map_result(self, result, stdout_expected=False):
-        outres, sout, serr = cmd_result.map_cmd_result(result, stdout_expected)
+    def _map_result(self, result, ignore_err_re=None):
+        outres, sout, serr = cmd_result.map_cmd_result(result, ignore_err_re)
         if outres != cmd_result.OK:
             for force_suggested in ["use -f to force", "not overwriting - file exists"]:
                 if serr.find(force_suggested) != -1 or sout.find(force_suggested) != -1:
@@ -79,7 +79,7 @@ class BaseInterface(utils.action_notifier):
         if file_list:
             cmd = " ".join([cmd] + file_list)
         if dry_run:
-            return self._map_result(utils.run_cmd(cmd), stdout_expected=True)
+            return self._map_result(utils.run_cmd(cmd))
         else:
             result = self._run_cmd_on_console(cmd)
             self._do_cmd_notification("add")
@@ -92,7 +92,7 @@ class BaseInterface(utils.action_notifier):
             cmd += "-f "
         cmd = " ".join([cmd] + file_list + [target])
         if dry_run:
-            return self._map_result(utils.run_cmd(cmd), stdout_expected=True)
+            return self._map_result(utils.run_cmd(cmd))
         else:
             result = self._run_cmd_on_console(cmd)
             self._do_cmd_notification("copy")
@@ -105,7 +105,7 @@ class BaseInterface(utils.action_notifier):
             cmd += "-f "
         cmd = " ".join([cmd] + file_list + [target])
         if dry_run:
-            return self._map_result(utils.run_cmd(cmd), stdout_expected=True)
+            return self._map_result(utils.run_cmd(cmd))
         else:
             result = self._run_cmd_on_console(cmd)
             self._do_cmd_notification("rename")
@@ -119,9 +119,9 @@ class BaseInterface(utils.action_notifier):
         else:
             cmd += "--all"
         if dry_run:
-            return self._map_result(utils.run_cmd(cmd), stdout_expected=True)
+            return self._map_result(utils.run_cmd(cmd))
         else:
-            result = self._run_cmd_on_console(cmd, stdout_expected=True)
+            result = self._run_cmd_on_console(cmd)
             self._do_cmd_notification("revert")
             return result
     def do_delete_files(self, file_list):
@@ -177,15 +177,11 @@ class SCMInterface(BaseInterface):
             ]
         self.cs_summary_template = os.linesep.join(self.cs_summary_template_lines)
         self.cs_table_template = '{rev}:{date|age}:{tags}:{branches}:{author|person}:{desc|firstline}' + os.linesep
-    def _map_cmd_result(self, result, stdout_expected=True, ignore_err_re=None):
+    def _map_cmd_result(self, result, ignore_err_re=None):
         if not result[0]:
             if self._inotify_warning(result[1]):
-                if stdout_expected:
-                    return result
-                res, sout, serr = cmd_result.map_cmd_result((result[0], result[1], ""),
-                    stdout_expected=stdout_expected, ignore_err_re=None)
-                return (res, sout, result[2])
-            return cmd_result.map_cmd_result(result, stdout_expected=stdout_expected, ignore_err_re=ignore_err_re)
+                return result
+            return cmd_result.map_cmd_result(result, ignore_err_re=ignore_err_re)
         else:
             flags = cmd_result.ERROR
             if result[2].find('use -f to force') is not -1:
@@ -197,9 +193,9 @@ class SCMInterface(BaseInterface):
             elif result[2].find('use \'hg update -C\'') is not -1:
                 flags |= cmd_result.SUGGEST_DISCARD
             return (flags, result[1], result[2])
-    def _run_cmd_on_console(self, cmd, stdout_expected=True):
+    def _run_cmd_on_console(self, cmd):
         result = utils.run_cmd_in_console(cmd, self._console_log)
-        return self._map_cmd_result(result, stdout_expected)
+        return self._map_cmd_result(result)
     def get_default_commit_save_file(self):
         return os.path.join(".hg", "gwsmhg.saved.commit")
     def _get_first_in_envar(self, envar_list):
@@ -604,7 +600,7 @@ class SCMInterface(BaseInterface):
             cmd += " -C"
         if rev:
             cmd += " -r %s" %rev
-        result = self._run_cmd_on_console(cmd, stdout_expected=True)
+        result = self._run_cmd_on_console(cmd)
         self._do_cmd_notification("update")
         return result
     def do_merge_workspace(self, rev=None, force=False):
@@ -744,15 +740,11 @@ class PMInterface(BaseInterface):
         self.file_state_changing_cmds = ["qfold", "qsave", "qpop", "qpush", "qfinish", "qsave-pfu", "qrestore", "qnew"]
         self.tag_changing_cmds = self.file_state_changing_cmds + ["qrename", "qdelete", "qimport", "update", "pull"]
         self.file_state_changing_cmds += ["add", "copy", "remove", "rename", "revert", "delete"]
-    def _map_cmd_result(self, result, stdout_expected=True, ignore_err_re=None):
+    def _map_cmd_result(self, result, ignore_err_re=None):
         if not result[0]:
             if self._inotify_warning(result[1]):
-                if stdout_expected:
-                    return result
-                res, sout, serr = cmd_result.map_cmd_result((result[0], result[1], ""),
-                    stdout_expected=stdout_expected, ignore_err_re=None)
-                return (res, sout, result[2])
-            return cmd_result.map_cmd_result(result, stdout_expected=stdout_expected, ignore_err_re=ignore_err_re)
+                return result
+            return cmd_result.map_cmd_result(result, ignore_err_re=ignore_err_re)
         else:
             flags = cmd_result.ERROR
             if result[2].find('use -f to force') is not -1:
@@ -762,9 +754,9 @@ class PMInterface(BaseInterface):
             if result[2].find('(revert --all, qpush to recover)') is not -1:
                 flags |= cmd_result.SUGGEST_RECOVER
             return (flags, result[1], result[2])
-    def _run_cmd_on_console(self, cmd, stdout_expected=True, ignore_err_re=None):
+    def _run_cmd_on_console(self, cmd, ignore_err_re=None):
         result = utils.run_cmd_in_console(cmd, self._console_log)
-        return self._map_cmd_result(result, stdout_expected, ignore_err_re=ignore_err_re)
+        return self._map_cmd_result(result, ignore_err_re=ignore_err_re)
     def get_enabled(self):
         return self.get_extension_enabled('mq')
     def get_parent(self, patch):
