@@ -1082,7 +1082,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                     self._show_busy()
                     res, sout, serr = operation(file_list, target, force=force, dry_run=True)
                     self._unshow_busy()
-                    if res == cmd_result.OK:
+                    if cmd_result.is_less_than_error(res):
                         ok = self._confirm_list_action(sout.splitlines(), "About to be actioned. OK?")
                         break
                     elif not force and (res & cmd_result.SUGGEST_FORCE) == cmd_result.SUGGEST_FORCE:
