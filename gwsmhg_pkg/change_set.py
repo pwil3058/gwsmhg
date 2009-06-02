@@ -15,7 +15,7 @@
 
 import gtk, gobject, os
 from gwsmhg_pkg import cmd_result, gutils, utils, icons, file_tree, diff
-from gwsmhg_pkg import text_edit, tortoise
+from gwsmhg_pkg import text_edit, tortoise, ws_event
 
 CS_TABLE_BASIC_UI_DESCR = \
 '''
@@ -52,10 +52,8 @@ class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
         cmd_result.ProblemReporter.__init__(self)
         gutils.MapManagedTableView.__init__(self, descr=ptype.descr, sel_mode=sel_mode,
             busy_indicator=busy_indicator)
-        self._ifce.SCM.add_notification_cb(["commit", "tag", "branch", "rollback"], self.refresh_contents_if_mapped)
-        self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.refresh_contents_if_mapped)
-        self._ifce.log.add_notification_cb(["manual_cmd"], self.refresh_contents_if_mapped)
-        tortoise.action_notifier.add_notification_cb(tortoise.tag_changers, self.refresh_contents_if_mapped)
+        self._ncb = ws_event.add_notification_cb(ws_event.REPO_MOD, self.refresh_contents_if_mapped)
+        self.connect("destroy", self._destroy_cb)
         for condition in [UNIQUE_SELECTION, UNIQUE_SELECTION_NOT_PMIC]:
             self._action_group[condition] = gtk.ActionGroup(condition)
             self._ui_manager.insert_action_group(self._action_group[condition], -1)
@@ -75,6 +73,8 @@ class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
             ])
         self.cwd_merge_id.append(self._ui_manager.add_ui_from_string(CS_TABLE_BASIC_UI_DESCR))
         self.show_all()
+    def _destroy_cb(self, widget):
+        ws_event.del_notification_cb(self._ncb)
     def _set_action_sensitivities(self):
         sel = self.get_selection().count_selected_rows() == 1
         self._action_group[UNIQUE_SELECTION].set_sensitive(sel)
@@ -241,8 +241,8 @@ class ParentsTableView(AUPrecisTableView):
                                    auto_refresh_on=auto_refresh_on,
                                    auto_refresh_interval=auto_refresh_interval,
                                    busy_indicator=busy_indicator)
-        self._ifce.SCM.add_notification_cb(["update", "merge"], self.refresh_contents_if_mapped)
-        tortoise.action_notifier.add_notification_cb(tortoise.parent_changers, self.refresh_contents_if_mapped)
+        ws_event.del_notification_cb(self._ncb)
+        self._ncb = ws_event.add_notification_cb(ws_event.REPO_MOD|ws_event.CHECKOUT, self.refresh_contents_if_mapped)
         self._action_group[UNIQUE_SELECTION_NOT_PMIC].get_action("cs_update_ws_to").set_visible(False)
         self._action_group[UNIQUE_SELECTION_NOT_PMIC].get_action("cs_merge_ws_with").set_visible(False)
         self._action_group[gutils.ALWAYS_ON].get_action("table_refresh_contents").set_visible(False)
@@ -252,13 +252,11 @@ class ParentsTableView(AUPrecisTableView):
 class ChangeSetTableView(PrecisTableView):
     def __init__(self, ifce, ptype, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None):
         PrecisTableView.__init__(self, ifce=ifce, ptype=ptype, sel_mode=sel_mode, busy_indicator=busy_indicator)
-        self._ifce.SCM.add_notification_cb(["pull"], self.refresh_contents_if_mapped)
 
 class HeadsTableView(ChangeSetTableView):
     def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
         ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, ifce.SCM.get_heads_data)
         ChangeSetTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
-        self._ifce.SCM.add_notification_cb(["init"], self.refresh_contents_if_mapped)
 
 TAG_MSG_UI_DESCR = \
 '''

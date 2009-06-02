@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import os, gtk, gtksourceview, pango
-from gwsmhg_pkg import utils, cmd_result, gutils, utils
+from gwsmhg_pkg import utils, cmd_result, gutils, utils, ws_event
 import time
 
 class DummyConsoleLog:
@@ -97,14 +97,13 @@ CONSOLE_LOG_UI_DESCR = \
 </ui>
 '''
 
-class ConsoleLog(gtk.VBox, cmd_result.ProblemReporter, utils.action_notifier,
+class ConsoleLog(gtk.VBox, cmd_result.ProblemReporter,
                  gutils.BusyIndicatorUser, gutils.TooltipsUser):
     def __init__(self, busy_indicator, table=None, tooltips=None):
         gtk.VBox.__init__(self)
         cmd_result.ProblemReporter.__init__(self)
         gutils.BusyIndicatorUser.__init__(self, busy_indicator)
         gutils.TooltipsUser.__init__(self, tooltips)
-        utils.action_notifier.__init__(self)
         self._buffer = ConsoleLogBuffer()
         self._view = ConsoleLogView(buffer=self._buffer)
         self._action_group = gtk.ActionGroup("console_log")
@@ -165,5 +164,5 @@ class ConsoleLog(gtk.VBox, cmd_result.ProblemReporter, utils.action_notifier,
             result = (cmd_result.OK, "", "")
         self._unshow_busy()
         self._report_any_problems(result)
-        self._do_cmd_notification("manual_cmd")
+        ws_event.notify_events(-1)
 

@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import gtk
-from gwsmhg_pkg import utils, cmd_result, icons, const
+from gwsmhg_pkg import utils, cmd_result, icons, const, ws_event
 
 TORTOISE_HGTK_UI = \
 '''
@@ -46,15 +46,7 @@ tool_list = ['rename', 'clone', 'commit', 'datamine', 'guess', 'init',
              'log', 'merge', 'recovery', 'repoconfig', 'serve', 'shelve',
              'status', 'synch', 'update', 'userconfig', ]
 
-file_changers = ['commit', 'rename', 'status', 'merge', 'recovery', 'update', ]
-tag_changers = ['commit', 'merge', ]
-path_changers = ['repoconfig', 'userconfig', 'clone', 'init', ]
-cwd_changers = ['init', 'clone', ]
-parent_changers = ['log', 'merge', 'recovery', 'update', ]
-
 is_available = utils.which('hgtk') is not None
-
-action_notifier = utils.action_notifier()
 
 _problem_reporter = cmd_result.ProblemReporter()
 
@@ -62,12 +54,26 @@ def action_tool_name(action):
     dummy, name = action.get_name().split('_')
     return name
 
+def _notify_event_by_name(name):
+    if name in ['commit', 'rename', 'status', 'merge', 'recovery', 'update', ]:
+        ws_event.notify_events(ws_event.FILE_CHANGES)
+    elif name in ['commit', 'merge', ]:
+        ws_event.notify_events(ws_event.REPO_MOD)
+    elif name in ['repoconfig', 'clone', 'init', ]:
+        ws_event.notify_events(ws_event.REPO_HGRC)
+    elif name in ['userconfig', ]:
+        ws_event.notify_events(ws_event.USER_HGRC)
+    elif name in ['log', 'merge', 'recovery', 'update', ]:
+        ws_event.notify_events(ws_event.CHECKOUT)
+    elif name in ['init', 'clone', ]:
+        ws_event.notify_events(ws_event.CHANGE_WD)
+
 def _tortoise_tool_modal_acb(action):
     name = action_tool_name(action)
     cmd = 'hgtk %s' % name
     result = utils.run_cmd(cmd)
     _problem_reporter._report_any_problems(result)
-    action_notifier._do_cmd_notification(name)
+    _notify_event_by_name(name)
 
 def _tortoise_tool_bgnd_acb(action):
     name = action_tool_name(action)
@@ -170,5 +176,5 @@ def run_tool_for_files(action, file_list):
     cmd = 'hgtk %s %s' % (name, " ".join(file_list))
     result = utils.run_cmd(cmd)
     _problem_reporter._report_any_problems(result)
-    action_notifier._do_cmd_notification(name)
+    _notify_event_by_name(name)
 

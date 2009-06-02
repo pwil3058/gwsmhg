@@ -14,14 +14,13 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import os, os.path, tempfile, pango, re, tempfile
-from gwsmhg_pkg import text_edit, utils, cmd_result, console, putils
+from gwsmhg_pkg import text_edit, utils, cmd_result, console, putils, ws_event
 
 DEFAULT_NAME_EVARS = ["GIT_AUTHOR_NAME", "GECOS"]
 DEFAULT_EMAIL_VARS = ["GIT_AUTHOR_EMAIL", "EMAIL_ADDRESS"]
 
-class BaseInterface(utils.action_notifier):
+class BaseInterface:
     def __init__(self, name, console_log):
-        utils.action_notifier.__init__(self)
         self._console_log = console_log
         self.name = name
         self.status_deco_map = {
@@ -82,7 +81,7 @@ class BaseInterface(utils.action_notifier):
             return self._map_result(utils.run_cmd(cmd))
         else:
             result = self._run_cmd_on_console(cmd)
-            self._do_cmd_notification("add")
+            ws_event.notify_events(ws_event.FILE_ADD)
             return result
     def do_copy_files(self, file_list, target, force=False, dry_run=False):
         cmd = "hg copy "
@@ -95,7 +94,7 @@ class BaseInterface(utils.action_notifier):
             return self._map_result(utils.run_cmd(cmd))
         else:
             result = self._run_cmd_on_console(cmd)
-            self._do_cmd_notification("copy")
+            ws_event.notify_events(ws_event.FILE_ADD)
             return result
     def do_move_files(self, file_list, target, force=False, dry_run=False):
         cmd = "hg rename "
@@ -108,7 +107,7 @@ class BaseInterface(utils.action_notifier):
             return self._map_result(utils.run_cmd(cmd))
         else:
             result = self._run_cmd_on_console(cmd)
-            self._do_cmd_notification("rename")
+            ws_event.notify_events(ws_event.FILE_DEL|ws_event.FILE_ADD)
             return result
     def do_revert_files(self, file_list, dry_run=False):
         cmd = "hg revert "
@@ -122,7 +121,7 @@ class BaseInterface(utils.action_notifier):
             return self._map_result(utils.run_cmd(cmd))
         else:
             result = self._run_cmd_on_console(cmd)
-            self._do_cmd_notification("revert")
+            ws_event.notify_events(ws_event.FILE_CHANGES)
             return result
     def do_delete_files(self, file_list):
         if self._console_log:
@@ -140,7 +139,7 @@ class BaseInterface(utils.action_notifier):
                     self._console_log.append_stderr(errmsg)
         if self._console_log:
             self._console_log.end_cmd()
-        self._do_cmd_notification("delete")
+        ws_event.notify_events(ws_event.FILE_DEL)
         if serr:
             return (cmd_result.ERROR, "", serr)
         return (cmd_result.OK, "", "")
@@ -154,7 +153,10 @@ class BaseInterface(utils.action_notifier):
             cmd += " %s" % source
         result = self._run_cmd_on_console(cmd)
         if cmd_result.is_less_than_error(result[0]):
-            self._do_cmd_notification("pull")
+            events = ws_event.REPO_MOD
+            if update:
+                events |= ws_event.FILE_CHANGES
+            ws_event.notify_events(events)
         return result
 
 class SCMInterface(BaseInterface):
@@ -564,7 +566,7 @@ class SCMInterface(BaseInterface):
         else:
             cmd = "hg init"
         result = self._run_cmd_on_console(cmd)
-        self._do_cmd_notification("init")
+        ws_event.notify_events(ws_event.REPO_MOD|ws_event.CHECKOUT)
         return result
     def do_commit_change(self, msg, file_list=[]):
         cmd = "hg -v commit"
@@ -573,14 +575,14 @@ class SCMInterface(BaseInterface):
         if file_list:
             cmd += " %s" % " ".join(file_list)
         res, sout, serr = self._run_cmd_on_console(cmd)
-        self._do_cmd_notification("commit", sout.splitlines(False)[:-1])
+        ws_event.notify_events(ws_event.REPO_MOD|ws_event.CHECKOUT, sout.splitlines(False)[:-1])
         return (res, sout, serr)
     def do_remove_files(self, file_list, force=False):
         if force:
             result = self._run_cmd_on_console("hg remove -f " + " ".join(file_list))
         else:
             result = self._run_cmd_on_console("hg remove " + " ".join(file_list))
-        self._do_cmd_notification("remove")
+        ws_event.notify_events(ws_event.FILE_DEL)
         return result
     def get_diff_for_files(self, file_list, fromrev, torev=None):
         # because of the likelihood of a multiple parents we'll never use the
@@ -601,7 +603,7 @@ class SCMInterface(BaseInterface):
         if rev:
             cmd += " -r %s" %rev
         result = self._run_cmd_on_console(cmd)
-        self._do_cmd_notification("update")
+        ws_event.notify_events(ws_event.CHECKOUT)
         return result
     def do_merge_workspace(self, rev=None, force=False):
         cmd = "hg merge"
@@ -610,7 +612,7 @@ class SCMInterface(BaseInterface):
         if rev:
             cmd += " -r %s" %rev
         result = self._run_cmd_on_console(cmd)
-        self._do_cmd_notification("merge")
+        ws_event.notify_events(ws_event.CHECKOUT)
         return result
     def do_push_to(self, rev=None, force=False, path=None):
         cmd = "hg push"
@@ -625,7 +627,7 @@ class SCMInterface(BaseInterface):
         return self._run_cmd_on_console("hg verify")
     def do_rollback_repo(self):
         result = self._run_cmd_on_console('hg rollback')
-        self._do_cmd_notification('rollback')
+        ws_event.notify_events(ws_event.REPO_MOD|ws_event.CHECKOUT)
         return result
     def do_set_tag(self, tag, rev=None, local=False, force=False, msg=None):
         if not tag:
@@ -642,7 +644,7 @@ class SCMInterface(BaseInterface):
         cmd += " %s" % tag
         result = self._run_cmd_on_console(cmd)
         if cmd_result.is_less_than_error(result[0]):
-            self._do_cmd_notification("tag")
+            ws_event.notify_events(ws_event.REPO_MOD)
         return result        
     def do_remove_tag(self, tag, msg=None):
         cmd = "hg tag --remove"
@@ -651,7 +653,7 @@ class SCMInterface(BaseInterface):
         cmd += " %s" % tag
         result = self._run_cmd_on_console(cmd)
         if cmd_result.is_less_than_error(result[0]):
-            self._do_cmd_notification("tag")
+            ws_event.notify_events(ws_event.REPO_MOD)
         return result        
     def do_move_tag(self, tag, rev, msg=None):
         cmd = "hg tag -f -r %s" % rev
@@ -660,7 +662,7 @@ class SCMInterface(BaseInterface):
         cmd += " %s" % tag
         result = self._run_cmd_on_console(cmd)
         if cmd_result.is_less_than_error(result[0]):
-            self._do_cmd_notification("tag")
+            ws_event.notify_events(ws_event.REPO_MOD)
         return result        
     def do_set_branch(self, branch, force=False):
         cmd = "hg tag"
@@ -668,14 +670,14 @@ class SCMInterface(BaseInterface):
             cmd += " -f"
         cmd += " %s" % branch
         result = self._run_cmd_on_console(cmd)
-        self._do_cmd_notification("branch")
+        ws_event.notify_events(ws_event.REPO_MOD)
         return result
     def do_clone_as(self, path, target=None):
         cmd = "hg clone %s" % path
         if target:
             cmd += " %s" % target
         result = self._run_cmd_on_console(cmd)
-        self._do_cmd_notification("clone")
+        ws_event.notify_events(ws_event.REPO_MOD)
         return result
 
 class _WsUpdateStateMgr:
@@ -741,9 +743,6 @@ class PMInterface(BaseInterface):
         self.not_enabled_response = (cmd_result.ERROR, ENABLE_MQ_MSG, "")
         self._adding_re = re.compile("^adding\s.*$")
         self._qpush_re = re.compile("^(merging|applying)\s.*$", re.M)
-        self.file_state_changing_cmds = ["qfold", "qsave", "qpop", "qpush", "qfinish", "qsave-pfu", "qrestore", "qnew"]
-        self.tag_changing_cmds = self.file_state_changing_cmds + ["qrename", "qdelete", "qimport", "update", "pull"]
-        self.file_state_changing_cmds += ["add", "copy", "remove", "rename", "revert", "delete"]
     def _map_cmd_result(self, result, ignore_err_re=None):
         if not result[0]:
             if self._inotify_warning(result[1]):
@@ -877,7 +876,7 @@ class PMInterface(BaseInterface):
     def do_refresh(self):
         result = self._run_cmd_on_console("hg qrefresh")
         if not result[0]:
-            self._do_cmd_notification("qrefresh")
+            ws_event.notify_events(ws_event.FILE_CHANGES)
         return result
     def do_pop_to(self, patch=None, force=False):
         if patch is None:
@@ -895,9 +894,12 @@ class PMInterface(BaseInterface):
                 result = self._run_cmd_on_console("hg qpop -f %s" % patch)
             else:
                 result = self._run_cmd_on_console("hg qpop %s" % patch)
-        self._do_cmd_notification("qpop")
+        ws_event.notify_events(ws_event.REPO_MOD|ws_event.FILE_CHANGES)
+        if not self.get_in_progress():
+            ws_event.notify_events(ws_event.PMIC_CHANGE)
         return result
     def do_push_to(self, patch=None, force=False, merge=False):
+        in_charge = self.get_in_progress()
         if merge:
             cmd = "hg -y qpush -m"
         else:
@@ -917,7 +919,9 @@ class PMInterface(BaseInterface):
                 result = self._run_cmd_on_console("%s -f %s" % (cmd, patch), ignore_err_re=self._qpush_re)
             else:
                 result = self._run_cmd_on_console("%s %s" % (cmd, patch), ignore_err_re=self._qpush_re)
-        self._do_cmd_notification("qpush")
+        ws_event.notify_events(ws_event.REPO_MOD|ws_event.FILE_CHANGES)
+        if not in_charge:
+            ws_event.notify_events(ws_event.PMIC_CHANGE)
         if not result[0] and merge and len(self.get_unapplied_patches()) == 0:
             self._ws_update_mgr.set_state("merged")
         return result
@@ -965,19 +969,21 @@ class PMInterface(BaseInterface):
         return True
     def do_finish_patch(self, patch):
         result = self._run_cmd_on_console("hg qfinish %s" % patch)
-        self._do_cmd_notification("qfinish")
+        ws_event.notify_events(ws_event.REPO_MOD|ws_event.FILE_CHANGES)
+        if not self.get_in_progress():
+            ws_event.notify_events(ws_event.PMIC_CHANGE)
         return result
     def do_rename_patch(self, old_name, new_name):
         result = self._run_cmd_on_console("hg qrename %s %s" % (old_name, new_name))
-        self._do_cmd_notification("qrename")
+        ws_event.notify_events(ws_event.REPO_MOD)
         return result
     def do_delete_patch(self, patch):
         result = self._run_cmd_on_console("hg qdelete %s" % patch)
-        self._do_cmd_notification("qdelete")
+        ws_event.notify_events(ws_event.UNAPPLIED_PATCH_MOD)
         return result
     def do_fold_patch(self, patch):
         result = self._run_cmd_on_console("hg qfold %s" % patch)
-        self._do_cmd_notification("qfold")
+        ws_event.notify_events(ws_event.FILES_CHANGE)
         return result
     def do_import_patch(self, patch_file_name, as_patch_name=None, force=False):
         cmd = "hg qimport "
@@ -988,15 +994,18 @@ class PMInterface(BaseInterface):
         res, sout, serr = self._run_cmd_on_console(cmd + patch_file_name, ignore_err_re=self._adding_re)
         if res and re.search("already exists", serr):
             res |= cmd_result.SUGGEST_FORCE_OR_RENAME
-        self._do_cmd_notification("qimport")
+        ws_event.notify_events(ws_event.UNAPPLIED_PATCH_MOD)
         return (res, sout, serr)
     def do_new_patch(self, patch_name_raw, force=False):
+        in_charge = self.get_in_progress()
         patch_name = re.sub('\s', '_', patch_name_raw)
         if force:
             res, sout, serr = self._run_cmd_on_console("hg qnew -f %s" % patch_name)
         else:
             res, sout, serr = self._run_cmd_on_console("hg qnew %s" % patch_name)
-        self._do_cmd_notification("qnew")
+        ws_event.notify_events(ws_event.REPO_MOD)
+        if not in_charge:
+            ws_event.notify_events(ws_event.PMIC_CHANGE)
         if res & cmd_result.SUGGEST_REFRESH:
             res |= cmd_result.SUGGEST_FORCE
         return (res, sout, serr)
@@ -1013,12 +1022,12 @@ class PMInterface(BaseInterface):
         if force:
             cmd += "-f "
         result = self._run_cmd_on_console(" ".join([cmd] + file_list)) 
-        self._do_cmd_notification("remove")
+        ws_event.notify_events(ws_event.FILE_DEL)
         return result
     def do_save_queue_state_for_update(self):
         result = self._run_cmd_on_console("hg qsave -e -c")
         self._ws_update_mgr.start(result[2], "qsaved")
-        self._do_cmd_notification("qsave-pfu")
+        ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD)
         return result
     def do_pull_from(self, rev=None, source=None):
         result = BaseInterface.do_pull_from(self, rev=rev, source=source)
@@ -1031,7 +1040,7 @@ class PMInterface(BaseInterface):
             cmd += " -r %s" %rev
         result = self._run_cmd_on_console(cmd)
         if not result[0]:
-            self._do_cmd_notification("update")
+            ws_event.notify_events(ws_event.CHECKOUT)
             self._ws_update_mgr.set_state("updated")
         return result
     def do_clean_up_after_update(self):
@@ -1044,9 +1053,9 @@ class PMInterface(BaseInterface):
             result = self._run_cmd_on_console("hg qpop -a -n %s" % pcd)
             if top_patch:
                 utils.run_cmd("hg qgoto %s" % top_patch)
-                self._do_cmd_notification("qpush")
+                ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD)
             else:
-                self._do_cmd_notification("qpop")
+                ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD|ws_event.PMIC_CHANGE)
             return result
         else:
             return (cmd_result.INFO, "Saved patch directory not found.", "")

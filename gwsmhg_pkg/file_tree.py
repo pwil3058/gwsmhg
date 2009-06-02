@@ -15,7 +15,7 @@
 
 import os, os.path, tempfile, gtk, gtk.gdk
 from gwsmhg_pkg import utils, text_edit, cmd_result, diff, console, gutils, \
-    tortoise, icons
+    tortoise, icons, ws_event
 import gtksourceview
 
 IGNORED = 0
@@ -903,14 +903,12 @@ class ScmCwdFileTreeView(CwdFileTreeView):
     def __init__(self, ifce, busy_indicator, tooltips=None, auto_refresh=False, show_hidden=False):
         self._ifce = ifce
         model = ScmCwdFileTreeStore(ifce=self._ifce, show_hidden=show_hidden)
-        self._ifce.log.add_notification_cb(["manual_cmd"], self.update_after_commit)
-        self._ifce.SCM.add_notification_cb(["commit", "update", "init", "rollback"], self.update_after_commit)
-        self._ifce.PM.add_notification_cb(self._ifce.PM.file_state_changing_cmds, self.update_after_commit)
-        self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self.update_menu_sensitivity)
-        tortoise.action_notifier.add_notification_cb(tortoise.tag_changers, self.update_menu_sensitivity)
-        tortoise.action_notifier.add_notification_cb(tortoise.file_changers, self.update_after_commit)
         CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
             tooltips=tooltips, auto_refresh=auto_refresh, console_log=ifce.log, show_status=True)
+        self._ncb_uac = ws_event.add_notification_cb(ws_event.CHECKOUT|ws_event.FILE_CHANGES|ws_event.CHANGE_WD,
+            self.update_after_commit)
+        self._ncb_ums = ws_event.add_notification_cb(ws_event.PMIC_CHANGE, self.update_menu_sensitivity)
+        self.connect("destroy", self._destroy_cb)
         self._action_group[SELECTION].add_actions(
             [
                 ("scm_remove_files", gtk.STOCK_REMOVE, "_Remove", None,
@@ -963,6 +961,8 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                     action_list.append(action + tuple([self._tortoise_tool_acb]))
                 self._action_group[condition].add_actions(action_list)
             self._ui_manager.add_ui_from_string(tortoise.FILES_UI_DESCR)
+    def _destroy_cb(self, widget):
+        ws_event.del_notification_cbs([self._ncb_uac, self._ncb_ums])
     def _tortoise_tool_acb(self, action=None):
         tortoise.run_tool_for_files(action, self.get_selected_files())
     def new_file(self, new_file_name):

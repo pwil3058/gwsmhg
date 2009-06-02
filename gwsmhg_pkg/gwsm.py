@@ -15,7 +15,7 @@
 
 import os, gtk, gobject, sys
 from gwsmhg_pkg import console, change_set, file_tree, gutils, utils, patch_mgr
-from gwsmhg_pkg import icons, path, cmd_result, diff, config, tortoise, const
+from gwsmhg_pkg import icons, path, cmd_result, diff, config, tortoise, const, ws_event
 
 GWSM_UI_DESCR = \
 '''
@@ -181,7 +181,7 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
         self.show_all()
         self._update_title()
         self._parent_view.get_selection().unselect_all()
-        self._ifce.PM.add_notification_cb(self._ifce.PM.tag_changing_cmds, self._update_sensitivities)
+        ws_event.add_notification_cb(ws_event.PMIC_CHANGE, self._update_sensitivities)
         if open_dialog:
             open_dialog._unshow_busy()
             open_dialog.destroy()

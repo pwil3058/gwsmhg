@@ -15,7 +15,7 @@
 
 import gtk, gobject, pango, os, tempfile, re
 from gwsmhg_pkg import cmd_result, gutils, file_tree, icons, text_edit, utils
-from gwsmhg_pkg import change_set, diff, path, tortoise
+from gwsmhg_pkg import change_set, diff, path, tortoise, ws_event
 
 class PatchFileTreeStore(file_tree.FileTreeStore):
     def __init__(self, ifce, patch=None, view=None):
@@ -163,13 +163,10 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
     def __init__(self, ifce, busy_indicator, tooltips=None, auto_refresh=False):
         self._ifce = ifce
         model = PatchFileTreeStore(ifce=ifce)
-        model._ifce.PM.add_notification_cb(["qrefresh", "qfold", "qsave"], self.update_tree)
-        model._ifce.PM.add_notification_cb(["qpop", "qpush", "qfinish", "qsave-pfu", "qrestore", "qnew"], self.repopulate_tree)
-        model._ifce.SCM.add_notification_cb(["add", "copy", "remove", "rename", "revert", "delete", "rollback"], self.update_tree)
-        self._ifce.log.add_notification_cb(["manual_cmd"], self.update_tree)
-        tortoise.action_notifier.add_notification_cb(tortoise.file_changers, self.update_tree)
         file_tree.CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, console_log=ifce.log,
             model=model, tooltips=tooltips, auto_refresh=auto_refresh, show_status=True)
+        ws_event.add_notification_cb(ws_event.REPO_MOD|ws_event.CHANGE_WD, self.repopulate_tree)
+        ws_event.add_notification_cb(ws_event.FILE_CHANGES, self.update_tree)
         model.set_view(self)
         self._action_group[file_tree.SELECTION].add_actions(
             [
@@ -472,7 +469,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         gtk.TreeView.__init__(self, self.store)
         cmd_result.ProblemReporter.__init__(self)
         gutils.BusyIndicatorUser.__init__(self, busy_indicator)
-        self._ifce.log.add_notification_cb(["manual_cmd", "rollback"], self.set_contents)
+        ws_event.add_notification_cb(ws_event.CHANGE_WD, self.set_contents)
         text_cell = gtk.CellRendererText()
         icon_cell = gtk.CellRendererPixbuf()
         tvcolumn = gtk.TreeViewColumn("patch_list")
