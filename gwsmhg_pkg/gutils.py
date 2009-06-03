@@ -247,6 +247,24 @@ class ReadTextAndToggleDialog(ReadTextDialog):
         self.hbox.pack_start(self.toggle)
         self.show_all()
 
+class RadioButtonFramedVBox(gtk.Frame):
+    def __init__(self, title, labels):
+        gtk.Frame.__init__(self, title)
+        self.vbox = gtk.VBox()
+        self.buttons = [gtk.RadioButton(label=labels[0], group=None)]
+        for label in labels[1:]:
+            self.buttons.append(gtk.RadioButton(label=label, group=self.buttons[0]))
+        for button in self.buttons:
+            self.vbox.pack_start(button, fill=False)
+        self.buttons[0].set_active(True)
+        self.add(self.vbox)
+        self.show_all
+    def get_selected_index(self):
+        for index in range(len(self.buttons)):
+            if self.buttons[index].get_active():
+                return index
+        return None
+
 def get_modified_string(title, prompt, string):
     dialog = ReadTextDialog(title, prompt, string)
     if dialog.run() == gtk.RESPONSE_OK:

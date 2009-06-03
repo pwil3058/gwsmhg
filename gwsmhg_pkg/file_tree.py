@@ -905,8 +905,10 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         model = ScmCwdFileTreeStore(ifce=self._ifce, show_hidden=show_hidden)
         CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
             tooltips=tooltips, auto_refresh=auto_refresh, console_log=ifce.log, show_status=True)
-        self._ncb_uac = ws_event.add_notification_cb(ws_event.CHECKOUT|ws_event.FILE_CHANGES|ws_event.CHANGE_WD,
+        self._ncb_uac = ws_event.add_notification_cb(ws_event.CHECKOUT|ws_event.FILE_CHANGES,
             self.update_after_commit)
+        self._ncb_uac = ws_event.add_notification_cb(ws_event.CHANGE_WD,
+            self.repopulate_tree)
         self._ncb_ums = ws_event.add_notification_cb(ws_event.PMIC_CHANGE, self.update_menu_sensitivity)
         self.connect("destroy", self._destroy_cb)
         self._action_group[SELECTION].add_actions(

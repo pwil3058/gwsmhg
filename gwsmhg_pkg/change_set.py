@@ -28,6 +28,7 @@ CS_TABLE_BASIC_UI_DESCR = \
     <placeholder name="middle">
       <menuitem action="cs_update_ws_to"/>
       <menuitem action="cs_merge_ws_with"/>
+      <menuitem action="cs_backout"/>
     </placeholder>
     <separator/>
     <placeholder name="bottom"/>
@@ -70,6 +71,9 @@ class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
                 ("cs_merge_ws_with", icons.STOCK_MERGE, "Merge With", None,
                  "Merge the work space with the selected change set",
                  self._merge_ws_with_cs_acb),
+                ("cs_backout", icons.STOCK_BACKOUT, "Backout", None,
+                 "Bactrack the selected change set",
+                 self._backout_cs_acb),
             ])
         self.cwd_merge_id.append(self._ui_manager.add_ui_from_string(CS_TABLE_BASIC_UI_DESCR))
         self.show_all()
@@ -142,6 +146,11 @@ class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
                 self._report_any_problems(result)
         else:
             self._report_any_problems(result)
+    def _backout_cs_acb(self, action):
+        rev = str(self.get_selected_change_set())
+        self._show_busy()
+        BackoutDialog(ifce=self._ifce, rev=rev)
+        self._unshow_busy()
 
 class AUPrecisTableView(PrecisTableView):
     def __init__(self, ifce, ptype, age_col, sel_mode=gtk.SELECTION_SINGLE,
@@ -270,12 +279,12 @@ TAG_MSG_UI_DESCR = \
 '''
 
 class TagMessageWidget(gtk.VBox):
-    def __init__(self, ifce):
+    def __init__(self, ifce, label="Message (optional)"):
         gtk.VBox.__init__(self)
         self.view = text_edit.SummaryView(ifce=ifce)
         self.view.get_ui_manager().add_ui_from_string(TAG_MSG_UI_DESCR)
         hbox = gtk.HBox()
-        hbox.pack_start(gtk.Label("Message (optional)"), expand=False, fill=False)
+        hbox.pack_start(gtk.Label(label), expand=False, fill=False)
         toolbar = self.view.get_ui_widget("/tag_message_toolbar")
         toolbar.set_style(gtk.TOOLBAR_ICONS)
         toolbar.set_orientation(gtk.ORIENTATION_HORIZONTAL)
@@ -707,4 +716,46 @@ class ChangeSetSummaryDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndica
             self.vbox.pack_start(hbox, expand=False, fill=True)
     def _close_cb(self, dialog, response_id):
         self.destroy()
+
+class BackoutDialog(gutils.ReadTextAndToggleDialog, cmd_result.ProblemReporter):
+    def __init__(self, ifce, rev=None, parent=None):
+        self._ifce = ifce
+        self._rev = rev
+        cmd_result.ProblemReporter.__init__(self)
+        gutils.ReadTextAndToggleDialog.__init__(self, title='gwsmhg: Backout',
+            prompt='Backing Out: ', suggestion=rev, parent=parent,
+            toggle_prompt='Merge', toggle_state=False)
+        self.entry.set_editable(False)
+        self._radio_labels = []
+        self._parent_revs = []
+        res, parents_data, serr = self._ifce.SCM.get_parents_data(rev)
+        if len(parents_data) > 1:
+            for data in parents_data:
+                rev = str(data[gutils.find_label_index(LOG_TABLE_PRECIS_DESCR, 'Rev')])
+                descr = data[gutils.find_label_index(LOG_TABLE_PRECIS_DESCR, 'Description')]
+                self._radio_labels.append('%s: %s' % (rev, descr))
+                self._parent_revs.append(rev)
+            self._radio_buttons = gutils.RadioButtonFramedVBox(title='Select Parent', labels=self._radio_labels)
+            self.vbox.add(self._radio_buttons)
+        self.message = TagMessageWidget(ifce=ifce, label="Message")
+        self.vbox.add(self.message)
+        self.connect("response", self._response_cb)
+        self.show_all()
+        self.set_focus(self.message.view)
+    def _response_cb(self, dialog, response_id):
+        self.hide()
+        if response_id == gtk.RESPONSE_CANCEL:
+            self.destroy()
+        else:
+            merge = self.toggle.get_active()
+            if self._parent_revs:
+                parent = self._parent_revs[self._radio_buttons.get_selected_index()]
+            else:
+                parent = None
+            msg = self.message.get_msg()
+            self.show_busy()
+            result = self._ifce.SCM.do_backout(rev=self._rev, merge=merge, parent=parent, msg=msg)
+            self.unshow_busy()
+            self._report_any_problems(result)
+            self.destroy()
 

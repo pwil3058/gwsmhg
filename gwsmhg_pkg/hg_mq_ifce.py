@@ -679,6 +679,22 @@ class SCMInterface(BaseInterface):
         result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.REPO_MOD)
         return result
+    def do_backout(self, rev, msg, merge=False, parent=None):
+        cmd = 'hg backout'
+        if msg:
+            cmd += ' -m "%s"' % msg.replace('"', '\\"')
+        if merge:
+            cmd += ' --merge'
+        if parent:
+            cmd += ' --parent %s' % parent
+        if rev:
+            cmd += ' %s' % rev
+        result = self._run_cmd_on_console(cmd)
+        if merge:
+            ws_event.notify_events(ws_event.REPO_MOD|ws_event.FILE_CHANGES)
+        else:
+            ws_event.notify_events(ws_event.REPO_MOD)
+        return result
 
 class _WsUpdateStateMgr:
     # We save this data in a file so that it survives closing/opening the GUI
