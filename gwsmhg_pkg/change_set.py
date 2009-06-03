@@ -354,21 +354,19 @@ class HistoryTableView(ChangeSetTableView):
         SetTagDialog(ifce=self._ifce, rev=str(rev)).run()
         self._unshow_busy()
 
-class RemoveTagDialog(gutils.CancelOKDialog, cmd_result.ProblemReporter):
+class RemoveTagDialog(gutils.ReadTextDialog, cmd_result.ProblemReporter):
     def __init__(self, ifce, tag=None, parent=None):
         self._ifce = ifce
         self._tag = tag
         cmd_result.ProblemReporter.__init__(self)
-        gutils.CancelOKDialog.__init__(self, title="gwsmhg: Remove Tag", parent=parent)
-        hbox = gtk.HBox()
-        hbox.pack_start(gtk.Label("Removing Tag: "), expand=False, fill=False)
-        hbox.pack_start(gtk.Label(tag), expand=False, fill=False)
-        self.vbox.add(hbox)
+        gutils.ReadTextDialog.__init__(self, title='gwsmhg: Remove Tag',
+            prompt='Removing Tag: ', suggestion=tag, parent=parent)
+        self.entry.set_editable(False)
         self.message = TagMessageWidget(ifce=ifce)
-        self.message.view.grab_focus()
         self.vbox.add(self.message)
         self.connect("response", self._response_cb)
         self.show_all()
+        self.set_focus(self.message.view)
     def _response_cb(self, dialog, response_id):
         self.hide()
         if response_id == gtk.RESPONSE_CANCEL:
@@ -381,17 +379,15 @@ class RemoveTagDialog(gutils.CancelOKDialog, cmd_result.ProblemReporter):
             self._report_any_problems(result)
             self.destroy()
 
-class MoveTagDialog(gutils.CancelOKDialog, cmd_result.ProblemReporter):
+class MoveTagDialog(gutils.ReadTextDialog, cmd_result.ProblemReporter):
     def __init__(self, ifce, tag=None, parent=None):
         self._ifce = ifce
         self._tag = tag
         cmd_result.ProblemReporter.__init__(self)
-        gutils.CancelOKDialog.__init__(self, title="gwsmhg: Move Tag", parent=parent)
-        hbox = gtk.HBox()
-        hbox.pack_start(gtk.Label("Move Tag: "), expand=False, fill=False)
-        hbox.pack_start(gtk.Label(tag), expand=False, fill=False)
-        self.vbox.add(hbox)
-        self._select_widget = ChangeSetSelectWidget(ifce=ifce, label="To Change Set",
+        gutils.ReadTextDialog.__init__(self, title="gwsmhg: Move Tag",
+            prompt='Move Tag: ', suggestion=tag, parent=parent)
+        self.entry.set_editable(False)
+        self._select_widget = ChangeSetSelectWidget(ifce=ifce, label="To Change Set:",
             busy_indicator=self, discard_toggle=False)
         self.vbox.pack_start(self._select_widget)
         self.message = TagMessageWidget(ifce=ifce)
@@ -399,6 +395,7 @@ class MoveTagDialog(gutils.CancelOKDialog, cmd_result.ProblemReporter):
         self.vbox.add(self.message)
         self.connect("response", self._response_cb)
         self.show_all()
+        self.set_focus(self._select_widget._entry)
     def _response_cb(self, dialog, response_id):
         self.hide()
         if response_id == gtk.RESPONSE_CANCEL:
@@ -506,7 +503,7 @@ class ChangeSetSelectWidget(gtk.VBox, gutils.BusyIndicatorUser):
             hbox.pack_start(button, expand=True, fill=False)
         self.pack_start(hbox, expand=False)
         hbox = gtk.HBox()
-        hbox.pack_start(gtk.Label(label))
+        hbox.pack_start(gtk.Label(label), fill=False, expand=False)
         self._entry = gutils.EntryWithHistory()
         self._entry.set_width_chars(32)
         self._entry.connect("activate", self._entry_cb)
