@@ -96,6 +96,15 @@ class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
             return str(data[0][0])
         else:
             return ""
+    def get_selected_change_set_descr(self):
+        dcol = self.get_col_for_label('Description')
+        if dcol < 0:
+            return ''
+        data = self.get_selected_data([dcol])
+        if len(data):
+            return str(data[0][0])
+        else:
+            return ""
     def _view_cs_summary_acb(self, action):
         rev = self.get_selected_change_set()
         self._show_busy()
@@ -148,8 +157,9 @@ class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
             self._report_any_problems(result)
     def _backout_cs_acb(self, action):
         rev = str(self.get_selected_change_set())
+        descr = self.get_selected_change_set_descr()
         self._show_busy()
-        BackoutDialog(ifce=self._ifce, rev=rev)
+        BackoutDialog(ifce=self._ifce, rev=rev, descr=descr)
         self._unshow_busy()
 
 class AUPrecisTableView(PrecisTableView):
@@ -719,12 +729,12 @@ class ChangeSetSummaryDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndica
         self.destroy()
 
 class BackoutDialog(gutils.ReadTextAndToggleDialog, cmd_result.ProblemReporter):
-    def __init__(self, ifce, rev=None, parent=None):
+    def __init__(self, ifce, rev=None, descr='', parent=None):
         self._ifce = ifce
         self._rev = rev
         cmd_result.ProblemReporter.__init__(self)
         gutils.ReadTextAndToggleDialog.__init__(self, title='gwsmhg: Backout',
-            prompt='Backing Out: ', suggestion=rev, parent=parent,
+            prompt='Backing Out: ', suggestion='%s: %s' % (rev, descr), parent=parent,
             toggle_prompt='Auto Merge', toggle_state=False)
         self.entry.set_editable(False)
         self._radio_labels = []

@@ -500,6 +500,7 @@ class TableView(gtk.TreeView):
         self._model = apply(gtk.ListStore, self._get_type_list(descr))
         self._perm_headers = perm_headers
         self._popup = popup
+        self.column_labels = self._get_label_list(descr)
         gtk.TreeView.__init__(self, self._model)
         lenbgnd = len(bgnd)
         self._ncols = len(descr)
@@ -535,6 +536,18 @@ class TableView(gtk.TreeView):
         for cdescr in descr:
             list.append(cdescr[ROW_TYPE])
         return list
+    def _get_label_list(self, descr):
+        list = []
+        for cdescr in descr:
+            list.append(cdescr[ROW_LABEL])
+        return list
+    def get_col_for_label(self, label):
+        return self.column_labels.index(label)
+    def get_cols_for_labels(self, labels):
+        cols = []
+        for label in labels:
+            cols.append(self.column_labels.index(label))
+        return cols
     def set_contents(self, cset_list):
         self.set_model(None)
         self._model.clear()
@@ -566,6 +579,8 @@ class TableView(gtk.TreeView):
                 row_data.append(store.get_value(iter, col))
             list.append(row_data)
         return list
+    def get_selected_data_by_label(self, labels):
+        return self.get_selected_data(self.get_cols_for_labels(labels))
 
 BASIC_TABLE_UI_DESCR = \
 '''
