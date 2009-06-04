@@ -169,7 +169,7 @@ class AUPrecisTableView(PrecisTableView):
             # if any parent's age is expressed in seconds then update every second
             # they're in time order so only need to look at first one
             if parents[0][self._age_col].find("sec") != -1:
-                desired_interval = 1000
+                desired_interval = 10000
             elif parents[0][self._age_col].find("min") != -1:
                 desired_interval = 60000
             elif parents[0][self._age_col].find("hour") != -1:
