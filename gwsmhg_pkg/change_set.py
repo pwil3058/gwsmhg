@@ -421,6 +421,7 @@ class MoveTagDialog(gutils.ReadTextDialog, cmd_result.ProblemReporter):
 TAG_TABLE_PRECIS_DESCR = \
 [
     ["Tag", gobject.TYPE_STRING, False, []],
+    ["Scope", gobject.TYPE_STRING, False, []],
     ["Rev", gobject.TYPE_INT, False, []],
     ["Branches", gobject.TYPE_STRING, False, []],
     ["Age", gobject.TYPE_STRING, False, []],

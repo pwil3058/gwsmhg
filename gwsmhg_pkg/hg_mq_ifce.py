@@ -511,18 +511,18 @@ class SCMInterface(BaseInterface):
             plist.append(pdata)
         return (res, plist, serr)
     def get_tags_data(self):
-        res, sout, serr = utils.run_cmd("hg tags")
+        res, sout, serr = utils.run_cmd("hg -v tags")
         if res:
             return (res, sout, serr)
-        de = re.compile("^(\S+)\s*(\d+):")
+        de = re.compile("^(\S+)\s*(\d+):(\S+)\s*(\S*)")
         tag_list = []
         for line in sout.splitlines(False):
             dat = de.match(line)
             if dat:
-                tag_list.append([dat.group(1), int(dat.group(2))])
+                tag_list.append([dat.group(1), dat.group(4), int(dat.group(2))])
         cmd = 'hg log --template "{branches}:{date|age}:{author|person}:{desc|firstline}" --rev '
         for tag in tag_list:
-            res, sout, serr = utils.run_cmd(cmd + str(tag[1]))
+            res, sout, serr = utils.run_cmd(cmd + str(tag[2]))
             tag += sout.split(":", 3)
         return (res, tag_list, serr)
     def get_tags_list_for_table(self):
