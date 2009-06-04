@@ -516,14 +516,26 @@ class SCMInterface(BaseInterface):
             return (res, sout, serr)
         de = re.compile("^(\S+)\s*(\d+):(\S+)\s*(\S*)")
         tag_list = []
+        cmd = 'hg log --template "{rev}:{branches}:{date|age}:{author|person}:{desc|firstline}\n"'
+        lastrev = None
         for line in sout.splitlines(False):
             dat = de.match(line)
             if dat:
+                rev = dat.group(2)
+                if rev != lastrev:
+                    cmd += ' -r %s' % rev
+                    lastrev = rev
                 tag_list.append([dat.group(1), dat.group(4), int(dat.group(2))])
-        cmd = 'hg log --template "{branches}:{date|age}:{author|person}:{desc|firstline}" --rev '
-        for tag in tag_list:
-            res, sout, serr = utils.run_cmd(cmd + str(tag[2]))
-            tag += sout.split(":", 3)
+        res, sout, serr = utils.run_cmd(cmd)
+        index = 0
+        ntags = len(tag_list)
+        for line in sout.splitlines(False):
+            fields = line.split(":", 4)
+            rev = int(fields[0])
+            addon = fields[1:]
+            while index < ntags and tag_list[index][2] == rev:
+                tag_list[index].extend(addon)
+                index += 1
         return (res, tag_list, serr)
     def get_tags_list_for_table(self):
         res, sout, serr = utils.run_cmd("hg tags")
@@ -573,7 +585,7 @@ class SCMInterface(BaseInterface):
         if msg:
             cmd += ' -m "%s"' % msg.replace('"', '\\"')
         if file_list:
-            cmd += " %s" % " ".join(file_list)
+            cmd += " %s" % " -I ".join(file_list)
         res, sout, serr = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.REPO_MOD|ws_event.CHECKOUT, sout.splitlines(False)[:-1])
         return (res, sout, serr)
@@ -892,7 +904,7 @@ class PMInterface(BaseInterface):
     def do_refresh(self):
         result = self._run_cmd_on_console("hg qrefresh")
         if not result[0]:
-            ws_event.notify_events(ws_event.FILE_CHANGES)
+            ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD)
         return result
     def do_pop_to(self, patch=None, force=False):
         if patch is None:
