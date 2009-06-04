@@ -536,9 +536,11 @@ class TableView(gtk.TreeView):
             list.append(cdescr[ROW_TYPE])
         return list
     def set_contents(self, cset_list):
+        self.set_model(None)
         self._model.clear()
         for cset in cset_list:
             self._model.append(cset)
+        self.set_model(self._model)
         if not self._perm_headers:
             self.set_headers_visible(self._model.iter_n_children(None) > 0)
         self.get_selection().unselect_all()
