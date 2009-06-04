@@ -72,7 +72,7 @@ class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
                  "Merge the work space with the selected change set",
                  self._merge_ws_with_cs_acb),
                 ("cs_backout", icons.STOCK_BACKOUT, "Backout", None,
-                 "Bactrack the selected change set",
+                 "Backout the selected change set",
                  self._backout_cs_acb),
             ])
         self.cwd_merge_id.append(self._ui_manager.add_ui_from_string(CS_TABLE_BASIC_UI_DESCR))
@@ -724,7 +724,7 @@ class BackoutDialog(gutils.ReadTextAndToggleDialog, cmd_result.ProblemReporter):
         cmd_result.ProblemReporter.__init__(self)
         gutils.ReadTextAndToggleDialog.__init__(self, title='gwsmhg: Backout',
             prompt='Backing Out: ', suggestion=rev, parent=parent,
-            toggle_prompt='Merge', toggle_state=False)
+            toggle_prompt='Auto Merge', toggle_state=False)
         self.entry.set_editable(False)
         self._radio_labels = []
         self._parent_revs = []
@@ -735,7 +735,7 @@ class BackoutDialog(gutils.ReadTextAndToggleDialog, cmd_result.ProblemReporter):
                 descr = data[gutils.find_label_index(LOG_TABLE_PRECIS_DESCR, 'Description')]
                 self._radio_labels.append('%s: %s' % (rev, descr))
                 self._parent_revs.append(rev)
-            self._radio_buttons = gutils.RadioButtonFramedVBox(title='Select Parent', labels=self._radio_labels)
+            self._radio_buttons = gutils.RadioButtonFramedVBox(title='Choose Parent', labels=self._radio_labels)
             self.vbox.add(self._radio_buttons)
         self.message = TagMessageWidget(ifce=ifce, label="Message")
         self.vbox.add(self.message)
