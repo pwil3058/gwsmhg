@@ -14,44 +14,23 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import os, gtk, gtksourceview, pango, gobject
-from gwsmhg_pkg import utils, cmd_result, gutils
+from gwsmhg_pkg import utils, cmd_result, gutils, config
 
-EDITORS_THAT_NEED_A_TERMINAL = ["vi", "joe"]
-DEFAULT_EDITOR = "gedit"
-DEFAULT_TERMINAL = "gnome-terminal"
-
-def _edit_files_extern(filelist, editor_env_vars):
-    edstr = DEFAULT_EDITOR
-    for e in editor_env_vars:
-        try:
-            ed = os.environ[e]
-            if ed is not "":
-                edstr = ed
-                break
-        except KeyError:
-            pass
-    if not edstr.split()[0] in EDITORS_THAT_NEED_A_TERMINAL:
+def _edit_files_extern(filelist, edstr=config.DEFAULT_EDITOR):
+    if not edstr.split()[0] in config.EDITORS_THAT_NEED_A_TERMINAL:
         cmd = '%s %s' % (edstr, " ".join(filelist))
     else:
-        try:
-            term  = os.environ['COLORTERM']
-        except KeyError:
-            try:
-                term = os.environ['TERM']
-            except KeyError:
-                term = DEFAULT_TERMINAL
-        if term == "gnome-terminal":
+        if config.DEFAULT_TERMINAL == "gnome-terminal":
             flag = '-x'
         else:
             flag = '-e'
-        cmd = '%s %s %s %s' % (term, flag, edstr, " ".join(filelist))
+        cmd = '%s %s %s %s' % (config.DEFAULT_TERMINAL, flag, edstr, " ".join(filelist))
     return utils.run_cmd_in_bgnd(cmd)
 
-def edit_files_extern(filelist):
-    return _edit_files_extern(filelist, ['VISUAL', 'EDITOR'])
-
-def peruse_files_extern(filelist):
-    return _edit_files_extern(filelist, ['PERUSER', 'VISUAL', 'EDITOR'])
+def edit_files_extern(file_list):
+    ed_assigns = config.assign_extern_editors(file_list)
+    for edstr in ed_assigns.keys():
+        _edit_files_extern(ed_assigns[edstr], edstr)
 
 import time
 

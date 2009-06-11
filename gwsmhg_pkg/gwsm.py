@@ -46,6 +46,11 @@ GWSM_UI_DESCR = \
       <menuitem action="gwsm_quit"/>
     </menu>
   </menubar>
+  <menubar name="gwsm_right_side_menubar">
+    <menu name="gwsm_config" action="gwsm_configuration">
+      <menuitem action="gwsm_config_editors"/>
+    </menu>
+  </menubar>
 </ui>
 '''
 
@@ -89,8 +94,11 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
         self._action_group[const.ALWAYS_AVAILABLE].add_actions(
             [
                 ("gwsm_working_directory", None, "_Working Directory"),
+                ("gwsm_configuration", None, "_Configuration"),
                 ("gwsm_change_wd", gtk.STOCK_OPEN, "_Open", "",
                  "Change current working directory", self._change_wd_acb),
+                ("gwsm_config_editors", gtk.STOCK_PREFERENCES, "_Editor Allocation", "",
+                 "Allocate editors to file types", self._config_editors_acb),
                 ("gwsm_quit", gtk.STOCK_QUIT, "_Quit", "",
                  "Quit", self._quit),
             ])
@@ -144,6 +152,7 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
                 self._action_group[condition].add_actions(tortoise.main_group_actions[condition])
             self._ui_manager.add_ui_from_string(tortoise.TORTOISE_HGTK_UI)
         self._menubar = self._ui_manager.get_widget("/gwsm_menubar")
+        self._rhs_menubar = self._ui_manager.get_widget("/gwsm_right_side_menubar")
         self._toolbar = self._ui_manager.get_widget("/gwsm_toolbar")
         self._update_sensitivities()
         self._parent_view = change_set.ParentsTableView(self._ifce)
@@ -167,7 +176,10 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
         self._notebook.set_current_page(pmpage)
         # Now lay the widgets out
         vbox = gtk.VBox()
-        vbox.pack_start(self._menubar, expand=False)
+        hbox = gtk.HBox()
+        hbox.pack_start(self._menubar, expand=False)
+        hbox.pack_end(self._rhs_menubar, expand=False)
+        vbox.pack_start(hbox, expand=False)
         vbox.pack_start(self._parent_view, expand=False)
         vbox.pack_start(self._toolbar, expand=False)
         hpane = gtk.HPaned()
@@ -363,4 +375,6 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
             result = self._ifce.SCM.do_rollback_repo()
             self._unshow_busy()
             self._report_any_problems(result)
+    def _config_editors_acb(self, action=None):
+        config.EditorAllocationDialog(self).show()
 

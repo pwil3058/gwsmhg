@@ -15,8 +15,8 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, gobject, gtk, urlparse
-from gwsmhg_pkg import gutils, utils, icons
+import os, gobject, gtk, urlparse, fnmatch, os.path
+from gwsmhg_pkg import gutils, utils, icons, table
 
 REPO_TABLE_DESCR = \
 [
@@ -241,4 +241,142 @@ class RepoSelectDialog(PathSelectDialog):
         if not target:
             target = self._get_default_target()
         return target
+
+# Manage external editors
+
+EDITORS_THAT_NEED_A_TERMINAL = ["vi", "joe"]
+DEFAULT_EDITOR = "gedit"
+DEFAULT_TERMINAL = "gnome-terminal"
+
+for env in ['VISUAL', 'EDITOR']:
+    try:
+        ed = os.environ[env]
+        if ed is not "":
+            DEFAULT_EDITOR = ed
+            break
+    except KeyError:
+        pass
+
+for env in ['COLORTERM', 'TERM']:
+    try:
+        term = os.environ[env]
+        if term is not "":
+            DEFAULT_TERMINAL = term
+            break
+    except KeyError:
+        pass
+
+EDITOR_GLOB_FILE_NAME = os.sep.join([GSWMHG_D_NAME, "editors"])
+
+editor_defs = []
+
+def _read_editor_defs():
+    global editor_defs
+    editor_defs = []
+    file = open(EDITOR_GLOB_FILE_NAME, 'r')
+    for line in file.readlines():
+        eqi = line.find('=')
+        if eqi < 0:
+            continue
+        glob = line[:eqi].strip()
+        edstr= line[eqi+1:].strip()
+        editor_defs.append([glob, edstr])
+    file.close()
+
+def _write_editor_defs(edefs=editor_defs):
+    file = open(EDITOR_GLOB_FILE_NAME, 'w')
+    for edef in edefs:
+        file.write('='.join(edef))
+        file.write(os.linesep)
+    file.close()
+
+if os.path.exists(EDITOR_GLOB_FILE_NAME):
+    _read_editor_defs()
+else:
+    _write_editor_defs([('*', DEFAULT_EDITOR)])
+
+def assign_extern_editors(file_list):
+    ed_assignments = {}
+    for file in file_list:
+        assigned = False
+        for globs, edstr in editor_defs:
+            for glob in globs.split(os.pathsep):
+                if fnmatch.fnmatch(file, glob):
+                    if ed_assignments.has_key(edstr):
+                        ed_assignments[edstr].append(file)
+                    else:
+                        ed_assignments[edstr] = [file]
+                    assigned = True
+                    break
+            if assigned:
+                break
+        if not assigned:
+            if ed_assignments.has_key(DEFAULT_EDITOR):
+                ed_assignments[DEFAULT_EDITOR].append(file)
+            else:
+                ed_assignments[DEFAULT_EDITOR] = [file]
+    return ed_assignments
+
+EDITOR_GLOB_MODEL_DESCR = \
+[ ['globs', gobject.TYPE_STRING],
+  ['editor', gobject.TYPE_STRING],
+]
+
+EDITOR_GLOB_TABLE_DESCR = \
+[ [ ('enable-grid-lines', True), ('reorderable', True) ], # properties
+  gtk.SELECTION_MULTIPLE, # selection mode
+  [
+    [ 'File Pattern(s)', [('expand', True), ], # column name and properties
+      [ [ (gtk.CellRendererText, False, True), # renderer
+          [ ('editable', True), ], # properties
+          None, # cell_renderer_function
+          [ ('text', table.model_col(EDITOR_GLOB_MODEL_DESCR, 'globs')), ] # attributes
+        ],
+      ]
+    ],
+    [ 'Editor Command', [('expand', True), ], # column
+      [ [ (gtk.CellRendererText, False, True), # renderer
+          [ ('editable', True), ], # properties
+          None, # cell_renderer_function
+          [ ('text', table.model_col(EDITOR_GLOB_MODEL_DESCR, 'editor')), ] # attributes
+        ],
+      ]
+    ]
+  ]
+]
+
+class EditorAllocationTable(table.Table):
+    def __init__(self):
+        table.Table.__init__(self, EDITOR_GLOB_MODEL_DESCR,
+                             EDITOR_GLOB_TABLE_DESCR, (320, 160))
+    def _fetch_contents(self):
+        return editor_defs
+    def apply_changes(self):
+        _write_editor_defs(edefs=self.get_contents())
+        _read_editor_defs()
+        self.set_contents()
+
+class EditorAllocationDialog(gtk.Dialog):
+    def __init__(self, parent=None):
+        gtk.Dialog.__init__(self, title='gwsmg: Editor Allocation', parent=parent,
+                            flags=gtk.DIALOG_DESTROY_WITH_PARENT,
+                            buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE,
+                                    gtk.STOCK_OK, gtk.RESPONSE_OK)
+                           )
+        if parent:
+            self.set_position(gtk.WIN_POS_CENTER_ON_PARENT)
+        else:
+            self.set_icon_from_file(icons.app_icon_file)
+            self.set_position(gtk.WIN_POS_MOUSE)
+        self._table = EditorAllocationTable()
+        self._buttons = gutils.ActionHButtonBox(self._table.action_groups.values())
+        self.vbox.pack_start(self._table)
+        self.vbox.pack_start(self._buttons, expand=False)
+        self.connect("response", self._handle_response_cb)
+        self.show_all()
+        self._table.view.get_selection().unselect_all()
+    def _handle_response_cb(self, dialog, response_id):
+        if response_id == gtk.RESPONSE_OK:
+            self._table.apply_changes()
+        self.destroy()
 
