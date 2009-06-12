@@ -85,7 +85,9 @@ class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
         self._action_group[UNIQUE_SELECTION_NOT_PMIC].set_sensitive(sel and not self._ifce.PM.get_in_progress())
     def _refresh_contents(self):
         res, data, serr = self._ptype.get_data()
-        if res == cmd_result.OK and data:
+        if res != cmd_result.OK:
+            self._report_any_problems((res, data, serr))
+        elif data:
             self.set_contents(data)
         else:
             self.set_contents([])
