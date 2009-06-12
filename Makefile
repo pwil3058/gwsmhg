@@ -1,5 +1,5 @@
 VERSION:=$(subst ',,$(subst VERSION=',,$(shell grep "VERSION=" setup.py)))
-RELEASE=2
+RELEASE=1
 
 RPMREQS:=pygtk2 pygtksourceview pycairo pygobject2 mercurial
 RPMBDIR=~/rpmbuild
@@ -9,13 +9,14 @@ SRCS:=$(shell hg status -macdn)
 SRCDIST:=gwsmhg-$(VERSION).tar.gz
 WINDIST:=gwsmhg-$(VERSION).win32.exe
 RPMDIST:=gwsmhg-$(VERSION)-$(RELEASE).noarch.rpm
+RPMSRC:=$(RPMBDIR)/SOURCES/$(SRCDIST)
 
 help:
 	@echo "Choices are:"
 	@echo "	make source_dist"
 	@echo "	make win_dist"
 	@echo "	make rpm"
-	@echo "	make all_distwww"
+	@echo "	make all_dist"
 	@echo "	make install"
 	@echo "	make clean"
 
@@ -40,7 +41,10 @@ $(WINDIST):
 
 rpm: $(RPMDIST)
 
-$(RPMDIST): $(SRCDIST) gwsmhg.spec
+$(RPMSRC): $(SRCDIST)
+	cp $(SRCDIST) $(RPMSRC)
+
+$(RPMDIST): $(RPMSRC) gwsmhg.spec
 	rpmbuild -bb gwsmhg.spec
 	cp $(RPMBDIR)/RPMS/noarch/$(RPMDIST) .
 
