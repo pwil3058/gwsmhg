@@ -327,7 +327,7 @@ class ScmDiffTextDialog(gtk.Dialog):
         self.connect("response", self._close_cb)
         self.show_all()
     def _close_cb(self, dialog, response_id):
-        self.destroy()
+        dialog.destroy()
 
 class PmDiffTextBuffer(DiffTextBuffer):
     def __init__(self, ifce, file_list=[], patch=None, table=None):
