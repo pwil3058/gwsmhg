@@ -363,7 +363,10 @@ class SCMInterface(BaseInterface):
             cmd += " %s" % path
         res, sout, serr = utils.run_cmd(cmd)
         if res != 0:
-            return (res, sout, serr)
+            if res == 1:
+                return (cmd_result.OK, [], '')
+            else:
+                return (res, sout, serr)
         plist = []
         for line in sout.splitlines():
             pdata = line.split(":", 5)
@@ -376,7 +379,10 @@ class SCMInterface(BaseInterface):
             cmd += " %s" % path
         res, sout, serr = utils.run_cmd(cmd)
         if res != 0:
-            return (res, sout, serr)
+            if res == 1:
+                return (cmd_result.OK, [], '')
+            else:
+                return (res, sout, serr)
         plist = []
         for line in sout.splitlines():
             pdata = line.split(":", 5)
