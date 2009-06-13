@@ -410,21 +410,6 @@ class SCMInterface(BaseInterface):
         added_files = lines[1].split()
         deleted_files = lines[2].split()
         files = []
-        if not file_names:
-            res, parents, serr = self.get_incoming_parents(rev, path)
-            if res or len(parents) < 2:
-                return (cmd_result.OK, files, "")
-            # 'incoming --template "{files}"' is still broken so try lsdiff
-            res, diff, serr = self.get_incoming_diff(rev, path)
-            tf, tfn = tempfile.mkstemp()
-            os.write(tf, diff)
-            os.close(tf)
-            ok, file_list = putils.get_patch_files(tfn)
-            os.remove(tfn)
-            if ok:
-                return (cmd_result.OK, file_list, "")
-            else:
-                return (cmd_result.ERROR, "", file_list)
         for name in file_names:
             if name in added_files:
                 files.append((name, "A", None))
