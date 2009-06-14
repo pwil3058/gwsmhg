@@ -254,8 +254,10 @@ class NewPatchSummaryBuffer(SummaryBuffer):
             gutils.inform_user("Insert at cursor from file failed!")
 
 class PatchSummaryBuffer(NewPatchSummaryBuffer):
-    def __init__(self, patch, table=None, ifce=None):
+    def __init__(self, get_summary, set_summary, patch=None, table=None, ifce=None):
         self.patch = patch
+        self._set_summary = set_summary
+        self._get_summary = get_summary
         if not table:
             table = gtksourceview.SourceTagTable()
         NewPatchSummaryBuffer.__init__(self, table=table, ifce=ifce)
@@ -269,7 +271,7 @@ class PatchSummaryBuffer(NewPatchSummaryBuffer):
             ])
     def _save_summary_acb(self, action=None):
         text = self.get_text(self.get_start_iter(), self.get_end_iter())
-        res, sout, serr = self._ifce.PM.do_set_patch_description(self.patch, text)
+        res, sout, serr = self._set_summary(self.patch, text)
         if res:
             gutils.inform_user(os.linesep.join([sout, serr]))
         else:
@@ -279,7 +281,7 @@ class PatchSummaryBuffer(NewPatchSummaryBuffer):
             return gutils.ask_ok_cancel("Buffer contents will be destroyed. Continue?")
         return True
     def load_summary(self):
-        res, text, serr = self._ifce.PM.get_patch_description(self.patch)
+        res, text, serr = self._get_summary(self.patch)
         if res:
             gutils.inform_user(os.linesep.join([text, serr]))
         else:
@@ -328,8 +330,8 @@ PATCH_SUMMARY_UI_DESCR = \
 '''
 
 class PatchSummaryView(NewPatchSummaryView):
-    def __init__(self, patch, ifce, table=None):
-        buffer = PatchSummaryBuffer(patch, table, ifce)
+    def __init__(self, get_summary, set_summary, ifce, patch=None, table=None):
+        buffer = PatchSummaryBuffer(get_summary, set_summary, patch, table, ifce)
         NewPatchSummaryView.__init__(self, ifce, buffer, table)
         self.patch_summary_merge_id = self._ui_manager.add_ui_from_string(PATCH_SUMMARY_UI_DESCR)
         action = buffer._action_group.get_action("patch_summary_save")

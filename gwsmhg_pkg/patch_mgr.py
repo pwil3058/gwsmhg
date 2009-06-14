@@ -1127,22 +1127,22 @@ class NewPatchDescrEditWidget(gtk.VBox, cmd_result.ProblemReporter):
         self.set_focus_child(self.view)
 
 class PatchDescrEditWidget(NewPatchDescrEditWidget):
-    def __init__(self, patch, ifce, tooltips=None):
-        self.view = text_edit.PatchSummaryView(patch, ifce)
+    def __init__(self, get_summary, set_summary, ifce, patch=None, tooltips=None):
+        self.view = text_edit.PatchSummaryView(get_summary, set_summary, ifce, patch)
         NewPatchDescrEditWidget.__init__(self, ifce, view=self.view)
         self.view.load_summary()
     def get_save_button(self):
         return self.view.save_button
 
-class PatchDescrEditDialog(gtk.Dialog):
-    def __init__(self, patch, parent, ifce, modal=False):
+class GenericPatchDescrEditDialog(gtk.Dialog):
+    def __init__(self, get_summary, set_summary, parent, ifce, patch=None, modal=False):
         if modal:
             flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
         else:
             flags = gtk.DIALOG_DESTROY_WITH_PARENT
         gtk.Dialog.__init__(self, "\"%s\" Description: %s" % (patch, utils.path_rel_home(os.getcwd())),
             parent, flags, None)
-        self.edit_descr_widget = PatchDescrEditWidget(patch, ifce, tooltips=None)
+        self.edit_descr_widget = PatchDescrEditWidget(get_summary, set_summary, ifce, patch, tooltips=None)
         self.vbox.pack_start(self.edit_descr_widget)
         self.action_area.pack_start(self.edit_descr_widget.get_save_button())
         self.add_button(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
@@ -1156,6 +1156,13 @@ class PatchDescrEditDialog(gtk.Dialog):
                     self.destroy()
             else:
                 self.destroy()
+
+class PatchDescrEditDialog(GenericPatchDescrEditDialog):
+    def __init__(self, patch, parent, ifce, modal=False):
+        GenericPatchDescrEditDialog.__init__(self,
+            get_summary=ifce.PM.get_patch_description,
+            set_summary=ifce.PM.do_set_patch_description,
+            parent=parent, ifce=ifce, patch=patch, modal=modal)
 
 class DuplicatePatchDialog(gtk.Dialog):
     def __init__(self, patch, parent, ifce, verb="Duplicate", modal=False):
@@ -1193,20 +1200,22 @@ class DuplicatePatchDialog(gtk.Dialog):
         return self.edit_descr_widget.view.get_msg()
 
 class NewPatchDialog(gtk.Dialog):
-    def __init__(self, parent, ifce, modal=False):
+    def __init__(self, parent, ifce, modal=False, objname="Patch"):
         if modal:
             flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
         else:
             flags = gtk.DIALOG_DESTROY_WITH_PARENT
-        gtk.Dialog.__init__(self, "New Patch: %s" % utils.path_rel_home(os.getcwd()),
+        gtk.Dialog.__init__(self, "New %s: %s -- gwsmhg" % (objname, utils.path_rel_home(os.getcwd())),
             parent, flags, (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
-        hbox = gtk.HBox()
-        hbox.pack_start(gtk.Label("New Patch Name:"), fill=False, expand=False)
+        if not parent:
+            self.set_icon_from_file(icons.app_icon_file)
+        self.hbox = gtk.HBox()
+        self.hbox.pack_start(gtk.Label("New %s Name:" % objname), fill=False, expand=False)
         self.new_name_entry = gtk.Entry()
         self.new_name_entry.set_width_chars(32)
-        hbox.pack_start(self.new_name_entry)
-        hbox.show_all()
-        self.vbox.pack_start(hbox)
+        self.hbox.pack_start(self.new_name_entry)
+        self.hbox.show_all()
+        self.vbox.pack_start(self.hbox)
         self.edit_descr_widget = NewPatchDescrEditWidget(ifce, tooltips=None)
         self.vbox.pack_start(self.edit_descr_widget)
         self.set_focus_child(self.new_name_entry)

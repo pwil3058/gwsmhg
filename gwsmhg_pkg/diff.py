@@ -377,7 +377,7 @@ class PmDiffTextDialog(gtk.Dialog):
         self.connect("response", self._close_cb)
         self.show_all()
     def _close_cb(self, dialog, response_id):
-        self.destroy()
+        dialog.destroy()
 
 #class IncomingDiffTextDialog(parent=parent, ifce=self._ifce,
 #                                     rev=self._rev, path=self._path, modal=False)
@@ -426,5 +426,5 @@ class IncomingDiffTextDialog(gtk.Dialog):
         self.connect("response", self._close_cb)
         self.show_all()
     def _close_cb(self, dialog, response_id):
-        self.destroy()
+        dialog.destroy()
 

@@ -15,7 +15,8 @@
 
 import os, gtk, gobject, sys
 from gwsmhg_pkg import console, change_set, file_tree, gutils, utils, patch_mgr
-from gwsmhg_pkg import icons, path, cmd_result, diff, config, tortoise, const, ws_event
+from gwsmhg_pkg import icons, path, cmd_result, diff, config, tortoise, const
+from gwsmhg_pkg import ws_event, pbranch
 
 GWSM_UI_DESCR = \
 '''
@@ -173,6 +174,10 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
         self._notebook.append_page(gutils.wrap_in_scrolled_window(self._history_view), gtk.Label("History"))
         self._path_view = path.PathTableView(self._ifce)
         self._notebook.append_page(gutils.wrap_in_scrolled_window(self._path_view), gtk.Label("Paths"))
+        if self._ifce.SCM.get_extension_enabled('pbranch'):
+            self._pbranch = pbranch.PBranchTable(self._ifce,
+                busy_indicator=self.get_busy_indicator())
+            self._notebook.append_page(self._pbranch, gtk.Label("PBranch"))
         self._notebook.set_current_page(pmpage)
         # Now lay the widgets out
         vbox = gtk.VBox()
@@ -231,6 +236,8 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
         self._file_tree_widget.update_for_chdir()
         self._patch_mgr.update_for_chdir()
         self._path_view.update_for_chdir()
+        if self._ifce.SCM.get_extension_enabled('pbranch'):
+            self._pbranch.update_for_chdir()
         self._update_title()
         self._unshow_busy()
     def _change_wd_acb(self, action=None):

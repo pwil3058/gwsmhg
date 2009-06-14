@@ -185,8 +185,11 @@ MODIFIED = 'table_modified'
 NOT_MODIFIED = 'table_not_modified'
 SELECTION = 'table_selection'
 NO_SELECTION = 'table_no_selection'
+UNIQUE_SELECTION = 'table_unique_selection'
 
-TABLE_STATES = [ALWAYS_ON, MODIFIED, NOT_MODIFIED, SELECTION, NO_SELECTION,]
+TABLE_STATES = \
+    [ALWAYS_ON, MODIFIED, NOT_MODIFIED, SELECTION, NO_SELECTION,
+     UNIQUE_SELECTION]
 
 class Table(gtk.VBox):
     def __init__(self, model_descr, table_descr, size_req=None):
@@ -242,9 +245,10 @@ class Table(gtk.VBox):
     def _row_inserted_cb(self, model, path, iter):
         self._set_modified(True)
     def _selection_changed_cb(self, selection):
-        val = selection.count_selected_rows() > 0
-        self.action_groups[SELECTION].set_sensitive(val)
-        self.action_groups[NO_SELECTION].set_sensitive(not val)
+        rows = selection.count_selected_rows()
+        self.action_groups[SELECTION].set_sensitive(rows > 0)
+        self.action_groups[NO_SELECTION].set_sensitive(rows == 0)
+        self.action_groups[UNIQUE_SELECTION].set_sensitive(rows == 1)
     def _undo_changes_acb(self, action=None):
         self.set_contents()
     def _apply_changes_acb(self, action=None):

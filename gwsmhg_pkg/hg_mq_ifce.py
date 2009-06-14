@@ -478,6 +478,7 @@ class SCMInterface(BaseInterface):
             patch = os.linesep.join(lines[patch_data[0]:])
             return (res, patch, serr)
     def get_heads_data(self):
+        if not self.is_repository(): return (cmd_result.OK, [], "")
         cmd = 'hg heads --template "%s"' % self.cs_table_template
         res, sout, serr = utils.run_cmd(cmd)
         if res != 0:
@@ -489,6 +490,7 @@ class SCMInterface(BaseInterface):
             plist.append(pdata)
         return (res, plist, serr)
     def get_history_data(self, rev=None):
+        if not self.is_repository(): return (cmd_result.OK, [], "")
         cmd = 'hg log --template "%s"' % self.cs_table_template
         if rev:
             cmd += " --rev %s" % rev
@@ -502,6 +504,7 @@ class SCMInterface(BaseInterface):
             plist.append(pdata)
         return (res, plist, serr)
     def get_tags_data(self):
+        if not self.is_repository(): return (cmd_result.OK, [], "")
         res, sout, serr = utils.run_cmd("hg -v tags")
         if res:
             return (res, sout, serr)
@@ -540,6 +543,7 @@ class SCMInterface(BaseInterface):
                 tag_list.append([dat.group(1)])
         return (res, tag_list, serr)
     def get_branches_data(self):
+        if not self.is_repository(): return (cmd_result.OK, [], "")
         res, sout, serr = utils.run_cmd("hg branches")
         if res:
             return (res, sout, serr)
@@ -697,6 +701,78 @@ class SCMInterface(BaseInterface):
             ws_event.notify_events(ws_event.REPO_MOD|ws_event.FILE_CHANGES)
         else:
             ws_event.notify_events(ws_event.REPO_MOD)
+        return result
+    def get_pbranch_table_data(self):
+        if not self.is_repository(): return (cmd_result.OK, [], "")
+        res, sout, serr = utils.run_cmd('hg pgraph --title --with-name')
+        if res:
+            return (res, sout, serr)
+        de = re.compile('^([^]]*)\[(\S+)\]\s*(.*)')
+        branch_list = []
+        for line in sout.splitlines(False):
+            dat = de.match(line)
+            if dat:
+                branch_list.append([dat.group(2), dat.group(3), dat.group(1).find('@') >= 0])
+        cmd = 'hg pstatus %s'
+        for branch in branch_list:
+            res, sout, serr = utils.run_cmd(cmd % branch[0])
+            branch.append(sout.strip() == '')
+        return (res, branch_list, serr)
+    def get_pbranch_description(self, pbranch):
+        if pbranch:
+            res, sout, serr = utils.run_cmd('hg pmessage %s' % pbranch)
+        else:
+            res, sout, serr = utils.run_cmd('hg pmessage')
+        descr_lines = sout.splitlines()[1:]
+        return (res, os.linesep.join(descr_lines), serr)
+    def get_pdiff_for_files(self, file_list=[], pbranch=None):
+        cmd = 'hg pdiff'
+        if pbranch:
+            cmd += ' %s' % pbranch
+        if file_list:
+            cmd += ' %s' % ' '.join(file_list)
+        return utils.run_cmd(cmd)
+    def get_pstatus(self, pbranch=None):
+        cmd = 'hg pstatus'
+        if pbranch:
+            cmd += ' %s' % pbranch
+        return utils.run_cmd(cmd)
+    def get_pgraph(self):
+        cmd = 'hg pgraph --title --with-name'
+        return utils.run_cmd(cmd)
+    def do_set_pbranch_description(self, pbranch, descr):
+        cmd = 'hg peditmessage -t "%s"' % descr.replace('"', '\\"')
+        if pbranch:
+            cmd += ' %s' % pbranch
+        result = self._run_cmd_on_console(cmd)
+        ws_event.notify_events(ws_event.REPO_MOD)
+        return result
+    def do_new_pbranch(self, name, msg, preserve=False):
+        cmd = 'hg pnew'
+        if msg:
+            cmd += ' -t "%s"' % msg.replace('"', '\\"')
+        if preserve:
+            cmd += ' --preserve'
+        cmd += ' %s' % name
+        result = self._run_cmd_on_console(cmd)
+        events = ws_event.REPO_MOD|ws_event.CHECKOUT
+        if not preserve:
+            events |= ws_event.FILE_CHANGES
+        ws_event.notify_events(events)
+        return result
+    def do_pmerge(self, pbranches=[]):
+        cmd = 'hg pmerge'
+        if pbranches:
+            cmd += ' %s' % ' '.join(pbranches)
+        result = self._run_cmd_on_console(cmd)
+        ws_event.notify_events(ws_event.REPO_MOD|ws_event.CHECKOUT|ws_event.FILE_CHANGES)
+        return result
+    def do_pbackout(self, files=[]):
+        cmd = 'hg pbackout'
+        if files:
+            cmd += ' %s' % ' '.join(files)
+        result = self._run_cmd_on_console(cmd)
+        ws_event.notify_events(ws_event.REPO_MOD|ws_event.CHECKOUT|ws_event.FILE_CHANGES)
         return result
 
 class _WsUpdateStateMgr:
