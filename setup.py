@@ -17,7 +17,7 @@
 from distutils.core import setup
 import os
 
-VERSION='0.3.1'
+VERSION='0.4'
 
 LONG_DESCRIPTION =\
 '''
