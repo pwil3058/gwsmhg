@@ -13,7 +13,8 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import gtk, os.path, gobject, cmd_result
+import gtk, os.path, gobject
+from gwsmhg_pkg import ifce, cmd_result
 
 def wrap_in_scrolled_window(widget, policy=(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC), with_frame=True, label=None):
     scrw = gtk.ScrolledWindow()
@@ -202,7 +203,10 @@ class BusyIndicator:
 
 class BusyIndicatorUser:
     def __init__(self, busy_indicator):
-        self._busy_indicator = busy_indicator
+        if busy_indicator:
+            self._busy_indicator = busy_indicator
+        else:
+            self._busy_indicator = ifce
     def get_busy_indicator(self):
         return self._busy_indicator
     def _show_busy(self):

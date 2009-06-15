@@ -13,15 +13,14 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, os.path, tempfile, pango, re, tempfile
-from gwsmhg_pkg import text_edit, utils, cmd_result, console, putils, ws_event
+import os, os.path, tempfile, pango, re
+from gwsmhg_pkg import ifce, text_edit, utils, cmd_result, putils, ws_event
 
 DEFAULT_NAME_EVARS = ["GIT_AUTHOR_NAME", "GECOS"]
 DEFAULT_EMAIL_VARS = ["GIT_AUTHOR_EMAIL", "EMAIL_ADDRESS"]
 
 class BaseInterface:
-    def __init__(self, name, console_log):
-        self._console_log = console_log
+    def __init__(self, name):
         self.name = name
         self.status_deco_map = {
             None: (pango.STYLE_NORMAL, "black"),
@@ -124,21 +123,21 @@ class BaseInterface:
             ws_event.notify_events(ws_event.FILE_CHANGES)
             return result
     def do_delete_files(self, file_list):
-        if self._console_log:
-            self._console_log.start_cmd("Deleting: %s" % " ".join(file_list))
+        if ifce.log:
+            ifce.log.start_cmd("Deleting: %s" % " ".join(file_list))
         serr = ""
         for filename in file_list:
             try:
                 os.remove(filename)
-                if self._console_log:
-                    self._console_log.append_stdout(("Deleted: %s" + os.linesep) % filename)
+                if ifce.log:
+                    ifce.log.append_stdout(("Deleted: %s" + os.linesep) % filename)
             except os.error, value:
                 errmsg = ("%s: %s" + os.linesep) % (value[1], filename)
                 serr += errmsg
-                if self._console_log:
-                    self._console_log.append_stderr(errmsg)
-        if self._console_log:
-            self._console_log.end_cmd()
+                if ifce.log:
+                    ifce.log.append_stderr(errmsg)
+        if ifce.log:
+            ifce.log.end_cmd()
         ws_event.notify_events(ws_event.FILE_DEL)
         if serr:
             return (cmd_result.ERROR, "", serr)
@@ -160,8 +159,8 @@ class BaseInterface:
         return result
 
 class SCMInterface(BaseInterface):
-    def __init__(self, console_log):
-        BaseInterface.__init__(self, "hg", console_log)
+    def __init__(self):
+        BaseInterface.__init__(self, "hg")
         self.tracked_statuses = (None, "C") + self.modification_statuses
         self.cs_summary_template_lines = \
             [
@@ -196,7 +195,7 @@ class SCMInterface(BaseInterface):
                 flags |= cmd_result.SUGGEST_DISCARD
             return (flags, result[1], result[2])
     def _run_cmd_on_console(self, cmd):
-        result = utils.run_cmd_in_console(cmd, self._console_log)
+        result = utils.run_cmd_in_console(cmd, ifce.log)
         return self._map_cmd_result(result)
     def get_default_commit_save_file(self):
         return os.path.join(".hg", "gwsmhg.saved.commit")
@@ -832,8 +831,8 @@ hgext.mq=
 '''
 
 class PMInterface(BaseInterface):
-    def __init__(self, console_log):
-        BaseInterface.__init__(self, "MQ", console_log)
+    def __init__(self):
+        BaseInterface.__init__(self, "MQ")
         self._ws_update_mgr = _WsUpdateStateMgr()
         self.not_enabled_response = (cmd_result.ERROR, ENABLE_MQ_MSG, "")
         self._adding_re = re.compile("^adding\s.*$")
@@ -853,7 +852,7 @@ class PMInterface(BaseInterface):
                 flags |= cmd_result.SUGGEST_RECOVER
             return (flags, result[1], result[2])
     def _run_cmd_on_console(self, cmd, ignore_err_re=None):
-        result = utils.run_cmd_in_console(cmd, self._console_log)
+        result = utils.run_cmd_in_console(cmd, ifce.log)
         return self._map_cmd_result(result, ignore_err_re=ignore_err_re)
     def get_enabled(self):
         return self.get_extension_enabled('mq')
@@ -1032,17 +1031,17 @@ class PMInterface(BaseInterface):
             return (cmd_result.ERROR, descr, "Error reading description to \"%s\" patch file" % patch)
     def do_set_patch_description(self, patch, descr):
         pfn = self.get_patch_file_name(patch)
-        self._console_log.start_cmd("set description for: %s" %patch)
+        ifce.log.start_cmd("set description for: %s" %patch)
         res = putils.set_patch_descr_lines(pfn, descr.splitlines(False))
         if res:
-            self._console_log.append_stdout(descr)
+            ifce.log.append_stdout(descr)
             res = cmd_result.OK
             serr = ""
         else:
             serr = "Error writing description to \"%s\" patch file" % patch
-            self._console_log.append_stderr(serr)
+            ifce.log.append_stderr(serr)
             res = cmd_result.ERROR
-        self._console_log.end_cmd()
+        ifce.log.end_cmd()
         return (res, "", serr)
     def get_description_is_finish_ready(self, patch):
         pfn = self.get_patch_file_name(patch)
@@ -1180,10 +1179,4 @@ class PMInterface(BaseInterface):
         if applied_count is None:
             applied_count = len(self.get_appplied_patches())
         return not applied_count and self._ws_update_mgr.get_state_is_in(["qsaved", "pulled"])
-
-class CombinedInterface:
-    def __init__(self, busy_indicator, tooltips=None):
-        self.log = console.ConsoleLog(busy_indicator=busy_indicator, tooltips=tooltips)
-        self.SCM = SCMInterface(self.log)
-        self.PM = PMInterface(self.log)
 

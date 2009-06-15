@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 ### Copyright (C) 2007 Peter Williams <peter_ono@users.sourceforge.net>
 
 ### This program is free software; you can redistribute it and/or modify
@@ -14,33 +13,27 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import sys, os, getopt, gtk
-from gwsmhg_pkg import gwsm, hg_mq_ifce
+import gtk
 
-# read required directory from the command line
+log = None
+SCM = None
+PM = None
+main_window = None
 
-def usage():
-    print "Usage: gwsmhg [dir]"
+def init(ifce_module, console_log, window):
+    global log, SCM, PM, main_window
+    log = console_log
+    SCM = ifce_module.SCMInterface()
+    PM = ifce_module.PMInterface()
+    main_window = window
 
-try:
-    option_list, arg_list = getopt.getopt(sys.argv[1:], "")
-except getopt.GetoptError, err:
-    sys.stderr.write(str(err) + os.linesep)
-    usage()
-    sys.exit(1)
+def show_busy():
+    if main_window.window:
+        main_window.window.set_cursor(gtk.gdk.Cursor(gtk.gdk.WATCH))
+        while gtk.events_pending():
+            gtk.main_iteration()
 
-if len(arg_list) > 1:
-    usage()
-    sys.exit(1)
-
-if len(arg_list) == 1:
-    try:
-        os.chdir(sys.argv[1])
-    except OSError, msg:
-        sys.stderr.write(str(msg) + os.linesep)
-        sys.exit(2)
-
-app = gwsm.gwsm(hg_mq_ifce)
-app.show()
-gtk.main()
+def unshow_busy():
+    if main_window.window:
+        main_window.window.set_cursor(None)
 

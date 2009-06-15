@@ -13,11 +13,13 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import gtk, gutils
+import gtk
+from gwsmhg_pkg import ifce
 
 '''
 External command return values
 '''
+
 OK = 0
 WARNING = 1
 ERROR = 2
@@ -67,12 +69,13 @@ def map_cmd_result(result, ignore_err_re=None):
         outres = ERROR
     return (outres, result[1], result[2])
 
-class ProblemReporter(gutils.PopupUser):
+class ProblemReporter:
     def __init__(self):
-        gutils.PopupUser.__init__(self)
         pass
-    def _report_problem(self, msg, problem_type=gtk.MESSAGE_ERROR):
-        dialog = gtk.MessageDialog(parent=self._get_gtk_window(),
+    def _report_problem(self, msg, problem_type=gtk.MESSAGE_ERROR, parent=None):
+        if not parent:
+            parent = ifce.main_window
+        dialog = gtk.MessageDialog(parent=parent,
                                    flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                                    type=problem_type, buttons=gtk.BUTTONS_CLOSE,
                                    message_format=msg)

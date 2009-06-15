@@ -15,13 +15,12 @@
 
 import gtk, gobject, pango, os, tempfile, re
 from gwsmhg_pkg import cmd_result, gutils, file_tree, icons, text_edit, utils
-from gwsmhg_pkg import change_set, diff, path, tortoise, ws_event
+from gwsmhg_pkg import change_set, diff, path, tortoise, ws_event, ifce
 
 class PatchFileTreeStore(file_tree.FileTreeStore):
-    def __init__(self, ifce, patch=None, view=None):
-        self._ifce = ifce
+    def __init__(self, patch=None, view=None):
         self._patch = patch
-        row_data = apply(file_tree.FileTreeRowData, self._ifce.PM.get_status_row_data())
+        row_data = apply(file_tree.FileTreeRowData, ifce.PM.get_status_row_data())
         file_tree.FileTreeStore.__init__(self, show_hidden=True, row_data=row_data)
         # if this is set to the associated view then the view will expand
         # to show new files without disturbing other expansion states
@@ -29,7 +28,7 @@ class PatchFileTreeStore(file_tree.FileTreeStore):
     def set_view(self, view):
         self._view = view
     def update(self, fsobj_iter=None):
-        res, dflist, dummy = self._ifce.PM.get_file_status_list(self._patch)
+        res, dflist, dummy = ifce.PM.get_file_status_list(self._patch)
         if res == 0:
             files = [tmpx[0] for tmpx in dflist] 
             for f in self.get_file_paths():
@@ -66,12 +65,11 @@ PATCH_FILES_UI_DESCR = \
 '''
 
 class PatchFileTreeView(file_tree.CwdFileTreeView):
-    def __init__(self, ifce, busy_indicator, patch=None, tooltips=None):
-        self._ifce = ifce
+    def __init__(self, busy_indicator, patch=None, tooltips=None):
         self._patch = patch
-        model = PatchFileTreeStore(ifce=ifce, patch=patch)
+        model = PatchFileTreeStore(patch=patch)
         file_tree.CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
-             tooltips=tooltips, auto_refresh=False, show_status=True, console_log=ifce.log)
+             tooltips=tooltips, auto_refresh=False, show_status=True)
         model.set_view(self)
         self._action_group[file_tree.SELECTION].add_actions(
             [
@@ -95,19 +93,19 @@ class PatchFileTreeView(file_tree.CwdFileTreeView):
         model.repopulate()
         self.cwd_merge_id = self._ui_manager.add_ui_from_string(PATCH_FILES_UI_DESCR)
     def diff_selected_files_acb(self, action=None):
-        dialog = diff.PmDiffTextDialog(parent=self._get_gtk_window(),
-                                       ifce=self._ifce, patch=self._patch,
+        dialog = diff.PmDiffTextDialog(parent=ifce.main_window,
+                                       patch=self._patch,
                                        file_list=self.get_selected_files(),
                                        modal=False)
         dialog.show()
     def diff_all_files_acb(self, action=None):
-        dialog = diff.PmDiffTextDialog(parent=self._get_gtk_window(),
-                                       ifce=self._ifce, patch=self._patch,
+        dialog = diff.PmDiffTextDialog(parent=ifce.main_window,
+                                       patch=self._patch,
                                        modal=False)
         dialog.show()
 
 class PatchFilesDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
-    def __init__(self, ifce, patch, tooltips=None):
+    def __init__(self, patch, tooltips=None):
         title = "patch: %s files: %s" % (patch, utils.path_rel_home(os.getcwd()))
         gtk.Dialog.__init__(self, title, None, gtk.DIALOG_DESTROY_WITH_PARENT,
                             (gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE))
@@ -115,7 +113,7 @@ class PatchFilesDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUse
         gutils.BusyIndicatorUser.__init__(self, self)
         self._tooltips = tooltips
         # file tree view wrapped in scrolled window
-        self.file_tree = PatchFileTreeView(ifce=ifce, busy_indicator=self.get_busy_indicator(), patch=patch, tooltips=tooltips)
+        self.file_tree = PatchFileTreeView(busy_indicator=self.get_busy_indicator(), patch=patch, tooltips=tooltips)
         self.file_tree.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.file_tree.set_headers_visible(False)
         self.file_tree.set_size_request(240, 320)
@@ -160,10 +158,9 @@ PM_FILES_UI_DESCR = \
 '''
 
 class TopPatchFileTreeView(file_tree.CwdFileTreeView):
-    def __init__(self, ifce, busy_indicator, tooltips=None, auto_refresh=False):
-        self._ifce = ifce
-        model = PatchFileTreeStore(ifce=ifce)
-        file_tree.CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, console_log=ifce.log,
+    def __init__(self, busy_indicator, tooltips=None, auto_refresh=False):
+        model = PatchFileTreeStore()
+        file_tree.CwdFileTreeView.__init__(self, busy_indicator=busy_indicator,
             model=model, tooltips=tooltips, auto_refresh=auto_refresh, show_status=True)
         ws_event.add_notification_cb(ws_event.REPO_MOD|ws_event.CHANGE_WD, self.repopulate_tree)
         ws_event.add_notification_cb(ws_event.FILE_CHANGES, self.update_tree)
@@ -203,7 +200,7 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
         self.cwd_merge_id = self._ui_manager.add_ui_from_string(PM_FILES_UI_DESCR)
     def _check_if_force(self, result):
         if (result[0] & cmd_result.SUGGEST_FORCE) == cmd_result.SUGGEST_FORCE:
-            dialog = gtk.MessageDialog(parent=self._get_gtk_window(),
+            dialog = gtk.MessageDialog(parent=ifce.main_window,
                                    flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                                    type=gtk.MESSAGE_QUESTION, buttons=gtk.BUTTONS_NONE,
                                    message_format=result[1]+result[2])
@@ -216,12 +213,12 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
     def new_file(self, new_file_name):
         result = file_tree.CwdFileTreeView.new_file(self, new_file_name)
         if not result[0]:
-            res, sout, serr = self._ifce.PM.do_add_files([new_file_name])
+            res, sout, serr = ifce.PM.do_add_files([new_file_name])
             if res:
                 return (res, sout, serr)
         return result
     def delete_files(self, file_list):
-        return self._ifce.PM.do_delete_files(file_list)
+        return ifce.PM.do_delete_files(file_list)
     def _remove_named_files(self, file_list, ask=True):
         if not ask or self._confirm_list_action(file_list, "About to be removed. OK?"):
             model = self.get_model()
@@ -239,7 +236,7 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
             mode = gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER
         else:
             mode = gtk.FILE_CHOOSER_ACTION_SAVE
-        dialog = gtk.FileChooserDialog("Target", self._get_gtk_window(), mode,
+        dialog = gtk.FileChooserDialog("Target", ifce.main_window, mode,
                                        (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
         dialog.set_default_response(gtk.RESPONSE_OK)
         if mode == gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER:
@@ -256,9 +253,9 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
         return (response, target)
     def _move_or_copy_files(self, file_list, reqop, ask=True):
         if reqop == "c":
-            operation = self._ifce.PM.do_copy_files
+            operation = ifce.PM.do_copy_files
         elif reqop == "m":
-            operation = self._ifce.PM.do_move_files
+            operation = ifce.PM.do_move_files
         else:
             raise "Invalid operation requested"
         response, target = self._get_target(file_list)
@@ -301,19 +298,18 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
     def move_selected_files_acb(self, action=None):
         self.move_files(self.get_selected_files())
     def diff_selected_files_acb(self, action=None):
-        dialog = diff.PmDiffTextDialog(parent=self._get_gtk_window(),
-                                       ifce=self._ifce,
+        dialog = diff.PmDiffTextDialog(parent=ifce.main_window,
                                        file_list=self.get_selected_files(),
                                        modal=False)
         dialog.show()
     def diff_all_files_acb(self, action=None):
-        dialog = diff.PmDiffTextDialog(parent=self._get_gtk_window(),
-                                       ifce=self._ifce, modal=False)
+        dialog = diff.PmDiffTextDialog(parent=ifce.main_window,
+                                       modal=False)
         dialog.show()
     def revert_named_files(self, file_list, ask=True):
         if ask:
             self._show_busy()
-            res, sout, serr = self._ifce.PM.do_revert_files(file_list, dry_run=True)
+            res, sout, serr = ifce.PM.do_revert_files(file_list, dry_run=True)
             self._unshow_busy()
             if res == cmd_result.OK:
                 if sout:
@@ -328,7 +324,7 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
             ok = True
         if ok:
             self._show_busy()
-            result = self._ifce.PM.do_revert_files(file_list)
+            result = ifce.PM.do_revert_files(file_list)
             self.get_model().del_files_from_displayable_nonexistants(file_list)
             self._show_busy()
             self.update_tree()
@@ -339,11 +335,11 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
         self.revert_named_files([])
 
 class TopPatchFilesWidget(gtk.VBox):
-    def __init__(self, ifce, busy_indicator, tooltips=None, auto_refresh=False):
+    def __init__(self, busy_indicator, tooltips=None, auto_refresh=False):
         gtk.VBox.__init__(self)
         self._tooltips = tooltips
         # file tree view wrapped in scrolled window
-        self.file_tree = TopPatchFileTreeView(ifce=ifce, busy_indicator=busy_indicator,
+        self.file_tree = TopPatchFileTreeView(busy_indicator=busy_indicator,
             tooltips=tooltips, auto_refresh=auto_refresh)
         scw = gtk.ScrolledWindow()
         scw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
@@ -462,8 +458,7 @@ WS_UPDATE_CONDITIONS = [
 ]
 
 class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicatorUser):
-    def __init__(self, ifce, busy_indicator):
-        self._ifce = ifce
+    def __init__(self, busy_indicator):
         self.store = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_INT,
                                    gobject.TYPE_STRING, gobject.TYPE_STRING)
         gtk.TreeView.__init__(self, self.store)
@@ -627,16 +622,16 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         else:
             return model.get_value(iter, 0)
     def _set_ws_update_menu_sensitivity(self):
-        self._action_group[WS_UPDATE_QSAVE_READY].set_sensitive(self._ifce.PM.get_ws_update_qsave_ready(unapplied_count=self.unapplied_count))
-        self._action_group[WS_UPDATE_PULL_READY].set_sensitive(self._ifce.PM.get_ws_update_pull_ready(applied_count=self.applied_count))
-        self._action_group[WS_UPDATE_TO_READY].set_sensitive(self._ifce.PM.get_ws_update_to_ready(applied_count=self.applied_count))
-        self._action_group[WS_UPDATE_READY].set_sensitive(self._ifce.PM.get_ws_update_ready(applied_count=self.applied_count))
-        self._action_group[WS_UPDATE_MERGE_READY].set_sensitive(self._ifce.PM.get_ws_update_merge_ready(unapplied_count=self.unapplied_count))
-        self._action_group[WS_UPDATE_CLEAN_UP_READY].set_sensitive(self._ifce.PM.get_ws_update_clean_up_ready())
+        self._action_group[WS_UPDATE_QSAVE_READY].set_sensitive(ifce.PM.get_ws_update_qsave_ready(unapplied_count=self.unapplied_count))
+        self._action_group[WS_UPDATE_PULL_READY].set_sensitive(ifce.PM.get_ws_update_pull_ready(applied_count=self.applied_count))
+        self._action_group[WS_UPDATE_TO_READY].set_sensitive(ifce.PM.get_ws_update_to_ready(applied_count=self.applied_count))
+        self._action_group[WS_UPDATE_READY].set_sensitive(ifce.PM.get_ws_update_ready(applied_count=self.applied_count))
+        self._action_group[WS_UPDATE_MERGE_READY].set_sensitive(ifce.PM.get_ws_update_merge_ready(unapplied_count=self.unapplied_count))
+        self._action_group[WS_UPDATE_CLEAN_UP_READY].set_sensitive(ifce.PM.get_ws_update_clean_up_ready())
     def set_contents(self, action=None):
         self._show_busy()
-        applied_patch_list = self._ifce.PM.get_applied_patches()
-        unapplied_patch_list = self._ifce.PM.get_unapplied_patches()
+        applied_patch_list = ifce.PM.get_applied_patches()
+        unapplied_patch_list = ifce.PM.get_unapplied_patches()
         self.store.clear()
         for patch_name in applied_patch_list:
             self.store.append([patch_name, pango.STYLE_NORMAL, "black", icons.STOCK_APPLIED])
@@ -653,15 +648,15 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         self._unshow_busy()
     def do_refresh(self, action=None):
         self._show_busy()
-        res, sout, serr = self._ifce.PM.do_refresh()
+        res, sout, serr = ifce.PM.do_refresh()
         if res is not cmd_result.OK:
             self._unshow_busy()
             if res & cmd_result.SUGGEST_RECOVER:
                 if gutils.ask_recover_or_cancel(os.linesep.join([sout, serr]), self) is gutils.RECOVER:
                     self._show_busy()
-                    res, sout, serr = self._ifce.PM.do_recover_interrupted_refresh()
+                    res, sout, serr = ifce.PM.do_recover_interrupted_refresh()
                     if res is cmd_result.OK:
-                        res, sout, serr = self._ifce.PM.do_refresh()
+                        res, sout, serr = ifce.PM.do_refresh()
                     self._unshow_busy()
             if res is not cmd_result.OK: # There're may still be problems
                 self._report_any_problems((res, sout, serr))
@@ -671,7 +666,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
     def _do_pop_to(self, patch=None):
         while True:
             self._show_busy()
-            res, sout, serr = self._ifce.PM.do_pop_to(patch=patch)
+            res, sout, serr = ifce.PM.do_pop_to(patch=patch)
             self._unshow_busy()
             self.set_contents()
             if res is not cmd_result.OK:
@@ -684,7 +679,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                         continue
                     elif ans is gutils.FORCE:
                         self._show_busy()
-                        res, sout, serr = self._ifce.PM.do_pop_to(force=True)
+                        res, sout, serr = ifce.PM.do_pop_to(force=True)
                         self._unshow_busy()
                 if res is not cmd_result.OK: # there're are still problems
                     self._report_any_problems((res, sout, serr))
@@ -692,7 +687,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             return True
     def do_pop_to(self, action=None):
         patch = self.get_selected_patch()
-        while self._ifce.PM.get_top_patch() != patch:
+        while ifce.PM.get_top_patch() != patch:
             if not self._do_pop_to(patch):
                 break
     def do_pop(self, action=None):
@@ -702,7 +697,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
     def _do_push_to(self, patch=None, merge=False):
         while True:
             self._show_busy()
-            res, sout, serr = self._ifce.PM.do_push_to(patch=patch, merge=merge)
+            res, sout, serr = ifce.PM.do_push_to(patch=patch, merge=merge)
             self._unshow_busy()
             self.set_contents()
             if res is not cmd_result.OK:
@@ -715,7 +710,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                         continue
                     elif ans is gutils.FORCE:
                         self._unshow_busy()
-                        res, sout, serr = self._ifce.PM.do_push_to(force=True, merge=merge)
+                        res, sout, serr = ifce.PM.do_push_to(force=True, merge=merge)
                         self._unshow_busy()
                 if res is not cmd_result.OK: # there're are still problems
                     self._report_any_problems((res, sout, serr))
@@ -723,7 +718,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             return True
     def do_push_to(self, action=None):
         patch = self.get_selected_patch()
-        while self._ifce.PM.get_top_patch() != patch:
+        while ifce.PM.get_top_patch() != patch:
             if not self._do_push_to(patch):
                 break
     def do_push(self, action=None):
@@ -737,12 +732,12 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
     def do_finish_to(self, action=None):
         patch = self.get_selected_patch()
         while True:
-            next = self._ifce.PM.get_base_patch()
+            next = ifce.PM.get_base_patch()
             if not next:
                 break
             while True:
                 self._show_busy()
-                ok = self._ifce.PM.get_description_is_finish_ready(next)
+                ok = ifce.PM.get_description_is_finish_ready(next)
                 self._unshow_busy()
                 if ok:
                     break
@@ -760,7 +755,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                     break
                 self.do_edit_description_wait(next)
             self._show_busy()
-            res, sout, serr = self._ifce.PM.do_finish_patch(next)
+            res, sout, serr = ifce.PM.do_finish_patch(next)
             self.set_contents()
             self._unshow_busy()
             if res is not cmd_result.OK:
@@ -771,18 +766,18 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
     def do_edit_description_wait(self, patch=None):
         if not patch:
             patch = self.get_selected_patch()
-        PatchDescrEditDialog(patch, parent=None, ifce=self._ifce, modal=False).run()
+        PatchDescrEditDialog(patch, parent=None, modal=False).run()
     def do_edit_description(self, action=None):
         patch = self.get_selected_patch()
-        PatchDescrEditDialog(patch, parent=None, ifce=self._ifce, modal=False).show()
+        PatchDescrEditDialog(patch, parent=None, modal=False).show()
     def show_files(self, action=None):
         patch = self.get_selected_patch()
-        dialog = PatchFilesDialog(ifce=self._ifce, patch=patch)
+        dialog = PatchFilesDialog(patch=patch)
         dialog.show()
     def show_diff_acb(self, action=None):
         patch = self.get_selected_patch()
-        dialog = diff.PmDiffTextDialog(parent=self._get_gtk_window(), patch=patch,
-                                       ifce=self._ifce, modal=False)
+        dialog = diff.PmDiffTextDialog(parent=ifce.main_window, patch=patch,
+                                       modal=False)
         dialog.show()
     def do_rename(self, action=None):
         patch = self.get_selected_patch()
@@ -793,28 +788,28 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             dialog.destroy()
             if patch == new_name:
                 return
-            res, sout, serr = self._ifce.PM.do_rename_patch(patch, new_name)
+            res, sout, serr = ifce.PM.do_rename_patch(patch, new_name)
             self._report_any_problems((res, sout, serr))
             self.set_contents()
         else:
             dialog.destroy()
     def do_delete(self, action=None):
         patch = self.get_selected_patch()
-        res, sout, serr = self._ifce.PM.do_delete_patch(patch)
+        res, sout, serr = ifce.PM.do_delete_patch(patch)
         self._report_any_problems((res, sout, serr))
         self.set_contents()
     def do_fold(self, action=None):
         patch = self.get_selected_patch()
-        res, sout, serr = self._ifce.PM.do_fold_patch(patch)
+        res, sout, serr = ifce.PM.do_fold_patch(patch)
         self._report_any_problems((res, sout, serr))
         self.set_contents()
     def do_fold_to(self, action=None):
         patch = self.get_selected_patch()
         while True:
-            next = self._ifce.PM.get_next_patch()
+            next = ifce.PM.get_next_patch()
             if not next:
                 return
-            res, sout, serr = self._ifce.PM.do_fold_patch(next)
+            res, sout, serr = ifce.PM.do_fold_patch(next)
             if res is not cmd_result.OK:
                 self._report_any_problems((res, sout, serr))
                 return
@@ -823,7 +818,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                 return
     def do_duplicate(self, action=None):
         patch = self.get_selected_patch()
-        dialog = DuplicatePatchDialog(patch, parent=None, ifce=self._ifce, modal=False)
+        dialog = DuplicatePatchDialog(patch, parent=None, modal=False)
         if dialog.run() == gtk.RESPONSE_CANCEL:
             dialog.destroy()
             return
@@ -833,13 +828,13 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         if not duplicate_patch_name:
             return
         self._show_busy()
-        old_pfname = self._ifce.PM.get_patch_file_name(patch)
-        res, sout, serr = self._ifce.PM.do_import_patch(old_pfname, duplicate_patch_name)
+        old_pfname = ifce.PM.get_patch_file_name(patch)
+        res, sout, serr = ifce.PM.do_import_patch(old_pfname, duplicate_patch_name)
         self._unshow_busy()
         if res == cmd_result.ERROR_SUGGEST_FORCE:
             if ask_force_refresh_or_cancel(os.linesep.join([sout, serr]), res) == gutils.FORCE:
                 self._show_busy()
-                res, sout, serr = self._ifce.PM.do_import_patch(old_pfname, duplicate_patch_name, force=True)
+                res, sout, serr = ifce.PM.do_import_patch(old_pfname, duplicate_patch_name, force=True)
                 self._unshow_busy()
             else:
                 return
@@ -849,12 +844,12 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             if res & cmd_result.ERROR:
                 return
         self._show_busy()
-        res, sout, serr = self._ifce.PM.do_set_patch_description(duplicate_patch_name, duplicate_patch_descr)
+        res, sout, serr = ifce.PM.do_set_patch_description(duplicate_patch_name, duplicate_patch_descr)
         self._unshow_busy()
         self._report_any_problems((res, sout, serr))
     def do_interdiff(self, action=None):
         patch = self.get_selected_patch()
-        dialog = DuplicatePatchDialog(patch, verb="Interdiff", parent=None, ifce=self._ifce, modal=False)
+        dialog = DuplicatePatchDialog(patch, verb="Interdiff", parent=None, modal=False)
         if dialog.run() == gtk.RESPONSE_CANCEL:
             dialog.destroy()
             return
@@ -864,10 +859,10 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         if not interdiff_patch_name:
             return
         self._show_busy()
-        top_patch = self._ifce.PM.get_top_patch()
+        top_patch = ifce.PM.get_top_patch()
         if top_patch:
-            top_pfname = self._ifce.PM.get_patch_file_name(top_patch)
-            old_pfname = self._ifce.PM.get_patch_file_name(patch)
+            top_pfname = ifce.PM.get_patch_file_name(top_patch)
+            old_pfname = ifce.PM.get_patch_file_name(patch)
             res, diff, serr = utils.run_cmd("interdiff %s %s" % (top_pfname, old_pfname))
             if res is not cmd_result.OK:
                 self._report_any_problems((res, diff, serr))
@@ -877,13 +872,13 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             tf.write(os.linesep.join([interdiff_patch_descr, diff]))
             tf.close()
         else:
-            temp_pfname = self._ifce.PM.get_patch_file_name(patch)
-        res, sout, serr = self._ifce.PM.do_import_patch(temp_pfname, interdiff_patch_name)
+            temp_pfname = ifce.PM.get_patch_file_name(patch)
+        res, sout, serr = ifce.PM.do_import_patch(temp_pfname, interdiff_patch_name)
         self._unshow_busy()
         if res == cmd_result.ERROR_SUGGEST_FORCE:
             if ask_force_refresh_or_cancel(os.linesep.join([sout, serr]), res) == gutils.FORCE:
                 self._show_busy()
-                res, sout, serr = self._ifce.PM.do_import_patch(temp_pfname, interdiff_patch_name, force=True)
+                res, sout, serr = ifce.PM.do_import_patch(temp_pfname, interdiff_patch_name, force=True)
                 self._unshow_busy()
         if top_patch:
             os.remove(temp_pfname)
@@ -891,20 +886,20 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         if res is not cmd_result.OK:
             self._report_any_problems((res, sout, serr))
     def do_save_queue_state_for_update(self, action=None):
-        if not self._ifce.PM.get_enabled():
-            self._report_any_problems(self._ifce.PM.not_enabled_response)
+        if not ifce.PM.get_enabled():
+            self._report_any_problems(ifce.PM.not_enabled_response)
             return
         self._show_busy()
-        res, sout, serr = self._ifce.PM.do_save_queue_state_for_update()
+        res, sout, serr = ifce.PM.do_save_queue_state_for_update()
         self._unshow_busy()
         self.set_contents()
         self._report_any_problems((res, sout, serr))
     def do_pull_to_repository(self, action=None):
-        if not self._ifce.PM.get_enabled():
-            self._report_any_problems(self._ifce.PM.not_enabled_response)
+        if not ifce.PM.get_enabled():
+            self._report_any_problems(ifce.PM.not_enabled_response)
             return
         self._show_busy()
-        dialog = path.PullDialog(self._ifce)
+        dialog = path.PullDialog()
         self._unshow_busy()
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
@@ -912,52 +907,52 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             rev = dialog.get_revision()
             dialog.destroy()
             self._show_busy()
-            result = self._ifce.PM.do_pull_from(source=source, rev=rev)
+            result = ifce.PM.do_pull_from(source=source, rev=rev)
             self._set_ws_update_menu_sensitivity()
             self._unshow_busy()
             self._report_any_problems(result)
         else:
             dialog.destroy()
     def do_update_workspace(self, action=None):
-        if not self._ifce.PM.get_enabled():
-            self._report_any_problems(self._ifce.PM.not_enabled_response)
+        if not ifce.PM.get_enabled():
+            self._report_any_problems(ifce.PM.not_enabled_response)
             return
         self._show_busy()
-        result = self._ifce.PM.do_update_workspace()
+        result = ifce.PM.do_update_workspace()
         self._set_ws_update_menu_sensitivity()
         self._unshow_busy()
         self._report_any_problems(result)
     def do_update_workspace_to(self, action=None):
-        if not self._ifce.PM.get_enabled():
-            self._report_any_problems(self._ifce.PM.not_enabled_response)
+        if not ifce.PM.get_enabled():
+            self._report_any_problems(ifce.PM.not_enabled_response)
             return
-        dialog = change_set.ChangeSetSelectDialog(ifce=self._ifce)
+        dialog = change_set.ChangeSetSelectDialog()
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
             rev = dialog.get_change_set()
             dialog.destroy()
             if rev:
                 self._show_busy()
-                result = self._ifce.PM.do_update_workspace(rev=rev)
+                result = ifce.PM.do_update_workspace(rev=rev)
                 self._set_ws_update_menu_sensitivity()
                 self._unshow_busy()
                 self._report_any_problems(result)
         else:
             dialog.destroy()
     def do_clean_up_after_update(self, action=None):
-        if not self._ifce.PM.get_enabled():
-            self._report_any_problems(self._ifce.PM.not_enabled_response)
+        if not ifce.PM.get_enabled():
+            self._report_any_problems(ifce.PM.not_enabled_response)
             return
         self._show_busy()
-        result = self._ifce.PM.do_clean_up_after_update()
+        result = ifce.PM.do_clean_up_after_update()
         self._unshow_busy()
         self.set_contents()
         self._report_any_problems(result)
     def do_new_patch(self, action=None):
-        if not self._ifce.PM.get_enabled():
-            self._report_any_problems(self._ifce.PM.not_enabled_response)
+        if not ifce.PM.get_enabled():
+            self._report_any_problems(ifce.PM.not_enabled_response)
             return
-        dialog = NewPatchDialog(parent=None, ifce=self._ifce, modal=False)
+        dialog = NewPatchDialog(parent=None, modal=False)
         if dialog.run() == gtk.RESPONSE_CANCEL:
             dialog.destroy()
             return
@@ -969,7 +964,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         force = False
         while True:
             self._show_busy()
-            res, sout, serr = self._ifce.PM.do_new_patch(new_patch_name, force=force)
+            res, sout, serr = ifce.PM.do_new_patch(new_patch_name, force=force)
             self._unshow_busy()
             if res & cmd_result.SUGGEST_FORCE_OR_REFRESH:
                 ans = gutils.ask_force_refresh_or_cancel(os.linesep.join([sout, serr]), res, parent=None)
@@ -985,12 +980,12 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         self.set_contents()
         if new_patch_descr and res is not cmd_result.ERROR:
             self._show_busy()
-            res, sout, serr = self._ifce.PM.do_set_patch_description(new_patch_name, new_patch_descr)
+            res, sout, serr = ifce.PM.do_set_patch_description(new_patch_name, new_patch_descr)
             self._unshow_busy()
             self._report_any_problems((res, sout, serr))
     def do_import_external_patch(self, action=None):
-        if not self._ifce.PM.get_enabled():
-            self._report_any_problems(self._ifce.PM.not_enabled_response)
+        if not ifce.PM.get_enabled():
+            self._report_any_problems(ifce.PM.not_enabled_response)
             return
         patch_file_name = gutils.ask_file_name("Select patch file to be imported")
         if not patch_file_name:
@@ -999,7 +994,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         patch_name = None
         while True:
             self._show_busy()
-            res, sout, serr = self._ifce.PM.do_import_patch(patch_file_name, patch_name, force)
+            res, sout, serr = ifce.PM.do_import_patch(patch_file_name, patch_name, force)
             self._unshow_busy()
             if res & cmd_result.SUGGEST_FORCE_OR_RENAME:
                 question = os.linesep.join([sout, serr, "Force import of patch, rename patch or cancel import?"])
@@ -1018,8 +1013,8 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             break
         self.set_contents()
     def do_import_external_patch_series(self, action=None):
-        if not self._ifce.PM.get_enabled():
-            self._report_any_problems(self._ifce.PM.not_enabled_response)
+        if not ifce.PM.get_enabled():
+            self._report_any_problems(ifce.PM.not_enabled_response)
             return
         patch_series_dir = gutils.ask_dir_name("Select patch series to be imported")
         if not patch_series_dir:
@@ -1045,7 +1040,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             patch_name = None
             while True:
                 self._show_busy()
-                res, sout, serr = self._ifce.PM.do_import_patch(patch_file_name, patch_name, force)
+                res, sout, serr = ifce.PM.do_import_patch(patch_file_name, patch_name, force)
                 self._unshow_busy()
                 if res & cmd_result.SUGGEST_FORCE_OR_RENAME:
                     question = os.linesep.join([sout, serr, "Force import of patch, rename patch or skip patch?"])
@@ -1069,11 +1064,10 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             index += 1
 
 class PatchListWidget(gtk.VBox, gutils.TooltipsUser):
-    def __init__(self, ifce, busy_indicator, tooltips=None):
+    def __init__(self, busy_indicator, tooltips=None):
         gtk.VBox.__init__(self)
         gutils.TooltipsUser.__init__(self, tooltips)
-        self._ifce = ifce
-        self.list_view = PatchListView(self._ifce, busy_indicator=busy_indicator)
+        self.list_view = PatchListView(busy_indicator=busy_indicator)
         # file tree menu bar
         self.menu_bar = self.list_view.get_ui_widget("/patch_list_menubar")
         self.pack_start(self.menu_bar, expand=False)
@@ -1082,13 +1076,12 @@ class PatchListWidget(gtk.VBox, gutils.TooltipsUser):
         self.list_view.set_contents()
 
 class PatchManagementWidget(gtk.VBox, gutils.TooltipsUser):
-    def __init__(self, ifce, busy_indicator, tooltips=None):
+    def __init__(self, busy_indicator=None, tooltips=None):
         gtk.VBox.__init__(self)
         gutils.TooltipsUser.__init__(self, tooltips)
-        self._ifce = ifce
-        self._file_tree = TopPatchFilesWidget(ifce=self._ifce, busy_indicator=busy_indicator,
+        self._file_tree = TopPatchFilesWidget(busy_indicator=busy_indicator,
             auto_refresh=False, tooltips=self._tooltips)
-        self._patch_list = PatchListWidget(ifce=self._ifce, busy_indicator=busy_indicator,
+        self._patch_list = PatchListWidget(busy_indicator=busy_indicator,
             tooltips=self._tooltips)
         self._menu_bar = self._patch_list.list_view.get_ui_widget("/patches_menubar")
         self._tool_bar = self._patch_list.list_view.get_ui_widget("/patches_toolbar")
@@ -1105,15 +1098,14 @@ class PatchManagementWidget(gtk.VBox, gutils.TooltipsUser):
         self._patch_list.update_for_chdir()
 
 class NewPatchDescrEditWidget(gtk.VBox, cmd_result.ProblemReporter):
-    def __init__(self, ifce, view=None, tooltips=None):
+    def __init__(self, view=None, tooltips=None):
         gtk.VBox.__init__(self)
         cmd_result.ProblemReporter.__init__(self)
-        self._ifce = ifce
         # TextView for change message
         if view:
             self.view = view
         else:
-            self.view = text_edit.NewPatchSummaryView(ifce)
+            self.view = text_edit.NewPatchSummaryView()
         hbox = gtk.HBox()
         menubar = self.view.get_ui_widget("/patch_summary_menubar")
         hbox.pack_start(menubar, fill=True, expand=False)
@@ -1127,22 +1119,22 @@ class NewPatchDescrEditWidget(gtk.VBox, cmd_result.ProblemReporter):
         self.set_focus_child(self.view)
 
 class PatchDescrEditWidget(NewPatchDescrEditWidget):
-    def __init__(self, get_summary, set_summary, ifce, patch=None, tooltips=None):
-        self.view = text_edit.PatchSummaryView(get_summary, set_summary, ifce, patch)
-        NewPatchDescrEditWidget.__init__(self, ifce, view=self.view)
+    def __init__(self, get_summary, set_summary, patch=None, tooltips=None):
+        self.view = text_edit.PatchSummaryView(get_summary, set_summary, patch)
+        NewPatchDescrEditWidget.__init__(self, view=self.view)
         self.view.load_summary()
     def get_save_button(self):
         return self.view.save_button
 
 class GenericPatchDescrEditDialog(gtk.Dialog):
-    def __init__(self, get_summary, set_summary, parent, ifce, patch=None, modal=False):
+    def __init__(self, get_summary, set_summary, parent, patch=None, modal=False):
         if modal:
             flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
         else:
             flags = gtk.DIALOG_DESTROY_WITH_PARENT
         gtk.Dialog.__init__(self, "\"%s\" Description: %s" % (patch, utils.path_rel_home(os.getcwd())),
             parent, flags, None)
-        self.edit_descr_widget = PatchDescrEditWidget(get_summary, set_summary, ifce, patch, tooltips=None)
+        self.edit_descr_widget = PatchDescrEditWidget(get_summary, set_summary, patch, tooltips=None)
         self.vbox.pack_start(self.edit_descr_widget)
         self.action_area.pack_start(self.edit_descr_widget.get_save_button())
         self.add_button(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
@@ -1158,14 +1150,14 @@ class GenericPatchDescrEditDialog(gtk.Dialog):
                 self.destroy()
 
 class PatchDescrEditDialog(GenericPatchDescrEditDialog):
-    def __init__(self, patch, parent, ifce, modal=False):
+    def __init__(self, patch, parent, modal=False):
         GenericPatchDescrEditDialog.__init__(self,
             get_summary=ifce.PM.get_patch_description,
             set_summary=ifce.PM.do_set_patch_description,
-            parent=parent, ifce=ifce, patch=patch, modal=modal)
+            parent=parent, patch=patch, modal=modal)
 
 class DuplicatePatchDialog(gtk.Dialog):
-    def __init__(self, patch, parent, ifce, verb="Duplicate", modal=False):
+    def __init__(self, patch, parent, verb="Duplicate", modal=False):
         if modal:
             flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
         else:
@@ -1188,7 +1180,7 @@ class DuplicatePatchDialog(gtk.Dialog):
         hbox.pack_start(vbox)
         hbox.show_all()
         self.vbox.pack_start(hbox)
-        self.edit_descr_widget = NewPatchDescrEditWidget(ifce, tooltips=None)
+        self.edit_descr_widget = NewPatchDescrEditWidget(tooltips=None)
         res, old_descr, serr = ifce.PM.get_patch_description(patch)
         if not res:
             self.edit_descr_widget.view.get_buffer().set_text(old_descr)
@@ -1200,7 +1192,7 @@ class DuplicatePatchDialog(gtk.Dialog):
         return self.edit_descr_widget.view.get_msg()
 
 class NewPatchDialog(gtk.Dialog):
-    def __init__(self, parent, ifce, modal=False, objname="Patch"):
+    def __init__(self, parent, modal=False, objname="Patch"):
         if modal:
             flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
         else:
@@ -1216,7 +1208,7 @@ class NewPatchDialog(gtk.Dialog):
         self.hbox.pack_start(self.new_name_entry)
         self.hbox.show_all()
         self.vbox.pack_start(self.hbox)
-        self.edit_descr_widget = NewPatchDescrEditWidget(ifce, tooltips=None)
+        self.edit_descr_widget = NewPatchDescrEditWidget(tooltips=None)
         self.vbox.pack_start(self.edit_descr_widget)
         self.set_focus_child(self.new_name_entry)
     def get_new_patch_name(self):

@@ -14,9 +14,9 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import os, gtk, gobject, sys
-from gwsmhg_pkg import console, change_set, file_tree, gutils, utils, patch_mgr
+from gwsmhg_pkg import ifce, console, change_set, file_tree, gutils, utils
 from gwsmhg_pkg import icons, path, cmd_result, diff, config, tortoise, const
-from gwsmhg_pkg import ws_event, pbranch
+from gwsmhg_pkg import ws_event, patch_mgr, pbranch
 
 GWSM_UI_DESCR = \
 '''
@@ -55,19 +55,17 @@ GWSM_UI_DESCR = \
 </ui>
 '''
 
-class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_result.ProblemReporter):
-    def __init__(self, ifce):
+class gwsm(gtk.Window, cmd_result.ProblemReporter):
+    def __init__(self, ifce_module):
         gtk.Window.__init__(self, gtk.WINDOW_TOPLEVEL)
-        gutils.BusyIndicator.__init__(self)
-        gutils.BusyIndicatorUser.__init__(self, self)
+        ifce.init(ifce_module, console.ConsoleLog(), self)
         cmd_result.ProblemReporter.__init__(self)
         self.set_icon_from_file(icons.app_icon_file)
         self.connect("destroy", self._quit)
         self._tooltips = gtk.Tooltips()
         self._tooltips.enable()
-        self._ifce = ifce(busy_indicator=self.get_busy_indicator(), tooltips=self._tooltips)
         # see if we're in a valid work space and if not offer a selection
-        rootdir = self._ifce.SCM.get_root()
+        rootdir = ifce.SCM.get_root()
         if not rootdir:
             open_dialog = config.WSOpenDialog()
             if open_dialog.run() == gtk.RESPONSE_OK:
@@ -75,7 +73,7 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
                 if wspath:
                     try:
                         os.chdir(wspath)
-                        rootdir = self._ifce.SCM.get_root()
+                        rootdir = ifce.SCM.get_root()
                         if rootdir:
                             os.chdir(rootdir)
                             open_dialog.ap_view.add_ap(rootdir)
@@ -156,27 +154,24 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
         self._rhs_menubar = self._ui_manager.get_widget("/gwsm_right_side_menubar")
         self._toolbar = self._ui_manager.get_widget("/gwsm_toolbar")
         self._update_sensitivities()
-        self._parent_view = change_set.ParentsTableView(self._ifce)
-        self._file_tree_widget = file_tree.ScmCwdFilesWidget(ifce=self._ifce,
-            busy_indicator=self.get_busy_indicator(), tooltips=self._tooltips)
+        self._parent_view = change_set.ParentsTableView()
+        self._file_tree_widget = file_tree.ScmCwdFilesWidget(tooltips=self._tooltips)
         self._notebook = gtk.Notebook()
         self._notebook.set_size_request(640, 360)
-        self._patch_mgr = patch_mgr.PatchManagementWidget(ifce=self._ifce,
-            busy_indicator=self.get_busy_indicator(), tooltips=self._tooltips)
-        pmpage = self._notebook.append_page(self._patch_mgr, gtk.Label(self._ifce.PM.name))
-        self._heads_view = change_set.HeadsTableView(self._ifce)
+        self._patch_mgr = patch_mgr.PatchManagementWidget(tooltips=self._tooltips)
+        pmpage = self._notebook.append_page(self._patch_mgr, gtk.Label(ifce.PM.name))
+        self._heads_view = change_set.HeadsTableView()
         self._notebook.append_page(gutils.wrap_in_scrolled_window(self._heads_view), gtk.Label("Heads"))
-        self._tags_view = change_set.TagsTableView(self._ifce)
+        self._tags_view = change_set.TagsTableView()
         self._notebook.append_page(gutils.wrap_in_scrolled_window(self._tags_view), gtk.Label("Tags"))
-        self._branches_view = change_set.BranchesTableView(self._ifce)
+        self._branches_view = change_set.BranchesTableView()
         self._notebook.append_page(gutils.wrap_in_scrolled_window(self._branches_view), gtk.Label("Branches"))
-        self._history_view = change_set.HistoryTableView(self._ifce)
+        self._history_view = change_set.HistoryTableView()
         self._notebook.append_page(gutils.wrap_in_scrolled_window(self._history_view), gtk.Label("History"))
-        self._path_view = path.PathTableView(self._ifce)
+        self._path_view = path.PathTableView()
         self._notebook.append_page(gutils.wrap_in_scrolled_window(self._path_view), gtk.Label("Paths"))
-        if self._ifce.SCM.get_extension_enabled('pbranch'):
-            self._pbranch = pbranch.PBranchTable(self._ifce,
-                busy_indicator=self.get_busy_indicator())
+        if ifce.SCM.get_extension_enabled('pbranch'):
+            self._pbranch = pbranch.PBranchTable()
             self._notebook.append_page(self._pbranch, gtk.Label("PBranch"))
         self._notebook.set_current_page(pmpage)
         # Now lay the widgets out
@@ -193,7 +188,7 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
         vpane = gtk.VPaned()
         hpane.add2(vpane)
         vpane.add1(self._notebook)
-        vpane.add2(self._ifce.log)
+        vpane.add2(ifce.log)
         self.add(vbox)
         self.show_all()
         self._update_title()
@@ -205,11 +200,11 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
     def _quit(self, widget):
         gtk.main_quit()
     def _update_title(self):
-        self.set_title("gwsm%s: %s" % (self._ifce.SCM.name, utils.path_rel_home(os.getcwd())))
+        self.set_title("gwsm%s: %s" % (ifce.SCM.name, utils.path_rel_home(os.getcwd())))
     def _update_sensitivities(self):
-        in_valid_repo = self._ifce.SCM.get_root() != None
+        in_valid_repo = ifce.SCM.get_root() != None
         if in_valid_repo:
-            pm_ic = self._ifce.PM.get_in_progress()
+            pm_ic = ifce.PM.get_in_progress()
         else:
             pm_ic = False
         self._action_group[const.NOT_IN_VALID_SCM_REPO].set_sensitive(not in_valid_repo)
@@ -221,13 +216,13 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
 #        else:
 #            newdir = os.getcwd()
 #        # This is where'll we get the appropriate SCM interface in later versions
-#        newrootdir = self._ifce.SCM.get_root()
+#        newrootdir = ifce.SCM.get_root()
 #        if newrootdir and newrootdir != newdir:
 #            os.chdir(newrootdir)
     def _reset_after_cd(self):
-        self._show_busy()
+        ifce.show_busy()
         self._update_sensitivities()
-        self._ifce.log.append_entry("New Working Directory: %s" % os.getcwd())
+        ifce.log.append_entry("New Working Directory: %s" % os.getcwd())
         self._parent_view.update_for_chdir()
         self._history_view.update_for_chdir()
         self._heads_view.update_for_chdir()
@@ -236,10 +231,10 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
         self._file_tree_widget.update_for_chdir()
         self._patch_mgr.update_for_chdir()
         self._path_view.update_for_chdir()
-        if self._ifce.SCM.get_extension_enabled('pbranch'):
+        if ifce.SCM.get_extension_enabled('pbranch'):
             self._pbranch.update_for_chdir()
         self._update_title()
-        self._unshow_busy()
+        ifce.unshow_busy()
     def _change_wd_acb(self, action=None):
         open_dialog = config.WSOpenDialog(parent=self)
         if open_dialog.run() == gtk.RESPONSE_OK:
@@ -249,7 +244,7 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
             else:
                 old_wspath = os.getcwd()
                 os.chdir(wspath)
-                rootdir = self._ifce.SCM.get_root()
+                rootdir = ifce.SCM.get_root()
                 if rootdir:
                     os.chdir(rootdir)
                     open_dialog.ap_view.add_ap(rootdir)
@@ -260,9 +255,9 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
         else:
             open_dialog.destroy()
     def _init_wd_acb(self, action=None):
-        result = self._ifce.SCM.do_init()
+        result = ifce.SCM.do_init()
         self._report_any_problems(result)
-        if self._ifce.SCM.get_root():
+        if ifce.SCM.get_root():
             config.append_saved_ws(path=os.getcwd())
     def _clone_repo_acb(self, action=None):
         clone_dialog = config.RepoSelectDialog(parent=self)
@@ -273,9 +268,9 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
                 clone_dialog.destroy()
                 return
             target = clone_dialog.get_target()
-            self._show_busy()
-            result = self._ifce.SCM.do_clone_as(cloned_path, target)
-            self._unshow_busy()
+            ifce.show_busy()
+            result = ifce.SCM.do_clone_as(cloned_path, target)
+            ifce.unshow_busy()
             if result[0]:
                 self._report_any_problems(result)
                 return
@@ -287,38 +282,38 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
         else:
             clone_dialog.destroy()
     def _diff_ws_acb(self, action=None):
-        self._show_busy()
-        dialog = diff.ScmDiffTextDialog(parent=self, ifce=self._ifce, modal=False)
-        self._unshow_busy()
+        ifce.show_busy()
+        dialog = diff.ScmDiffTextDialog(parent=self, modal=False)
+        ifce.unshow_busy()
         dialog.show()
     def _commit_ws_acb(self, action=None):
-        self._show_busy()
-        dialog = file_tree.ScmCommitDialog(parent=self, ifce=self._ifce)
-        self._unshow_busy()
+        ifce.show_busy()
+        dialog = file_tree.ScmCommitDialog(parent=self)
+        ifce.unshow_busy()
         dialog.show()
     def _tag_ws_acb(self, action=None):
-        self._show_busy()
-        change_set.SetTagDialog(ifce=self._ifce, parent=self).run()
-        self._unshow_busy()
+        ifce.show_busy()
+        change_set.SetTagDialog(parent=self).run()
+        ifce.unshow_busy()
     def _branch_ws_acb(self, action=None):
-        self._show_busy()
+        ifce.show_busy()
         dialog = gutils.ReadTextDialog(title="gwsmhg: Specify Branch",
             prompt="Branch:", parent=self)
-        self._unshow_busy()
+        ifce.unshow_busy()
         response = dialog.run()
         if response == gtk.RESPONSE_CANCEL:
             dialog.destroy()
         else:
             branch = dialog.entry.get_text()
             dialog.destroy()
-            self._show_busy()
-            result = self._ifce.SCM.do_set_branch(branch=branch)
-            self._unshow_busy()
+            ifce.show_busy()
+            result = ifce.SCM.do_set_branch(branch=branch)
+            ifce.unshow_busy()
             self._report_any_problems(result)
     def _checkout_ws_acb(self, action=None):
-        self._show_busy()
-        dialog = change_set.ChangeSetSelectDialog(ifce=self._ifce, discard_toggle=True, parent=self)
-        self._unshow_busy()
+        ifce.show_busy()
+        dialog = change_set.ChangeSetSelectDialog(discard_toggle=True, parent=self)
+        ifce.unshow_busy()
         response = dialog.run()
         if response == gtk.RESPONSE_CANCEL:
             dialog.destroy()
@@ -327,60 +322,60 @@ class gwsm(gtk.Window, gutils.BusyIndicator, gutils.BusyIndicatorUser, cmd_resul
             dialog.destroy()
             if rev:
                 discard = dialog.get_discard()
-                self._show_busy()
-                result = self._ifce.SCM.do_update_workspace(rev=rev, discard=discard)
-                self._unshow_busy()
+                ifce.show_busy()
+                result = ifce.SCM.do_update_workspace(rev=rev, discard=discard)
+                ifce.unshow_busy()
                 self._report_any_problems(result)
     def _update_ws_acb(self, action=None):
-        self._show_busy()
-        result = self._ifce.SCM.do_update_workspace(rev=None, discard=False)
-        self._unshow_busy()
+        ifce.show_busy()
+        result = ifce.SCM.do_update_workspace(rev=None, discard=False)
+        ifce.unshow_busy()
         if result[0] & cmd_result.SUGGEST_MERGE_OR_DISCARD:
             question = os.linesep.join(result[1:])
             ans = gutils.ask_merge_discard_or_cancel(question, result[0], parent=self)
             if ans == gutils.DISCARD:
-                self._show_busy()
-                result = self._ifce.SCM.do_update_workspace(rev=None, discard=True)
-                self._unshow_busy()
+                ifce.show_busy()
+                result = ifce.SCM.do_update_workspace(rev=None, discard=True)
+                ifce.unshow_busy()
                 self._report_any_problems(result)
             elif ans == gutils.MERGE:
-                self._show_busy()
-                result = self._ifce.SCM.do_merge_workspace(rev=None, force=False)
-                self._unshow_busy()
+                ifce.show_busy()
+                result = ifce.SCM.do_merge_workspace(rev=None, force=False)
+                ifce.unshow_busy()
                 if result[0] & cmd_result.SUGGEST_FORCE:
                     question = os.linesep.join(result[1:])
                     ans = gutils.ask_force_or_cancel(question, parent=self)
                     if ans == gutils.FORCE:
-                        self._show_busy()
-                        result = self._ifce.SCM.do_merge_workspace(rev=None, force=True)
-                        self._unshow_busy()
+                        ifce.show_busy()
+                        result = ifce.SCM.do_merge_workspace(rev=None, force=True)
+                        ifce.unshow_busy()
                         self._report_any_problems(result)
                 else:
                     self._report_any_problems(result)
         else:
             self._report_any_problems(result)
     def _pull_repo_acb(self, action=None):
-        self._show_busy()
-        result = self._ifce.SCM.do_pull_from()
-        self._unshow_busy()
+        ifce.show_busy()
+        result = ifce.SCM.do_pull_from()
+        ifce.unshow_busy()
         self._report_any_problems(result)
     def _push_repo_acb(self, action=None):
-        self._show_busy()
-        result = self._ifce.SCM.do_push_to()
-        self._unshow_busy()
+        ifce.show_busy()
+        result = ifce.SCM.do_push_to()
+        ifce.unshow_busy()
         self._report_any_problems(result)
     def _verify_repo_acb(self, action=None):
-        self._show_busy()
-        result = self._ifce.SCM.do_verify_repo()
-        self._unshow_busy()
+        ifce.show_busy()
+        result = ifce.SCM.do_verify_repo()
+        ifce.unshow_busy()
         self._report_any_problems(result)
     def _rollback_repo_acb(self, action=None):
         question = os.linesep.join(['About to roll back last transaction',
                                     'This action is irreversible! Continue?'])
         if gutils.ask_yes_no(question, parent=self):
-            self._show_busy()
-            result = self._ifce.SCM.do_rollback_repo()
-            self._unshow_busy()
+            ifce.show_busy()
+            result = ifce.SCM.do_rollback_repo()
+            ifce.unshow_busy()
             self._report_any_problems(result)
     def _config_editors_acb(self, action=None):
         config.EditorAllocationDialog(self).show()

@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import os, os.path, tempfile, gtk, gtk.gdk
-from gwsmhg_pkg import utils, text_edit, cmd_result, diff, console, gutils, \
+from gwsmhg_pkg import ifce, utils, text_edit, cmd_result, diff, gutils, \
     tortoise, icons, ws_event
 import gtksourceview
 
@@ -668,12 +668,11 @@ UI_DESCR = \
 _KEYVAL_c = gtk.gdk.keyval_from_name('c')
 _KEYVAL_C = gtk.gdk.keyval_from_name('C')
 
-class FileTreeView(_ViewWithActionGroups, gutils.PopupUser):
+class FileTreeView(_ViewWithActionGroups):
     def __init__(self, busy_indicator, model=None, tooltips=None, auto_refresh=False, show_hidden=False, show_status=False):
         if model is None:
             model = FileTreeStore(show_hidden=show_hidden)
         _ViewWithActionGroups.__init__(self, busy_indicator, model=model, tooltips=tooltips)
-        gutils.PopupUser.__init__(self)
         self._refresh_interval = 60000 # milliseconds
         self._create_column(show_status)
         self.connect("row-expanded", model.on_row_expanded_cb)
@@ -776,9 +775,8 @@ CWD_UI_DESCR = \
 '''
 
 class CwdFileTreeView(FileTreeView, cmd_result.ProblemReporter):
-    def __init__(self, busy_indicator, model=None, tooltips=None, auto_refresh=False, show_hidden=False, show_status=False, console_log=None):
+    def __init__(self, busy_indicator, model=None, tooltips=None, auto_refresh=False, show_hidden=False, show_status=False):
         cmd_result.ProblemReporter.__init__(self)
-        self._console_log = console_log
         if not model:
             model = CwdFileTreeStore(show_hidden=show_hidden)
         FileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
@@ -798,7 +796,7 @@ class CwdFileTreeView(FileTreeView, cmd_result.ProblemReporter):
         self.cwd_merge_id = self._ui_manager.add_ui_from_string(CWD_UI_DESCR)
     def _confirm_list_action(self, filelist, question):
         msg = os.linesep.join(filelist + [os.linesep, question])
-        dialog = gtk.MessageDialog(parent=self._get_gtk_window(),
+        dialog = gtk.MessageDialog(parent=ifce.main_window,
                                    flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                                    type=gtk.MESSAGE_QUESTION, buttons=gtk.BUTTONS_OK_CANCEL,
                                    message_format=msg)
@@ -814,7 +812,7 @@ class CwdFileTreeView(FileTreeView, cmd_result.ProblemReporter):
             serr_xtra = ("File \"%s\" already exists" + os.linesep) % new_file_name
         else:
             serr_xtra = ""
-        res, sout, serr = utils.run_cmd_in_console("touch %s" % new_file_name, self._console_log)
+        res, sout, serr = utils.run_cmd_in_console("touch %s" % new_file_name, ifce.log)
         return (res, sout, serr_xtra + serr)
     def create_new_file(self, new_file_name, open_for_edit=False):
         model = self.get_model()
@@ -826,7 +824,7 @@ class CwdFileTreeView(FileTreeView, cmd_result.ProblemReporter):
         if open_for_edit:
             self._edit_named_files_extern([new_file_name])
     def create_new_file_acb(self, menu_item):
-        dialog = gtk.FileChooserDialog("New File", self._get_gtk_window(),
+        dialog = gtk.FileChooserDialog("New File", ifce.main_window,
                                        gtk.FILE_CHOOSER_ACTION_SAVE,
                                        (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
                                         gtk.STOCK_OK, gtk.RESPONSE_OK))
@@ -845,21 +843,21 @@ class CwdFileTreeView(FileTreeView, cmd_result.ProblemReporter):
         else:
             dialog.destroy()
     def delete_files(self, file_list):
-        if self._console_log:
-            self._console_log.start_cmd("Deleting: %s" % " ".join(file_list))
+        if ifce.log:
+            ifce.log.start_cmd("Deleting: %s" % " ".join(file_list))
         serr = ""
         for filename in file_list:
             try:
                 os.remove(filename)
-                if self._console_log:
-                    self._console_log.append_stdout(("Deleted: %s" + os.linesep) % filename)
+                if ifce.log:
+                    ifce.log.append_stdout(("Deleted: %s" + os.linesep) % filename)
             except os.error, value:
                 errmsg = ("%s: %s" + os.linesep) % (value[1], filename)
                 serr += errmsg
-                if self._console_log:
-                    self._console_log.append_stderr(errmsg)
-        if self._console_log:
-            self._console_log.end_cmd()
+                if ifce.log:
+                    ifce.log.append_stderr(errmsg)
+        if ifce.log:
+            ifce.log.end_cmd()
         if serr:
             return (cmd_result.ERROR, "", serr)
         return (cmd_result.OK, "", "")
@@ -875,13 +873,12 @@ class CwdFileTreeView(FileTreeView, cmd_result.ProblemReporter):
         self._delete_named_files(self.get_selected_files())
 
 class ScmCwdFileTreeStore(CwdFileTreeStore):
-    def __init__(self, ifce, show_hidden=False):
-        self._ifce = ifce
-        row_data = apply(FileTreeRowData, self._ifce.SCM.get_status_row_data())
+    def __init__(self, show_hidden=False):
+        row_data = apply(FileTreeRowData, ifce.SCM.get_status_row_data())
         CwdFileTreeStore.__init__(self, show_hidden=show_hidden, row_data=row_data)
         self._update_statuses()
     def _update_statuses(self, fspath_list=[]):
-        res, dflists, dummy = self._ifce.SCM.get_file_status_lists(fspath_list)
+        res, dflists, dummy = ifce.SCM.get_file_status_lists(fspath_list)
         if res == 0:
             if self.show_hidden_action.get_active():
                 for dfile, status, dummy in dflists[IGNORED]:
@@ -945,11 +942,10 @@ SCM_CWD_UI_DESCR = \
 '''
 
 class ScmCwdFileTreeView(CwdFileTreeView):
-    def __init__(self, ifce, busy_indicator, tooltips=None, auto_refresh=False, show_hidden=False):
-        self._ifce = ifce
-        model = ScmCwdFileTreeStore(ifce=self._ifce, show_hidden=show_hidden)
+    def __init__(self, busy_indicator, tooltips=None, auto_refresh=False, show_hidden=False):
+        model = ScmCwdFileTreeStore(show_hidden=show_hidden)
         CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
-            tooltips=tooltips, auto_refresh=auto_refresh, console_log=ifce.log, show_status=True)
+            tooltips=tooltips, auto_refresh=auto_refresh, show_status=True)
         self._ncb_uac = ws_event.add_notification_cb(ws_event.CHECKOUT|ws_event.FILE_CHANGES,
             self.update_after_commit)
         self._ncb_uac = ws_event.add_notification_cb(ws_event.CHANGE_WD,
@@ -1015,14 +1011,14 @@ class ScmCwdFileTreeView(CwdFileTreeView):
     def new_file(self, new_file_name):
         result = CwdFileTreeView.new_file(self, new_file_name)
         if not result[0]:
-            res, sout, serr = self._ifce.SCM.do_add_files([new_file_name])
+            res, sout, serr = ifce.SCM.do_add_files([new_file_name])
             if res:
                 return (res, sout, serr)
         return result
     def delete_files(self, file_list):
-        return self._ifce.SCM.do_delete_files(file_list)
+        return ifce.SCM.do_delete_files(file_list)
     def update_menu_sensitivity(self, selection=None):
-        if self._ifce.PM.get_in_progress():
+        if ifce.PM.get_in_progress():
             self._action_group[NO_SELECTION_NOT_PATCHED].set_sensitive(False)
             self._action_group[SELECTION_NOT_PATCHED].set_sensitive(False)
         else:
@@ -1035,10 +1031,10 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         self.update_menu_sensitivity(selection)
         _ViewWithActionGroups._selection_changed_cb(self, selection)
     def get_scm_name(self):
-        return self._ifce.SCM.name
+        return ifce.SCM.name
     def _check_if_force(self, result):
         if (result[0] & cmd_result.SUGGEST_FORCE) == cmd_result.SUGGEST_FORCE:
-            dialog = gtk.MessageDialog(parent=self._get_gtk_window(),
+            dialog = gtk.MessageDialog(parent=ifce.main_window,
                                    flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                                    type=gtk.MESSAGE_QUESTION, buttons=gtk.BUTTONS_NONE,
                                    message_format=result[1]+result[2])
@@ -1052,22 +1048,22 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         if not ask or self._confirm_list_action(file_list, "About to be removed. OK?"):
             model = self.get_model()
             self._show_busy()
-            result = model._ifce.SCM.do_remove_files(file_list)
+            result = ifce.SCM.do_remove_files(file_list)
             self._show_busy()
             if self._check_if_force(result):
-                result = model._ifce.SCM.do_remove_files(file_list, force=True)
+                result = ifce.SCM.do_remove_files(file_list, force=True)
             self.update_tree()
             self._report_any_problems(result)
     def remove_selected_files_acb(self, menu_item):
         self._remove_named_files(self.get_selected_files())
     def add_files_to_repo(self, file_list):
         self._show_busy()
-        result = self._ifce.SCM.do_add_files(file_list)
+        result = ifce.SCM.do_add_files(file_list)
         self._unshow_busy()
         self.update_tree()
         self._report_any_problems(result)
     def add_all_files_to_repo(self):
-        operation = self._ifce.SCM.do_add_files
+        operation = ifce.SCM.do_add_files
         self._show_busy()
         res, info, serr = operation([], dry_run=True)
         self._unshow_busy()
@@ -1088,7 +1084,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         self.get_model().del_files_from_displayable_nonexistants(files_in_commit)
         self.update_tree()
     def commit_changes(self, file_list):
-        dialog = ScmCommitDialog(parent=self._get_gtk_window(), ifce=self._ifce, filelist=file_list)
+        dialog = ScmCommitDialog(parent=ifce.main_window, filelist=file_list)
         dialog.show()
     def commit_selected_files_acb(self, menu_item):
         self.commit_changes(self.get_selected_files())
@@ -1099,7 +1095,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             mode = gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER
         else:
             mode = gtk.FILE_CHOOSER_ACTION_SAVE
-        dialog = gtk.FileChooserDialog("Target", self._get_gtk_window(), mode,
+        dialog = gtk.FileChooserDialog("Target", ifce.main_window, mode,
                                        (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
         dialog.set_default_response(gtk.RESPONSE_OK)
         if mode == gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER:
@@ -1116,9 +1112,9 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         return (response, target)
     def _move_or_copy_files(self, file_list, reqop, ask=True):
         if reqop == "c":
-            operation = self._ifce.SCM.do_copy_files
+            operation = ifce.SCM.do_copy_files
         elif reqop == "m":
-            operation = self._ifce.SCM.do_move_files
+            operation = ifce.SCM.do_move_files
         else:
             raise "Invalid operation requested"
         response, target = self._get_target(file_list)
@@ -1161,13 +1157,13 @@ class ScmCwdFileTreeView(CwdFileTreeView):
     def move_selected_files_acb(self, action=None):
         self.move_files(self.get_selected_files())
     def diff_selected_files_acb(self, action=None):
-        dialog = diff.ScmDiffTextDialog(parent=self._get_gtk_window(), ifce=self._ifce,
+        dialog = diff.ScmDiffTextDialog(parent=ifce.main_window,
                                      file_list=self.get_selected_files(), modal=False)
         dialog.show()
     def revert_named_files(self, file_list, ask=True):
         if ask:
             self._show_busy()
-            res, sout, serr = self._ifce.SCM.do_revert_files(file_list, dry_run=True)
+            res, sout, serr = ifce.SCM.do_revert_files(file_list, dry_run=True)
             self._unshow_busy()
             if res == cmd_result.OK:
                 if sout:
@@ -1182,7 +1178,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             ok = True
         if ok:
             self._show_busy()
-            result = self._ifce.SCM.do_revert_files(file_list)
+            result = ifce.SCM.do_revert_files(file_list)
             self.get_model().del_files_from_displayable_nonexistants(file_list)
             self._show_busy()
             self.update_tree()
@@ -1193,11 +1189,11 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         self.revert_named_files([])
 
 class ScmCwdFilesWidget(gtk.VBox):
-    def __init__(self, ifce, busy_indicator, tooltips=None, auto_refresh=False, show_hidden=False):
+    def __init__(self, busy_indicator=None, tooltips=None, auto_refresh=False, show_hidden=False):
         gtk.VBox.__init__(self)
         self._tooltips = tooltips
         # file tree view wrapped in scrolled window
-        self.file_tree = ScmCwdFileTreeView(ifce=ifce, busy_indicator=busy_indicator,
+        self.file_tree = ScmCwdFileTreeView(busy_indicator=busy_indicator,
             tooltips=tooltips, auto_refresh=auto_refresh, show_hidden=show_hidden)
         scw = gtk.ScrolledWindow()
         scw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
@@ -1224,10 +1220,9 @@ class ScmCwdFilesWidget(gtk.VBox):
         self.file_tree.repopulate_tree()
 
 class ScmChangeFileTreeStore(FileTreeStore):
-    def __init__(self, ifce, show_hidden=True, view=None, file_mask=[]):
+    def __init__(self, show_hidden=True, view=None, file_mask=[]):
         self._file_mask = file_mask
-        self._ifce = ifce
-        row_data = apply(FileTreeRowData, self._ifce.SCM.get_status_row_data())
+        row_data = apply(FileTreeRowData, ifce.SCM.get_status_row_data())
         FileTreeStore.__init__(self, show_hidden=show_hidden, row_data=row_data)
         # if this is set to the associated view then the view will expand
         # to show new files without disturbing other expansion states
@@ -1241,7 +1236,7 @@ class ScmChangeFileTreeStore(FileTreeStore):
     def get_file_mask(self):
         return self._file_mask
     def update(self, fsobj_iter=None):
-        res, dflists, dummy = self._ifce.SCM.get_file_status_lists(self._file_mask)
+        res, dflists, dummy = ifce.SCM.get_file_status_lists(self._file_mask)
         if res == 0:
             files = [tmpx[0] for tmpx in dflists[MODIFIED]] 
             for f in self.get_file_paths():
@@ -1281,10 +1276,9 @@ SCM_CHANGE_UI_DESCR = \
 '''
 
 class ScmChangeFileTreeView(FileTreeView):
-    def __init__(self, ifce, busy_indicator, tooltips=None, auto_refresh=False, show_hidden=True, file_mask=[]):
-        self._ifce = ifce
+    def __init__(self, busy_indicator, tooltips=None, auto_refresh=False, show_hidden=True, file_mask=[]):
         self.removeds = []
-        self.model = ScmChangeFileTreeStore(ifce, show_hidden=show_hidden, file_mask=file_mask)
+        self.model = ScmChangeFileTreeStore(show_hidden=show_hidden, file_mask=file_mask)
         self.model.set_view(self)
         FileTreeView.__init__(self, model=self.model, busy_indicator=busy_indicator,
             tooltips=tooltips, auto_refresh=auto_refresh, show_status=True)
@@ -1338,27 +1332,24 @@ class ScmChangeFileTreeView(FileTreeView):
         self._unshow_busy()
         self.update_tree()
     def _diff_selected_files_acb(self, action=None):
-        parent = self._get_gtk_window()
-        dialog = diff.ScmDiffTextDialog(parent=parent, ifce=self._ifce,
+        parent = ifce.main_window
+        dialog = diff.ScmDiffTextDialog(parent=parent,
                                      file_list=self.get_selected_files(),
                                      modal=False)
         dialog.show()
     def _diff_all_files_acb(self, action=None):
-        parent = self._get_gtk_window()
-        dialog = diff.ScmDiffTextDialog(parent=parent, ifce=self._ifce,
+        parent = ifce.main_window
+        dialog = diff.ScmDiffTextDialog(parent=parent,
                                      file_list=self.get_file_mask(),
                                      modal=False)
         dialog.show()
 
-import gutils
-
 class ScmCommitWidget(gtk.VPaned, cmd_result.ProblemReporter):
-    def __init__(self, ifce, busy_indicator, tooltips=None, file_mask=[]):
+    def __init__(self, busy_indicator, tooltips=None, file_mask=[]):
         gtk.VPaned.__init__(self)
         cmd_result.ProblemReporter.__init__(self)
-        self._ifce = ifce
         # TextView for change message
-        self.view = text_edit.ChangeSummaryView(ifce=self._ifce)
+        self.view = text_edit.ChangeSummaryView()
         vbox = gtk.VBox()
         hbox = gtk.HBox()
         menubar = self.view.get_ui_widget("/change_summary_menubar")
@@ -1371,8 +1362,7 @@ class ScmCommitWidget(gtk.VPaned, cmd_result.ProblemReporter):
         vbox.pack_start(gutils.wrap_in_scrolled_window(self.view))
         self.add1(vbox)
         # TreeView of files in change set
-        self.files = ScmChangeFileTreeView(ifce=self._ifce,
-                                          busy_indicator=busy_indicator,
+        self.files = ScmChangeFileTreeView(busy_indicator=busy_indicator,
                                           tooltips=tooltips,
                                           auto_refresh=False,
                                           show_hidden=True,
@@ -1398,12 +1388,12 @@ class ScmCommitWidget(gtk.VPaned, cmd_result.ProblemReporter):
     def get_file_mask(self):
         return self.files.get_file_mask()
     def do_commit(self):
-        result = self._ifce.SCM.do_commit_change(self.get_msg(), self.get_file_mask())
+        result = ifce.SCM.do_commit_change(self.get_msg(), self.get_file_mask())
         self._report_any_problems(result)
         return cmd_result.is_less_than_error(result[0])
 
 class ScmCommitDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
-    def __init__(self, parent, ifce, filelist=None, modal=False):
+    def __init__(self, parent, filelist=None, modal=False):
         if modal or (parent and parent.get_modal()):
             flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
         else:
@@ -1412,7 +1402,7 @@ class ScmCommitDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser
             (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
         gutils.BusyIndicator.__init__(self)
         gutils.BusyIndicatorUser.__init__(self, self)
-        self.commit_widget = ScmCommitWidget(ifce=ifce, busy_indicator=self.get_busy_indicator(), tooltips=None, file_mask=filelist)
+        self.commit_widget = ScmCommitWidget(busy_indicator=self.get_busy_indicator(), tooltips=None, file_mask=filelist)
         self.vbox.pack_start(self.commit_widget)
         self.connect("response", self._handle_response_cb)
         self.set_focus_child(self.commit_widget.view)

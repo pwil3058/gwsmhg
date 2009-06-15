@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import gtk, gobject, os
-from gwsmhg_pkg import cmd_result, gutils, utils, icons, file_tree, diff
+from gwsmhg_pkg import ifce, cmd_result, gutils, utils, icons, file_tree, diff
 from gwsmhg_pkg import text_edit, tortoise, ws_event
 
 CS_TABLE_BASIC_UI_DESCR = \
@@ -45,11 +45,8 @@ class PrecisType:
         self.get_data = get_data
 
 class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
-    def __init__(self, ifce, ptype, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None):
-        self._ifce = ifce
+    def __init__(self, ptype, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None):
         self._ptype = ptype
-        if not busy_indicator:
-            busy_indicator = self._ifce.log.get_busy_indicator()
         cmd_result.ProblemReporter.__init__(self)
         gutils.MapManagedTableView.__init__(self, descr=ptype.descr, sel_mode=sel_mode,
             busy_indicator=busy_indicator)
@@ -82,7 +79,7 @@ class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
     def _set_action_sensitivities(self):
         sel = self.get_selection().count_selected_rows() == 1
         self._action_group[UNIQUE_SELECTION].set_sensitive(sel)
-        self._action_group[UNIQUE_SELECTION_NOT_PMIC].set_sensitive(sel and not self._ifce.PM.get_in_progress())
+        self._action_group[UNIQUE_SELECTION_NOT_PMIC].set_sensitive(sel and not ifce.PM.get_in_progress())
     def _refresh_contents(self):
         res, data, serr = self._ptype.get_data()
         if res != cmd_result.OK:
@@ -110,32 +107,32 @@ class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
     def _view_cs_summary_acb(self, action):
         rev = self.get_selected_change_set()
         self._show_busy()
-        dialog = ChangeSetSummaryDialog(self._ifce, rev)
+        dialog = ChangeSetSummaryDialog(rev)
         self._unshow_busy()
         dialog.show()
     def _update_ws_to_cs_acb(self, action):
         rev = str(self.get_selected_change_set())
         self._show_busy()
-        result = self._ifce.SCM.do_update_workspace(rev=rev)
+        result = ifce.SCM.do_update_workspace(rev=rev)
         self._unshow_busy()
         if result[0] & cmd_result.SUGGEST_MERGE_OR_DISCARD:
             question = os.linesep.join(result[1:])
             ans = gutils.ask_merge_discard_or_cancel(question, result[0])
             if ans == gutils.DISCARD:
                 self._show_busy()
-                result = self._ifce.SCM.do_update_workspace(rev=rev, discard=True)
+                result = ifce.SCM.do_update_workspace(rev=rev, discard=True)
                 self._unshow_busy()
                 self._report_any_problems(result)
             elif ans == gutils.MERGE:
                 self._show_busy()
-                result = self._ifce.SCM.do_merge_workspace(rev=rev, force=False)
+                result = ifce.SCM.do_merge_workspace(rev=rev, force=False)
                 self._unshow_busy()
                 if result[0] & cmd_result.SUGGEST_FORCE:
                     question = os.linesep.join(result[1:])
                     ans = gutils.ask_force_or_cancel(question)
                     if ans == gutils.FORCE:
                         self._show_busy()
-                        result = self._ifce.SCM.do_merge_workspace(rev=rev, force=True)
+                        result = ifce.SCM.do_merge_workspace(rev=rev, force=True)
                         self._unshow_busy()
                         self._report_any_problems(result)
                 else:
@@ -145,14 +142,14 @@ class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
     def _merge_ws_with_cs_acb(self, action):
         rev = str(self.get_selected_change_set())
         self._show_busy()
-        result = self._ifce.SCM.do_merge_workspace(rev=rev)
+        result = ifce.SCM.do_merge_workspace(rev=rev)
         self._unshow_busy()
         if result[0] & cmd_result.SUGGEST_FORCE:
             question = os.linesep.join(result[1:])
             ans = gutils.ask_force_or_cancel(question)
             if ans == gutils.FORCE:
                 self._show_busy()
-                result = self._ifce.SCM.do_merge_workspace(rev=rev, force=True)
+                result = ifce.SCM.do_merge_workspace(rev=rev, force=True)
                 self._unshow_busy()
                 self._report_any_problems(result)
         else:
@@ -161,18 +158,18 @@ class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
         rev = str(self.get_selected_change_set())
         descr = self.get_selected_change_set_descr()
         self._show_busy()
-        BackoutDialog(ifce=self._ifce, rev=rev, descr=descr)
+        BackoutDialog(rev=rev, descr=descr)
         self._unshow_busy()
 
 class AUPrecisTableView(PrecisTableView):
-    def __init__(self, ifce, ptype, age_col, sel_mode=gtk.SELECTION_SINGLE,
+    def __init__(self, ptype, age_col, sel_mode=gtk.SELECTION_SINGLE,
         busy_indicator=None,
         auto_refresh_on=True, auto_refresh_interval=3600000):
         self._age_col = age_col
         self.rtoc = gutils.RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
         self._normal_interval = auto_refresh_interval
         self.rtoc.set_function(self._refresh_contents)
-        PrecisTableView.__init__(self, ifce, ptype, sel_mode=sel_mode, busy_indicator=busy_indicator)
+        PrecisTableView.__init__(self, ptype, sel_mode=sel_mode, busy_indicator=busy_indicator)
     def _refresh_contents(self):
         res, parents, serr = self._ptype.get_data()
         if res == cmd_result.OK and parents:
@@ -203,8 +200,7 @@ class AUPrecisTableView(PrecisTableView):
         self.rtoc.restart_cycle()
 
 class SelectView(gutils.TableView):
-    def __init__(self, ifce, ptype, size=(640, 240), sel_mode=gtk.SELECTION_SINGLE):
-        self._ifce = ifce
+    def __init__(self, ptype, size=(640, 240), sel_mode=gtk.SELECTION_SINGLE):
         self._ptype = ptype
         gutils.TableView.__init__(self, ptype.descr, sel_mode=sel_mode)
         self.set_size_request(size[0], size[1])
@@ -224,7 +220,7 @@ class SelectView(gutils.TableView):
             return ""
 
 class SelectDialog(gtk.Dialog):
-    def __init__(self, ifce, ptype, title, size=(640, 240), parent=None):
+    def __init__(self, ptype, title, size=(640, 240), parent=None):
         gtk.Dialog.__init__(self, title="gwsmg: Select %s" % title, parent=parent,
                             flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                             buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
@@ -232,7 +228,7 @@ class SelectDialog(gtk.Dialog):
                            )
         if not parent:
             self.set_icon_from_file(icons.app_icon_file)
-        self._view = SelectView(ifce=ifce, ptype=ptype, size=size)
+        self._view = SelectView(ptype=ptype, size=size)
         self.vbox.pack_start(gutils.wrap_in_scrolled_window(self._view))
         self.show_all()
         self._view.get_selection().unselect_all()
@@ -252,12 +248,12 @@ LOG_TABLE_PRECIS_DESCR = \
 LOG_TABLE_PRECIS_AGE = gutils.find_label_index(LOG_TABLE_PRECIS_DESCR, "Age")
 
 class ParentsTableView(AUPrecisTableView):
-    def __init__(self, ifce, rev=None, sel_mode=gtk.SELECTION_SINGLE,
+    def __init__(self, rev=None, sel_mode=gtk.SELECTION_SINGLE,
         busy_indicator=None,
         auto_refresh_on=True, auto_refresh_interval=3600000):
         self._rev = rev
         ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, self.get_parents_data)
-        AUPrecisTableView.__init__(self, ifce, ptype, sel_mode=sel_mode,
+        AUPrecisTableView.__init__(self, ptype, sel_mode=sel_mode,
                                    age_col = LOG_TABLE_PRECIS_AGE,
                                    auto_refresh_on=auto_refresh_on,
                                    auto_refresh_interval=auto_refresh_interval,
@@ -268,16 +264,16 @@ class ParentsTableView(AUPrecisTableView):
         self._action_group[UNIQUE_SELECTION_NOT_PMIC].get_action("cs_merge_ws_with").set_visible(False)
         self._action_group[gutils.ALWAYS_ON].get_action("table_refresh_contents").set_visible(False)
     def get_parents_data(self):
-        return self._ifce.SCM.get_parents_data(self._rev)
+        return ifce.SCM.get_parents_data(self._rev)
 
 class ChangeSetTableView(PrecisTableView):
-    def __init__(self, ifce, ptype, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None):
-        PrecisTableView.__init__(self, ifce=ifce, ptype=ptype, sel_mode=sel_mode, busy_indicator=busy_indicator)
+    def __init__(self, ptype, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None):
+        PrecisTableView.__init__(self, ptype=ptype, sel_mode=sel_mode, busy_indicator=busy_indicator)
 
 class HeadsTableView(ChangeSetTableView):
-    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
+    def __init__(self, sel_mode=gtk.SELECTION_SINGLE):
         ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, ifce.SCM.get_heads_data)
-        ChangeSetTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
+        ChangeSetTableView.__init__(self, ptype, sel_mode=sel_mode)
 
 TAG_MSG_UI_DESCR = \
 '''
@@ -291,9 +287,9 @@ TAG_MSG_UI_DESCR = \
 '''
 
 class TagMessageWidget(gtk.VBox):
-    def __init__(self, ifce, label="Message (optional)"):
+    def __init__(self, label="Message (optional)"):
         gtk.VBox.__init__(self)
-        self.view = text_edit.SummaryView(ifce=ifce)
+        self.view = text_edit.SummaryView()
         self.view.get_ui_manager().add_ui_from_string(TAG_MSG_UI_DESCR)
         hbox = gtk.HBox()
         hbox.pack_start(gtk.Label(label), expand=False, fill=False)
@@ -308,13 +304,12 @@ class TagMessageWidget(gtk.VBox):
         return self.view.get_msg()
 
 class SetTagDialog(gutils.ReadTextAndToggleDialog, cmd_result.ProblemReporter):
-    def __init__(self, ifce, rev=None, parent=None):
-        self._ifce = ifce
+    def __init__(self, rev=None, parent=None):
         self._rev = rev
         cmd_result.ProblemReporter.__init__(self)
         gutils.ReadTextAndToggleDialog.__init__(self, title="gwsmhg: Set Tag",
             prompt="Tag:", toggle_prompt="Local", toggle_state=False, parent=parent)
-        self.message = TagMessageWidget(ifce=ifce)
+        self.message = TagMessageWidget()
         self.vbox.add(self.message)
         self.connect("response", self._response_cb)
         self.show_all()
@@ -327,7 +322,7 @@ class SetTagDialog(gutils.ReadTextAndToggleDialog, cmd_result.ProblemReporter):
             local = self.toggle.get_active()
             msg = self.message.get_msg()
             self.show_busy()
-            result = self._ifce.SCM.do_set_tag(tag=tag, local=local, msg=msg, rev=self._rev)
+            result = ifce.SCM.do_set_tag(tag=tag, local=local, msg=msg, rev=self._rev)
             self.unshow_busy()
             if result[0] & cmd_result.SUGGEST_FORCE:
                 ans = gutils.ask_rename_force_or_cancel(result[1] + result[2], result[0])
@@ -336,7 +331,7 @@ class SetTagDialog(gutils.ReadTextAndToggleDialog, cmd_result.ProblemReporter):
                     return
                 if ans == gutils.FORCE:
                     self.show_busy()
-                    result = self._ifce.SCM.do_set_tag(tag=tag, local=local, msg=msg, rev=self._rev, force=True)
+                    result = ifce.SCM.do_set_tag(tag=tag, local=local, msg=msg, rev=self._rev, force=True)
                     self.unshow_busy()
                     self._report_any_problems(result)
             else:
@@ -359,9 +354,9 @@ HISTORY_TABLE_UI_DESCR = \
 '''
 
 class HistoryTableView(ChangeSetTableView):
-    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
+    def __init__(self, sel_mode=gtk.SELECTION_SINGLE):
         ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, ifce.SCM.get_history_data)
-        ChangeSetTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
+        ChangeSetTableView.__init__(self, ptype, sel_mode=sel_mode)
         self._action_group[UNIQUE_SELECTION_NOT_PMIC].add_actions(
             [
                 ("cs_tag_selected", icons.STOCK_TAG, "Tag", None,
@@ -372,18 +367,17 @@ class HistoryTableView(ChangeSetTableView):
     def _tag_cs_acb(self, action=None):
         rev = self.get_selected_change_set()
         self._show_busy()
-        SetTagDialog(ifce=self._ifce, rev=str(rev)).run()
+        SetTagDialog(rev=str(rev)).run()
         self._unshow_busy()
 
 class RemoveTagDialog(gutils.ReadTextDialog, cmd_result.ProblemReporter):
-    def __init__(self, ifce, tag=None, parent=None):
-        self._ifce = ifce
+    def __init__(self, tag=None, parent=None):
         self._tag = tag
         cmd_result.ProblemReporter.__init__(self)
         gutils.ReadTextDialog.__init__(self, title='gwsmhg: Remove Tag',
             prompt='Removing Tag: ', suggestion=tag, parent=parent)
         self.entry.set_editable(False)
-        self.message = TagMessageWidget(ifce=ifce)
+        self.message = TagMessageWidget()
         self.vbox.add(self.message)
         self.connect("response", self._response_cb)
         self.show_all()
@@ -395,23 +389,22 @@ class RemoveTagDialog(gutils.ReadTextDialog, cmd_result.ProblemReporter):
         else:
             msg = self.message.get_msg()
             self.show_busy()
-            result = self._ifce.SCM.do_remove_tag(tag=self._tag, msg=msg)
+            result = ifce.SCM.do_remove_tag(tag=self._tag, msg=msg)
             self.unshow_busy()
             self._report_any_problems(result)
             self.destroy()
 
 class MoveTagDialog(gutils.ReadTextDialog, cmd_result.ProblemReporter):
-    def __init__(self, ifce, tag=None, parent=None):
-        self._ifce = ifce
+    def __init__(self, tag=None, parent=None):
         self._tag = tag
         cmd_result.ProblemReporter.__init__(self)
         gutils.ReadTextDialog.__init__(self, title="gwsmhg: Move Tag",
             prompt='Move Tag: ', suggestion=tag, parent=parent)
         self.entry.set_editable(False)
-        self._select_widget = ChangeSetSelectWidget(ifce=ifce, label="To Change Set:",
+        self._select_widget = ChangeSetSelectWidget(label="To Change Set:",
             busy_indicator=self, discard_toggle=False)
         self.vbox.pack_start(self._select_widget)
-        self.message = TagMessageWidget(ifce=ifce)
+        self.message = TagMessageWidget()
         self.message.view.grab_focus()
         self.vbox.add(self.message)
         self.connect("response", self._response_cb)
@@ -425,7 +418,7 @@ class MoveTagDialog(gutils.ReadTextDialog, cmd_result.ProblemReporter):
             rev = self._select_widget.get_change_set()
             msg = self.message.get_msg()
             self.show_busy()
-            result = self._ifce.SCM.do_move_tag(tag=self._tag, rev=rev, msg=msg)
+            result = ifce.SCM.do_move_tag(tag=self._tag, rev=rev, msg=msg)
             self.unshow_busy()
             self._report_any_problems(result)
             self.destroy()
@@ -458,9 +451,9 @@ TAG_TABLE_UI_DESCR = \
 '''
 
 class TagsTableView(ChangeSetTableView):
-    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
+    def __init__(self, sel_mode=gtk.SELECTION_SINGLE):
         ptype = PrecisType(TAG_TABLE_PRECIS_DESCR, ifce.SCM.get_tags_data)
-        ChangeSetTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
+        ChangeSetTableView.__init__(self, ptype, sel_mode=sel_mode)
         self._action_group[UNIQUE_SELECTION_NOT_PMIC].add_actions(
             [
                 ("cs_remove_selected_tag", icons.STOCK_REMOVE, "Remove", None,
@@ -474,12 +467,12 @@ class TagsTableView(ChangeSetTableView):
     def _remove_tag_cs_acb(self, action=None):
         tag = self.get_selected_change_set()
         self._show_busy()
-        RemoveTagDialog(ifce=self._ifce, tag=tag).run()
+        RemoveTagDialog(tag=tag).run()
         self._unshow_busy()
     def _move_tag_cs_acb(self, action=None):
         tag = self.get_selected_change_set()
         self._show_busy()
-        MoveTagDialog(ifce=self._ifce, tag=tag).run()
+        MoveTagDialog(tag=tag).run()
         self._unshow_busy()
 
 TAG_LIST_DESCR = \
@@ -498,9 +491,9 @@ BRANCH_TABLE_PRECIS_DESCR = \
 ]
 
 class BranchesTableView(ChangeSetTableView):
-    def __init__(self, ifce, sel_mode=gtk.SELECTION_SINGLE):
+    def __init__(self, sel_mode=gtk.SELECTION_SINGLE):
         ptype = PrecisType(BRANCH_TABLE_PRECIS_DESCR, ifce.SCM.get_branches_data)
-        ChangeSetTableView.__init__(self, ifce, ptype, sel_mode=sel_mode)
+        ChangeSetTableView.__init__(self, ptype, sel_mode=sel_mode)
 
 BRANCH_LIST_DESCR = \
 [
@@ -508,10 +501,9 @@ BRANCH_LIST_DESCR = \
 ]
 
 class ChangeSetSelectWidget(gtk.VBox, gutils.BusyIndicatorUser):
-    def __init__(self, ifce, busy_indicator, label="Change Set:", discard_toggle=False):
+    def __init__(self, busy_indicator, label="Change Set:", discard_toggle=False):
         gtk.VBox.__init__(self)
         gutils.BusyIndicatorUser.__init__(self, busy_indicator)
-        self._ifce = ifce
         hbox = gtk.HBox()
         self._tags_button = gtk.Button(label="Browse _Tags")
         self._tags_button.connect("clicked", self._browse_tags_cb)
@@ -540,23 +532,23 @@ class ChangeSetSelectWidget(gtk.VBox, gutils.BusyIndicatorUser):
         self.show_all()
     def _browse_change_set(self, ptype, title, size=(640, 240)):
         self._show_busy()
-        dialog = SelectDialog(ifce=self._ifce, ptype=ptype, title=title, size=size, parent=None)
+        dialog = SelectDialog(ptype=ptype, title=title, size=size, parent=None)
         self._unshow_busy()
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
             self._entry.set_text(dialog.get_change_set())
         dialog.destroy()
     def _browse_tags_cb(self, button=None):
-        ptype = PrecisType(TAG_LIST_DESCR, self._ifce.SCM.get_tags_list_for_table)
+        ptype = PrecisType(TAG_LIST_DESCR, ifce.SCM.get_tags_list_for_table)
         self._browse_change_set(ptype, "Tag", size=(160, 320))
     def _browse_branches_cb(self, button=None):
-        ptype = PrecisType(TAG_LIST_DESCR, self._ifce.SCM.get_branches_list_for_table)
+        ptype = PrecisType(TAG_LIST_DESCR, ifce.SCM.get_branches_list_for_table)
         self._browse_change_set(ptype, "Branch", size=(160, 320))
     def _browse_heads_cb(self, button=None):
-        ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, self._ifce.SCM.get_heads_data)
+        ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, ifce.SCM.get_heads_data)
         self._browse_change_set(ptype, "Head", size=(640, 480))
     def _browse_history_cb(self, button=None):
-        ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, self._ifce.SCM.get_history_data)
+        ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, ifce.SCM.get_history_data)
         self._browse_change_set(ptype, "Change Set", size=(640, 480))
     def _entry_cb(self, entry=None):
         self.response(gtk.RESPONSE_OK)
@@ -568,7 +560,7 @@ class ChangeSetSelectWidget(gtk.VBox, gutils.BusyIndicatorUser):
         return self._discard_toggle.get_active()
 
 class ChangeSetSelectDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
-    def __init__(self, ifce, discard_toggle=False, parent=None):
+    def __init__(self, discard_toggle=False, parent=None):
         gutils.BusyIndicator.__init__(self)
         gutils.BusyIndicatorUser.__init__(self, self)
         title = "gwsmg: Select Change Set: %s" % utils.path_rel_home(os.getcwd())
@@ -577,7 +569,7 @@ class ChangeSetSelectDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicat
                             buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
                                     gtk.STOCK_OK, gtk.RESPONSE_OK)
                            )
-        self._widget = ChangeSetSelectWidget(ifce=ifce, busy_indicator=self.get_busy_indicator(),
+        self._widget = ChangeSetSelectWidget(busy_indicator=self.get_busy_indicator(),
             discard_toggle=discard_toggle)
         self.vbox.pack_start(self._widget)
         self.show_all()
@@ -587,14 +579,13 @@ class ChangeSetSelectDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicat
         return self._widget.get_discard()
 
 class FileTreeStore(file_tree.FileTreeStore):
-    def __init__(self, ifce, rev):
+    def __init__(self, rev):
         self._rev = rev
-        self._ifce = ifce
-        row_data = apply(file_tree.FileTreeRowData, self._ifce.SCM.get_status_row_data())
+        row_data = apply(file_tree.FileTreeRowData, ifce.SCM.get_status_row_data())
         file_tree.FileTreeStore.__init__(self, show_hidden=True, row_data=row_data)
         self.repopulate()
     def update(self, fsobj_iter=None):
-        res, files, dummy = self._ifce.SCM.get_change_set_files(self._rev)
+        res, files, dummy = ifce.SCM.get_change_set_files(self._rev)
         if res == 0:
             for file_name, status, extra_info in files:
                 self.find_or_insert_file(file_name, file_status=status, extra_info=extra_info)
@@ -618,10 +609,9 @@ CHANGE_SET_FILES_UI_DESCR = \
 '''
 
 class FileTreeView(file_tree.FileTreeView):
-    def __init__(self, ifce, rev, busy_indicator, tooltips=None):
-        self._ifce = ifce
+    def __init__(self, rev, busy_indicator, tooltips=None):
         self._rev = rev
-        self.model = FileTreeStore(ifce, rev)
+        self.model = FileTreeStore(rev)
         file_tree.FileTreeView.__init__(self, model=self.model, busy_indicator=busy_indicator,
             tooltips=tooltips, auto_refresh=False, show_status=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
@@ -640,25 +630,23 @@ class FileTreeView(file_tree.FileTreeView):
         self.scm_change_merge_id = self._ui_manager.add_ui_from_string(CHANGE_SET_FILES_UI_DESCR)
         self.expand_all()
     def _diff_selected_files_acb(self, action=None):
-        parent = self._get_gtk_window()
+        parent = ifce.main_window
         self._show_busy()
-        dialog = diff.ScmDiffTextDialog(parent=parent, ifce=self._ifce,
+        dialog = diff.ScmDiffTextDialog(parent=parent,
                                      file_list=self.get_selected_files(),
                                      torev=self._rev, modal=False)
         self._unshow_busy()
         dialog.show()
     def _diff_all_files_acb(self, action=None):
-        parent = self._get_gtk_window()
+        parent = ifce.main_window
         self._show_busy()
-        dialog = diff.ScmDiffTextDialog(parent=parent, ifce=self._ifce,
-                                     torev=self._rev, modal=False)
+        dialog = diff.ScmDiffTextDialog(parent=parent, torev=self._rev, modal=False)
         self._unshow_busy()
         dialog.show()
 
 class ChangeSetSummaryDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
-    def __init__(self, ifce, rev, parent=None):
+    def __init__(self, rev, parent=None):
         self._rev = rev
-        self._ifce = ifce
         gutils.BusyIndicator.__init__(self)
         gutils.BusyIndicatorUser.__init__(self, self)
         title = "gwsmg: Change Set: %s : %s" % (rev, utils.path_rel_home(os.getcwd()))
@@ -666,7 +654,6 @@ class ChangeSetSummaryDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndica
                             flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                             buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
                            )
-        self._ifce = ifce
         res, summary, serr = self.get_change_set_summary()
         self._add_labelled_texts([("Precis:", summary['PRECIS'])])
         self._add_labelled_texts([("Revision:", summary['REV']), ("Node:", summary['NODE'])])
@@ -699,11 +686,11 @@ class ChangeSetSummaryDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndica
         self.connect("response", self._close_cb)
         self.show_all()
     def get_change_set_summary(self):
-        return self._ifce.SCM.get_change_set_summary(self._rev)
+        return ifce.SCM.get_change_set_summary(self._rev)
     def get_file_tree_view(self):
-        return FileTreeView(self._ifce, self._rev, busy_indicator=self.get_busy_indicator())
+        return FileTreeView(self._rev, busy_indicator=self.get_busy_indicator())
     def get_parents_view(self):
-        return ParentsTableView(self._ifce, self._rev, auto_refresh_on=False,
+        return ParentsTableView(self._rev, auto_refresh_on=False,
             busy_indicator=self.get_busy_indicator())
     def _add_label(self, text, component=None):
         hbox = gtk.HBox()
@@ -731,8 +718,7 @@ class ChangeSetSummaryDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndica
         self.destroy()
 
 class BackoutDialog(gutils.ReadTextAndToggleDialog, cmd_result.ProblemReporter):
-    def __init__(self, ifce, rev=None, descr='', parent=None):
-        self._ifce = ifce
+    def __init__(self, rev=None, descr='', parent=None):
         self._rev = rev
         cmd_result.ProblemReporter.__init__(self)
         gutils.ReadTextAndToggleDialog.__init__(self, title='gwsmhg: Backout',
@@ -741,7 +727,7 @@ class BackoutDialog(gutils.ReadTextAndToggleDialog, cmd_result.ProblemReporter):
         self.entry.set_editable(False)
         self._radio_labels = []
         self._parent_revs = []
-        res, parents_data, serr = self._ifce.SCM.get_parents_data(rev)
+        res, parents_data, serr = ifce.SCM.get_parents_data(rev)
         if len(parents_data) > 1:
             for data in parents_data:
                 rev = str(data[gutils.find_label_index(LOG_TABLE_PRECIS_DESCR, 'Rev')])
@@ -750,7 +736,7 @@ class BackoutDialog(gutils.ReadTextAndToggleDialog, cmd_result.ProblemReporter):
                 self._parent_revs.append(rev)
             self._radio_buttons = gutils.RadioButtonFramedVBox(title='Choose Parent', labels=self._radio_labels)
             self.vbox.add(self._radio_buttons)
-        self.message = TagMessageWidget(ifce=ifce, label="Message")
+        self.message = TagMessageWidget(label="Message")
         self.vbox.add(self.message)
         self.connect("response", self._response_cb)
         self.show_all()
@@ -767,7 +753,7 @@ class BackoutDialog(gutils.ReadTextAndToggleDialog, cmd_result.ProblemReporter):
                 parent = None
             msg = self.message.get_msg()
             self.show_busy()
-            result = self._ifce.SCM.do_backout(rev=self._rev, merge=merge, parent=parent, msg=msg)
+            result = ifce.SCM.do_backout(rev=self._rev, merge=merge, parent=parent, msg=msg)
             self.unshow_busy()
             self._report_any_problems(result)
             self.destroy()

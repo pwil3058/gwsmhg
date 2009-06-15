@@ -13,9 +13,8 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, gtk, gtksourceview, pango
-from gwsmhg_pkg import utils, cmd_result, gutils, utils, ws_event
-import time
+import os, gtk, gtksourceview, pango, time
+from gwsmhg_pkg import utils, cmd_result, gutils, ws_event
 
 class DummyConsoleLog:
     def start_cmd(self, cmd):
@@ -99,7 +98,7 @@ CONSOLE_LOG_UI_DESCR = \
 
 class ConsoleLog(gtk.VBox, cmd_result.ProblemReporter,
                  gutils.BusyIndicatorUser, gutils.TooltipsUser):
-    def __init__(self, busy_indicator, table=None, tooltips=None):
+    def __init__(self, busy_indicator=None, table=None, tooltips=None):
         gtk.VBox.__init__(self)
         cmd_result.ProblemReporter.__init__(self)
         gutils.BusyIndicatorUser.__init__(self, busy_indicator)
