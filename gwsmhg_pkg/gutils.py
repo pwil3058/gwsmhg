@@ -293,20 +293,6 @@ class PopupUser:
                     return None
         return self._gtk_window
 
-class TooltipsUser:
-    def __init__(self, tooltips=None):
-        self._tooltips = tooltips
-    def set_tooltips(self, tooltips):
-        self._tooltips = tooltips
-    def get_tooltips(self):
-        return self._tooltips
-    def enable_tooltips(self):
-        if self._tooltips: self._tooltips.enable()
-    def disable_tooltips(self):
-        if self._tooltips: self._tooltips.disable()
-    def set_tip(self, widget, tip_text, tip_text_private=None):
-        if self._tooltips: self._tooltips.set_tip(widget, tip_text, tip_text_private)
-
 class MappedManager:
     def __init__(self):
         self.is_mapped = False

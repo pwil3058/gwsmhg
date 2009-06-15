@@ -62,8 +62,6 @@ class gwsm(gtk.Window, cmd_result.ProblemReporter):
         cmd_result.ProblemReporter.__init__(self)
         self.set_icon_from_file(icons.app_icon_file)
         self.connect("destroy", self._quit)
-        self._tooltips = gtk.Tooltips()
-        self._tooltips.enable()
         # see if we're in a valid work space and if not offer a selection
         rootdir = ifce.SCM.get_root()
         if not rootdir:
@@ -155,10 +153,10 @@ class gwsm(gtk.Window, cmd_result.ProblemReporter):
         self._toolbar = self._ui_manager.get_widget("/gwsm_toolbar")
         self._update_sensitivities()
         self._parent_view = change_set.ParentsTableView()
-        self._file_tree_widget = file_tree.ScmCwdFilesWidget(tooltips=self._tooltips)
+        self._file_tree_widget = file_tree.ScmCwdFilesWidget()
         self._notebook = gtk.Notebook()
         self._notebook.set_size_request(640, 360)
-        self._patch_mgr = patch_mgr.PatchManagementWidget(tooltips=self._tooltips)
+        self._patch_mgr = patch_mgr.PatchManagementWidget()
         pmpage = self._notebook.append_page(self._patch_mgr, gtk.Label(ifce.PM.name))
         self._heads_view = change_set.HeadsTableView()
         self._notebook.append_page(gutils.wrap_in_scrolled_window(self._heads_view), gtk.Label("Heads"))

@@ -609,11 +609,11 @@ CHANGE_SET_FILES_UI_DESCR = \
 '''
 
 class FileTreeView(file_tree.FileTreeView):
-    def __init__(self, rev, busy_indicator, tooltips=None):
+    def __init__(self, rev, busy_indicator):
         self._rev = rev
         self.model = FileTreeStore(rev)
         file_tree.FileTreeView.__init__(self, model=self.model, busy_indicator=busy_indicator,
-            tooltips=tooltips, auto_refresh=False, show_status=True)
+            auto_refresh=False, show_status=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.set_headers_visible(False)
         self._action_group[file_tree.SELECTION].add_actions(

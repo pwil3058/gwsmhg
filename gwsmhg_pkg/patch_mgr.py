@@ -65,11 +65,11 @@ PATCH_FILES_UI_DESCR = \
 '''
 
 class PatchFileTreeView(file_tree.CwdFileTreeView):
-    def __init__(self, busy_indicator, patch=None, tooltips=None):
+    def __init__(self, busy_indicator, patch=None):
         self._patch = patch
         model = PatchFileTreeStore(patch=patch)
         file_tree.CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
-             tooltips=tooltips, auto_refresh=False, show_status=True)
+             auto_refresh=False, show_status=True)
         model.set_view(self)
         self._action_group[file_tree.SELECTION].add_actions(
             [
@@ -105,15 +105,14 @@ class PatchFileTreeView(file_tree.CwdFileTreeView):
         dialog.show()
 
 class PatchFilesDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
-    def __init__(self, patch, tooltips=None):
+    def __init__(self, patch):
         title = "patch: %s files: %s" % (patch, utils.path_rel_home(os.getcwd()))
         gtk.Dialog.__init__(self, title, None, gtk.DIALOG_DESTROY_WITH_PARENT,
                             (gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE))
         gutils.BusyIndicator.__init__(self)
         gutils.BusyIndicatorUser.__init__(self, self)
-        self._tooltips = tooltips
         # file tree view wrapped in scrolled window
-        self.file_tree = PatchFileTreeView(busy_indicator=self.get_busy_indicator(), patch=patch, tooltips=tooltips)
+        self.file_tree = PatchFileTreeView(busy_indicator=self.get_busy_indicator(), patch=patch)
         self.file_tree.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.file_tree.set_headers_visible(False)
         self.file_tree.set_size_request(240, 320)
@@ -158,10 +157,10 @@ PM_FILES_UI_DESCR = \
 '''
 
 class TopPatchFileTreeView(file_tree.CwdFileTreeView):
-    def __init__(self, busy_indicator, tooltips=None, auto_refresh=False):
+    def __init__(self, busy_indicator, auto_refresh=False):
         model = PatchFileTreeStore()
         file_tree.CwdFileTreeView.__init__(self, busy_indicator=busy_indicator,
-            model=model, tooltips=tooltips, auto_refresh=auto_refresh, show_status=True)
+            model=model, auto_refresh=auto_refresh, show_status=True)
         ws_event.add_notification_cb(ws_event.REPO_MOD|ws_event.CHANGE_WD, self.repopulate_tree)
         ws_event.add_notification_cb(ws_event.FILE_CHANGES, self.update_tree)
         model.set_view(self)
@@ -335,12 +334,11 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
         self.revert_named_files([])
 
 class TopPatchFilesWidget(gtk.VBox):
-    def __init__(self, busy_indicator, tooltips=None, auto_refresh=False):
+    def __init__(self, busy_indicator, auto_refresh=False):
         gtk.VBox.__init__(self)
-        self._tooltips = tooltips
         # file tree view wrapped in scrolled window
         self.file_tree = TopPatchFileTreeView(busy_indicator=busy_indicator,
-            tooltips=tooltips, auto_refresh=auto_refresh)
+            auto_refresh=auto_refresh)
         scw = gtk.ScrolledWindow()
         scw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
         self.file_tree.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
@@ -1063,10 +1061,9 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             self.set_contents()
             index += 1
 
-class PatchListWidget(gtk.VBox, gutils.TooltipsUser):
-    def __init__(self, busy_indicator, tooltips=None):
+class PatchListWidget(gtk.VBox):
+    def __init__(self, busy_indicator):
         gtk.VBox.__init__(self)
-        gutils.TooltipsUser.__init__(self, tooltips)
         self.list_view = PatchListView(busy_indicator=busy_indicator)
         # file tree menu bar
         self.menu_bar = self.list_view.get_ui_widget("/patch_list_menubar")
@@ -1075,14 +1072,12 @@ class PatchListWidget(gtk.VBox, gutils.TooltipsUser):
     def update_for_chdir(self):
         self.list_view.set_contents()
 
-class PatchManagementWidget(gtk.VBox, gutils.TooltipsUser):
-    def __init__(self, busy_indicator=None, tooltips=None):
+class PatchManagementWidget(gtk.VBox):
+    def __init__(self, busy_indicator=None):
         gtk.VBox.__init__(self)
-        gutils.TooltipsUser.__init__(self, tooltips)
         self._file_tree = TopPatchFilesWidget(busy_indicator=busy_indicator,
-            auto_refresh=False, tooltips=self._tooltips)
-        self._patch_list = PatchListWidget(busy_indicator=busy_indicator,
-            tooltips=self._tooltips)
+            auto_refresh=False)
+        self._patch_list = PatchListWidget(busy_indicator=busy_indicator)
         self._menu_bar = self._patch_list.list_view.get_ui_widget("/patches_menubar")
         self._tool_bar = self._patch_list.list_view.get_ui_widget("/patches_toolbar")
         #self._tool_bar.set_icon_size(gtk.ICON_SIZE_SMALL_TOOLBAR)
@@ -1098,7 +1093,7 @@ class PatchManagementWidget(gtk.VBox, gutils.TooltipsUser):
         self._patch_list.update_for_chdir()
 
 class NewPatchDescrEditWidget(gtk.VBox, cmd_result.ProblemReporter):
-    def __init__(self, view=None, tooltips=None):
+    def __init__(self, view=None):
         gtk.VBox.__init__(self)
         cmd_result.ProblemReporter.__init__(self)
         # TextView for change message
@@ -1119,7 +1114,7 @@ class NewPatchDescrEditWidget(gtk.VBox, cmd_result.ProblemReporter):
         self.set_focus_child(self.view)
 
 class PatchDescrEditWidget(NewPatchDescrEditWidget):
-    def __init__(self, get_summary, set_summary, patch=None, tooltips=None):
+    def __init__(self, get_summary, set_summary, patch=None):
         self.view = text_edit.PatchSummaryView(get_summary, set_summary, patch)
         NewPatchDescrEditWidget.__init__(self, view=self.view)
         self.view.load_summary()
@@ -1134,7 +1129,7 @@ class GenericPatchDescrEditDialog(gtk.Dialog):
             flags = gtk.DIALOG_DESTROY_WITH_PARENT
         gtk.Dialog.__init__(self, "\"%s\" Description: %s" % (patch, utils.path_rel_home(os.getcwd())),
             parent, flags, None)
-        self.edit_descr_widget = PatchDescrEditWidget(get_summary, set_summary, patch, tooltips=None)
+        self.edit_descr_widget = PatchDescrEditWidget(get_summary, set_summary, patch)
         self.vbox.pack_start(self.edit_descr_widget)
         self.action_area.pack_start(self.edit_descr_widget.get_save_button())
         self.add_button(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
@@ -1180,7 +1175,7 @@ class DuplicatePatchDialog(gtk.Dialog):
         hbox.pack_start(vbox)
         hbox.show_all()
         self.vbox.pack_start(hbox)
-        self.edit_descr_widget = NewPatchDescrEditWidget(tooltips=None)
+        self.edit_descr_widget = NewPatchDescrEditWidget()
         res, old_descr, serr = ifce.PM.get_patch_description(patch)
         if not res:
             self.edit_descr_widget.view.get_buffer().set_text(old_descr)
@@ -1208,7 +1203,7 @@ class NewPatchDialog(gtk.Dialog):
         self.hbox.pack_start(self.new_name_entry)
         self.hbox.show_all()
         self.vbox.pack_start(self.hbox)
-        self.edit_descr_widget = NewPatchDescrEditWidget(tooltips=None)
+        self.edit_descr_widget = NewPatchDescrEditWidget()
         self.vbox.pack_start(self.edit_descr_widget)
         self.set_focus_child(self.new_name_entry)
     def get_new_patch_name(self):

@@ -19,13 +19,16 @@ log = None
 SCM = None
 PM = None
 main_window = None
+tooltips = None
 
 def init(ifce_module, console_log, window):
-    global log, SCM, PM, main_window
+    global log, SCM, PM, main_window, tooltips
     log = console_log
     SCM = ifce_module.SCMInterface()
     PM = ifce_module.PMInterface()
     main_window = window
+    tooltips = gtk.Tooltips()
+    tooltips.enable()
 
 def show_busy():
     if main_window.window:
