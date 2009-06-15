@@ -13,7 +13,7 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, gtk, gtksourceview, pango, gobject
+import os, gtk, gwsmhg_pkg.sourceview, pango, gobject
 from gwsmhg_pkg import ifce, utils, cmd_result, gutils, config
 
 def _edit_files_extern(filelist, edstr=config.DEFAULT_EDITOR):
@@ -34,11 +34,11 @@ def edit_files_extern(file_list):
 
 import time
 
-class SummaryBuffer(gtksourceview.SourceBuffer):
+class SummaryBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
     def __init__(self, table=None):
         if not table:
-            table = gtksourceview.SourceTagTable()
-        gtksourceview.SourceBuffer.__init__(self, table=table)
+            table = gwsmhg_pkg.sourceview.SourceTagTable()
+        gwsmhg_pkg.sourceview.SourceBuffer.__init__(self, table=table)
         self._action_group = gtk.ActionGroup("summary")
         self._action_group.add_actions(
             [
@@ -56,11 +56,11 @@ class SummaryBuffer(gtksourceview.SourceBuffer):
     def _insert_author_acb(self, action=None):
         self.insert_at_cursor("Author: %s\n" % ifce.SCM.get_author_name_and_email())
 
-class SummaryView(gtksourceview.SourceView):
+class SummaryView(gwsmhg_pkg.sourceview.SourceView):
     def __init__(self, buffer=None, table=None):
         if not buffer:
             buffer = SummaryBuffer(table)
-        gtksourceview.SourceView.__init__(self, buffer)
+        gwsmhg_pkg.sourceview.SourceView.__init__(self, buffer)
         fdesc = pango.FontDescription("mono, 10")
         self.modify_font(fdesc)
         self.set_margin(72)
@@ -93,7 +93,7 @@ class SummaryView(gtksourceview.SourceView):
 class ChangeSummaryBuffer(SummaryBuffer):
     def __init__(self, table=None, auto_save=True):
         if not table:
-            table = gtksourceview.SourceTagTable()
+            table = gwsmhg_pkg.sourceview.SourceTagTable()
         SummaryBuffer.__init__(self, table=table)
         self._save_interval = 1000 # milliseconds
         self._save_file_name = ifce.SCM.get_default_commit_save_file()
@@ -233,7 +233,7 @@ class ChangeSummaryView(SummaryView):
 class NewPatchSummaryBuffer(SummaryBuffer):
     def __init__(self, table=None):
         if not table:
-            table = gtksourceview.SourceTagTable()
+            table = gwsmhg_pkg.sourceview.SourceTagTable()
         SummaryBuffer.__init__(self, table=table)
         self._action_group.add_actions(
             [
@@ -257,7 +257,7 @@ class PatchSummaryBuffer(NewPatchSummaryBuffer):
         self._set_summary = set_summary
         self._get_summary = get_summary
         if not table:
-            table = gtksourceview.SourceTagTable()
+            table = gwsmhg_pkg.sourceview.SourceTagTable()
         NewPatchSummaryBuffer.__init__(self, table=table)
         self._action_group.add_actions(
             [

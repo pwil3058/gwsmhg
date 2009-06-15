@@ -13,7 +13,7 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, gtk, gtksourceview, pango, time
+import os, gtk, gwsmhg_pkg.sourceview, pango, time
 from gwsmhg_pkg import utils, cmd_result, gutils, ws_event
 
 class DummyConsoleLog:
@@ -31,12 +31,12 @@ class DummyConsoleLog:
         print msg.rstrip()
         print "%",
 
-class ConsoleLogBuffer(gtksourceview.SourceBuffer):
+class ConsoleLogBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
     def __init__(self, view=None, table=None):
         self._view = view
         if not table:
-            table = gtksourceview.SourceTagTable()
-        gtksourceview.SourceBuffer.__init__(self, table=table)
+            table = gwsmhg_pkg.sourceview.SourceTagTable()
+        gwsmhg_pkg.sourceview.SourceBuffer.__init__(self, table=table)
         self.bold_tag = self.create_tag("BOLD", weight=pango.WEIGHT_BOLD, foreground="black", family="monospace")
         self.cmd_tag = self.create_tag("CMD", foreground="black", family="monospace")
         self.stdout_tag = self.create_tag("STDOUT", foreground="black", family="monospace")
@@ -69,9 +69,9 @@ class ConsoleLogBuffer(gtksourceview.SourceBuffer):
         self._append_tagged_text(msg, self.cmd_tag)
         self._append_tagged_text(os.linesep + "% ", self.bold_tag)
 
-class ConsoleLogView(gtksourceview.SourceView):
+class ConsoleLogView(gwsmhg_pkg.sourceview.SourceView):
     def __init__(self, buffer, table=None):
-        gtksourceview.SourceView.__init__(self, buffer)
+        gwsmhg_pkg.sourceview.SourceView.__init__(self, buffer)
         buffer._view = self
         fdesc = pango.FontDescription("mono, 10")
         self.modify_font(fdesc)

@@ -13,7 +13,7 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, gtk, gtksourceview, pango, re
+import os, gtk, gwsmhg_pkg.sourceview, pango, re
 from gwsmhg_pkg import ifce, utils, cmd_result, gutils, icons
 
 STATES = [gtk.STATE_NORMAL, gtk.STATE_ACTIVE, gtk.STATE_PRELIGHT, gtk.STATE_PRELIGHT, gtk.STATE_INSENSITIVE]
@@ -39,12 +39,12 @@ class tws_line_count_display(gtk.HBox):
             for state in STATES:
                 self._entry.modify_base(state, gtk.gdk.Color("#00FF00"))
 
-class DiffTextBuffer(gtksourceview.SourceBuffer, cmd_result.ProblemReporter):
+class DiffTextBuffer(gwsmhg_pkg.sourceview.SourceBuffer, cmd_result.ProblemReporter):
     def __init__(self, file_list=[], table=None):
         cmd_result.ProblemReporter.__init__(self)
         if not table:
-            table = gtksourceview.SourceTagTable()
-        gtksourceview.SourceBuffer.__init__(self, table)
+            table = gwsmhg_pkg.sourceview.SourceTagTable()
+        gwsmhg_pkg.sourceview.SourceBuffer.__init__(self, table)
         self._file_list = file_list
         self._tws_change_cbs = []
         self.tws_check = re.compile('^(\+.*\S)(\s+\n)$')
@@ -184,9 +184,9 @@ class DiffTextBuffer(gtksourceview.SourceBuffer, cmd_result.ProblemReporter):
     def get_action_button_box(self):
         return gutils.ActionHButtonBox([self._action_group], action_name_list=self.a_name_list)
 
-class DiffTextView(gtksourceview.SourceView):
+class DiffTextView(gwsmhg_pkg.sourceview.SourceView):
     def __init__(self, buffer):
-        gtksourceview.SourceView.__init__(self, buffer)
+        gwsmhg_pkg.sourceview.SourceView.__init__(self, buffer)
         fdesc = pango.FontDescription("mono, 10")
         self.modify_font(fdesc)
         self.set_margin(81)
