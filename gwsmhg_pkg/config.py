@@ -16,7 +16,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import os, gobject, gtk, urlparse, fnmatch, os.path
-from gwsmhg_pkg import gutils, utils, icons, table
+from gwsmhg_pkg import ifce, gutils, utils, icons, table
 
 REPO_TABLE_DESCR = \
 [
@@ -130,7 +130,7 @@ class WSPathView(AliasPathView):
     def __init__(self):
         AliasPathView.__init__(self, SAVED_WS_FILE_NAME)
 
-class PathSelectDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
+class PathSelectDialog(gtk.Dialog, ifce.BusyIndicator):
     def __init__(self, create_view, label, parent=None):
         gtk.Dialog.__init__(self, title="gwsmg: Select %s" % label, parent=parent,
                             flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
@@ -173,10 +173,9 @@ class PathSelectDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUse
     def get_path(self):
         return os.path.expanduser(self._path.get_text())
 
-class WSOpenDialog(PathSelectDialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
+class WSOpenDialog(PathSelectDialog, ifce.BusyIndicator):
     def __init__(self, parent=None):
-        gutils.BusyIndicator.__init__(self)
-        gutils.BusyIndicatorUser.__init__(self, self)
+        ifce.BusyIndicator.__init__(self)
         PathSelectDialog.__init__(self, create_view=WSPathView,
             label="Workspace/Directory", parent=parent)
 

@@ -104,15 +104,14 @@ class PatchFileTreeView(file_tree.CwdFileTreeView):
                                        modal=False)
         dialog.show()
 
-class PatchFilesDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
+class PatchFilesDialog(gtk.Dialog, ifce.BusyIndicator):
     def __init__(self, patch):
         title = "patch: %s files: %s" % (patch, utils.path_rel_home(os.getcwd()))
         gtk.Dialog.__init__(self, title, None, gtk.DIALOG_DESTROY_WITH_PARENT,
                             (gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE))
-        gutils.BusyIndicator.__init__(self)
-        gutils.BusyIndicatorUser.__init__(self, self)
+        ifce.BusyIndicator.__init__(self)
         # file tree view wrapped in scrolled window
-        self.file_tree = PatchFileTreeView(busy_indicator=self.get_busy_indicator(), patch=patch)
+        self.file_tree = PatchFileTreeView(busy_indicator=self, patch=patch)
         self.file_tree.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.file_tree.set_headers_visible(False)
         self.file_tree.set_size_request(240, 320)
@@ -221,9 +220,9 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
     def _remove_named_files(self, file_list, ask=True):
         if not ask or self._confirm_list_action(file_list, "About to be removed. OK?"):
             model = self.get_model()
-            self._show_busy()
+            self.show_busy()
             result = model._ifce.PM.do_remove_files(file_list)
-            self._show_busy()
+            self.show_busy()
             if self._check_if_force(result):
                 result = model._ifce.PM.do_remove_files(file_list, force=True)
             self.update_tree()
@@ -262,9 +261,9 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
             force = False
             if ask:
                 while True:
-                    self._show_busy()
+                    self.show_busy()
                     res, sout, serr = operation(file_list, target, force=force, dry_run=True)
-                    self._unshow_busy()
+                    self.unshow_busy()
                     if res == cmd_result.OK:
                         ok = self._confirm_list_action(sout.splitlines(), "About to be actioned. OK?")
                         break
@@ -277,9 +276,9 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
                         return
             if not ask or ok:
                 while True:
-                    self._show_busy()
+                    self.show_busy()
                     response = operation(file_list, target, force=force)
-                    self._unshow_busy()
+                    self.unshow_busy()
                     if not force and (response[0] & cmd_result.SUGGEST_FORCE) == cmd_result.SUGGEST_FORCE:
                         ok = force = self._check_if_force(response)
                         if not force:
@@ -307,9 +306,9 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
         dialog.show()
     def revert_named_files(self, file_list, ask=True):
         if ask:
-            self._show_busy()
+            self.show_busy()
             res, sout, serr = ifce.PM.do_revert_files(file_list, dry_run=True)
-            self._unshow_busy()
+            self.unshow_busy()
             if res == cmd_result.OK:
                 if sout:
                     ok = self._confirm_list_action(sout.splitlines(), "About to be actioned. OK?")
@@ -322,10 +321,10 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
         else:
             ok = True
         if ok:
-            self._show_busy()
+            self.show_busy()
             result = ifce.PM.do_revert_files(file_list)
             self.get_model().del_files_from_displayable_nonexistants(file_list)
-            self._show_busy()
+            self.show_busy()
             self.update_tree()
             self._report_any_problems(result)
     def revert_selected_files_acb(self, action=None):
@@ -455,13 +454,13 @@ WS_UPDATE_CONDITIONS = [
     WS_UPDATE_CLEAN_UP_READY,
 ]
 
-class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicatorUser):
+class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, ifce.BusyIndicatorUser):
     def __init__(self, busy_indicator):
         self.store = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_INT,
                                    gobject.TYPE_STRING, gobject.TYPE_STRING)
         gtk.TreeView.__init__(self, self.store)
         cmd_result.ProblemReporter.__init__(self)
-        gutils.BusyIndicatorUser.__init__(self, busy_indicator)
+        ifce.BusyIndicatorUser.__init__(self, busy_indicator)
         ws_event.add_notification_cb(ws_event.CHANGE_WD, self.set_contents)
         text_cell = gtk.CellRendererText()
         icon_cell = gtk.CellRendererPixbuf()
@@ -627,7 +626,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         self._action_group[WS_UPDATE_MERGE_READY].set_sensitive(ifce.PM.get_ws_update_merge_ready(unapplied_count=self.unapplied_count))
         self._action_group[WS_UPDATE_CLEAN_UP_READY].set_sensitive(ifce.PM.get_ws_update_clean_up_ready())
     def set_contents(self, action=None):
-        self._show_busy()
+        self.show_busy()
         applied_patch_list = ifce.PM.get_applied_patches()
         unapplied_patch_list = ifce.PM.get_unapplied_patches()
         self.store.clear()
@@ -643,29 +642,29 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         self._action_group[PUSH_NOT_POSSIBLE].set_sensitive(self.unapplied_count == 0)
         self._set_ws_update_menu_sensitivity()
         self.get_selection().unselect_all()
-        self._unshow_busy()
+        self.unshow_busy()
     def do_refresh(self, action=None):
-        self._show_busy()
+        self.show_busy()
         res, sout, serr = ifce.PM.do_refresh()
         if res is not cmd_result.OK:
-            self._unshow_busy()
+            self.unshow_busy()
             if res & cmd_result.SUGGEST_RECOVER:
                 if gutils.ask_recover_or_cancel(os.linesep.join([sout, serr]), self) is gutils.RECOVER:
-                    self._show_busy()
+                    self.show_busy()
                     res, sout, serr = ifce.PM.do_recover_interrupted_refresh()
                     if res is cmd_result.OK:
                         res, sout, serr = ifce.PM.do_refresh()
-                    self._unshow_busy()
+                    self.unshow_busy()
             if res is not cmd_result.OK: # There're may still be problems
                 self._report_any_problems((res, sout, serr))
                 return
         else:
-            self._unshow_busy()        
+            self.unshow_busy()        
     def _do_pop_to(self, patch=None):
         while True:
-            self._show_busy()
+            self.show_busy()
             res, sout, serr = ifce.PM.do_pop_to(patch=patch)
-            self._unshow_busy()
+            self.unshow_busy()
             self.set_contents()
             if res is not cmd_result.OK:
                 if res & cmd_result.SUGGEST_FORCE_OR_REFRESH:
@@ -676,9 +675,9 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                         self.do_refresh()
                         continue
                     elif ans is gutils.FORCE:
-                        self._show_busy()
+                        self.show_busy()
                         res, sout, serr = ifce.PM.do_pop_to(force=True)
-                        self._unshow_busy()
+                        self.unshow_busy()
                 if res is not cmd_result.OK: # there're are still problems
                     self._report_any_problems((res, sout, serr))
                     return False
@@ -694,9 +693,9 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         self._do_pop_to("")
     def _do_push_to(self, patch=None, merge=False):
         while True:
-            self._show_busy()
+            self.show_busy()
             res, sout, serr = ifce.PM.do_push_to(patch=patch, merge=merge)
-            self._unshow_busy()
+            self.unshow_busy()
             self.set_contents()
             if res is not cmd_result.OK:
                 if res & cmd_result.SUGGEST_FORCE_OR_REFRESH:
@@ -707,9 +706,9 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                         self.do_refresh()
                         continue
                     elif ans is gutils.FORCE:
-                        self._unshow_busy()
+                        self.unshow_busy()
                         res, sout, serr = ifce.PM.do_push_to(force=True, merge=merge)
-                        self._unshow_busy()
+                        self.unshow_busy()
                 if res is not cmd_result.OK: # there're are still problems
                     self._report_any_problems((res, sout, serr))
                     return False
@@ -734,9 +733,9 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             if not next:
                 break
             while True:
-                self._show_busy()
+                self.show_busy()
                 ok = ifce.PM.get_description_is_finish_ready(next)
-                self._unshow_busy()
+                self.unshow_busy()
                 if ok:
                     break
                 msg = os.linesep.join(
@@ -752,10 +751,10 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                 elif ans == gutils.FORCE:
                     break
                 self.do_edit_description_wait(next)
-            self._show_busy()
+            self.show_busy()
             res, sout, serr = ifce.PM.do_finish_patch(next)
             self.set_contents()
-            self._unshow_busy()
+            self.unshow_busy()
             if res is not cmd_result.OK:
                 self._report_any_problems((res, sout, serr))
                 break
@@ -825,15 +824,15 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         dialog.destroy()
         if not duplicate_patch_name:
             return
-        self._show_busy()
+        self.show_busy()
         old_pfname = ifce.PM.get_patch_file_name(patch)
         res, sout, serr = ifce.PM.do_import_patch(old_pfname, duplicate_patch_name)
-        self._unshow_busy()
+        self.unshow_busy()
         if res == cmd_result.ERROR_SUGGEST_FORCE:
             if ask_force_refresh_or_cancel(os.linesep.join([sout, serr]), res) == gutils.FORCE:
-                self._show_busy()
+                self.show_busy()
                 res, sout, serr = ifce.PM.do_import_patch(old_pfname, duplicate_patch_name, force=True)
-                self._unshow_busy()
+                self.unshow_busy()
             else:
                 return
         self.set_contents()
@@ -841,9 +840,9 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             self._report_any_problems((res, sout, serr))
             if res & cmd_result.ERROR:
                 return
-        self._show_busy()
+        self.show_busy()
         res, sout, serr = ifce.PM.do_set_patch_description(duplicate_patch_name, duplicate_patch_descr)
-        self._unshow_busy()
+        self.unshow_busy()
         self._report_any_problems((res, sout, serr))
     def do_interdiff(self, action=None):
         patch = self.get_selected_patch()
@@ -856,7 +855,7 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         dialog.destroy()
         if not interdiff_patch_name:
             return
-        self._show_busy()
+        self.show_busy()
         top_patch = ifce.PM.get_top_patch()
         if top_patch:
             top_pfname = ifce.PM.get_patch_file_name(top_patch)
@@ -872,12 +871,12 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         else:
             temp_pfname = ifce.PM.get_patch_file_name(patch)
         res, sout, serr = ifce.PM.do_import_patch(temp_pfname, interdiff_patch_name)
-        self._unshow_busy()
+        self.unshow_busy()
         if res == cmd_result.ERROR_SUGGEST_FORCE:
             if ask_force_refresh_or_cancel(os.linesep.join([sout, serr]), res) == gutils.FORCE:
-                self._show_busy()
+                self.show_busy()
                 res, sout, serr = ifce.PM.do_import_patch(temp_pfname, interdiff_patch_name, force=True)
-                self._unshow_busy()
+                self.unshow_busy()
         if top_patch:
             os.remove(temp_pfname)
         self.set_contents()
@@ -887,27 +886,27 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         if not ifce.PM.get_enabled():
             self._report_any_problems(ifce.PM.not_enabled_response)
             return
-        self._show_busy()
+        self.show_busy()
         res, sout, serr = ifce.PM.do_save_queue_state_for_update()
-        self._unshow_busy()
+        self.unshow_busy()
         self.set_contents()
         self._report_any_problems((res, sout, serr))
     def do_pull_to_repository(self, action=None):
         if not ifce.PM.get_enabled():
             self._report_any_problems(ifce.PM.not_enabled_response)
             return
-        self._show_busy()
+        self.show_busy()
         dialog = path.PullDialog()
-        self._unshow_busy()
+        self.unshow_busy()
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
             source = dialog.get_path()
             rev = dialog.get_revision()
             dialog.destroy()
-            self._show_busy()
+            self.show_busy()
             result = ifce.PM.do_pull_from(source=source, rev=rev)
             self._set_ws_update_menu_sensitivity()
-            self._unshow_busy()
+            self.unshow_busy()
             self._report_any_problems(result)
         else:
             dialog.destroy()
@@ -915,10 +914,10 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         if not ifce.PM.get_enabled():
             self._report_any_problems(ifce.PM.not_enabled_response)
             return
-        self._show_busy()
+        self.show_busy()
         result = ifce.PM.do_update_workspace()
         self._set_ws_update_menu_sensitivity()
-        self._unshow_busy()
+        self.unshow_busy()
         self._report_any_problems(result)
     def do_update_workspace_to(self, action=None):
         if not ifce.PM.get_enabled():
@@ -930,10 +929,10 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             rev = dialog.get_change_set()
             dialog.destroy()
             if rev:
-                self._show_busy()
+                self.show_busy()
                 result = ifce.PM.do_update_workspace(rev=rev)
                 self._set_ws_update_menu_sensitivity()
-                self._unshow_busy()
+                self.unshow_busy()
                 self._report_any_problems(result)
         else:
             dialog.destroy()
@@ -941,9 +940,9 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         if not ifce.PM.get_enabled():
             self._report_any_problems(ifce.PM.not_enabled_response)
             return
-        self._show_busy()
+        self.show_busy()
         result = ifce.PM.do_clean_up_after_update()
-        self._unshow_busy()
+        self.unshow_busy()
         self.set_contents()
         self._report_any_problems(result)
     def do_new_patch(self, action=None):
@@ -961,9 +960,9 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             return
         force = False
         while True:
-            self._show_busy()
+            self.show_busy()
             res, sout, serr = ifce.PM.do_new_patch(new_patch_name, force=force)
-            self._unshow_busy()
+            self.unshow_busy()
             if res & cmd_result.SUGGEST_FORCE_OR_REFRESH:
                 ans = gutils.ask_force_refresh_or_cancel(os.linesep.join([sout, serr]), res, parent=None)
                 if ans is gtk.RESPONSE_CANCEL:
@@ -977,9 +976,9 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
                 break
         self.set_contents()
         if new_patch_descr and res is not cmd_result.ERROR:
-            self._show_busy()
+            self.show_busy()
             res, sout, serr = ifce.PM.do_set_patch_description(new_patch_name, new_patch_descr)
-            self._unshow_busy()
+            self.unshow_busy()
             self._report_any_problems((res, sout, serr))
     def do_import_external_patch(self, action=None):
         if not ifce.PM.get_enabled():
@@ -991,9 +990,9 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
         force = False
         patch_name = None
         while True:
-            self._show_busy()
+            self.show_busy()
             res, sout, serr = ifce.PM.do_import_patch(patch_file_name, patch_name, force)
-            self._unshow_busy()
+            self.unshow_busy()
             if res & cmd_result.SUGGEST_FORCE_OR_RENAME:
                 question = os.linesep.join([sout, serr, "Force import of patch, rename patch or cancel import?"])
                 ans = gutils.ask_rename_force_or_cancel(question, parent=None)
@@ -1037,9 +1036,9 @@ class PatchListView(gtk.TreeView, cmd_result.ProblemReporter, gutils.BusyIndicat
             force = False
             patch_name = None
             while True:
-                self._show_busy()
+                self.show_busy()
                 res, sout, serr = ifce.PM.do_import_patch(patch_file_name, patch_name, force)
-                self._unshow_busy()
+                self.unshow_busy()
                 if res & cmd_result.SUGGEST_FORCE_OR_RENAME:
                     question = os.linesep.join([sout, serr, "Force import of patch, rename patch or skip patch?"])
                     ans = gutils.ask_rename_force_or_skip(question, parent=None)

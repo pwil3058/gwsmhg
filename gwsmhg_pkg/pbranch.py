@@ -106,7 +106,7 @@ PBRANCH_LIST_TABLE_DESCR = \
 ]
 
 class PBranchTable(table.Table, cmd_result.ProblemReporter,
-                   gutils.BusyIndicatorUser):
+                   ifce.BusyIndicatorUser):
     def __init__(self, busy_indicator=None):
         cmd_result.ProblemReporter.__init__(self)
         self._local_action_group = gtk.ActionGroup('in_pbranch')
@@ -128,7 +128,7 @@ class PBranchTable(table.Table, cmd_result.ProblemReporter,
                  'Back out the current patch branch',
                   self._pbackout_acb),
             ])
-        gutils.BusyIndicatorUser.__init__(self, busy_indicator)
+        ifce.BusyIndicatorUser.__init__(self, busy_indicator)
         table.Table.__init__(self, PBRANCH_LIST_MODEL_DESCR, PBRANCH_LIST_TABLE_DESCR)
         ws_event.add_notification_cb(ws_event.REPO_MOD|ws_event.FILE_CHANGES|ws_event.CHECKOUT, self.update_contents)
         self.action_groups[table.ALWAYS_ON].add_actions(
@@ -215,9 +215,9 @@ class PBranchTable(table.Table, cmd_result.ProblemReporter,
             return pbranches
     def _pstatus_selection_acb(self, action=None):
         pbranch = self.get_selected_pbranch()
-        self._show_busy()
+        self.show_busy()
         res, sout, serr = ifce.SCM.get_pstatus(pbranch)
-        self._unshow_busy()
+        self.unshow_busy()
         if res:
             self._report_any_problems((res, sout, serr))
         else:
@@ -232,15 +232,15 @@ class PBranchTable(table.Table, cmd_result.ProblemReporter,
         PatchBranchDescrEditDialog(parent=None, modal=False, pbranch=pbranch).show()
     def _update_to_selection_acb(self, action=None):
         pbranch = self.get_selected_pbranch()
-        self._show_busy()
+        self.show_busy()
         result = ifce.SCM.do_update_workspace(rev=pbranch)
-        self._unshow_busy()
+        self.unshow_busy()
         self._report_any_problems(result)
     def _pmerge_selection_acb(self, action=None):
         pbranches = self.get_selected_pbranches()
-        self._show_busy()
+        self.show_busy()
         result = ifce.SCM.do_pmerge(pbranches)
-        self._unshow_busy()
+        self.unshow_busy()
         self._report_any_problems(result)
     def _pnew_acb(self, action=None):
         dialog = NewPatchBranchDialog(parent=None, modal=False)
@@ -253,14 +253,14 @@ class PBranchTable(table.Table, cmd_result.ProblemReporter,
         dialog.destroy()
         if not new_pbranch_name:
             return
-        self._show_busy()
+        self.show_busy()
         result = ifce.SCM.do_new_pbranch(new_pbranch_name, new_pbranch_descr, preserve)
-        self._unshow_busy()
+        self.unshow_busy()
         self._report_any_problems(result)
     def _pstatus_acb(self, action=None):
-        self._show_busy()
+        self.show_busy()
         res, sout, serr = ifce.SCM.get_pstatus()
-        self._unshow_busy()
+        self.unshow_busy()
         if res:
             self._report_any_problems((res, sout, serr))
         else:
@@ -271,19 +271,19 @@ class PBranchTable(table.Table, cmd_result.ProblemReporter,
     def _edit_msg_acb(self, action=None):
         PatchBranchDescrEditDialog(parent=None, modal=False).show()
     def _pbackout_acb(self, action=None):
-        self._show_busy()
+        self.show_busy()
         result = ifce.SCM.do_pbackout()
-        self._unshow_busy()
+        self.unshow_busy()
         self._report_any_problems(result)
     def _pmerge_acb(self, action=None):
-        self._show_busy()
+        self.show_busy()
         result = ifce.SCM.do_pmerge()
-        self._unshow_busy()
+        self.unshow_busy()
         self._report_any_problems(result)
     def _pgraph_acb(self, action=None):
-        self._show_busy()
+        self.show_busy()
         res, sout, serr = ifce.SCM.get_pgraph()
-        self._unshow_busy()
+        self.unshow_busy()
         if res:
             self._report_any_problems((res, sout, serr))
         else:

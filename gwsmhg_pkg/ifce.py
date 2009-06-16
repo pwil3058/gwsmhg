@@ -30,13 +30,26 @@ def init(ifce_module, console_log, window):
     tooltips = gtk.Tooltips()
     tooltips.enable()
 
-def show_busy():
-    if main_window.window:
-        main_window.window.set_cursor(gtk.gdk.Cursor(gtk.gdk.WATCH))
-        while gtk.events_pending():
-            gtk.main_iteration()
+class BusyIndicator:
+    def __init__(self):
+        pass
+    def show_busy(self):
+        if self.window:
+            self.window.set_cursor(gtk.gdk.Cursor(gtk.gdk.WATCH))
+            while gtk.events_pending():
+                gtk.main_iteration()
+    def unshow_busy(self):
+        if self.window:
+            self.window.set_cursor(None)
 
-def unshow_busy():
-    if main_window.window:
-        main_window.window.set_cursor(None)
+class BusyIndicatorUser:
+    def __init__(self, busy_indicator):
+        if busy_indicator:
+            self._busy_indicator = busy_indicator
+        else:
+            self._busy_indicator = main_window
+    def show_busy(self):
+        self._busy_indicator.show_busy()
+    def unshow_busy(self):
+        self._busy_indicator.unshow_busy()
 

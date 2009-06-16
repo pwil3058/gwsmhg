@@ -189,32 +189,7 @@ def inform_user(msg, parent=None, problem_type=gtk.MESSAGE_ERROR):
     response = dialog.run()
     dialog.destroy()
 
-class BusyIndicator:
-    def __init__(self):
-        pass
-    def show_busy(self):
-        if self.window:
-            self.window.set_cursor(gtk.gdk.Cursor(gtk.gdk.WATCH))
-            while gtk.events_pending():
-                gtk.main_iteration()
-    def unshow_busy(self):
-        if self.window:
-            self.window.set_cursor(None)
-
-class BusyIndicatorUser:
-    def __init__(self, busy_indicator):
-        if busy_indicator:
-            self._busy_indicator = busy_indicator
-        else:
-            self._busy_indicator = ifce
-    def get_busy_indicator(self):
-        return self._busy_indicator
-    def _show_busy(self):
-        self._busy_indicator.show_busy()
-    def _unshow_busy(self):
-        self._busy_indicator.unshow_busy()
-
-class CancelOKDialog(gtk.Dialog, BusyIndicator):
+class CancelOKDialog(gtk.Dialog, ifce.BusyIndicator):
     def __init__(self, title=None, parent=None):
         flags = gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT
         buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK)
@@ -227,7 +202,7 @@ class CancelOKDialog(gtk.Dialog, BusyIndicator):
             self.set_position(gtk.WIN_POS_MOUSE)
         else:
             self.set_position(gtk.WIN_POS_CENTER_ON_PARENT)
-        BusyIndicator.__init__(self)
+        ifce.BusyIndicator.__init__(self)
 
 class ReadTextDialog(CancelOKDialog):
     def __init__(self, title=None, prompt=None, suggestion="", parent=None):
@@ -587,13 +562,13 @@ BASIC_TABLE_UI_DESCR = \
 
 ALWAYS_ON = "always_on"
 
-class MapManagedTableView(TableView, MappedManager, BusyIndicatorUser):
+class MapManagedTableView(TableView, MappedManager, ifce.BusyIndicatorUser):
     def __init__(self, descr, busy_indicator, sel_mode=gtk.SELECTION_SINGLE,
                  perm_headers=False, bgnd=["white", "#F0F0F0"]):
         TableView.__init__(self, descr=descr, sel_mode=sel_mode,
             perm_headers=perm_headers, bgnd=bgnd, popup="/table_popup")
         MappedManager.__init__(self)
-        BusyIndicatorUser.__init__(self, busy_indicator)
+        ifce.BusyIndicatorUser.__init__(self, busy_indicator)
         self._needs_refresh = True
         self.set_headers_visible(perm_headers)
         self._ui_manager = gtk.UIManager()
@@ -612,9 +587,9 @@ class MapManagedTableView(TableView, MappedManager, BusyIndicatorUser):
         self.get_selection().unselect_all()
     def map_action(self):
         if self._needs_refresh:
-            self._show_busy()
+            self.show_busy()
             self._refresh_contents()
-            self._unshow_busy()
+            self.unshow_busy()
     def unmap_action(self):
         pass
     def _refresh_contents(self):
@@ -627,9 +602,9 @@ class MapManagedTableView(TableView, MappedManager, BusyIndicatorUser):
         else:
             self._needs_refresh = True
     def _refresh_contents_acb(self, action):
-        self._show_busy()
+        self.show_busy()
         self.refresh_contents()
-        self._unshow_busy()
+        self.unshow_busy()
     def update_for_chdir(self):
         self.refresh_contents()
 

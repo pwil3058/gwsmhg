@@ -43,10 +43,10 @@ PATH_TABLE_UI_DESCR = \
 '''
 
 class PathTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
-    def __init__(self, sel_mode=gtk.SELECTION_SINGLE):
+    def __init__(self, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None):
         cmd_result.ProblemReporter.__init__(self)
         gutils.MapManagedTableView.__init__(self, descr=PATH_TABLE_PRECIS_DESCR,
-            sel_mode=sel_mode, busy_indicator=ifce)
+            sel_mode=sel_mode, busy_indicator=busy_indicator)
         for condition in [change_set.UNIQUE_SELECTION, change_set.UNIQUE_SELECTION_NOT_PMIC]:
             self._action_group[condition] = gtk.ActionGroup(condition)
             self._ui_manager.insert_action_group(self._action_group[condition], -1)
@@ -96,27 +96,27 @@ class PathTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
             return ""
     def _view_incoming_acb(self, action):
         path = self.get_selected_path()
-        self._show_busy()
+        self.show_busy()
         dialog = IncomingCSDialog(path)
-        self._unshow_busy()
+        self.unshow_busy()
         dialog.show()
     def _view_outgoing_acb(self, action):
         path = self.get_selected_path()
-        self._show_busy()
+        self.show_busy()
         dialog = OutgoingCSDialog(path)
-        self._unshow_busy()
+        self.unshow_busy()
         dialog.show()
     def _pull_from_acb(self, action):
         path = self.get_selected_path()
-        self._show_busy()
+        self.show_busy()
         result = ifce.SCM.do_pull_from(source=path)
-        self._unshow_busy()
+        self.unshow_busy()
         self._report_any_problems(result)
     def _push_to_acb(self, action):
         path = self.get_selected_path()
-        self._show_busy()
+        self.show_busy()
         result = ifce.SCM.do_push_to(path=path)
-        self._unshow_busy()
+        self.unshow_busy()
         self._report_any_problems(result)
 
 
@@ -137,13 +137,13 @@ class IncomingParentsTableView(PathCSTableView):
             path=path, sel_mode=sel_mode, busy_indicator=busy_indicator)
     def _view_cs_summary_acb(self, action):
         rev = self.get_selected_change_set()
-        self._show_busy()
+        self.show_busy()
         # a parent might be local so let's check
         if ifce.SCM.get_is_incoming(rev, self._path):
             dialog = IncomingCSSummaryDialog(rev, self._path)
         else:
             dialog = change_set.ChangeSetSummaryDialog(rev)
-        self._unshow_busy()
+        self.unshow_busy()
         dialog.show()
     def get_table_data(self):
         return ifce.SCM.get_incoming_parents_table_data(self._rev, self._path)
@@ -196,10 +196,10 @@ class IncomingFileTreeView(file_tree.FileTreeView):
         self.expand_all()
     def _diff_all_files_acb(self, action=None):
         parent = ifce.main_window
-        self._show_busy()
+        self.show_busy()
         dialog = diff.IncomingDiffTextDialog(parent=parent,
                                      rev=self._rev, path=self._path, modal=False)
-        self._unshow_busy()
+        self.unshow_busy()
         dialog.show()
 
 class IncomingCSSummaryDialog(change_set.ChangeSetSummaryDialog):
@@ -210,10 +210,10 @@ class IncomingCSSummaryDialog(change_set.ChangeSetSummaryDialog):
     def get_change_set_summary(self):
         return ifce.SCM.get_incoming_change_set_summary(self._rev, self._path)
     def get_file_tree_view(self):
-        return IncomingFileTreeView(self._rev, self._path, busy_indicator=self.get_busy_indicator())
+        return IncomingFileTreeView(self._rev, self._path, busy_indicator=self)
     def get_parents_view(self):
         return IncomingParentsTableView(self._rev, self._path,
-            busy_indicator=self.get_busy_indicator())
+            busy_indicator=self)
 
 INCOMING_TABLE_UI_DESCR = \
 '''
@@ -244,15 +244,15 @@ class IncomingTableView(PathCSTableView):
         self.cwd_merge_id.append(self._ui_manager.add_ui_from_string(INCOMING_TABLE_UI_DESCR))
     def _pull_to_cs_acb(self, action):
         rev = self.get_selected_change_set()
-        self._show_busy()
+        self.show_busy()
         ifce.SCM.do_pull_from(rev=rev, source=self._path)
         self._refresh_contents()
-        self._unshow_busy()
+        self.unshow_busy()
     def _view_cs_summary_acb(self, action):
         rev = self.get_selected_change_set()
-        self._show_busy()
+        self.show_busy()
         dialog = IncomingCSSummaryDialog(rev, self._path)
-        self._unshow_busy()
+        self.unshow_busy()
         dialog.show()
 
 OUTGOING_TABLE_UI_DESCR = \
@@ -284,24 +284,23 @@ class OutgoingTableView(PathCSTableView):
         self.cwd_merge_id.append(self._ui_manager.add_ui_from_string(OUTGOING_TABLE_UI_DESCR))
     def _push_to_cs_acb(self, action):
         rev = self.get_selected_change_set()
-        self._show_busy()
+        self.show_busy()
         ifce.SCM.do_push_to(rev=rev, path=self._path)
         self._refresh_contents()
-        self._unshow_busy()
+        self.unshow_busy()
 
-class PathCSDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
+class PathCSDialog(gtk.Dialog, ifce.BusyIndicator):
     def __init__(self, get_data, title, path=None, table=PathCSTableView, parent=None):
         self._path = path
         gtk.Dialog.__init__(self, title="gwsmg: %s: %s" % (title, path), parent=parent,
                             flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                             buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
                            )
-        gutils.BusyIndicator.__init__(self)
-        gutils.BusyIndicatorUser.__init__(self, self)
+        ifce.BusyIndicator.__init__(self)
         if not parent:
             self.set_icon_from_file(icons.app_icon_file)
         self._view = table(get_data=get_data, path=path,
-            busy_indicator=self.get_busy_indicator())
+            busy_indicator=self)
         self.vbox.pack_start(gutils.wrap_in_scrolled_window(self._view))
         self.show_all()
         self._view.get_selection().unselect_all()
@@ -348,10 +347,9 @@ class PathSelectTableView(gutils.TableView, cmd_result.ProblemReporter):
         else:
             return ""
 
-class PullDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
+class PullDialog(gtk.Dialog, ifce.BusyIndicator):
     def __init__(self, parent=None):
-        gutils.BusyIndicator.__init__(self)
-        gutils.BusyIndicatorUser.__init__(self, self)
+        ifce.BusyIndicator.__init__(self)
         gtk.Dialog.__init__(self, title="gwsmg: Pull From (Up To)", parent=parent,
                             flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                             buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
@@ -413,12 +411,12 @@ class PullDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
     def _get_incoming_data(self):
         return ifce.SCM.get_incoming_table_data(self.get_path())
     def _incoming_cb(self, button=None):
-        self._show_busy()
+        self.show_busy()
         title = "Choose Revision"
         ptype = change_set.PrecisType(descr=change_set.LOG_TABLE_PRECIS_DESCR,
             get_data=self._get_incoming_data)
         dialog = change_set.SelectDialog(ptype=ptype, title=title, parent=self)
-        self._unshow_busy()
+        self.unshow_busy()
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
             self._revision.set_text(dialog.get_change_set())

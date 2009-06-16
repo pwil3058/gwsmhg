@@ -590,9 +590,9 @@ from gwsmhg_pkg.const import NO_SELECTION, UNIQUE_SELECTION, SELECTION, \
     SELECTION_INDIFFERENT, NO_SELECTION_NOT_PATCHED, SELECTION_NOT_PATCHED, \
     FILE_CONDITIONS
 
-class _ViewWithActionGroups(gtk.TreeView, gutils.BusyIndicatorUser):
+class _ViewWithActionGroups(gtk.TreeView, ifce.BusyIndicatorUser):
     def __init__(self, busy_indicator, model=None):
-        gutils.BusyIndicatorUser.__init__(self, busy_indicator)
+        ifce.BusyIndicatorUser.__init__(self, busy_indicator)
         gtk.TreeView.__init__(self, model)
         self._ui_manager = gtk.UIManager()
         self._action_group = {}
@@ -739,13 +739,13 @@ class FileTreeView(_ViewWithActionGroups):
                 return True
         return False
     def repopulate_tree(self):
-        self._show_busy()
+        self.show_busy()
         self.get_model().repopulate()
-        self._unshow_busy()
+        self.unshow_busy()
     def update_tree(self, action=None):
-        self._show_busy()
+        self.show_busy()
         self.get_model().update()
-        self._unshow_busy()
+        self.unshow_busy()
 
 CWD_UI_DESCR = \
 '''
@@ -815,9 +815,9 @@ class CwdFileTreeView(FileTreeView, cmd_result.ProblemReporter):
         return (res, sout, serr_xtra + serr)
     def create_new_file(self, new_file_name, open_for_edit=False):
         model = self.get_model()
-        self._show_busy()
+        self.show_busy()
         result = self.new_file(new_file_name)
-        self._unshow_busy()
+        self.unshow_busy()
         self.update_tree()
         self._report_any_problems(result)
         if open_for_edit:
@@ -863,9 +863,9 @@ class CwdFileTreeView(FileTreeView, cmd_result.ProblemReporter):
     def _delete_named_files(self, file_list, ask=True):
         if not ask or self._confirm_list_action(file_list, "About to be deleted. OK?"):
             model = self.get_model()
-            self._show_busy()
+            self.show_busy()
             result = self.delete_files(file_list)
-            self._unshow_busy()
+            self.unshow_busy()
             self.update_tree()
             self._report_any_problems(result)
     def delete_selected_files_acb(self, menu_item):
@@ -1046,9 +1046,9 @@ class ScmCwdFileTreeView(CwdFileTreeView):
     def _remove_named_files(self, file_list, ask=True):
         if not ask or self._confirm_list_action(file_list, "About to be removed. OK?"):
             model = self.get_model()
-            self._show_busy()
+            self.show_busy()
             result = ifce.SCM.do_remove_files(file_list)
-            self._show_busy()
+            self.unshow_busy()
             if self._check_if_force(result):
                 result = ifce.SCM.do_remove_files(file_list, force=True)
             self.update_tree()
@@ -1056,23 +1056,23 @@ class ScmCwdFileTreeView(CwdFileTreeView):
     def remove_selected_files_acb(self, menu_item):
         self._remove_named_files(self.get_selected_files())
     def add_files_to_repo(self, file_list):
-        self._show_busy()
+        self.show_busy()
         result = ifce.SCM.do_add_files(file_list)
-        self._unshow_busy()
+        self.unshow_busy()
         self.update_tree()
         self._report_any_problems(result)
     def add_all_files_to_repo(self):
         operation = ifce.SCM.do_add_files
-        self._show_busy()
+        self.show_busy()
         res, info, serr = operation([], dry_run=True)
-        self._unshow_busy()
+        self.unshow_busy()
         if res != cmd_result.OK:
             self._report_any_problems((res, info, serr))
             return
         if self._confirm_list_action((info + serr).splitlines(), "About to be actioned. OK?"):
-            self._show_busy()
+            self.show_busy()
             result = operation([], dry_run=False)
-            self._unshow_busy()
+            self.unshow_busy()
             self.update_tree()
             self._report_any_problems(result)
     def add_selected_files_to_repo_acb(self, menu_item):
@@ -1121,9 +1121,9 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             force = False
             if ask:
                 while True:
-                    self._show_busy()
+                    self.show_busy()
                     res, sout, serr = operation(file_list, target, force=force, dry_run=True)
-                    self._unshow_busy()
+                    self.unshow_busy()
                     if cmd_result.is_less_than_error(res):
                         ok = self._confirm_list_action(sout.splitlines(), "About to be actioned. OK?")
                         break
@@ -1136,9 +1136,9 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                         return
             if not ask or ok:
                 while True:
-                    self._show_busy()
+                    self.show_busy()
                     response = operation(file_list, target, force=force)
-                    self._unshow_busy()
+                    self.unshow_busy()
                     if not force and (response[0] & cmd_result.SUGGEST_FORCE) == cmd_result.SUGGEST_FORCE:
                         ok = force = self._check_if_force(response)
                         if not force:
@@ -1161,9 +1161,9 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         dialog.show()
     def revert_named_files(self, file_list, ask=True):
         if ask:
-            self._show_busy()
+            self.show_busy()
             res, sout, serr = ifce.SCM.do_revert_files(file_list, dry_run=True)
-            self._unshow_busy()
+            self.unshow_busy()
             if res == cmd_result.OK:
                 if sout:
                     ok = self._confirm_list_action(sout.splitlines(), "About to be actioned. OK?")
@@ -1176,10 +1176,10 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         else:
             ok = True
         if ok:
-            self._show_busy()
+            self.show_busy()
             result = ifce.SCM.do_revert_files(file_list)
             self.get_model().del_files_from_displayable_nonexistants(file_list)
-            self._show_busy()
+            self.unshow_busy()
             self.update_tree()
             self._report_any_problems(result)
     def revert_selected_files_acb(self, action=None):
@@ -1305,7 +1305,7 @@ class ScmChangeFileTreeView(FileTreeView):
     def get_file_mask(self):
         return self.model.get_file_mask()
     def _remove_selected_files_acb(self, menu_item):
-        self._show_busy()
+        self.show_busy()
         file_mask = self.model.get_file_mask()
         if not file_mask:
             file_mask = self.model.get_file_paths()
@@ -1315,10 +1315,10 @@ class ScmChangeFileTreeView(FileTreeView):
         self.model.set_file_mask(file_mask)
         self.removeds.append(selected_files)
         self._action_group[SELECTION_INDIFFERENT].get_action("scmch_undo_remove_files").set_sensitive(True)
-        self._unshow_busy()
+        self.unshow_busy()
         self.update_tree()
     def _undo_last_remove_acb(self, menu_item):
-        self._show_busy()
+        self.show_busy()
         restore_files = self.removeds[-1]
         del self.removeds[-1]
         self._action_group[SELECTION_INDIFFERENT].get_action("scmch_undo_remove_files").set_sensitive(len(self.removeds) > 0)
@@ -1326,7 +1326,7 @@ class ScmChangeFileTreeView(FileTreeView):
         for res_file in restore_files:
             file_mask.append(res_file)
         self.model.set_file_mask(file_mask)
-        self._unshow_busy()
+        self.unshow_busy()
         self.update_tree()
     def _diff_selected_files_acb(self, action=None):
         parent = ifce.main_window
@@ -1388,7 +1388,7 @@ class ScmCommitWidget(gtk.VPaned, cmd_result.ProblemReporter):
         self._report_any_problems(result)
         return cmd_result.is_less_than_error(result[0])
 
-class ScmCommitDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
+class ScmCommitDialog(gtk.Dialog, ifce.BusyIndicator):
     def __init__(self, parent, filelist=None, modal=False):
         if modal or (parent and parent.get_modal()):
             flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
@@ -1396,9 +1396,8 @@ class ScmCommitDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser
             flags = gtk.DIALOG_DESTROY_WITH_PARENT
         gtk.Dialog.__init__(self, "Commit Changes: %s" % utils.path_rel_home(os.getcwd()), parent, flags,
             (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
-        gutils.BusyIndicator.__init__(self)
-        gutils.BusyIndicatorUser.__init__(self, self)
-        self.commit_widget = ScmCommitWidget(busy_indicator=self.get_busy_indicator(), file_mask=filelist)
+        ifce.BusyIndicator.__init__(self)
+        self.commit_widget = ScmCommitWidget(busy_indicator=self, file_mask=filelist)
         self.vbox.pack_start(self.commit_widget)
         self.connect("response", self._handle_response_cb)
         self.set_focus_child(self.commit_widget.view)
@@ -1407,9 +1406,9 @@ class ScmCommitDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser
     def update_files(self):
         self.commit_widget.files.update_tree()
     def _finish_up(self, clear_save=False):
-        self._show_busy()
+        self.show_busy()
         self.commit_widget.view.get_buffer().finish_up(clear_save)
-        self._unshow_busy()
+        self.unshow_busy()
         self.destroy()
     def _handle_response_cb(self, dialog, response_id):
         if response_id == gtk.RESPONSE_OK:

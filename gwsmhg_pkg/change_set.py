@@ -106,34 +106,34 @@ class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
             return ""
     def _view_cs_summary_acb(self, action):
         rev = self.get_selected_change_set()
-        self._show_busy()
+        self.show_busy()
         dialog = ChangeSetSummaryDialog(rev)
-        self._unshow_busy()
+        self.unshow_busy()
         dialog.show()
     def _update_ws_to_cs_acb(self, action):
         rev = str(self.get_selected_change_set())
-        self._show_busy()
+        self.show_busy()
         result = ifce.SCM.do_update_workspace(rev=rev)
-        self._unshow_busy()
+        self.unshow_busy()
         if result[0] & cmd_result.SUGGEST_MERGE_OR_DISCARD:
             question = os.linesep.join(result[1:])
             ans = gutils.ask_merge_discard_or_cancel(question, result[0])
             if ans == gutils.DISCARD:
-                self._show_busy()
+                self.show_busy()
                 result = ifce.SCM.do_update_workspace(rev=rev, discard=True)
-                self._unshow_busy()
+                self.unshow_busy()
                 self._report_any_problems(result)
             elif ans == gutils.MERGE:
-                self._show_busy()
+                self.show_busy()
                 result = ifce.SCM.do_merge_workspace(rev=rev, force=False)
-                self._unshow_busy()
+                self.unshow_busy()
                 if result[0] & cmd_result.SUGGEST_FORCE:
                     question = os.linesep.join(result[1:])
                     ans = gutils.ask_force_or_cancel(question)
                     if ans == gutils.FORCE:
-                        self._show_busy()
+                        self.show_busy()
                         result = ifce.SCM.do_merge_workspace(rev=rev, force=True)
-                        self._unshow_busy()
+                        self.unshow_busy()
                         self._report_any_problems(result)
                 else:
                     self._report_any_problems(result)
@@ -141,25 +141,25 @@ class PrecisTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
             self._report_any_problems(result)
     def _merge_ws_with_cs_acb(self, action):
         rev = str(self.get_selected_change_set())
-        self._show_busy()
+        self.show_busy()
         result = ifce.SCM.do_merge_workspace(rev=rev)
-        self._unshow_busy()
+        self.unshow_busy()
         if result[0] & cmd_result.SUGGEST_FORCE:
             question = os.linesep.join(result[1:])
             ans = gutils.ask_force_or_cancel(question)
             if ans == gutils.FORCE:
-                self._show_busy()
+                self.show_busy()
                 result = ifce.SCM.do_merge_workspace(rev=rev, force=True)
-                self._unshow_busy()
+                self.unshow_busy()
                 self._report_any_problems(result)
         else:
             self._report_any_problems(result)
     def _backout_cs_acb(self, action):
         rev = str(self.get_selected_change_set())
         descr = self.get_selected_change_set_descr()
-        self._show_busy()
+        self.show_busy()
         BackoutDialog(rev=rev, descr=descr)
-        self._unshow_busy()
+        self.unshow_busy()
 
 class AUPrecisTableView(PrecisTableView):
     def __init__(self, ptype, age_col, sel_mode=gtk.SELECTION_SINGLE,
@@ -366,9 +366,9 @@ class HistoryTableView(ChangeSetTableView):
         self.cwd_merge_id.append(self._ui_manager.add_ui_from_string(HISTORY_TABLE_UI_DESCR))
     def _tag_cs_acb(self, action=None):
         rev = self.get_selected_change_set()
-        self._show_busy()
+        self.show_busy()
         SetTagDialog(rev=str(rev)).run()
-        self._unshow_busy()
+        self.unshow_busy()
 
 class RemoveTagDialog(gutils.ReadTextDialog, cmd_result.ProblemReporter):
     def __init__(self, tag=None, parent=None):
@@ -466,14 +466,14 @@ class TagsTableView(ChangeSetTableView):
         self.cwd_merge_id.append(self._ui_manager.add_ui_from_string(TAG_TABLE_UI_DESCR))
     def _remove_tag_cs_acb(self, action=None):
         tag = self.get_selected_change_set()
-        self._show_busy()
+        self.show_busy()
         RemoveTagDialog(tag=tag).run()
-        self._unshow_busy()
+        self.unshow_busy()
     def _move_tag_cs_acb(self, action=None):
         tag = self.get_selected_change_set()
-        self._show_busy()
+        self.show_busy()
         MoveTagDialog(tag=tag).run()
-        self._unshow_busy()
+        self.unshow_busy()
 
 TAG_LIST_DESCR = \
 [
@@ -500,10 +500,10 @@ BRANCH_LIST_DESCR = \
     ["Branch", gobject.TYPE_STRING, False, []],
 ]
 
-class ChangeSetSelectWidget(gtk.VBox, gutils.BusyIndicatorUser):
+class ChangeSetSelectWidget(gtk.VBox, ifce.BusyIndicatorUser):
     def __init__(self, busy_indicator, label="Change Set:", discard_toggle=False):
         gtk.VBox.__init__(self)
-        gutils.BusyIndicatorUser.__init__(self, busy_indicator)
+        ifce.BusyIndicatorUser.__init__(self, busy_indicator)
         hbox = gtk.HBox()
         self._tags_button = gtk.Button(label="Browse _Tags")
         self._tags_button.connect("clicked", self._browse_tags_cb)
@@ -531,9 +531,9 @@ class ChangeSetSelectWidget(gtk.VBox, gutils.BusyIndicatorUser):
         self.pack_start(hbox, expand=False, fill=False)
         self.show_all()
     def _browse_change_set(self, ptype, title, size=(640, 240)):
-        self._show_busy()
+        self.show_busy()
         dialog = SelectDialog(ptype=ptype, title=title, size=size, parent=None)
-        self._unshow_busy()
+        self.unshow_busy()
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
             self._entry.set_text(dialog.get_change_set())
@@ -559,17 +559,16 @@ class ChangeSetSelectWidget(gtk.VBox, gutils.BusyIndicatorUser):
             return False
         return self._discard_toggle.get_active()
 
-class ChangeSetSelectDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
+class ChangeSetSelectDialog(gtk.Dialog, ifce.BusyIndicator):
     def __init__(self, discard_toggle=False, parent=None):
-        gutils.BusyIndicator.__init__(self)
-        gutils.BusyIndicatorUser.__init__(self, self)
+        ifce.BusyIndicator.__init__(self)
         title = "gwsmg: Select Change Set: %s" % utils.path_rel_home(os.getcwd())
         gtk.Dialog.__init__(self, title=title, parent=parent,
                             flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                             buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
                                     gtk.STOCK_OK, gtk.RESPONSE_OK)
                            )
-        self._widget = ChangeSetSelectWidget(busy_indicator=self.get_busy_indicator(),
+        self._widget = ChangeSetSelectWidget(busy_indicator=self,
             discard_toggle=discard_toggle)
         self.vbox.pack_start(self._widget)
         self.show_all()
@@ -631,24 +630,23 @@ class FileTreeView(file_tree.FileTreeView):
         self.expand_all()
     def _diff_selected_files_acb(self, action=None):
         parent = ifce.main_window
-        self._show_busy()
+        self.show_busy()
         dialog = diff.ScmDiffTextDialog(parent=parent,
                                      file_list=self.get_selected_files(),
                                      torev=self._rev, modal=False)
-        self._unshow_busy()
+        self.unshow_busy()
         dialog.show()
     def _diff_all_files_acb(self, action=None):
         parent = ifce.main_window
-        self._show_busy()
+        self.show_busy()
         dialog = diff.ScmDiffTextDialog(parent=parent, torev=self._rev, modal=False)
-        self._unshow_busy()
+        self.unshow_busy()
         dialog.show()
 
-class ChangeSetSummaryDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndicatorUser):
+class ChangeSetSummaryDialog(gtk.Dialog, ifce.BusyIndicator):
     def __init__(self, rev, parent=None):
         self._rev = rev
-        gutils.BusyIndicator.__init__(self)
-        gutils.BusyIndicatorUser.__init__(self, self)
+        ifce.BusyIndicator.__init__(self)
         title = "gwsmg: Change Set: %s : %s" % (rev, utils.path_rel_home(os.getcwd()))
         gtk.Dialog.__init__(self, title=title, parent=parent,
                             flags=gtk.DIALOG_DESTROY_WITH_PARENT,
@@ -688,10 +686,10 @@ class ChangeSetSummaryDialog(gtk.Dialog, gutils.BusyIndicator, gutils.BusyIndica
     def get_change_set_summary(self):
         return ifce.SCM.get_change_set_summary(self._rev)
     def get_file_tree_view(self):
-        return FileTreeView(self._rev, busy_indicator=self.get_busy_indicator())
+        return FileTreeView(self._rev, busy_indicator=self)
     def get_parents_view(self):
         return ParentsTableView(self._rev, auto_refresh_on=False,
-            busy_indicator=self.get_busy_indicator())
+            busy_indicator=self)
     def _add_label(self, text, component=None):
         hbox = gtk.HBox()
         hbox.pack_start(gtk.Label(text), expand=False, fill=False)
