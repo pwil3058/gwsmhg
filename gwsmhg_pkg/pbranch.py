@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import gtk, gobject, os
-from gwsmhg_pkg import ifce, table, icons, ws_event, cmd_result, gutils, patch_mgr
+from gwsmhg_pkg import dialogue, ifce, table, icons, ws_event, cmd_result, gutils, patch_mgr
 from gwsmhg_pkg import diff, utils
 
 PBRANCH_UI_DESCR = \
@@ -105,10 +105,8 @@ PBRANCH_LIST_TABLE_DESCR = \
   ]
 ]
 
-class PBranchTable(table.Table, cmd_result.ProblemReporter,
-                   ifce.BusyIndicatorUser):
+class PBranchTable(table.Table, dialogue.BusyIndicatorUser):
     def __init__(self, busy_indicator=None):
-        cmd_result.ProblemReporter.__init__(self)
         self._local_action_group = gtk.ActionGroup('in_pbranch')
         self._local_action_group.add_actions(
             [
@@ -128,7 +126,7 @@ class PBranchTable(table.Table, cmd_result.ProblemReporter,
                  'Back out the current patch branch',
                   self._pbackout_acb),
             ])
-        ifce.BusyIndicatorUser.__init__(self, busy_indicator)
+        dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
         table.Table.__init__(self, PBRANCH_LIST_MODEL_DESCR, PBRANCH_LIST_TABLE_DESCR)
         ws_event.add_notification_cb(ws_event.REPO_MOD|ws_event.FILE_CHANGES|ws_event.CHECKOUT, self.update_contents)
         self.action_groups[table.ALWAYS_ON].add_actions(
@@ -219,12 +217,12 @@ class PBranchTable(table.Table, cmd_result.ProblemReporter,
         res, sout, serr = ifce.SCM.get_pstatus(pbranch)
         self.unshow_busy()
         if res:
-            self._report_any_problems((res, sout, serr))
+            dialogue.report_any_problems((res, sout, serr))
         else:
-            gutils.inform_user(os.linesep.join([sout,serr]), problem_type=gtk.MESSAGE_INFO)
+            dialogue.inform_user(os.linesep.join([sout,serr]), problem_type=gtk.MESSAGE_INFO)
     def _pdiff_selection_acb(self, action=None):
         pbranch = self.get_selected_pbranch()
-        dialog = PbDiffTextDialog(parent=ifce.main_window, pbranch=pbranch,
+        dialog = PbDiffTextDialog(parent=dialogue.main_window, pbranch=pbranch,
                                   modal=False)
         dialog.show()
     def _edit_msg_selection_acb(self, action=None):
@@ -235,13 +233,13 @@ class PBranchTable(table.Table, cmd_result.ProblemReporter,
         self.show_busy()
         result = ifce.SCM.do_update_workspace(rev=pbranch)
         self.unshow_busy()
-        self._report_any_problems(result)
+        dialogue.report_any_problems(result)
     def _pmerge_selection_acb(self, action=None):
         pbranches = self.get_selected_pbranches()
         self.show_busy()
         result = ifce.SCM.do_pmerge(pbranches)
         self.unshow_busy()
-        self._report_any_problems(result)
+        dialogue.report_any_problems(result)
     def _pnew_acb(self, action=None):
         dialog = NewPatchBranchDialog(parent=None, modal=False)
         if dialog.run() == gtk.RESPONSE_CANCEL:
@@ -256,17 +254,17 @@ class PBranchTable(table.Table, cmd_result.ProblemReporter,
         self.show_busy()
         result = ifce.SCM.do_new_pbranch(new_pbranch_name, new_pbranch_descr, preserve)
         self.unshow_busy()
-        self._report_any_problems(result)
+        dialogue.report_any_problems(result)
     def _pstatus_acb(self, action=None):
         self.show_busy()
         res, sout, serr = ifce.SCM.get_pstatus()
         self.unshow_busy()
         if res:
-            self._report_any_problems((res, sout, serr))
+            dialogue.report_any_problems((res, sout, serr))
         else:
-            gutils.inform_user(os.linesep.join([sout,serr]), problem_type=gtk.MESSAGE_INFO)
+            dialogue.inform_user(os.linesep.join([sout,serr]), problem_type=gtk.MESSAGE_INFO)
     def _pdiff_acb(self, action=None):
-        dialog = PbDiffTextDialog(parent=ifce.main_window, modal=False)
+        dialog = PbDiffTextDialog(parent=dialogue.main_window, modal=False)
         dialog.show()
     def _edit_msg_acb(self, action=None):
         PatchBranchDescrEditDialog(parent=None, modal=False).show()
@@ -274,20 +272,20 @@ class PBranchTable(table.Table, cmd_result.ProblemReporter,
         self.show_busy()
         result = ifce.SCM.do_pbackout()
         self.unshow_busy()
-        self._report_any_problems(result)
+        dialogue.report_any_problems(result)
     def _pmerge_acb(self, action=None):
         self.show_busy()
         result = ifce.SCM.do_pmerge()
         self.unshow_busy()
-        self._report_any_problems(result)
+        dialogue.report_any_problems(result)
     def _pgraph_acb(self, action=None):
         self.show_busy()
         res, sout, serr = ifce.SCM.get_pgraph()
         self.unshow_busy()
         if res:
-            self._report_any_problems((res, sout, serr))
+            dialogue.report_any_problems((res, sout, serr))
         else:
-            gutils.inform_user(os.linesep.join([sout,serr]), problem_type=gtk.MESSAGE_INFO)
+            dialogue.inform_user(os.linesep.join([sout,serr]), problem_type=gtk.MESSAGE_INFO)
     def _refresh_acb(self, action=None):
         self.update_contents()
 
@@ -317,7 +315,7 @@ class PbDiffTextBuffer(diff.DiffTextBuffer):
         self.diff_buttons = gutils.ActionButtonList([self._action_group], self.a_name_list)
     def _get_diff_text(self):
         res, text, serr = ifce.SCM.get_pdiff_for_files(self._file_list, self._pbranch)
-        self._report_any_problems((res, text, serr))
+        dialogue.report_any_problems((res, text, serr))
         return text
 
 class PbDiffTextView(diff.DiffTextView):
@@ -330,7 +328,7 @@ class PbDiffTextWidget(diff.DiffTextWidget):
         diff_view = PbDiffTextView(file_list=file_list, pbranch=pbranch)
         diff.DiffTextWidget.__init__(self, parent=parent, diff_view=diff_view)
 
-class PbDiffTextDialog(gtk.Dialog):
+class PbDiffTextDialog(dialogue.Dialog):
     def __init__(self, parent, file_list=[], pbranch=None, modal=False):
         if modal or (parent and parent.get_modal()):
             flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
@@ -342,7 +340,7 @@ class PbDiffTextDialog(gtk.Dialog):
             title += " Patch Branch: %s" % pbranch
         else:
             title += " Patch Branch: []"
-        gtk.Dialog.__init__(self, title, parent, flags, ())
+        dialogue.Dialog.__init__(self, title, parent, flags, ())
         dtw = PbDiffTextWidget(self, file_list, pbranch=pbranch)
         self.vbox.pack_start(dtw)
         tws_display = dtw.diff_view.get_buffer().tws_display

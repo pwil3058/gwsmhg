@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import os, gtk, gwsmhg_pkg.sourceview, pango, gobject
-from gwsmhg_pkg import ifce, utils, cmd_result, gutils, config
+from gwsmhg_pkg import dialogue, ifce, utils, cmd_result, gutils, config
 
 def _edit_files_extern(filelist, edstr=config.DEFAULT_EDITOR):
     if not edstr.split()[0] in config.EDITORS_THAT_NEED_A_TERMINAL:
@@ -137,19 +137,19 @@ class ChangeSummaryBuffer(SummaryBuffer):
             self._save_file_name = file_name
             self.set_modified(False)
         except:
-            gutils.inform_user("Save failed!")
+            dialogue.inform_user("Save failed!")
     def _save_summary_acb(self, action=None):
         self.save_summary()
     def save_summary_as(self, action=None):
-        fn = gutils.ask_file_name("Enter file name", existing=False, suggestion=self._save_file_name)
+        fn = dialogue.ask_file_name("Enter file name", existing=False, suggestion=self._save_file_name)
         if fn and os.path.exists(fn) and not os.path.samefile(fn, self._save_file_name):
             if not os.path.samefile(fn, ifce.SCM.get_default_commit_save_file()):
-                if not gutils.ask_ok_cancel(os.linesep.join([fn, "\nFile exists. Overwrite?"])):
+                if not dialogue.ask_ok_cancel(os.linesep.join([fn, "\nFile exists. Overwrite?"])):
                     return
         self.save_summary(file_name=fn)
     def _ok_to_overwrite_summary(self):
         if self.get_char_count():
-            return gutils.ask_ok_cancel("Buffer contents will be destroyed. Continue?")
+            return dialogue.ask_ok_cancel("Buffer contents will be destroyed. Continue?")
         return True
     def load_summary(self, file_name=None, already_checked=False):
         if not already_checked and not self._ok_to_overwrite_summary():
@@ -163,23 +163,23 @@ class ChangeSummaryBuffer(SummaryBuffer):
             self._save_file_name = file_name
             self.set_modified(False)
         except:
-            gutils.inform_user("Load from file failed!")
+            dialogue.inform_user("Load from file failed!")
     def _load_summary_acb(self, action=None):
         self.load_summary()
     def load_summary_from(self, action=None):
         if not self._ok_to_overwrite_summary():
             return
-        fn = gutils.ask_file_name("Enter file name", existing=True)
+        fn = dialogue.ask_file_name("Enter file name", existing=True)
         self.load_summary(file_name=fn, already_checked=True)
     def insert_summary_from(self, action=None):
-        file_name = gutils.ask_file_name("Enter file name", existing=True)
+        file_name = dialogue.ask_file_name("Enter file name", existing=True)
         try:
             save_file = open(file_name, 'r')
             self.insert_at_cursor(save_file.read())
             save_file.close()
             self.set_modified(True)
         except:
-            gutils.inform_user("Insert at cursor from file failed!")
+            dialogue.inform_user("Insert at cursor from file failed!")
     def get_auto_save(self):
         return self.save_toggle_action.get_active()
     def set_auto_save(self, active=True):
@@ -242,14 +242,14 @@ class NewPatchSummaryBuffer(SummaryBuffer):
                  "Insert contents of a file at cursor position", self._insert_summary_from_acb),
             ])
     def _insert_summary_from_acb(self, action=None):
-        file_name = gutils.ask_file_name("Enter file name", existing=True)
+        file_name = dialogue.ask_file_name("Enter file name", existing=True)
         try:
             save_file = open(file_name, 'r')
             self.insert_at_cursor(save_file.read())
             save_file.close()
             self.set_modified(True)
         except:
-            gutils.inform_user("Insert at cursor from file failed!")
+            dialogue.inform_user("Insert at cursor from file failed!")
 
 class PatchSummaryBuffer(NewPatchSummaryBuffer):
     def __init__(self, get_summary, set_summary, patch=None, table=None):
@@ -270,17 +270,17 @@ class PatchSummaryBuffer(NewPatchSummaryBuffer):
         text = self.get_text(self.get_start_iter(), self.get_end_iter())
         res, sout, serr = self._set_summary(self.patch, text)
         if res:
-            gutils.inform_user(os.linesep.join([sout, serr]))
+            dialogue.inform_user(os.linesep.join([sout, serr]))
         else:
             self.set_modified(False)
     def _ok_to_overwrite_summary(self):
         if self.get_char_count() and self.get_modified():
-            return gutils.ask_ok_cancel("Buffer contents will be destroyed. Continue?")
+            return dialogue.ask_ok_cancel("Buffer contents will be destroyed. Continue?")
         return True
     def load_summary(self):
         res, text, serr = self._get_summary(self.patch)
         if res:
-            gutils.inform_user(os.linesep.join([text, serr]))
+            dialogue.inform_user(os.linesep.join([text, serr]))
         else:
             self.set_text(text)
             self.set_modified(False)

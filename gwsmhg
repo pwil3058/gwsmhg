@@ -14,8 +14,7 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import sys, os, getopt, gtk
-from gwsmhg_pkg import gwsm, hg_mq_ifce
+import sys, os, getopt
 
 # read required directory from the command line
 
@@ -33,14 +32,24 @@ if len(arg_list) > 1:
     usage()
     sys.exit(1)
 
+dir_specified = False
+
 if len(arg_list) == 1:
     try:
         os.chdir(sys.argv[1])
+        dir_specified = True
     except OSError, msg:
         sys.stderr.write(str(msg) + os.linesep)
         sys.exit(2)
 
-app = gwsm.gwsm(hg_mq_ifce)
+from gwsmhg_pkg import ifce, hg_mq_ifce
+
+ifce.init(hg_mq_ifce)
+
+import gtk
+from gwsmhg_pkg import gwsm
+
+app = gwsm.gwsm(dir_specified)
 app.show()
 gtk.main()
 

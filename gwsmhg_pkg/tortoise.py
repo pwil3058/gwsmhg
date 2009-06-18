@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import gtk
-from gwsmhg_pkg import utils, cmd_result, icons, const, ws_event
+from gwsmhg_pkg import utils, dialogue, icons, const, ws_event
 
 TORTOISE_HGTK_UI = \
 '''
@@ -48,8 +48,6 @@ tool_list = ['rename', 'clone', 'commit', 'datamine', 'guess', 'init',
 
 is_available = utils.which('hgtk') is not None
 
-_problem_reporter = cmd_result.ProblemReporter()
-
 def action_tool_name(action):
     dummy, name = action.get_name().split('_')
     return name
@@ -72,14 +70,14 @@ def _tortoise_tool_modal_acb(action):
     name = action_tool_name(action)
     cmd = 'hgtk %s' % name
     result = utils.run_cmd(cmd)
-    _problem_reporter._report_any_problems(result)
+    dialogue.report_any_problems(result)
     _notify_event_by_name(name)
 
 def _tortoise_tool_bgnd_acb(action):
     name = action_tool_name(action)
     cmd = 'hgtk %s' % name
     if not utils.run_cmd_in_bgnd(cmd):
-        _problem_reporter._report_any_problems((cmd_result.ERROR, '"%s" failed' % cmd, ''))
+        dialogue.report_any_problems((cmd_result.ERROR, '"%s" failed' % cmd, ''))
 
 main_group_actions = {}
 
@@ -175,6 +173,6 @@ def run_tool_for_files(action, file_list):
     name = action_tool_name(action)
     cmd = 'hgtk %s %s' % (name, " ".join(file_list))
     result = utils.run_cmd(cmd)
-    _problem_reporter._report_any_problems(result)
+    dialogue.report_any_problems(result)
     _notify_event_by_name(name)
 

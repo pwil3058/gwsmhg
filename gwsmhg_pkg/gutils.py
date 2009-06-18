@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import gtk, os.path, gobject
-from gwsmhg_pkg import ifce, cmd_result
+from gwsmhg_pkg import cmd_result, dialogue
 
 def wrap_in_scrolled_window(widget, policy=(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC), with_frame=True, label=None):
     scrw = gtk.ScrolledWindow()
@@ -28,203 +28,6 @@ def wrap_in_scrolled_window(widget, policy=(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUT
     else:
         scrw.show_all()
         return scrw
-
-def ask_file_name(prompt, suggestion=None, existing=True, parent=None):
-    if existing:
-        mode = gtk.FILE_CHOOSER_ACTION_OPEN
-        if suggestion and not os.path.exists(suggestion):
-            suggestion = None
-    else:
-        mode = gtk.FILE_CHOOSER_ACTION_SAVE
-    dialog = gtk.FileChooserDialog(prompt, parent, mode,
-                                   (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                                   gtk.STOCK_OK, gtk.RESPONSE_OK))
-    dialog.set_default_response(gtk.RESPONSE_OK)
-    if parent:
-        dialog.set_position(gtk.WIN_POS_CENTER_ON_PARENT)
-    else:
-        dialog.set_position(gtk.WIN_POS_MOUSE)
-    if suggestion:
-        if os.path.isdir(suggestion):
-            dialog.set_current_folder(suggestion)
-        else:
-            dirname, basename = os.path.split(suggestion)
-            if dirname:
-                dialog.set_current_folder(dirname)
-            if basename:
-                dialog.set_current_name(basename)
-    response = dialog.run()
-    if response == gtk.RESPONSE_OK:
-        new_file_name = dialog.get_filename()
-    else:
-        new_file_name = None
-    dialog.destroy()
-    return new_file_name
-
-def ask_dir_name(prompt, suggestion=None, existing=True, parent=None):
-    if existing:
-        mode = gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER
-        if suggestion and not os.path.exists(suggestion):
-            suggestion = None
-    else:
-        mode = gtk.FILE_CHOOSER_ACTION_CREATE_FOLDER
-    dialog = gtk.FileChooserDialog(prompt, parent, mode,
-                                   (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                                    gtk.STOCK_OK, gtk.RESPONSE_OK))
-    dialog.set_default_response(gtk.RESPONSE_OK)
-    if suggestion:
-        if os.path.isdir(suggestion):
-            dialog.set_current_folder(suggestion)
-        else:
-            dirname = os.path.dirname(suggestion)
-            if dirname:
-                dialog.set_current_folder(dirname)
-    response = dialog.run()
-    if response == gtk.RESPONSE_OK:
-        new_dir_name = dialog.get_filename()
-    else:
-        new_dir_name = None
-    dialog.destroy()
-    return new_dir_name
-
-class QuestionDialog(gtk.Dialog):
-    def __init__(self, title=None, parent=None, flags=0, buttons=None, question=""):
-        try:
-            gtk.Dialog.__init__(self, title, parent, flags, buttons)
-        except:
-            parent=None
-            gtk.Dialog.__init__(self, title, parent, flags, buttons)
-        if parent is None:
-            self.set_position(gtk.WIN_POS_MOUSE)
-        else:
-            self.set_position(gtk.WIN_POS_CENTER_ON_PARENT)
-        hbox = gtk.HBox()
-        self.vbox.add(hbox)
-        hbox.show()
-        self.image = gtk.Image()
-        self.image.set_from_stock(gtk.STOCK_DIALOG_QUESTION, gtk.ICON_SIZE_DIALOG)
-        hbox.pack_start(self.image, expand=False)
-        self.image.show()
-        self.tv = gtk.TextView()
-        self.tv.set_cursor_visible(False)
-        self.tv.set_editable(False)
-        self.tv.set_size_request(320, 80)
-        self.tv.show()
-        self.tv.get_buffer().set_text(question)
-        hbox.add(wrap_in_scrolled_window(self.tv))
-    def set_question(self, question):
-        self.tv.get_buffer().set_text(question)
-
-def ask_question(question, parent=None,
-                 buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                          gtk.STOCK_OK, gtk.RESPONSE_OK)):
-    dialog = QuestionDialog(parent=parent,
-                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
-                            buttons=buttons, question=question)
-    response = dialog.run()
-    dialog.destroy()
-    return response
-
-def ask_ok_cancel(question, parent=None):
-    return ask_question(question, parent) == gtk.RESPONSE_OK
-
-def ask_yes_no(question, parent=None):
-    buttons = (gtk.STOCK_NO, gtk.RESPONSE_NO, gtk.STOCK_YES, gtk.RESPONSE_YES)
-    return ask_question(question, parent, buttons) == gtk.RESPONSE_YES
-
-FORCE = 1
-REFRESH = 2
-RECOVER = 3
-EDIT = 4
-SKIP = 5
-SKIP_ALL = 6
-DISCARD = 7
-MERGE = 8
-
-def ask_force_refresh_or_cancel(question, flags, parent=None):
-    buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
-    if flags & cmd_result.SUGGEST_REFRESH:
-        buttons += ("_Refresh and Retry", REFRESH)
-    if flags & cmd_result.SUGGEST_FORCE:
-        buttons += ("_Force", FORCE)
-    return ask_question(question, parent, buttons)
-
-def ask_force_or_cancel(question, parent=None):
-    buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, "_Force", FORCE)
-    return ask_question(question, parent, buttons)
-
-def ask_merge_discard_or_cancel(question, flags, parent=None):
-    buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
-    if flags & cmd_result.SUGGEST_MERGE:
-        buttons += ("_Merge", MERGE)
-    if flags & cmd_result.SUGGEST_DISCARD:
-        buttons += ("_Discard Changes", DISCARD)
-    return ask_question(question, parent, buttons)
-
-def ask_recover_or_cancel(question, parent=None):
-    buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, "_Recover", RECOVER)
-    return ask_question(question, parent, buttons)
-
-def ask_edit_force_or_cancel(question, parent=None):
-    buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, "_Edit", EDIT, "_Force", FORCE)
-    return ask_question(question, parent, buttons)
-
-def ask_rename_force_or_cancel(question, parent=None):
-    buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, "_Rename", EDIT, "_Force", FORCE)
-    return ask_question(question, parent, buttons)
-
-def ask_rename_force_or_skip(question, parent=None):
-    buttons = ("_Rename", EDIT, "_Force", FORCE, "_Skip", SKIP, "Skip _All", SKIP_ALL)
-    return ask_question(question, parent, buttons)
-
-def inform_user(msg, parent=None, problem_type=gtk.MESSAGE_ERROR):
-    dialog = gtk.MessageDialog(parent=parent,
-                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
-                            type=problem_type, buttons=gtk.BUTTONS_CLOSE,
-                            message_format=msg)
-    if parent:
-        dialog.set_position(gtk.WIN_POS_CENTER_ON_PARENT)
-    else:
-        dialog.set_position(gtk.WIN_POS_MOUSE)
-    response = dialog.run()
-    dialog.destroy()
-
-class CancelOKDialog(gtk.Dialog, ifce.BusyIndicator):
-    def __init__(self, title=None, parent=None):
-        flags = gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT
-        buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK)
-        try:
-            gtk.Dialog.__init__(self, title, parent, flags, buttons)
-        except:
-            parent=None
-            gtk.Dialog.__init__(self, title, parent, flags, buttons)
-        if parent is None:
-            self.set_position(gtk.WIN_POS_MOUSE)
-        else:
-            self.set_position(gtk.WIN_POS_CENTER_ON_PARENT)
-        ifce.BusyIndicator.__init__(self)
-
-class ReadTextDialog(CancelOKDialog):
-    def __init__(self, title=None, prompt=None, suggestion="", parent=None):
-        CancelOKDialog.__init__(self, title, parent) 
-        self.hbox = gtk.HBox()
-        self.vbox.add(self.hbox)
-        self.hbox.show()
-        if prompt:
-            self.hbox.pack_start(gtk.Label(prompt), fill=False, expand=False)
-        self.entry = gtk.Entry()
-        self.entry.set_width_chars(32)
-        self.entry.set_text(suggestion)
-        self.hbox.pack_start(self.entry)
-        self.show_all()
-
-class ReadTextAndToggleDialog(ReadTextDialog):
-    def __init__(self, title=None, prompt=None, suggestion="", toggle_prompt=None, toggle_state=False, parent=None):
-        ReadTextDialog.__init__(self, title=title, prompt=prompt, suggestion=suggestion, parent=parent)
-        self.toggle = gtk.CheckButton(label=toggle_prompt)
-        self.toggle.set_active(toggle_state)
-        self.hbox.pack_start(self.toggle)
-        self.show_all()
 
 class RadioButtonFramedVBox(gtk.Frame):
     def __init__(self, title, labels):
@@ -243,13 +46,6 @@ class RadioButtonFramedVBox(gtk.Frame):
             if self.buttons[index].get_active():
                 return index
         return None
-
-def get_modified_string(title, prompt, string):
-    dialog = ReadTextDialog(title, prompt, string)
-    if dialog.run() == gtk.RESPONSE_OK:
-        string = dialog.entry.get_text()
-    dialog.destroy()
-    return string
 
 class PopupUser:
     def __init__(self):
@@ -562,13 +358,13 @@ BASIC_TABLE_UI_DESCR = \
 
 ALWAYS_ON = "always_on"
 
-class MapManagedTableView(TableView, MappedManager, ifce.BusyIndicatorUser):
+class MapManagedTableView(TableView, MappedManager, dialogue.BusyIndicatorUser):
     def __init__(self, descr, busy_indicator, sel_mode=gtk.SELECTION_SINGLE,
                  perm_headers=False, bgnd=["white", "#F0F0F0"]):
         TableView.__init__(self, descr=descr, sel_mode=sel_mode,
             perm_headers=perm_headers, bgnd=bgnd, popup="/table_popup")
         MappedManager.__init__(self)
-        ifce.BusyIndicatorUser.__init__(self, busy_indicator)
+        dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
         self._needs_refresh = True
         self.set_headers_visible(perm_headers)
         self._ui_manager = gtk.UIManager()

@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import gtk, gobject, os
-from gwsmhg_pkg import gutils, cmd_result, change_set, icons, file_tree, diff, \
+from gwsmhg_pkg import dialogue, gutils, cmd_result, change_set, icons, file_tree, diff, \
     ws_event, ifce
 
 PATH_TABLE_PRECIS_DESCR = \
@@ -42,9 +42,8 @@ PATH_TABLE_UI_DESCR = \
 </ui>
 '''
 
-class PathTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
+class PathTableView(gutils.MapManagedTableView):
     def __init__(self, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None):
-        cmd_result.ProblemReporter.__init__(self)
         gutils.MapManagedTableView.__init__(self, descr=PATH_TABLE_PRECIS_DESCR,
             sel_mode=sel_mode, busy_indicator=busy_indicator)
         for condition in [change_set.UNIQUE_SELECTION, change_set.UNIQUE_SELECTION_NOT_PMIC]:
@@ -111,13 +110,13 @@ class PathTableView(gutils.MapManagedTableView, cmd_result.ProblemReporter):
         self.show_busy()
         result = ifce.SCM.do_pull_from(source=path)
         self.unshow_busy()
-        self._report_any_problems(result)
+        dialogue.report_any_problems(result)
     def _push_to_acb(self, action):
         path = self.get_selected_path()
         self.show_busy()
         result = ifce.SCM.do_push_to(path=path)
         self.unshow_busy()
-        self._report_any_problems(result)
+        dialogue.report_any_problems(result)
 
 
 class PathCSTableView(change_set.ChangeSetTableView):
@@ -195,7 +194,7 @@ class IncomingFileTreeView(file_tree.FileTreeView):
         self.scm_change_merge_id = self._ui_manager.add_ui_from_string(INCOMING_CS_FILES_UI_DESCR)
         self.expand_all()
     def _diff_all_files_acb(self, action=None):
-        parent = ifce.main_window
+        parent = dialogue.main_window
         self.show_busy()
         dialog = diff.IncomingDiffTextDialog(parent=parent,
                                      rev=self._rev, path=self._path, modal=False)
@@ -289,18 +288,14 @@ class OutgoingTableView(PathCSTableView):
         self._refresh_contents()
         self.unshow_busy()
 
-class PathCSDialog(gtk.Dialog, ifce.BusyIndicator):
+class PathCSDialog(dialogue.Dialog):
     def __init__(self, get_data, title, path=None, table=PathCSTableView, parent=None):
         self._path = path
-        gtk.Dialog.__init__(self, title="gwsmg: %s: %s" % (title, path), parent=parent,
-                            flags=gtk.DIALOG_DESTROY_WITH_PARENT,
-                            buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
-                           )
-        ifce.BusyIndicator.__init__(self)
-        if not parent:
-            self.set_icon_from_file(icons.app_icon_file)
-        self._view = table(get_data=get_data, path=path,
-            busy_indicator=self)
+        dialogue.Dialog.__init__(self, title="gwsmg: %s: %s" % (title, path), parent=parent,
+                                 flags=gtk.DIALOG_DESTROY_WITH_PARENT,
+                                 buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
+                                )
+        self._view = table(get_data=get_data, path=path, busy_indicator=self)
         self.vbox.pack_start(gutils.wrap_in_scrolled_window(self._view))
         self.show_all()
         self._view.get_selection().unselect_all()
@@ -322,9 +317,8 @@ class OutgoingCSDialog(PathCSDialog):
     def get_data(self):
         return ifce.SCM.get_outgoing_table_data(self._path)
 
-class PathSelectTableView(gutils.TableView, cmd_result.ProblemReporter):
+class PathSelectTableView(gutils.TableView):
     def __init__(self):
-        cmd_result.ProblemReporter.__init__(self)
         gutils.TableView.__init__(self, descr=PATH_TABLE_PRECIS_DESCR, sel_mode=gtk.SELECTION_SINGLE)
         self.populate()
         self.show_all()
@@ -347,16 +341,13 @@ class PathSelectTableView(gutils.TableView, cmd_result.ProblemReporter):
         else:
             return ""
 
-class PullDialog(gtk.Dialog, ifce.BusyIndicator):
+class PullDialog(dialogue.Dialog):
     def __init__(self, parent=None):
-        ifce.BusyIndicator.__init__(self)
-        gtk.Dialog.__init__(self, title="gwsmg: Pull From (Up To)", parent=parent,
-                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
-                            buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                                    gtk.STOCK_OK, gtk.RESPONSE_OK)
-                           )
-        if not parent:
-            self.set_icon_from_file(icons.app_icon_file)
+        dialogue.Dialog.__init__(self, title="gwsmg: Pull From (Up To)", parent=parent,
+                                 flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
+                                 buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                          gtk.STOCK_OK, gtk.RESPONSE_OK)
+                                )
         hbox = gtk.HBox()
         self.path_view = PathSelectTableView()
         self.path_view.get_selection().connect("changed", self._selection_cb)
@@ -405,7 +396,7 @@ class PullDialog(gtk.Dialog, ifce.BusyIndicator):
     def _revision_cb(self, entry=None):
         self.response(gtk.RESPONSE_OK)
     def _browse_path_cb(self, button=None):
-        dirname = gutils.ask_dir_name("gwsmhg: Browse for Path", existing=True, parent=self)
+        dirname = dialogue.ask_dir_name("gwsmhg: Browse for Path", existing=True, parent=self)
         if dirname:
             self._path.set_text(dirname)
     def _get_incoming_data(self):

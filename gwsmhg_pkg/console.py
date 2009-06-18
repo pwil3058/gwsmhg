@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import os, gtk, gwsmhg_pkg.sourceview, pango, time
-from gwsmhg_pkg import ifce, utils, cmd_result, gutils, ws_event
+from gwsmhg_pkg import dialogue, utils, cmd_result, gutils, ws_event
 
 class DummyConsoleLog:
     def start_cmd(self, cmd):
@@ -96,11 +96,10 @@ CONSOLE_LOG_UI_DESCR = \
 </ui>
 '''
 
-class ConsoleLog(gtk.VBox, cmd_result.ProblemReporter, ifce.BusyIndicatorUser):
+class ConsoleLog(gtk.VBox, dialogue.BusyIndicatorUser):
     def __init__(self, busy_indicator=None, table=None):
         gtk.VBox.__init__(self)
-        cmd_result.ProblemReporter.__init__(self)
-        ifce.BusyIndicatorUser.__init__(self, busy_indicator)
+        dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
         self._buffer = ConsoleLogBuffer()
         self._view = ConsoleLogView(buffer=self._buffer)
         self._action_group = gtk.ActionGroup("console_log")
@@ -160,6 +159,6 @@ class ConsoleLog(gtk.VBox, cmd_result.ProblemReporter, ifce.BusyIndicatorUser):
         else:
             result = (cmd_result.OK, "", "")
         self.unshow_busy()
-        self._report_any_problems(result)
+        dialogue.report_any_problems(result)
         ws_event.notify_events(-1)
 

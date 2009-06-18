@@ -13,9 +13,6 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import gtk
-from gwsmhg_pkg import ifce
-
 '''
 External command return values
 '''
@@ -28,7 +25,9 @@ SUGGEST_REFRESH = 8
 SUGGEST_RECOVER = 16
 SUGGEST_RENAME = 32
 SUGGEST_DISCARD = 64
-SUGGEST_MERGE = 128
+SUGGEST_EDIT = 128
+SUGGEST_MERGE = 256
+SUGGEST_ALL = (SUGGEST_MERGE * 2) - 1 - WARNING|ERROR
 SUGGEST_FORCE_OR_REFRESH = SUGGEST_FORCE | SUGGEST_REFRESH
 WARNING_SUGGEST_FORCE = WARNING | SUGGEST_FORCE
 ERROR_SUGGEST_FORCE = ERROR | SUGGEST_FORCE
@@ -68,26 +67,4 @@ def map_cmd_result(result, ignore_err_re=None):
     else:
         outres = ERROR
     return (outres, result[1], result[2])
-
-class ProblemReporter:
-    def __init__(self):
-        pass
-    def _report_problem(self, msg, problem_type=gtk.MESSAGE_ERROR, parent=None):
-        if not parent:
-            parent = ifce.main_window
-        dialog = gtk.MessageDialog(parent=parent,
-                                   flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
-                                   type=problem_type, buttons=gtk.BUTTONS_CLOSE,
-                                   message_format=msg)
-        response = dialog.run()
-        dialog.destroy()
-    def _report_error(self, msg):
-        self._report_problem(msg)
-    def _report_warning(self, msg):
-        self._report_problem(msg, gtk.MESSAGE_WARNING)
-    def _report_any_problems(self, result):
-        if result[0] & ERROR:
-            self._report_error(result[1] + result[2])
-        elif result[0] & WARNING:
-            self._report_warning(result[1] + result[2])
 

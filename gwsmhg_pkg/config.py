@@ -16,7 +16,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import os, gobject, gtk, urlparse, fnmatch, os.path
-from gwsmhg_pkg import ifce, gutils, utils, icons, table
+from gwsmhg_pkg import dialogue, gutils, utils, icons, table
 
 REPO_TABLE_DESCR = \
 [
@@ -130,15 +130,13 @@ class WSPathView(AliasPathView):
     def __init__(self):
         AliasPathView.__init__(self, SAVED_WS_FILE_NAME)
 
-class PathSelectDialog(gtk.Dialog, ifce.BusyIndicator):
+class PathSelectDialog(dialogue.Dialog):
     def __init__(self, create_view, label, parent=None):
-        gtk.Dialog.__init__(self, title="gwsmg: Select %s" % label, parent=parent,
-                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
-                            buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                                    gtk.STOCK_OK, gtk.RESPONSE_OK)
-                           )
-        if not parent:
-            self.set_icon_from_file(icons.app_icon_file)
+        dialogue.Dialog.__init__(self, title="gwsmg: Select %s" % label, parent=parent,
+                                 flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
+                                 buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                          gtk.STOCK_OK, gtk.RESPONSE_OK)
+                                )
         hbox = gtk.HBox()
         self.ap_view = create_view()
         self.ap_view.get_selection().connect("changed", self._selection_cb)
@@ -167,15 +165,14 @@ class PathSelectDialog(gtk.Dialog, ifce.BusyIndicator):
     def _path_cb(self, entry=None):
         self.response(gtk.RESPONSE_OK)
     def _browse_cb(self, button=None):
-        dirname = gutils.ask_dir_name("gwsmhg: Browse for Directory", existing=True, parent=self)
+        dirname = dialogue.ask_dir_name("gwsmhg: Browse for Directory", existing=True, parent=self)
         if dirname:
             self._path.set_text(utils.path_rel_home(dirname))
     def get_path(self):
         return os.path.expanduser(self._path.get_text())
 
-class WSOpenDialog(PathSelectDialog, ifce.BusyIndicator):
+class WSOpenDialog(PathSelectDialog):
     def __init__(self, parent=None):
-        ifce.BusyIndicator.__init__(self)
         PathSelectDialog.__init__(self, create_view=WSPathView,
             label="Workspace/Directory", parent=parent)
 
@@ -355,18 +352,13 @@ class EditorAllocationTable(table.Table):
         _read_editor_defs()
         self.set_contents()
 
-class EditorAllocationDialog(gtk.Dialog):
+class EditorAllocationDialog(dialogue.Dialog):
     def __init__(self, parent=None):
-        gtk.Dialog.__init__(self, title='gwsmg: Editor Allocation', parent=parent,
-                            flags=gtk.DIALOG_DESTROY_WITH_PARENT,
-                            buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE,
-                                    gtk.STOCK_OK, gtk.RESPONSE_OK)
-                           )
-        if parent:
-            self.set_position(gtk.WIN_POS_CENTER_ON_PARENT)
-        else:
-            self.set_icon_from_file(icons.app_icon_file)
-            self.set_position(gtk.WIN_POS_MOUSE)
+        dialogue.Dialog.__init__(self, title='gwsmg: Editor Allocation', parent=parent,
+                                 flags=gtk.DIALOG_DESTROY_WITH_PARENT,
+                                 buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE,
+                                          gtk.STOCK_OK, gtk.RESPONSE_OK)
+                                )    
         self._table = EditorAllocationTable()
         self._buttons = gutils.ActionHButtonBox(self._table.action_groups.values())
         self.vbox.pack_start(self._table)
