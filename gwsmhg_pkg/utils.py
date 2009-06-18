@@ -15,7 +15,7 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import subprocess, os, signal, errno, gtk, select, urlparse, gobject
+import subprocess, os, signal, errno, gtk, select, urlparse, gobject, os.path
 
 HOME = os.path.expanduser("~")
 
@@ -27,6 +27,13 @@ def path_rel_home(path):
     if len(path) >= len_home and HOME == path[:len_home]:
         path = "~" + path[len_home:]
     return path
+
+# handle the fact os.path.samefile is not available on all operating systems
+def samefile(filename1, filename2):
+    try:
+        return os.path.samefile(filename1, filename2)
+    except:
+        return os.path.abspath(filename1) == os.path.abspath(filename2)
 
 def run_cmd(cmd):
     if not cmd:
@@ -50,6 +57,8 @@ def run_cmd(cmd):
     return [ sub.returncode, outd, errd ]
 
 def run_cmd_in_console(cmd, console):
+    if os.name == 'nt' or os.name == 'dos':
+        return run_cmd_in_console_nt(cmd, console)
     if not cmd:
         return [ 0, None, None ]
     try:
@@ -121,4 +130,13 @@ def which(cmd):
         if os.path.isfile(potential_path) and os.access(potential_path, os.X_OK):
             return potential_path
     return None
+
+if os.name == 'nt' or os.name == 'dos':
+    def run_cmd_in_console_nt(cmd, console):
+        console.start_cmd(cmd)
+        res, sout, serr = run_cmd(cmd)
+        console.append_stdout(sout)
+        console.append_stderr(serr)
+        console.end_cmd()
+        return (res, sout, serr)
 

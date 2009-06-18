@@ -249,7 +249,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator):
                     open_dialog.ap_view.add_ap(rootdir)
                     wspath = rootdir
                 open_dialog.destroy()
-                if not os.path.samefile(old_wspath, os.path.expanduser(wspath)):
+                if not utils.samefile(old_wspath, os.path.expanduser(wspath)):
                     self._reset_after_cd()
         else:
             open_dialog.destroy()

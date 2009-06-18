@@ -94,7 +94,7 @@ class AliasPathView(gutils.TableView):
             file.write(os.linesep)
         file.close()
     def _same_paths(self, path1, path2):
-        return os.path.samefile(os.path.expanduser(path1), path2)
+        return utils.samefile(os.path.expanduser(path1), path2)
     def _default_alias(self, path):
         return os.path.basename(path)
     def _abbrev_path(self, path):
@@ -243,6 +243,8 @@ class RepoSelectDialog(PathSelectDialog):
 EDITORS_THAT_NEED_A_TERMINAL = ["vi", "joe"]
 DEFAULT_EDITOR = "gedit"
 DEFAULT_TERMINAL = "gnome-terminal"
+if os.name == 'nt' or os.name == 'dos':
+    DEFAULT_EDITOR = "notepad"
 
 for env in ['VISUAL', 'EDITOR']:
     try:

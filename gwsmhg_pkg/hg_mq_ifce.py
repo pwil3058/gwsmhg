@@ -44,7 +44,7 @@ class BaseInterface:
     def get_extensions(self):
         res, sout, serr = utils.run_cmd("hg showconfig extensions")
         extens = []
-        for line in sout.splitlines(False):
+        for line in sout.splitlines():
             preeq, posteq = line.split('=')
             extens.append(preeq.split('.')[-1])
         return extens
@@ -130,9 +130,9 @@ class BaseInterface:
             try:
                 os.remove(filename)
                 if ifce.log:
-                    ifce.log.append_stdout(("Deleted: %s" + os.linesep) % filename)
+                    ifce.log.append_stdout(('Deleted: %s\n') % filename)
             except os.error, value:
-                errmsg = ("%s: %s" + os.linesep) % (value[1], filename)
+                errmsg = ('%s: %s\n') % (value[1], filename)
                 serr += errmsg
                 if ifce.log:
                     ifce.log.append_stderr(errmsg)
@@ -176,8 +176,8 @@ class SCMInterface(BaseInterface):
                 '{desc}',
                 '',
             ]
-        self.cs_summary_template = os.linesep.join(self.cs_summary_template_lines)
-        self.cs_table_template = '{rev}:{date|age}:{tags}:{branches}:{author|person}:{desc|firstline}' + os.linesep
+        self.cs_summary_template = '\\n'.join(self.cs_summary_template_lines)
+        self.cs_table_template = '{rev}:{date|age}:{tags}:{branches}:{author|person}:{desc|firstline}\\n'
     def _map_cmd_result(self, result, ignore_err_re=None):
         if not result[0]:
             if self._inotify_warning(result[1]):
@@ -226,7 +226,7 @@ class SCMInterface(BaseInterface):
             return rev
         return None
     def get_parents(self, rev=None):
-        cmd = os.linesep.join(['hg parents --template "{rev}', '"'])
+        cmd = 'hg parents --template "{rev}\\n"'
         if not rev:
             qbase = self._get_qbase()
             if qbase:
@@ -238,7 +238,7 @@ class SCMInterface(BaseInterface):
             revs = [sout]
         else:
             revs = []
-            for line in sout.splitlines(False):
+            for line in sout.splitlines():
                 revs.append(line)
         return (res, revs, serr)
     def _get_qbase_parents(self):
@@ -285,7 +285,7 @@ class SCMInterface(BaseInterface):
     def _css_line_index(self, tempfrag):
         return self.cs_summary_template_lines.index(tempfrag)
     def _process_change_set_summary(self, res, sout, serr):
-        lines = sout.splitlines(False)
+        lines = sout.splitlines()
         summary = {}
         summary['PRECIS'] = lines[self._css_line_index('{desc|firstline}')]
         summary['REV'] = lines[self._css_line_index('{rev}')]
@@ -296,7 +296,7 @@ class SCMInterface(BaseInterface):
         summary['EMAIL'] = lines[self._css_line_index('{author|email}')]
         summary['TAGS'] = lines[self._css_line_index('{tags}')]
         summary['BRANCHES'] = lines[self._css_line_index('{branches}')]
-        summary['DESCR'] = os.linesep.join(lines[self._css_line_index('{desc}'):])
+        summary['DESCR'] = '\n'.join(lines[self._css_line_index('{desc}'):])
         return (res, summary, serr)
     def get_change_set_summary(self, rev):
         res, sout, serr = utils.run_cmd('hg log --template "%s" --rev %s' % (self.cs_summary_template, rev))
@@ -305,11 +305,11 @@ class SCMInterface(BaseInterface):
         return self._process_change_set_summary(res, sout, serr)
     def get_change_set_files(self, rev):
         res, parents, serr = self.get_parents(rev)
-        template = os.linesep.join(['{files}', '{file_adds}', '{file_dels}', ''])
+        template = '{files}\\n{file_adds}\\n{file_dels}\\n'
         res, sout, serr = utils.run_cmd('hg log --template "%s" --rev %s' % (template, rev))
         if res:
             return (res, sout, serr)
-        lines = sout.splitlines(False)
+        lines = sout.splitlines()
         file_names = lines[0].split()
         added_files = lines[1].split()
         deleted_files = lines[2].split()
@@ -320,7 +320,7 @@ class SCMInterface(BaseInterface):
                 for parent in parents:
                     cmd = "hg status -aC --rev %s --rev %s %s" % (parent, rev, name)
                     res, sout, serr = utils.run_cmd(cmd)
-                    lines = sout.splitlines(False)
+                    lines = sout.splitlines()
                     if len(lines) > 1 and lines[1][0] == " ":
                         extra_info = lines[1].strip()
                         break
@@ -351,7 +351,7 @@ class SCMInterface(BaseInterface):
         path_re = re.compile("^(\S*)\s+=\s+(\S*)\s*$")
         res, sout, serr = utils.run_cmd("hg paths")
         paths = []
-        for line in sout.splitlines(False):
+        for line in sout.splitlines():
             match = path_re.match(line)
             if match:
                 paths.append([match.group(1), match.group(2)])
@@ -403,14 +403,14 @@ class SCMInterface(BaseInterface):
             return (res, sout, serr)
         return self._process_change_set_summary(res, sout, serr)
     def get_incoming_change_set_files(self, rev, path=None):
-        template = os.linesep.join(['{files}', '{file_adds}', '{file_dels}', ''])
+        template = '{files}\\n{file_adds}\\n{file_dels}\\n'
         cmd = 'hg -q incoming --template "%s" -nl 1 --rev %s' % (template, rev)
         if path:
             cmd += ' %s' % path
         res, sout, serr = utils.run_cmd(cmd)
         if res:
             return (res, sout, serr)
-        lines = sout.splitlines(False)
+        lines = sout.splitlines()
         file_names = lines[0].split()
         added_files = lines[1].split()
         deleted_files = lines[2].split()
@@ -469,12 +469,12 @@ class SCMInterface(BaseInterface):
         res, sout, serr = utils.run_cmd(cmd)
         if res:
             return (res, sout, serr)
-        lines = sout.splitlines(False)
+        lines = sout.splitlines()
         diffstat_si, patch_data = putils.trisect_patch_lines(lines)
         if not patch_data:
             return (res, "", err)
         else:
-            patch = os.linesep.join(lines[patch_data[0]:])
+            patch = '\n'.join(lines[patch_data[0]:])
             return (res, patch, serr)
     def get_heads_data(self):
         if not self.is_repository(): return (cmd_result.OK, [], "")
@@ -509,9 +509,10 @@ class SCMInterface(BaseInterface):
             return (res, sout, serr)
         de = re.compile("^(\S+)\s*(\d+):(\S+)\s*(\S*)")
         tag_list = []
-        cmd = 'hg log --template "{rev}:{branches}:{date|age}:{author|person}:{desc|firstline}\n"'
+        template = '{rev}:{branches}:{date|age}:{author|person}:{desc|firstline}\\n'
+        cmd = 'hg log --template "%s"' % template
         lastrev = None
-        for line in sout.splitlines(False):
+        for line in sout.splitlines():
             dat = de.match(line)
             if dat:
                 rev = dat.group(2)
@@ -522,7 +523,7 @@ class SCMInterface(BaseInterface):
         res, sout, serr = utils.run_cmd(cmd)
         index = 0
         ntags = len(tag_list)
-        for line in sout.splitlines(False):
+        for line in sout.splitlines():
             fields = line.split(":", 4)
             rev = int(fields[0])
             addon = fields[1:]
@@ -536,7 +537,7 @@ class SCMInterface(BaseInterface):
             return (res, sout, serr)
         de = re.compile("^(\S+)\s*\d+:")
         tag_list = []
-        for line in sout.splitlines(False):
+        for line in sout.splitlines():
             dat = de.match(line)
             if dat:
                 tag_list.append([dat.group(1)])
@@ -548,7 +549,7 @@ class SCMInterface(BaseInterface):
             return (res, sout, serr)
         de = re.compile("^(\S+)\s*(\d+):")
         branch_list = []
-        for line in sout.splitlines(False):
+        for line in sout.splitlines():
             dat = de.match(line)
             branch_list.append([dat.group(1), int(dat.group(2))])
         cmd = 'hg log --template "{tags}:{date|age}:{author|person}:{desc|firstline}" --rev '
@@ -562,7 +563,7 @@ class SCMInterface(BaseInterface):
             return (res, sout, serr)
         de = re.compile("^(\S+)\s*\d+:")
         tag_list = []
-        for line in sout.splitlines(False):
+        for line in sout.splitlines():
             dat = de.match(line)
             tag_list.append([dat.group(1)])
         return (res, tag_list, serr)
@@ -581,7 +582,7 @@ class SCMInterface(BaseInterface):
         if file_list:
             cmd += " %s" % " -I ".join(file_list)
         res, sout, serr = self._run_cmd_on_console(cmd)
-        ws_event.notify_events(ws_event.REPO_MOD|ws_event.CHECKOUT, sout.splitlines(False)[:-1])
+        ws_event.notify_events(ws_event.REPO_MOD|ws_event.CHECKOUT, sout.splitlines()[:-1])
         return (res, sout, serr)
     def do_remove_files(self, file_list, force=False):
         if force:
@@ -708,7 +709,7 @@ class SCMInterface(BaseInterface):
             return (res, sout, serr)
         de = re.compile('^([^]]*)\[(\S+)\]\s*(.*)')
         branch_list = []
-        for line in sout.splitlines(False):
+        for line in sout.splitlines():
             dat = de.match(line)
             if dat:
                 branch_list.append([dat.group(2), dat.group(3), dat.group(1).find('@') >= 0])
@@ -723,7 +724,7 @@ class SCMInterface(BaseInterface):
         else:
             res, sout, serr = utils.run_cmd('hg pmessage')
         descr_lines = sout.splitlines()[1:]
-        return (res, os.linesep.join(descr_lines), serr)
+        return (res, '\n'.join(descr_lines), serr)
     def get_pdiff_for_files(self, file_list=[], pbranch=None):
         cmd = 'hg pdiff'
         if pbranch:
@@ -913,14 +914,14 @@ class PMInterface(BaseInterface):
         res, op, err = utils.run_cmd("hg qapplied")
         if res != 0:
                 return []
-        return op.splitlines(False)
+        return op.splitlines()
     def get_unapplied_patches(self):
         if not self.get_enabled():
             return []
         res, op, err = utils.run_cmd("hg qunapplied")
         if res != 0:
                 return []
-        return op.splitlines(False)
+        return op.splitlines()
     def get_patch_is_applied(self, patch):
         return patch in self.get_applied_patches()
     def get_top_patch(self):
@@ -934,7 +935,7 @@ class PMInterface(BaseInterface):
         if res or not sout:
             return None
         else:
-            return sout.splitlines(False)[0]
+            return sout.splitlines()[0]
     def get_next_patch(self):
         res, sout, serr = utils.run_cmd("hg qnext")
         if res or not sout:
@@ -1024,7 +1025,7 @@ class PMInterface(BaseInterface):
     def get_patch_description(self, patch):
         pfn = self.get_patch_file_name(patch)
         res, descr_lines = putils.get_patch_descr_lines(pfn)
-        descr = os.linesep.join(descr_lines) + os.linesep
+        descr = '\n'.join(descr_lines) + '\n'
         if res:
             return (cmd_result.OK, descr, "")
         else:
@@ -1032,7 +1033,7 @@ class PMInterface(BaseInterface):
     def do_set_patch_description(self, patch, descr):
         pfn = self.get_patch_file_name(patch)
         ifce.log.start_cmd("set description for: %s" %patch)
-        res = putils.set_patch_descr_lines(pfn, descr.splitlines(False))
+        res = putils.set_patch_descr_lines(pfn, descr.splitlines())
         if res:
             ifce.log.append_stdout(descr)
             res = cmd_result.OK
@@ -1046,7 +1047,7 @@ class PMInterface(BaseInterface):
     def get_description_is_finish_ready(self, patch):
         pfn = self.get_patch_file_name(patch)
         res, pf_descr_lines = putils.get_patch_descr_lines(pfn)
-        pf_descr = os.linesep.join(pf_descr_lines).strip()
+        pf_descr = '\n'.join(pf_descr_lines).strip()
         if not pf_descr:
             return False
         res, rep_descr, sout = utils.run_cmd('hg log --template "{desc}" --rev %s' % patch)

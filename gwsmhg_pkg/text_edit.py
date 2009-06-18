@@ -142,8 +142,8 @@ class ChangeSummaryBuffer(SummaryBuffer):
         self.save_summary()
     def save_summary_as(self, action=None):
         fn = dialogue.ask_file_name("Enter file name", existing=False, suggestion=self._save_file_name)
-        if fn and os.path.exists(fn) and not os.path.samefile(fn, self._save_file_name):
-            if not os.path.samefile(fn, ifce.SCM.get_default_commit_save_file()):
+        if fn and os.path.exists(fn) and not utils.samefile(fn, self._save_file_name):
+            if not utils.samefile(fn, ifce.SCM.get_default_commit_save_file()):
                 if not dialogue.ask_ok_cancel(os.linesep.join([fn, "\nFile exists. Overwrite?"])):
                     return
         self.save_summary(file_name=fn)

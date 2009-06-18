@@ -34,10 +34,10 @@ class tws_line_count_display(gtk.HBox):
         self._entry.set_text(sval)
         if val:
             for state in STATES:
-                self._entry.modify_base(state, gtk.gdk.Color("#FF0000"))
+                self._entry.modify_base(state, gtk.gdk.color_parse("#FF0000"))
         else:
             for state in STATES:
-                self._entry.modify_base(state, gtk.gdk.Color("#00FF00"))
+                self._entry.modify_base(state, gtk.gdk.color_parse("#00FF00"))
 
 class DiffTextBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
     def __init__(self, file_list=[], table=None):
@@ -123,7 +123,7 @@ class DiffTextBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
         self.tws_list = []
         line_no = 0
         for line in text.splitlines():
-            offset = self._append_patch_line(line + os.linesep)
+            offset = self._append_patch_line(line + '\n')
             if offset:
                 self.tws_list.append((line_no, offset - 2))
             line_no += 1
