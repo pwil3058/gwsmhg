@@ -586,7 +586,7 @@ class ConditionalImageMenuItem(gtk.ImageMenuItem, ConditionalSensitivity):
             self.set_image(img)
 
 from gwsmhg_pkg.const import NO_SELECTION, UNIQUE_SELECTION, SELECTION, \
-    SELECTION_INDIFFERENT, NO_SELECTION_NOT_PATCHED, SELECTION_NOT_PATCHED, \
+    SELECTION_INDIFFERENT, NO_SELECTION_NOT_PMIC, SELECTION_NOT_PMIC, \
     FILE_CONDITIONS
 
 class _ViewWithActionGroups(gtk.TreeView, dialogue.BusyIndicatorUser):
@@ -956,7 +956,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                 ("scm_move_files_selection", icons.STOCK_RENAME, "_Move/Rename", None,
                  "Move the selected file(s)", self.move_selected_files_acb),
             ])
-        self._action_group[SELECTION_NOT_PATCHED].add_actions(
+        self._action_group[SELECTION_NOT_PMIC].add_actions(
             [
                 ("scm_revert_files_selection", gtk.STOCK_UNDO, "Rever_t", None,
                  "Revert changes in the selected file(s)", self.revert_selected_files_acb),
@@ -975,7 +975,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                 ("scm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for all changes", self.diff_selected_files_acb),
             ])
-        self._action_group[NO_SELECTION_NOT_PATCHED].add_actions(
+        self._action_group[NO_SELECTION_NOT_PMIC].add_actions(
             [
                 ("scm_revert_files_all", gtk.STOCK_UNDO, "Rever_t", None,
                  "Revert all changes in working directory", self.revert_all_files_acb),
@@ -995,6 +995,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                     action_list.append(action + tuple([self._tortoise_tool_acb]))
                 self._action_group[condition].add_actions(action_list)
             self._ui_manager.add_ui_from_string(tortoise.FILES_UI_DESCR)
+        self._update_menu_sensitivity(ifce.PM.get_in_progress())
     def _destroy_cb(self, widget):
         ws_event.del_notification_cbs([self._ncb_uac, self._ncb_ums])
     def _tortoise_tool_acb(self, action=None):
@@ -1008,18 +1009,22 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         return result
     def delete_files(self, file_list):
         return ifce.SCM.do_delete_files(file_list)
-    def update_menu_sensitivity(self, selection=None):
-        if ifce.PM.get_in_progress():
-            self._action_group[NO_SELECTION_NOT_PATCHED].set_sensitive(False)
-            self._action_group[SELECTION_NOT_PATCHED].set_sensitive(False)
+    def _update_menu_sensitivity(self, pm_in_progress, selection=None):
+        if pm_in_progress:
+            self._action_group[NO_SELECTION_NOT_PMIC].set_sensitive(False)
+            self._action_group[SELECTION_NOT_PMIC].set_sensitive(False)
         else:
             if not selection:
                 selection = self.get_selection()
             sel_sz = selection.count_selected_rows()
-            self._action_group[NO_SELECTION_NOT_PATCHED].set_sensitive(sel_sz == 0)
-            self._action_group[SELECTION_NOT_PATCHED].set_sensitive(sel_sz > 0)
+            self._action_group[NO_SELECTION_NOT_PMIC].set_sensitive(sel_sz == 0)
+            self._action_group[SELECTION_NOT_PMIC].set_sensitive(sel_sz > 0)
+    def update_menu_sensitivity(self, pm_in_progress=None):
+        if pm_in_progress is None:
+            pm_in_progress = ifce.PM.get_in_progress()
+        self._update_menu_sensitivity(self, pm_in_progress)
     def _selection_changed_cb(self, selection):
-        self.update_menu_sensitivity(selection)
+        self._update_menu_sensitivity(ifce.PM.get_in_progress(), selection)
         _ViewWithActionGroups._selection_changed_cb(self, selection)
     def get_scm_name(self):
         return ifce.SCM.name
@@ -1206,6 +1211,7 @@ class ScmCwdFilesWidget(gtk.VBox):
         self.pack_start(hbox, expand=False)
         self.show_all()
     def update_for_chdir(self):
+        self.file_tree.update_menu_sensitivity()
         self.file_tree.repopulate_tree()
 
 class ScmChangeFileTreeStore(FileTreeStore):

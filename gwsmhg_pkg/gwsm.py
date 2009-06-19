@@ -200,12 +200,13 @@ class gwsm(gtk.Window, dialogue.BusyIndicator):
         gtk.main_quit()
     def _update_title(self):
         self.set_title("gwsm%s: %s" % (ifce.SCM.name, utils.path_rel_home(os.getcwd())))
-    def _update_sensitivities(self):
+    def _update_sensitivities(self, pm_ic=None):
         in_valid_repo = ifce.SCM.get_root() != None
-        if in_valid_repo:
-            pm_ic = ifce.PM.get_in_progress()
-        else:
-            pm_ic = False
+        if pm_ic is None:
+            if in_valid_repo:
+                pm_ic = ifce.PM.get_in_progress()
+            else:
+                pm_ic = False
         self._action_group[const.NOT_IN_VALID_SCM_REPO].set_sensitive(not in_valid_repo)
         self._action_group[const.IN_VALID_SCM_REPO].set_sensitive(in_valid_repo)
         self._action_group[const.IN_VALID_SCM_REPO_NOT_PMIC].set_sensitive(in_valid_repo and not pm_ic)

@@ -907,7 +907,7 @@ class PMInterface(BaseInterface):
     def get_in_progress(self):
         if not self.get_enabled():
             return False
-        return self.get_top_patch() or self._ws_update_mgr.is_in_progress()
+        return (self.get_top_patch() is not None) or self._ws_update_mgr.is_in_progress()
     def get_applied_patches(self):
         if not self.get_enabled():
             return []
@@ -989,9 +989,10 @@ class PMInterface(BaseInterface):
                 result = self._run_cmd_on_console("hg qpop -f %s" % patch)
             else:
                 result = self._run_cmd_on_console("hg qpop %s" % patch)
-        ws_event.notify_events(ws_event.REPO_MOD|ws_event.FILE_CHANGES)
         if not self.get_in_progress():
-            ws_event.notify_events(ws_event.PMIC_CHANGE)
+            ws_event.notify_events(ws_event.PMIC_CHANGE, False)
+        events = ws_event.CHECKOUT|ws_event.REPO_MOD|ws_event.FILE_CHANGES
+        ws_event.notify_events(events)
         return result
     def do_push_to(self, patch=None, force=False, merge=False):
         in_charge = self.get_in_progress()
@@ -1014,9 +1015,10 @@ class PMInterface(BaseInterface):
                 result = self._run_cmd_on_console("%s -f %s" % (cmd, patch), ignore_err_re=self._qpush_re)
             else:
                 result = self._run_cmd_on_console("%s %s" % (cmd, patch), ignore_err_re=self._qpush_re)
-        ws_event.notify_events(ws_event.REPO_MOD|ws_event.FILE_CHANGES)
         if not in_charge:
-            ws_event.notify_events(ws_event.PMIC_CHANGE)
+            ws_event.notify_events(ws_event.PMIC_CHANGE, True)
+        events = ws_event.CHECKOUT|ws_event.REPO_MOD|ws_event.FILE_CHANGES
+        ws_event.notify_events(events)
         if not result[0] and merge and len(self.get_unapplied_patches()) == 0:
             self._ws_update_mgr.set_state("merged")
         return result
@@ -1064,9 +1066,10 @@ class PMInterface(BaseInterface):
         return True
     def do_finish_patch(self, patch):
         result = self._run_cmd_on_console("hg qfinish %s" % patch)
-        ws_event.notify_events(ws_event.REPO_MOD|ws_event.FILE_CHANGES)
         if not self.get_in_progress():
-            ws_event.notify_events(ws_event.PMIC_CHANGE)
+            ws_event.notify_events(ws_event.PMIC_CHANGE, False)
+        events = ws_event.CHECKOUT|ws_event.REPO_MOD|ws_event.FILE_CHANGES
+        ws_event.notify_events(events)
         return result
     def do_rename_patch(self, old_name, new_name):
         result = self._run_cmd_on_console("hg qrename %s %s" % (old_name, new_name))
@@ -1098,9 +1101,10 @@ class PMInterface(BaseInterface):
             res, sout, serr = self._run_cmd_on_console("hg qnew -f %s" % patch_name)
         else:
             res, sout, serr = self._run_cmd_on_console("hg qnew %s" % patch_name)
-        ws_event.notify_events(ws_event.REPO_MOD)
         if not in_charge:
-            ws_event.notify_events(ws_event.PMIC_CHANGE)
+            ws_event.notify_events(ws_event.PMIC_CHANGE, True)
+        events = ws_event.CHECKOUT|ws_event.REPO_MOD
+        ws_event.notify_events(events)
         if res & cmd_result.SUGGEST_REFRESH:
             res |= cmd_result.SUGGEST_FORCE
         return (res, sout, serr)
@@ -1122,7 +1126,7 @@ class PMInterface(BaseInterface):
     def do_save_queue_state_for_update(self):
         result = self._run_cmd_on_console("hg qsave -e -c")
         self._ws_update_mgr.start(result[2], "qsaved")
-        ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD)
+        ws_event.notify_events(ws_event.CHECKOUT|ws_event.FILE_CHANGES|ws_event.REPO_MOD)
         return result
     def do_pull_from(self, rev=None, source=None):
         result = BaseInterface.do_pull_from(self, rev=rev, source=source)
@@ -1150,7 +1154,8 @@ class PMInterface(BaseInterface):
                 utils.run_cmd("hg qgoto %s" % top_patch)
                 ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD)
             else:
-                ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD|ws_event.PMIC_CHANGE)
+                ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD)
+                ws_event.notify_events(ws_event.PMIC_CHANGE, False)
             return result
         else:
             return (cmd_result.INFO, "Saved patch directory not found.", "")

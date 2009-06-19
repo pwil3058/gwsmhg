@@ -159,8 +159,9 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
         model = PatchFileTreeStore()
         file_tree.CwdFileTreeView.__init__(self, busy_indicator=busy_indicator,
             model=model, auto_refresh=auto_refresh, show_status=True)
-        ws_event.add_notification_cb(ws_event.REPO_MOD|ws_event.CHANGE_WD, self.repopulate_tree)
+        ws_event.add_notification_cb(ws_event.CHECKOUT|ws_event.CHANGE_WD, self.repopulate_tree)
         ws_event.add_notification_cb(ws_event.FILE_CHANGES, self.update_tree)
+        ws_event.add_notification_cb(ws_event.PMIC_CHANGE, self.update_pmic_sensitivity)
         model.set_view(self)
         self._action_group[file_tree.SELECTION].add_actions(
             [
@@ -193,8 +194,15 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
             ])
         model.show_hidden_action.set_visible(False)
         model.show_hidden_action.set_sensitive(False)
+        self.update_pmic_sensitivity()
         model.repopulate()
         self.cwd_merge_id = self._ui_manager.add_ui_from_string(PM_FILES_UI_DESCR)
+    def update_pmic_sensitivity(self, pm_in_progress=None):
+        if pm_in_progress is None:
+            pm_in_progress = ifce.PM.get_in_progress()
+        self._action_group[file_tree.SELECTION_INDIFFERENT].set_sensitive(pm_in_progress)
+        self._action_group[file_tree.NO_SELECTION].set_sensitive(pm_in_progress and \
+            self.get_selection().count_selected_rows() == 0)
     def _check_if_force(self, result):
         if (result[0] & cmd_result.SUGGEST_FORCE) == cmd_result.SUGGEST_FORCE:
             dialog = gtk.MessageDialog(parent=dialogue.main_window,
@@ -348,6 +356,7 @@ class TopPatchFilesWidget(gtk.VBox):
         self.pack_start(scw, expand=True, fill=True)
         self.show_all()
     def update_for_chdir(self):
+        self.file_tree.update_pmic_sensitivity()
         self.file_tree.get_model().repopulate()
 
 PM_PATCHES_UI_DESCR = \
@@ -586,6 +595,8 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser):
         self.get_selection().unselect_all()
         self._selection_changed_cb(self.get_selection())
         self.connect("button_press_event", self._handle_button_press_cb)
+        ws_event.add_notification_cb(ws_event.REPO_MOD, self.update_in_repo_sensitivity)
+        self.update_in_repo_sensitivity()
     def _selection_changed_cb(self, selection):
         if selection.count_selected_rows() == 0:
             for index in APPLIED, UNAPPLIED, APPLIED_INDIFFERENT, UNAPPLIED_AND_INTERDIFF:
@@ -622,6 +633,14 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser):
         self._action_group[WS_UPDATE_READY].set_sensitive(ifce.PM.get_ws_update_ready(applied_count=self.applied_count))
         self._action_group[WS_UPDATE_MERGE_READY].set_sensitive(ifce.PM.get_ws_update_merge_ready(unapplied_count=self.unapplied_count))
         self._action_group[WS_UPDATE_CLEAN_UP_READY].set_sensitive(ifce.PM.get_ws_update_clean_up_ready())
+    def update_in_repo_sensitivity(self):
+        if ifce.SCM.is_repository():
+            self._selection_changed_cb(self.get_selection())
+            self._set_ws_update_menu_sensitivity()
+            self._action_group[PUSH_POP_INDIFFERENT].set_sensitive(True)
+        else:
+            for condition in APPLIED_CONDITIONS + PUSH_POP_CONDITIONS + WS_UPDATE_CONDITIONS:
+                self._action_group[condition].set_sensitive(False)
     def set_contents(self, action=None):
         self.show_busy()
         applied_patch_list = ifce.PM.get_applied_patches()
@@ -1066,6 +1085,7 @@ class PatchListWidget(gtk.VBox):
         self.pack_start(self.menu_bar, expand=False)
         self.pack_start(gutils.wrap_in_scrolled_window(self.list_view))
     def update_for_chdir(self):
+        self.list_view.update_in_repo_sensitivity()
         self.list_view.set_contents()
 
 class PatchManagementWidget(gtk.VBox):

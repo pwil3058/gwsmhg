@@ -145,7 +145,7 @@ FILES_UI_DESCR = \
 '''
 
 from gwsmhg_pkg.const import NO_SELECTION, UNIQUE_SELECTION, SELECTION, \
-    SELECTION_INDIFFERENT, NO_SELECTION_NOT_PATCHED, SELECTION_NOT_PATCHED, \
+    SELECTION_INDIFFERENT, NO_SELECTION_NOT_PMIC, SELECTION_NOT_PMIC, \
     FILE_CONDITIONS
 
 file_group_partial_actions = {}
@@ -161,7 +161,7 @@ file_group_partial_actions[UNIQUE_SELECTION] = \
          'Launch tortoise "rename" tool'),
     ]
 
-file_group_partial_actions[SELECTION_NOT_PATCHED] = \
+file_group_partial_actions[SELECTION_NOT_PMIC] = \
     [
         ('tortoise_commit', icons.STOCK_COMMIT, 'Commit', '',
          'Launch tortoise "commit" tool'),

@@ -29,14 +29,14 @@ UNIQUE_SELECTION = "sel_unique"
 SELECTION = "sel_made"
 SELECTION_INDIFFERENT = "sel_indifferent"
 
-NO_SELECTION_NOT_PATCHED = "sel_none_not_patched"
-SELECTION_NOT_PATCHED = "sel_made_not_patched"
+NO_SELECTION_NOT_PMIC = "sel_none_not_patched"
+SELECTION_NOT_PMIC = "sel_made_not_patched"
 
 FILE_CONDITIONS = [NO_SELECTION,
                    UNIQUE_SELECTION,
                    SELECTION,
                    SELECTION_INDIFFERENT,
-                   NO_SELECTION_NOT_PATCHED,
-                   SELECTION_NOT_PATCHED,
+                   NO_SELECTION_NOT_PMIC,
+                   SELECTION_NOT_PMIC,
                   ]
 
