@@ -804,22 +804,16 @@ class CwdFileTreeView(FileTreeView):
         text_edit.edit_files_extern(file_list)
     def edit_selected_files_acb(self, menu_item):
         self._edit_named_files_extern(self.get_selected_files())
-    def new_file(self, new_file_name):
-        if os.path.exists(new_file_name):
-            serr_xtra = ("File \"%s\" already exists" + os.linesep) % new_file_name
-        else:
-            serr_xtra = ""
-        res, sout, serr = utils.run_cmd_in_console("touch %s" % new_file_name, ifce.log)
-        return (res, sout, serr_xtra + serr)
     def create_new_file(self, new_file_name, open_for_edit=False):
         model = self.get_model()
         self.show_busy()
-        result = self.new_file(new_file_name)
+        result = utils.create_file(new_file_name, ifce.log)
         self.unshow_busy()
         self.update_tree()
         dialogue.report_any_problems(result)
         if open_for_edit:
             self._edit_named_files_extern([new_file_name])
+        return result
     def create_new_file_acb(self, menu_item):
         dialog = gtk.FileChooserDialog("New File", dialogue.main_window,
                                        gtk.FILE_CHOOSER_ACTION_SAVE,
@@ -1006,7 +1000,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
     def _tortoise_tool_acb(self, action=None):
         tortoise.run_tool_for_files(action, self.get_selected_files())
     def new_file(self, new_file_name):
-        result = CwdFileTreeView.new_file(self, new_file_name)
+        result = utils.create_file(new_file_name, ifce.log)
         if not result[0]:
             res, sout, serr = ifce.SCM.do_add_files([new_file_name])
             if res:

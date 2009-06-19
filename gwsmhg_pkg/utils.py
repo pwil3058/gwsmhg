@@ -16,6 +16,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import subprocess, os, signal, errno, gtk, select, urlparse, gobject, os.path
+import cmd_result, ws_event
 
 HOME = os.path.expanduser("~")
 
@@ -34,6 +35,21 @@ def samefile(filename1, filename2):
         return os.path.samefile(filename1, filename2)
     except:
         return os.path.abspath(filename1) == os.path.abspath(filename2)
+
+def create_file(name, console=None):
+    if not os.path.exists(name):
+        try:
+            if console:
+                console.start_cmd('create %s' % name)
+            open(name, 'w').close()
+            if console:
+                console.end_cmd()
+            ws_event.notify_events(ws_event.FILE_ADD)
+            return (cmd_result.OK, '', '')
+        except (IOError, OSError), msg:
+            return (cmd_result.ERROR, '', '"%": %s' (name, msg))
+    else:
+        return (cmd_result.WARNING, '', '"%s": file already exists' % name)
 
 def run_cmd(cmd):
     if not cmd:

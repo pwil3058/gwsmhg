@@ -207,12 +207,11 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
             return response == gtk.RESPONSE_OK
         else:
             return False
-    def new_file(self, new_file_name):
-        result = file_tree.CwdFileTreeView.new_file(self, new_file_name)
+    def create_new_file(self, new_file_name, open_for_edit=False):
+        result = file_tree.CwdFileTreeView.create_new_file(self, new_file_name, open_for_edit)
         if not result[0]:
-            res, sout, serr = ifce.PM.do_add_files([new_file_name])
-            if res:
-                return (res, sout, serr)
+            result = ifce.PM.do_add_files([new_file_name])
+            dialogue.report_any_problems(result)
         return result
     def delete_files(self, file_list):
         return ifce.PM.do_delete_files(file_list)
