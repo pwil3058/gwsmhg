@@ -190,7 +190,7 @@ class RepoPathView(AliasPathView):
             up2 = urlparse.urlparse(path2)
             if up2.scheme:
                 # compare normalized URLs for better confidence in result
-                return up1.get_url() == up2.get_url()
+                return up1.geturl() == up2.geturl()
             else:
                 return False
         elif urlparse.urlparse(path2).scheme:
