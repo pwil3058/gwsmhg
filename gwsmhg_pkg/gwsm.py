@@ -60,6 +60,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator):
         gtk.Window.__init__(self, gtk.WINDOW_TOPLEVEL)
         self.set_icon_from_file(icons.app_icon_file)
         dialogue.BusyIndicator.__init__(self)
+        ifce.create_log(self)
         self.connect("destroy", self._quit)
         # see if we're in a valid work space and if not offer a selection
         # unless a directory was specified on the command line

@@ -18,10 +18,14 @@ PM = None
 
 from gwsmhg_pkg import console
 
-log = console.ConsoleLog()
+log = None
 
 def init(ifce_module):
     global SCM, PM
     SCM = ifce_module.SCMInterface()
     PM = ifce_module.PMInterface()
 
+def create_log(busy_indicator):
+    global log
+    log = console.ConsoleLog(busy_indicator)
+    return log

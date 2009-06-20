@@ -580,7 +580,7 @@ class SCMInterface(BaseInterface):
         if msg:
             cmd += ' -m "%s"' % msg.replace('"', '\\"')
         if file_list:
-            cmd += " %s" % " -I ".join(file_list)
+            cmd += " -I %s" % " -I ".join(file_list)
         res, sout, serr = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.REPO_MOD|ws_event.CHECKOUT, sout.splitlines()[:-1])
         return (res, sout, serr)
