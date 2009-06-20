@@ -140,12 +140,6 @@ def run_cmd_in_bgnd(cmd):
     gobject.timeout_add(2000, _wait_for_bgnd_cmd_timeout, pid)
     return True
 
-def which(cmd):
-    for d in os.environ['PATH'].split(os.pathsep):
-        potential_path = os.path.join(d, cmd)
-        if os.path.isfile(potential_path) and os.access(potential_path, os.X_OK):
-            return potential_path
-    return None
 
 if os.name == 'nt' or os.name == 'dos':
     def run_cmd_in_console_nt(cmd, console):
@@ -155,4 +149,31 @@ if os.name == 'nt' or os.name == 'dos':
         console.append_stderr(serr)
         console.end_cmd()
         return (res, sout, serr)
+    def _which(cmd):
+        main, ext = os.path.splitext(cmd)
+        for d in os.environ['PATH'].split(os.pathsep):
+            potential_path = os.path.join(d, cmd)
+            if os.path.isfile(potential_path) and os.access(potential_path, os.X_OK):
+                return potential_path
+        return None
+    nt_exts = ['.bat', '.bin', '.exe']
+    def which(cmd):
+        path = _which(cmd)
+        if path:
+            return path
+        main, ext = os.path.splitext(cmd)
+        if ext in nt_exts:
+            return None
+        for ext in nt_exts:
+            path = _which(cmd + ext)
+            if path is not None:
+                return path
+        return None
+else:
+    def which(cmd):
+        for d in os.environ['PATH'].split(os.pathsep):
+            potential_path = os.path.join(d, cmd)
+            if os.path.isfile(potential_path) and os.access(potential_path, os.X_OK):
+                return potential_path
+        return None
 
