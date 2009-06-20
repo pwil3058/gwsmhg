@@ -1,4 +1,4 @@
-VERSION:=$(subst ',,$(subst VERSION=',,$(shell grep "VERSION=" setup.py)))
+VERSION:=$(subst ',,$(subst VERSION = ',,$(shell grep "VERSION = " setup_generic.py)))
 RELEASE=1
 
 RPMREQS:=pygtk2 pygtksourceview pycairo pygobject2 mercurial
