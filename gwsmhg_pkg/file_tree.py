@@ -941,7 +941,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             self.update_after_commit)
         self._ncb_uac = ws_event.add_notification_cb(ws_event.CHANGE_WD,
             self.repopulate_tree)
-        self._ncb_ums = ws_event.add_notification_cb(ws_event.PMIC_CHANGE, self.update_menu_sensitivity)
+        self._ncb_ums = ws_event.add_notification_cb(ws_event.PMIC_CHANGE, self.update_pmic_sensitivity)
         self.connect("destroy", self._destroy_cb)
         self._action_group[SELECTION].add_actions(
             [
@@ -1019,10 +1019,10 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             sel_sz = selection.count_selected_rows()
             self._action_group[NO_SELECTION_NOT_PMIC].set_sensitive(sel_sz == 0)
             self._action_group[SELECTION_NOT_PMIC].set_sensitive(sel_sz > 0)
-    def update_menu_sensitivity(self, pm_in_progress=None):
+    def update_pmic_sensitivity(self, pm_in_progress=None):
         if pm_in_progress is None:
             pm_in_progress = ifce.PM.get_in_progress()
-        self._update_menu_sensitivity(self, pm_in_progress)
+        self._update_menu_sensitivity(pm_in_progress)
     def _selection_changed_cb(self, selection):
         self._update_menu_sensitivity(ifce.PM.get_in_progress(), selection)
         _ViewWithActionGroups._selection_changed_cb(self, selection)
@@ -1211,7 +1211,7 @@ class ScmCwdFilesWidget(gtk.VBox):
         self.pack_start(hbox, expand=False)
         self.show_all()
     def update_for_chdir(self):
-        self.file_tree.update_menu_sensitivity()
+        self.file_tree.update_pmic_sensitivity()
         self.file_tree.repopulate_tree()
 
 class ScmChangeFileTreeStore(FileTreeStore):

@@ -1159,19 +1159,21 @@ class PMInterface(BaseInterface):
             return result
         else:
             return (cmd_result.INFO, "Saved patch directory not found.", "")
-    def get_ws_update_qsave_ready(self, unapplied_count=None):
+    def get_ws_update_qsave_ready(self, unapplied_count=None, applied_count=None):
         if unapplied_count is None:
-            unapplied_count = len(self.get_unappplied_patches())
-        return not unapplied_count and not self._ws_update_mgr.is_in_progress()
+            unapplied_count = len(self.get_unapplied_patches())
+        if applied_count is None:
+            applied_count = len(self.get_applied_patches())
+        return applied_count and not unapplied_count and not self._ws_update_mgr.is_in_progress()
     def get_ws_update_ready(self, applied_count=None):
         if applied_count is None:
-            applied_count = len(self.get_appplied_patches())
+            applied_count = len(self.get_applied_patches())
         if self._ws_update_mgr.tip_is_patches_saved_state():
             return False
         return not applied_count and self._ws_update_mgr.get_state_is_in(["pulled"])
     def get_ws_update_merge_ready(self, unapplied_count=None):
         if unapplied_count is None:
-            unapplied_count = len(self.get_unappplied_patches())
+            unapplied_count = len(self.get_unapplied_patches())
         if self._ws_update_mgr.parent_is_patches_saved_state():
             return False
         return unapplied_count and self._ws_update_mgr.get_state_is_in(["updated"])
@@ -1179,10 +1181,10 @@ class PMInterface(BaseInterface):
         return self._ws_update_mgr.get_state_is_in(["merged"])
     def get_ws_update_pull_ready(self, applied_count=None):
         if applied_count is None:
-            applied_count = len(self.get_appplied_patches())
+            applied_count = len(self.get_applied_patches())
         return not applied_count and self._ws_update_mgr.get_state_is_in(["qsaved"])
     def get_ws_update_to_ready(self, applied_count=None):
         if applied_count is None:
-            applied_count = len(self.get_appplied_patches())
+            applied_count = len(self.get_applied_patches())
         return not applied_count and self._ws_update_mgr.get_state_is_in(["qsaved", "pulled"])
 

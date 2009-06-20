@@ -197,10 +197,19 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
         self.update_pmic_sensitivity()
         model.repopulate()
         self.cwd_merge_id = self._ui_manager.add_ui_from_string(PM_FILES_UI_DESCR)
+        ws_event.add_notification_cb(ws_event.REPO_MOD, self.update_in_repo_sensitivity)
+        self.update_in_repo_sensitivity()
+    def update_in_repo_sensitivity(self):
+        if ifce.SCM.is_repository():
+            self._action_group[file_tree.SELECTION_INDIFFERENT].set_sensitive(True)
+            self.update_pmic_sensitivity()
+        else:
+            for condition in file_tree.FILE_CONDITIONS:
+                self._action_group[condition].set_sensitive(False)
     def update_pmic_sensitivity(self, pm_in_progress=None):
         if pm_in_progress is None:
             pm_in_progress = ifce.PM.get_in_progress()
-        self._action_group[file_tree.SELECTION_INDIFFERENT].set_sensitive(pm_in_progress)
+        self._action_group[file_tree.SELECTION_INDIFFERENT].get_action('new_file').set_sensitive(pm_in_progress)
         self._action_group[file_tree.NO_SELECTION].set_sensitive(pm_in_progress and \
             self.get_selection().count_selected_rows() == 0)
     def _check_if_force(self, result):
@@ -356,7 +365,7 @@ class TopPatchFilesWidget(gtk.VBox):
         self.pack_start(scw, expand=True, fill=True)
         self.show_all()
     def update_for_chdir(self):
-        self.file_tree.update_pmic_sensitivity()
+        self.file_tree.update_in_repo_sensitivity()
         self.file_tree.get_model().repopulate()
 
 PM_PATCHES_UI_DESCR = \
@@ -627,7 +636,8 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser):
         else:
             return model.get_value(iter, 0)
     def _set_ws_update_menu_sensitivity(self):
-        self._action_group[WS_UPDATE_QSAVE_READY].set_sensitive(ifce.PM.get_ws_update_qsave_ready(unapplied_count=self.unapplied_count))
+        self._action_group[WS_UPDATE_QSAVE_READY].set_sensitive(
+            ifce.PM.get_ws_update_qsave_ready(unapplied_count=self.unapplied_count, applied_count=self.applied_count))
         self._action_group[WS_UPDATE_PULL_READY].set_sensitive(ifce.PM.get_ws_update_pull_ready(applied_count=self.applied_count))
         self._action_group[WS_UPDATE_TO_READY].set_sensitive(ifce.PM.get_ws_update_to_ready(applied_count=self.applied_count))
         self._action_group[WS_UPDATE_READY].set_sensitive(ifce.PM.get_ws_update_ready(applied_count=self.applied_count))
@@ -665,7 +675,7 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser):
         if res is not cmd_result.OK:
             self.unshow_busy()
             if res & cmd_result.SUGGEST_RECOVER:
-                if dialogue.ask_recover_or_cancel(os.linesep.join([sout, serr]), self) is dialogue.RESPONSE_RECOVER:
+                if dialogue.ask_recover_or_cancel(os.linesep.join([sout, serr])) is dialogue.RESPONSE_RECOVER:
                     self.show_busy()
                     res, sout, serr = ifce.PM.do_recover_interrupted_refresh()
                     if res is cmd_result.OK:
@@ -684,7 +694,7 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser):
             self.set_contents()
             if res is not cmd_result.OK:
                 if res & cmd_result.SUGGEST_FORCE_OR_REFRESH:
-                    ans = dialogue.ask_force_refresh_or_cancel(os.linesep.join([sout, serr]), res, self)
+                    ans = dialogue.ask_force_refresh_or_cancel(os.linesep.join([sout, serr]), res)
                     if ans is gtk.RESPONSE_CANCEL:
                         return False
                     elif ans is dialogue.RESPONSE_REFRESH:
