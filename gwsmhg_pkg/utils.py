@@ -29,6 +29,22 @@ def path_rel_home(path):
         path = "~" + path[len_home:]
     return path
 
+def file_list_to_string(file_list):
+    return ' "%s"' % '" "'.join(file_list)
+
+def string_to_file_list(string):
+    if string.count('"') == 0:
+        return string.split()
+    file_list = []
+    index = 0
+    lqi = string.rfind('"')
+    while index < lqi:
+        qib = string.find('"', index)
+        file_list += string[index:qib].split()
+        index = string.find('"', qib + 1) + 1
+        file_list.append(string[qib:index])
+    return file_list
+
 # handle the fact os.path.samefile is not available on all operating systems
 def samefile(filename1, filename2):
     try:
@@ -126,7 +142,10 @@ def run_cmd_in_console(cmd, console):
 
 def _wait_for_bgnd_cmd_timeout(pid):
     try:
-        rpid, status = os.waitpid(pid, os.WNOHANG)
+        if os.name == 'nt' or os.name == 'dos':
+            rpid, status = os.waitpid(pid, 0)
+        else:
+            rpid, status = os.waitpid(pid, os.WNOHANG)
         return rpid != pid
     except OSError:
         return False

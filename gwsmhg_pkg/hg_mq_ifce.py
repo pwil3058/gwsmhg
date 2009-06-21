@@ -70,12 +70,14 @@ class BaseInterface:
                 if serr.find(force_suggested) != -1 or sout.find(force_suggested) != -1:
                     outres += cmd_result.SUGGEST_FORCE
         return (outres, sout, serr)
+    def _file_list_to_I_string(self, file_list):
+        return ' -I "%s"' % '" -I "'.join(file_list)
     def do_add_files(self, file_list, dry_run=False):
         cmd = "hg add"
         if dry_run:
             cmd += " -n --verbose"
         if file_list:
-            cmd = " ".join([cmd] + file_list)
+            cmd += utils.file_list_to_string(file_list)
         if dry_run:
             return self._map_result(utils.run_cmd(cmd))
         else:
@@ -88,7 +90,7 @@ class BaseInterface:
             cmd += "-n --verbose "
         if force:
             cmd += "-f "
-        cmd = " ".join([cmd] + file_list + [target])
+        cmd += utils.file_list_to_string(file_list + [target])
         if dry_run:
             return self._map_result(utils.run_cmd(cmd))
         else:
@@ -101,7 +103,7 @@ class BaseInterface:
             cmd += "-n --verbose "
         if force:
             cmd += "-f "
-        cmd = " ".join([cmd] + file_list + [target])
+        cmd += utils.file_list_to_string(file_list + [target])
         if dry_run:
             return self._map_result(utils.run_cmd(cmd))
         else:
@@ -113,7 +115,7 @@ class BaseInterface:
         if dry_run:
             cmd += "-n --verbose "
         if file_list:
-            cmd += " ".join(file_list)
+            cmd += utils.file_list_to_string(file_list)
         else:
             cmd += "--all"
         if dry_run:
@@ -132,7 +134,7 @@ class BaseInterface:
                 if ifce.log:
                     ifce.log.append_stdout(('Deleted: %s\n') % filename)
             except os.error, value:
-                errmsg = ('%s: %s\n') % (value[1], filename)
+                errmsg = ('%s: "%s"\n') % (value[1], filename)
                 serr += errmsg
                 if ifce.log:
                     ifce.log.append_stderr(errmsg)
@@ -149,7 +151,7 @@ class BaseInterface:
         if rev:
             cmd += " -r %s" % rev
         if source:
-            cmd += " %s" % source
+            cmd += ' "%s"' % source
         result = self._run_cmd_on_console(cmd)
         if cmd_result.is_less_than_error(result[0]):
             events = ws_event.REPO_MOD
@@ -256,7 +258,7 @@ class SCMInterface(BaseInterface):
             for rev in revs:
                 cmd += " --rev %s" % rev
         if fspath_list:
-            cmd += " %s" % " ".join(fspath_list)
+            cmd += utils.file_list_to_string(fspath_list)
         res, sout, serr = utils.run_cmd(cmd)
         if res != 0:
             return (res, [], sout + serr)
@@ -310,15 +312,15 @@ class SCMInterface(BaseInterface):
         if res:
             return (res, sout, serr)
         lines = sout.splitlines()
-        file_names = lines[0].split()
-        added_files = lines[1].split()
-        deleted_files = lines[2].split()
+        file_names = string_to_file_list(lines[0])
+        added_files = string_to_file_list(lines[1])
+        deleted_files = string_to_file_list(lines[2])
         files = []
         for name in file_names:
             if name in added_files:
                 extra_info = None
                 for parent in parents:
-                    cmd = "hg status -aC --rev %s --rev %s %s" % (parent, rev, name)
+                    cmd = 'hg status -aC --rev %s --rev %s "%s"' % (parent, rev, name)
                     res, sout, serr = utils.run_cmd(cmd)
                     lines = sout.splitlines()
                     if len(lines) > 1 and lines[1][0] == " ":
@@ -359,7 +361,7 @@ class SCMInterface(BaseInterface):
     def get_outgoing_table_data(self, path=None):
         cmd = 'hg -q outgoing --template "%s"' % self.cs_table_template
         if path:
-            cmd += " %s" % path
+            cmd += ' "%s"' % path
         res, sout, serr = utils.run_cmd(cmd)
         if res != 0:
             if res == 1:
@@ -375,7 +377,7 @@ class SCMInterface(BaseInterface):
     def get_incoming_table_data(self, path=None):
         cmd = 'hg -q incoming --template "%s"' % self.cs_table_template
         if path:
-            cmd += " %s" % path
+            cmd += ' "%s"' % path
         res, sout, serr = utils.run_cmd(cmd)
         if res != 0:
             if res == 1:
@@ -391,13 +393,13 @@ class SCMInterface(BaseInterface):
     def get_is_incoming(self, rev, path=None):
         cmd = 'hg incoming -qnl1 --template "{rev}" --rev %s' % str(rev)
         if path:
-            cmd += ' %s' % path
+            cmd += ' "%s"' % path
         res, sout, serr = utils.run_cmd(cmd)
         return sout == str(rev)
     def get_incoming_change_set_summary(self, rev, path=None):
         cmd = 'hg -q incoming --template "%s" -nl 1 --rev %s' % (self.cs_summary_template, rev)
         if path:
-            cmd += ' %s' % path
+            cmd += ' "%s"' % path
         res, sout, serr = utils.run_cmd(cmd)
         if res:
             return (res, sout, serr)
@@ -406,14 +408,14 @@ class SCMInterface(BaseInterface):
         template = '{files}\\n{file_adds}\\n{file_dels}\\n'
         cmd = 'hg -q incoming --template "%s" -nl 1 --rev %s' % (template, rev)
         if path:
-            cmd += ' %s' % path
+            cmd += ' "%s"' % path
         res, sout, serr = utils.run_cmd(cmd)
         if res:
             return (res, sout, serr)
         lines = sout.splitlines()
-        file_names = lines[0].split()
-        added_files = lines[1].split()
-        deleted_files = lines[2].split()
+        file_names = utils.string_to_file_list(lines[0])
+        added_files = utils.string_to_file_list(lines[1])
+        deleted_files = utils.string_to_file_list(lines[2])
         files = []
         for name in file_names:
             if name in added_files:
@@ -426,7 +428,7 @@ class SCMInterface(BaseInterface):
     def get_incoming_parents(self, rev, path=None):
         cmd = 'hg -q incoming --template "{parents}" -nl 1 --rev %s' % rev
         if path:
-            cmd += ' %s' % path
+            cmd += ' "%s"' % path
         res, psout, serr = utils.run_cmd(cmd)
         if res != 0:
             return (res, psout, serr)
@@ -452,7 +454,7 @@ class SCMInterface(BaseInterface):
                 plist += sublist
                 continue
             if path:
-                cmd = base_cmd + " --rev %s %s" % (parent, path)
+                cmd = base_cmd + ' --rev %s "%s"' % (parent, path)
             else:
                 cmd = base_cmd + " --rev %s" % parent
             res, sout, serr = utils.run_cmd(cmd)
@@ -465,7 +467,7 @@ class SCMInterface(BaseInterface):
     def get_incoming_diff(self, rev, path=None):
         cmd = 'hg incoming --patch -nl 1 --rev %s' % rev
         if path:
-            cmd += ' %s' % path
+            cmd += ' "%s"' % path
         res, sout, serr = utils.run_cmd(cmd)
         if res:
             return (res, sout, serr)
@@ -580,15 +582,15 @@ class SCMInterface(BaseInterface):
         if msg:
             cmd += ' -m "%s"' % msg.replace('"', '\\"')
         if file_list:
-            cmd += " -I %s" % " -I ".join(file_list)
+            cmd += self._file_list_to_I_string(file_list)
         res, sout, serr = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.REPO_MOD|ws_event.CHECKOUT, sout.splitlines()[:-1])
         return (res, sout, serr)
     def do_remove_files(self, file_list, force=False):
         if force:
-            result = self._run_cmd_on_console("hg remove -f " + " ".join(file_list))
+            result = self._run_cmd_on_console("hg remove -f " + utils.file_list_to_string(file_list))
         else:
-            result = self._run_cmd_on_console("hg remove " + " ".join(file_list))
+            result = self._run_cmd_on_console("hg remove " + utils.file_list_to_string(file_list))
         ws_event.notify_events(ws_event.FILE_DEL)
         return result
     def get_diff_for_files(self, file_list, fromrev, torev=None):
@@ -598,7 +600,7 @@ class SCMInterface(BaseInterface):
         if torev:
             cmd += "--rev %s " % torev
         if file_list:
-            cmd += " ".join(file_list)
+            cmd += utils.file_list_to_string(file_list)
         res, sout, serr = utils.run_cmd(cmd)
         if res != 0:
             res = cmd_result.ERROR
@@ -628,7 +630,7 @@ class SCMInterface(BaseInterface):
         if rev:
             cmd += " -r %s" %rev
         if path:
-            cmd += " %s" % path
+            cmd += ' "%s"' % path
         return self._run_cmd_on_console(cmd)
     def do_verify_repo(self):
         return self._run_cmd_on_console("hg verify")
@@ -680,9 +682,9 @@ class SCMInterface(BaseInterface):
         ws_event.notify_events(ws_event.REPO_MOD)
         return result
     def do_clone_as(self, path, target=None):
-        cmd = "hg clone %s" % path
+        cmd = 'hg clone "%s"' % path
         if target:
-            cmd += " %s" % target
+            cmd += ' "%s"' % target
         result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.REPO_MOD)
         return result
@@ -730,7 +732,7 @@ class SCMInterface(BaseInterface):
         if pbranch:
             cmd += ' %s' % pbranch
         if file_list:
-            cmd += ' %s' % ' '.join(file_list)
+            cmd += ' %s' % utils.file_list_to_string(file_list)
         return utils.run_cmd(cmd)
     def get_pstatus(self, pbranch=None):
         cmd = 'hg pstatus'
@@ -770,7 +772,7 @@ class SCMInterface(BaseInterface):
     def do_pbackout(self, files=[]):
         cmd = 'hg pbackout'
         if files:
-            cmd += ' %s' % ' '.join(files)
+            cmd += ' %s' % utils.file_list_to_string(files)
         result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.REPO_MOD|ws_event.CHECKOUT|ws_event.FILE_CHANGES)
         return result
@@ -963,7 +965,7 @@ class PMInterface(BaseInterface):
         if patch:
             cmd += "--rev %s " % patch
         if file_list:
-            cmd += " ".join(file_list)
+            cmd += utils.file_list_to_string(file_list)
         res, sout, serr = utils.run_cmd(cmd)
         if res != 0:
             res = cmd_result.ERROR
@@ -1086,10 +1088,11 @@ class PMInterface(BaseInterface):
     def do_import_patch(self, patch_file_name, as_patch_name=None, force=False):
         cmd = "hg qimport "
         if as_patch_name:
-            cmd += "-n %s " % as_patch_name
+            cmd += '-n "%s" ' % as_patch_name
         if force:
             cmd += "-f "
-        res, sout, serr = self._run_cmd_on_console(cmd + patch_file_name, ignore_err_re=self._adding_re)
+        cmd += '"%s"' % patch_file_name
+        res, sout, serr = self._run_cmd_on_console(cmd, ignore_err_re=self._adding_re)
         if res and re.search("already exists", serr):
             res |= cmd_result.SUGGEST_FORCE_OR_RENAME
         ws_event.notify_events(ws_event.UNAPPLIED_PATCH_MOD)
@@ -1120,7 +1123,8 @@ class PMInterface(BaseInterface):
         cmd = "hg revert --rev %s " % parent
         if force:
             cmd += "-f "
-        result = self._run_cmd_on_console(" ".join([cmd] + file_list)) 
+        cmd += utils.patch_file_name(file_list)
+        result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.FILE_DEL)
         return result
     def do_save_queue_state_for_update(self):

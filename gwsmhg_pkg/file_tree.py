@@ -729,7 +729,7 @@ class FileTreeView(_ViewWithActionGroups):
     def add_selected_files_to_clipboard(self, clipboard=None):
         if not clipboard:
             clipboard = gtk.clipboard_get(gtk.gdk.SELECTION_CLIPBOARD)
-        sel = " ".join(self.get_selected_files())
+        sel = utils.file_list_to_string(self.get_selected_files()).strip()
         clipboard.set_text(sel)
     def _key_press_cb(self, widget, event):
         if event.state == gtk.gdk.CONTROL_MASK:
@@ -1097,7 +1097,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         if mode == gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER:
             dialog.set_current_folder(os.getcwd())
         else:
-            dialog.set_current_folder(os.path.dirname(src_file_list[0]))
+            dialog.set_current_folder(os.path.abspath(os.path.dirname(src_file_list[0])))
             dialog.set_current_name(os.path.basename(src_file_list[0]))
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
