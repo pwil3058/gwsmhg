@@ -7,7 +7,7 @@
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
 AppId={{3D488CC9-1421-4766-A7A5-8BE9EF4674A9}
 AppName=gWSMhg
-AppVerName=gWSMhg 0.5
+AppVerName=gWSMhg 0.6-devel
 AppPublisher=Peter Williams
 AppPublisherURL=http://gwsmhg.sourceforge.net/
 AppSupportURL=http://gwsmhg.sourceforge.net/

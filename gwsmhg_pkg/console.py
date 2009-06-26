@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import os, gtk, gwsmhg_pkg.sourceview, pango, time
-from gwsmhg_pkg import dialogue, utils, cmd_result, gutils, ws_event
+from gwsmhg_pkg import dialogue, utils, cmd_result, gutils
 
 class DummyConsoleLog:
     def start_cmd(self, cmd):
@@ -152,13 +152,17 @@ class ConsoleLog(gtk.VBox, dialogue.BusyIndicatorUser):
         self._buffer.append_entry(msg)
         while gtk.events_pending(): gtk.main_iteration()
     def _cmd_entry_cb(self, entry):
-        self.show_busy()
         text = entry.get_text_and_clear_to_history()
-        if text:
-            result = utils.run_cmd_in_console(text, self)
-        else:
-            result = (cmd_result.OK, "", "")
+        if not text:
+            return (cmd_result.OK, "", "")
+        self.show_busy()
+        pre_dir = os.getcwd()
+        result = utils.run_cmd_in_console(text, self)
         self.unshow_busy()
         dialogue.report_any_problems(result)
-        ws_event.notify_events(-1)
-
+        if pre_dir == os.getcwd():
+            from gwsmhg_pkg import ws_event
+            ws_event.notify_events(ws_event.ALL_BUT_CHANGE_WD)
+        else:
+            from gwsmhg_pkg import ifce
+            ifce.chdir()

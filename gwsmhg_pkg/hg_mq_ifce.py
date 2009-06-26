@@ -210,18 +210,14 @@ class SCMInterface(BaseInterface):
             except KeyError:
                 continue
         return ""
-    def get_root(self, dir=None):
-        if dir:
-            old_dir = os.getcwd()
-            os.chdir(dir)
-        res, root, serr = utils.run_cmd("hg root")
-        if dir:
-            os.chdir(old_dir)
+    def get_root(self, dev=None):
+        if dev:
+            res, root, serr = utils.run_cmd('hg -R "%s" root' % dev)
+        else:
+            res, root, serr = utils.run_cmd('hg root')
         if res != 0:
             return None
         return root.strip()
-    def is_repository(self, dir=None):
-        return self.get_root(dir) != None
     def _get_qbase(self):
         res, rev, serr = utils.run_cmd('hg log --template "{rev}" -r qbase')
         if not res:
@@ -479,7 +475,7 @@ class SCMInterface(BaseInterface):
             patch = '\n'.join(lines[patch_data[0]:])
             return (res, patch, serr)
     def get_heads_data(self):
-        if not self.is_repository(): return (cmd_result.OK, [], "")
+        if not self.get_root(): return (cmd_result.OK, [], "")
         cmd = 'hg heads --template "%s"' % self.cs_table_template
         res, sout, serr = utils.run_cmd(cmd)
         if res != 0:
@@ -491,7 +487,7 @@ class SCMInterface(BaseInterface):
             plist.append(pdata)
         return (res, plist, serr)
     def get_history_data(self, rev=None):
-        if not self.is_repository(): return (cmd_result.OK, [], "")
+        if not self.get_root(): return (cmd_result.OK, [], "")
         cmd = 'hg log --template "%s"' % self.cs_table_template
         if rev:
             cmd += " --rev %s" % rev
@@ -505,7 +501,7 @@ class SCMInterface(BaseInterface):
             plist.append(pdata)
         return (res, plist, serr)
     def get_tags_data(self):
-        if not self.is_repository(): return (cmd_result.OK, [], "")
+        if not self.get_root(): return (cmd_result.OK, [], "")
         res, sout, serr = utils.run_cmd("hg -v tags")
         if res:
             return (res, sout, serr)
@@ -545,7 +541,7 @@ class SCMInterface(BaseInterface):
                 tag_list.append([dat.group(1)])
         return (res, tag_list, serr)
     def get_branches_data(self):
-        if not self.is_repository(): return (cmd_result.OK, [], "")
+        if not self.get_root(): return (cmd_result.OK, [], "")
         res, sout, serr = utils.run_cmd("hg branches")
         if res:
             return (res, sout, serr)
@@ -705,7 +701,7 @@ class SCMInterface(BaseInterface):
             ws_event.notify_events(ws_event.REPO_MOD)
         return result
     def get_pbranch_table_data(self):
-        if not self.is_repository(): return (cmd_result.OK, [], "")
+        if not self.get_root(): return (cmd_result.OK, [], "")
         res, sout, serr = utils.run_cmd('hg pgraph --title --with-name')
         if res:
             return (res, sout, serr)

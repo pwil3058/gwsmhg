@@ -381,6 +381,8 @@ class MapManagedTableView(TableView, MappedManager, dialogue.BusyIndicatorUser):
         self.refresh_contents()
         self.get_selection().set_mode(sel_mode)
         self.get_selection().unselect_all()
+        from gwsmhg_pkg import ws_event
+        ws_event.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir)
     def map_action(self):
         if self._needs_refresh:
             self.show_busy()
@@ -401,8 +403,10 @@ class MapManagedTableView(TableView, MappedManager, dialogue.BusyIndicatorUser):
         self.show_busy()
         self.refresh_contents()
         self.unshow_busy()
-    def update_for_chdir(self):
+    def update_for_chdir(self, arg=None):
+        self.show_busy()
         self.refresh_contents()
+        self.unshow_busy()
 
 class AutoRefreshTableView(MapManagedTableView):
     def __init__(self, descr, busy_indicator, sel_mode=gtk.SELECTION_SINGLE,

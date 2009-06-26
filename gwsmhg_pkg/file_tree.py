@@ -937,11 +937,11 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         model = ScmCwdFileTreeStore(show_hidden=show_hidden)
         CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
             auto_refresh=auto_refresh, show_status=True)
-        self._ncb_uac = ws_event.add_notification_cb(ws_event.CHECKOUT|ws_event.FILE_CHANGES,
-            self.update_after_commit)
-        self._ncb_uac = ws_event.add_notification_cb(ws_event.CHANGE_WD,
-            self.repopulate_tree)
-        self._ncb_ums = ws_event.add_notification_cb(ws_event.PMIC_CHANGE, self.update_pmic_sensitivity)
+        self._ncbs = [
+            ws_event.add_notification_cb(ws_event.CHECKOUT|ws_event.FILE_CHANGES, self.update_after_commit),
+            ws_event.add_notification_cb(ws_event.PMIC_CHANGE, self.update_pmic_sensitivity),
+            ws_event.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir),
+        ]
         self.connect("destroy", self._destroy_cb)
         self._action_group[SELECTION].add_actions(
             [
@@ -996,8 +996,13 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                 self._action_group[condition].add_actions(action_list)
             self._ui_manager.add_ui_from_string(tortoise.FILES_UI_DESCR)
         self._update_menu_sensitivity(ifce.PM.get_in_progress())
+    def update_for_chdir(self):
+        self.show_busy()
+        self.update_pmic_sensitivity()
+        self.repopulate_tree()
+        self.unshow_busy()
     def _destroy_cb(self, widget):
-        ws_event.del_notification_cbs([self._ncb_uac, self._ncb_ums])
+        ws_event.del_notification_cbs(self._ncbs)
     def _tortoise_tool_acb(self, action=None):
         tortoise.run_tool_for_files(action, self.get_selected_files())
     def new_file(self, new_file_name):
@@ -1210,9 +1215,6 @@ class ScmCwdFilesWidget(gtk.VBox):
             hbox.pack_start(button)
         self.pack_start(hbox, expand=False)
         self.show_all()
-    def update_for_chdir(self):
-        self.file_tree.update_pmic_sensitivity()
-        self.file_tree.repopulate_tree()
 
 class ScmChangeFileTreeStore(FileTreeStore):
     def __init__(self, show_hidden=True, view=None, file_mask=[]):

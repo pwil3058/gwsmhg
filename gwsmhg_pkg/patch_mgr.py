@@ -198,9 +198,15 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
         model.repopulate()
         self.cwd_merge_id = self._ui_manager.add_ui_from_string(PM_FILES_UI_DESCR)
         ws_event.add_notification_cb(ws_event.REPO_MOD, self.update_in_repo_sensitivity)
+        ws_event.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir)
         self.update_in_repo_sensitivity()
+    def update_for_chdir(self, arg=None):
+        self.show_busy()
+        self.update_in_repo_sensitivity()
+        self.get_model().repopulate()
+        self.unshow_busy()
     def update_in_repo_sensitivity(self):
-        if ifce.SCM.is_repository():
+        if ifce.in_valid_repo:
             self._action_group[file_tree.SELECTION_INDIFFERENT].set_sensitive(True)
             self.update_pmic_sensitivity()
         else:
@@ -364,9 +370,6 @@ class TopPatchFilesWidget(gtk.VBox):
         self.pack_start(self.menu_bar, expand=False)
         self.pack_start(scw, expand=True, fill=True)
         self.show_all()
-    def update_for_chdir(self):
-        self.file_tree.update_in_repo_sensitivity()
-        self.file_tree.get_model().repopulate()
 
 PM_PATCHES_UI_DESCR = \
 '''
@@ -605,7 +608,13 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser):
         self._selection_changed_cb(self.get_selection())
         self.connect("button_press_event", self._handle_button_press_cb)
         ws_event.add_notification_cb(ws_event.REPO_MOD, self.update_in_repo_sensitivity)
+        ws_event.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir)
         self.update_in_repo_sensitivity()
+    def update_for_chdir(self):
+        self.show_busy()
+        self.update_in_repo_sensitivity()
+        self.set_contents()
+        self.unshow_busy()
     def _selection_changed_cb(self, selection):
         if selection.count_selected_rows() == 0:
             for index in APPLIED, UNAPPLIED, APPLIED_INDIFFERENT, UNAPPLIED_AND_INTERDIFF:
@@ -644,7 +653,7 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser):
         self._action_group[WS_UPDATE_MERGE_READY].set_sensitive(ifce.PM.get_ws_update_merge_ready(unapplied_count=self.unapplied_count))
         self._action_group[WS_UPDATE_CLEAN_UP_READY].set_sensitive(ifce.PM.get_ws_update_clean_up_ready())
     def update_in_repo_sensitivity(self):
-        if ifce.SCM.is_repository():
+        if ifce.in_valid_repo:
             self._selection_changed_cb(self.get_selection())
             self._set_ws_update_menu_sensitivity()
             self._action_group[PUSH_POP_INDIFFERENT].set_sensitive(True)
@@ -1094,9 +1103,6 @@ class PatchListWidget(gtk.VBox):
         self.menu_bar = self.list_view.get_ui_widget("/patch_list_menubar")
         self.pack_start(self.menu_bar, expand=False)
         self.pack_start(gutils.wrap_in_scrolled_window(self.list_view))
-    def update_for_chdir(self):
-        self.list_view.update_in_repo_sensitivity()
-        self.list_view.set_contents()
 
 class PatchManagementWidget(gtk.VBox):
     def __init__(self, busy_indicator=None):
@@ -1114,9 +1120,6 @@ class PatchManagementWidget(gtk.VBox):
         hpane.add1(self._file_tree)
         hpane.add2(self._patch_list)
         self.pack_start(hpane)
-    def update_for_chdir(self):
-        self._file_tree.update_for_chdir()
-        self._patch_list.update_for_chdir()
 
 class NewPatchDescrEditWidget(gtk.VBox):
     def __init__(self, view=None):

@@ -65,22 +65,15 @@ class gwsm(gtk.Window, dialogue.BusyIndicator):
         # see if we're in a valid work space and if not offer a selection
         # unless a directory was specified on the command line
         open_dialog = None # we need this later
-        rootdir = ifce.SCM.get_root()
-        if rootdir:
-            os.chdir(rootdir)
-        elif not dir_specified:
+        if not ifce.in_valid_repo and not dir_specified:
             open_dialog = config.WSOpenDialog()
             if open_dialog.run() == gtk.RESPONSE_OK:
                 wspath = open_dialog.get_path()
                 if wspath:
-                    try:
-                        os.chdir(wspath)
-                        rootdir = ifce.SCM.get_root()
-                        if rootdir:
-                            os.chdir(rootdir)
-                            open_dialog.ap_view.add_ap(rootdir)
-                    except:
-                        pass
+                    open_dialog.show_busy()
+                    result = ifce.chdir(wspath)
+                    open_dialog.unshow_busy()
+                    dialogue.report_any_problems(result)
             else:
                 sys.exit()
             open_dialog.show_busy()
@@ -194,6 +187,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator):
         self._update_title()
         self._parent_view.get_selection().unselect_all()
         ws_event.add_notification_cb(ws_event.PMIC_CHANGE, self._update_sensitivities)
+        ws_event.add_notification_cb(ws_event.CHANGE_WD, self._reset_after_cd)
         if open_dialog:
             open_dialog.unshow_busy()
             open_dialog.destroy()
@@ -211,55 +205,25 @@ class gwsm(gtk.Window, dialogue.BusyIndicator):
         self._action_group[const.NOT_IN_VALID_SCM_REPO].set_sensitive(not in_valid_repo)
         self._action_group[const.IN_VALID_SCM_REPO].set_sensitive(in_valid_repo)
         self._action_group[const.IN_VALID_SCM_REPO_NOT_PMIC].set_sensitive(in_valid_repo and not pm_ic)
-#    def _change_wd(self, newdir=None):
-#        if newdir:
-#            os.chdir(newdir)
-#        else:
-#            newdir = os.getcwd()
-#        # This is where'll we get the appropriate SCM interface in later versions
-#        newrootdir = ifce.SCM.get_root()
-#        if newrootdir and newrootdir != newdir:
-#            os.chdir(newrootdir)
-    def _reset_after_cd(self):
+    def _reset_after_cd(self, arg=None):
         self.show_busy()
         self._update_sensitivities()
-        ifce.log.append_entry("New Working Directory: %s" % os.getcwd())
-        self._parent_view.update_for_chdir()
-        self._history_view.update_for_chdir()
-        self._heads_view.update_for_chdir()
-        self._tags_view.update_for_chdir()
-        self._branches_view.update_for_chdir()
-        self._file_tree_widget.update_for_chdir()
-        self._patch_mgr.update_for_chdir()
-        self._path_view.update_for_chdir()
-        if ifce.SCM.get_extension_enabled('pbranch'):
-            self._pbranch.update_for_chdir()
         self._update_title()
         self.unshow_busy()
     def _change_wd_acb(self, action=None):
         open_dialog = config.WSOpenDialog(parent=self)
         if open_dialog.run() == gtk.RESPONSE_OK:
             wspath = open_dialog.get_path()
-            if not wspath:
-                open_dialog.destroy()
-            else:
-                old_wspath = os.getcwd()
-                os.chdir(wspath)
-                rootdir = ifce.SCM.get_root()
-                if rootdir:
-                    os.chdir(rootdir)
-                    open_dialog.ap_view.add_ap(rootdir)
-                    wspath = rootdir
-                open_dialog.destroy()
-                if not utils.samefile(old_wspath, os.path.expanduser(wspath)):
-                    self._reset_after_cd()
-        else:
-            open_dialog.destroy()
+            if wspath:
+                open_dialog.show_busy()
+                result = ifce.chdir(wspath)
+                open_dialog.unshow_busy()
+                dialogue.report_any_problems(result)
+        open_dialog.destroy()
     def _init_wd_acb(self, action=None):
         result = ifce.SCM.do_init()
         dialogue.report_any_problems(result)
-        if ifce.SCM.get_root():
-            config.append_saved_ws(path=os.getcwd())
+        ifce.chdir()
     def _clone_repo_acb(self, action=None):
         clone_dialog = config.RepoSelectDialog(parent=self)
         if clone_dialog.run() == gtk.RESPONSE_OK:
@@ -275,9 +239,10 @@ class gwsm(gtk.Window, dialogue.BusyIndicator):
             if result[0]:
                 dialogue.report_any_problems(result)
                 return
-            os.chdir(target)
-            config.append_saved_ws(path=os.getcwd(), alias=target)
-            self._reset_after_cd()
+            clone_dialog.show_busy()
+            result = ifce.chdir(target)
+            clone_dialog.unshow_busy()
+            dialogue.report_any_problems(result)
             clone_dialog.ap_view.add_ap(cloned_path)
             clone_dialog.destroy()
         else:

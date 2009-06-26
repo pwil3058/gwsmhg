@@ -167,9 +167,10 @@ class PBranchTable(table.Table, dialogue.BusyIndicatorUser):
             self._ui_manager.insert_action_group(self.action_groups[condition], -1)
         self._ui_manager.insert_action_group(self._local_action_group, -1)
         self.cwd_merge_id = self._ui_manager.add_ui_from_string(PBRANCH_UI_DESCR)
-        self.action_groups[table.ALWAYS_ON].set_sensitive(ifce.SCM.is_repository())
+        self.action_groups[table.ALWAYS_ON].set_sensitive(ifce.in_valid_repo)
         self.view.connect("button_press_event", self._handle_button_press_cb)
         self._tool_bar = self._ui_manager.get_widget("/pbranch_toolbar")
+        ws_event.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir)
         self.pack_start(self._tool_bar, expand=False)
         self.reorder_child(self._tool_bar, 0)
     def _handle_button_press_cb(self, widget, event):
@@ -189,8 +190,10 @@ class PBranchTable(table.Table, dialogue.BusyIndicatorUser):
         self._local_action_group.set_sensitive(in_pbranch_branch)
         return pbranches
     def update_for_chdir(self):
-        self.action_groups[table.ALWAYS_ON].set_sensitive(ifce.SCM.is_repository())
+        self.show_busy()
+        self.action_groups[table.ALWAYS_ON].set_sensitive(ifce.in_valid_repo)
         self.set_contents()
+        self.unshow_busy()
     def update_contents(self):
         # TODO something more sophisticated needed here to improve usability
         # e.g. leave selection intact

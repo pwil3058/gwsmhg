@@ -16,7 +16,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import subprocess, os, signal, errno, gtk, select, urlparse, gobject, os.path
-import cmd_result, ws_event
+from gwsmhg_pkg import cmd_result, ws_event
 
 HOME = os.path.expanduser("~")
 

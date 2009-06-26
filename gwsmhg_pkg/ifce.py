@@ -15,17 +15,47 @@
 
 SCM = None
 PM = None
+in_valid_repo = False
 
-from gwsmhg_pkg import console
+import os
+
+from gwsmhg_pkg import console, ws_event, config, cmd_result
 
 log = None
 
 def init(ifce_module):
-    global SCM, PM
+    global SCM, PM, in_valid_repo
     SCM = ifce_module.SCMInterface()
     PM = ifce_module.PMInterface()
+    root = SCM.get_root()
+    if root:
+        os.chdir(root)
+        in_valid_repo = True
+    else:
+        in_valid_repo = False
 
 def create_log(busy_indicator):
     global log
     log = console.ConsoleLog(busy_indicator)
     return log
+
+def chdir(newdir=None):
+    if newdir:
+        # TODO: pass error message if this fails
+        try:
+            os.chdir(newdir)
+        except OSError, err:
+            import errno
+            ec = errno.errorcode[err.errno]
+            em = err.strerror
+            return (cmd_result.ERROR, '', '%s: "%s" :%s' % (ec, newdir, em))
+    root = SCM.get_root()
+    if root:
+        os.chdir(root)
+        in_valid_repo = True
+        config.append_saved_ws(root)
+    else:
+        in_valid_repo = False
+    ws_event.notify_events(ws_event.CHANGE_WD)
+    log.append_entry("New Working Directory: %s" % os.getcwd())
+    return (cmd_result.OK, "", "")
