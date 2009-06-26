@@ -163,7 +163,7 @@ def ask_edit_force_or_cancel(question, flags=cmd_result.SUGGEST_ALL, parent=None
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
     if flags & cmd_result.SUGGEST_EDIT:
         buttons += ("_Edit", RESPONSE_EDIT)
-    if flage & cmd_result.SUGGEST_FORCE:
+    if flags & cmd_result.SUGGEST_FORCE:
         buttons += ("_Force", RESPONSE_FORCE)
     return ask_question(question, parent, buttons)
 
