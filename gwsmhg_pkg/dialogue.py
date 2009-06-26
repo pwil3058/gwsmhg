@@ -62,6 +62,12 @@ class Dialog(gtk.Dialog, BusyIndicator):
     def inform_user(msg, problem_type=gtk.MESSAGE_ERROR):
         inform_user(msg, problem_type, self)
 
+class AmodalDialog(Dialog):
+    def __init__(self, title=None, parent=None, flags=0, buttons=None):
+        flags &= ~gtk.DIALOG_MODAL
+        Dialog.__init__(self, title=title, parent=parent, flags=flags, buttons=buttons)
+        self.set_type_hint(gtk.gdk.WINDOW_TYPE_HINT_NORMAL)
+
 class MessageDialog(gtk.MessageDialog):
     def __init__(self, parent=None, flags=0, type=gtk.MESSAGE_INFO, buttons=gtk.BUTTONS_NONE, message_format=None):
         if not parent:

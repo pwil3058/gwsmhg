@@ -91,12 +91,12 @@ class SummaryView(gwsmhg_pkg.sourceview.SourceView):
         return buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter())
 
 class ChangeSummaryBuffer(SummaryBuffer):
-    def __init__(self, table=None, auto_save=True):
+    def __init__(self, table=None, auto_save=True, rootdir=None):
         if not table:
             table = gwsmhg_pkg.sourceview.SourceTagTable()
         SummaryBuffer.__init__(self, table=table)
         self._save_interval = 1000 # milliseconds
-        self._save_file_name = ifce.SCM.get_default_commit_save_file()
+        self._save_file_name = ifce.SCM.get_default_commit_save_file(rootdir=rootdir)
         if not os.path.exists(self._save_file_name):
             self.save_summary(content="")
         self._action_group.add_actions(
@@ -224,9 +224,9 @@ CHANGE_SUMMARY_UI_DESCR = \
 '''
 
 class ChangeSummaryView(SummaryView):
-    def __init__(self, buffer=None, auto_save=True, table=None):
+    def __init__(self, buffer=None, auto_save=True, table=None, rootdir=None):
         if not buffer:
-            buffer = ChangeSummaryBuffer(table, auto_save)
+            buffer = ChangeSummaryBuffer(table, auto_save, rootdir=rootdir)
         SummaryView.__init__(self, buffer, table)
         self.change_summary_merge_id = self._ui_manager.add_ui_from_string(CHANGE_SUMMARY_UI_DESCR)
 
@@ -252,10 +252,11 @@ class NewPatchSummaryBuffer(SummaryBuffer):
             dialogue.inform_user("Insert at cursor from file failed!")
 
 class PatchSummaryBuffer(NewPatchSummaryBuffer):
-    def __init__(self, get_summary, set_summary, patch=None, table=None):
+    def __init__(self, get_summary, set_summary, patch=None, table=None, rootdir=None):
         self.patch = patch
         self._set_summary = set_summary
         self._get_summary = get_summary
+        self._rootdir = rootdir
         if not table:
             table = gwsmhg_pkg.sourceview.SourceTagTable()
         NewPatchSummaryBuffer.__init__(self, table=table)
@@ -268,7 +269,7 @@ class PatchSummaryBuffer(NewPatchSummaryBuffer):
             ])
     def _save_summary_acb(self, action=None):
         text = self.get_text(self.get_start_iter(), self.get_end_iter())
-        res, sout, serr = self._set_summary(self.patch, text)
+        res, sout, serr = self._set_summary(self.patch, text, rootdir=self._rootdir)
         if res:
             dialogue.inform_user(os.linesep.join([sout, serr]))
         else:
@@ -278,7 +279,7 @@ class PatchSummaryBuffer(NewPatchSummaryBuffer):
             return dialogue.ask_ok_cancel("Buffer contents will be destroyed. Continue?")
         return True
     def load_summary(self):
-        res, text, serr = self._get_summary(self.patch)
+        res, text, serr = self._get_summary(self.patch, rootdir=self._rootdir)
         if res:
             dialogue.inform_user(os.linesep.join([text, serr]))
         else:
@@ -327,8 +328,8 @@ PATCH_SUMMARY_UI_DESCR = \
 '''
 
 class PatchSummaryView(NewPatchSummaryView):
-    def __init__(self, get_summary, set_summary, patch=None, table=None):
-        buffer = PatchSummaryBuffer(get_summary, set_summary, patch, table)
+    def __init__(self, get_summary, set_summary, patch=None, table=None, rootdir=None):
+        buffer = PatchSummaryBuffer(get_summary, set_summary, patch, table, rootdir=rootdir)
         NewPatchSummaryView.__init__(self, buffer, table)
         self.patch_summary_merge_id = self._ui_manager.add_ui_from_string(PATCH_SUMMARY_UI_DESCR)
         action = buffer._action_group.get_action("patch_summary_save")

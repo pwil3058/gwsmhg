@@ -18,8 +18,9 @@ from gwsmhg_pkg import dialogue, ifce, cmd_result, gutils, file_tree, icons, uti
 from gwsmhg_pkg import text_edit, change_set, diff, path, tortoise, ws_event
 
 class PatchFileTreeStore(file_tree.FileTreeStore):
-    def __init__(self, patch=None, view=None):
+    def __init__(self, patch=None, view=None, rootdir=None):
         self._patch = patch
+        self._rootdir = rootdir
         row_data = apply(file_tree.FileTreeRowData, ifce.PM.get_status_row_data())
         file_tree.FileTreeStore.__init__(self, show_hidden=True, row_data=row_data)
         # if this is set to the associated view then the view will expand
@@ -28,7 +29,8 @@ class PatchFileTreeStore(file_tree.FileTreeStore):
     def set_view(self, view):
         self._view = view
     def update(self, fsobj_iter=None):
-        res, dflist, dummy = ifce.PM.get_file_status_list(self._patch)
+        res, dflist, dummy = ifce.PM.get_file_status_list(self._patch,
+                                                          rootdir=self._rootdir)
         if res == 0:
             files = [tmpx[0] for tmpx in dflist] 
             for f in self.get_file_paths():
@@ -65,9 +67,9 @@ PATCH_FILES_UI_DESCR = \
 '''
 
 class PatchFileTreeView(file_tree.CwdFileTreeView):
-    def __init__(self, busy_indicator, patch=None):
+    def __init__(self, busy_indicator, patch=None, rootdir=None):
         self._patch = patch
-        model = PatchFileTreeStore(patch=patch)
+        model = PatchFileTreeStore(patch=patch, rootdir=rootdir)
         file_tree.CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
              auto_refresh=False, show_status=True)
         model.set_view(self)
@@ -95,22 +97,22 @@ class PatchFileTreeView(file_tree.CwdFileTreeView):
     def diff_selected_files_acb(self, action=None):
         dialog = diff.PmDiffTextDialog(parent=dialogue.main_window,
                                        patch=self._patch,
-                                       file_list=self.get_selected_files(),
-                                       modal=False)
+                                       file_list=self.get_selected_files())
         dialog.show()
     def diff_all_files_acb(self, action=None):
         dialog = diff.PmDiffTextDialog(parent=dialogue.main_window,
-                                       patch=self._patch,
-                                       modal=False)
+                                       patch=self._patch)
         dialog.show()
 
-class PatchFilesDialog(dialogue.Dialog):
+class PatchFilesDialog(dialogue.AmodalDialog):
     def __init__(self, patch):
-        title = "patch: %s files: %s" % (patch, utils.path_rel_home(os.getcwd()))
-        dialogue.Dialog.__init__(self, title, None, gtk.DIALOG_DESTROY_WITH_PARENT,
+        rootdir = ifce.SCM.get_root()
+        title = "patch: %s files: %s" % (patch, utils.path_rel_home(rootdir))
+        dialogue.AmodalDialog.__init__(self, title, None, gtk.DIALOG_DESTROY_WITH_PARENT,
                                  (gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE))
         # file tree view wrapped in scrolled window
-        self.file_tree = PatchFileTreeView(busy_indicator=self, patch=patch)
+        self.file_tree = PatchFileTreeView(busy_indicator=self, patch=patch,
+                                           rootdir=rootdir)
         self.file_tree.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.file_tree.set_headers_visible(False)
         self.file_tree.set_size_request(240, 320)
@@ -318,12 +320,10 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
         self.move_files(self.get_selected_files())
     def diff_selected_files_acb(self, action=None):
         dialog = diff.PmDiffTextDialog(parent=dialogue.main_window,
-                                       file_list=self.get_selected_files(),
-                                       modal=False)
+                                       file_list=self.get_selected_files())
         dialog.show()
     def diff_all_files_acb(self, action=None):
-        dialog = diff.PmDiffTextDialog(parent=dialogue.main_window,
-                                       modal=False)
+        dialog = diff.PmDiffTextDialog(parent=dialogue.main_window)
         dialog.show()
     def revert_named_files(self, file_list, ask=True):
         if ask:
@@ -798,18 +798,17 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser):
     def do_edit_description_wait(self, patch=None):
         if not patch:
             patch = self.get_selected_patch()
-        PatchDescrEditDialog(patch, parent=None, modal=False).run()
+        PatchDescrEditDialog(patch, parent=None).run()
     def do_edit_description(self, action=None):
         patch = self.get_selected_patch()
-        PatchDescrEditDialog(patch, parent=None, modal=False).show()
+        PatchDescrEditDialog(patch, parent=None).show()
     def show_files(self, action=None):
         patch = self.get_selected_patch()
         dialog = PatchFilesDialog(patch=patch)
         dialog.show()
     def show_diff_acb(self, action=None):
         patch = self.get_selected_patch()
-        dialog = diff.PmDiffTextDialog(parent=dialogue.main_window, patch=patch,
-                                       modal=False)
+        dialog = diff.PmDiffTextDialog(parent=dialogue.main_window, patch=patch)
         dialog.show()
     def do_rename(self, action=None):
         patch = self.get_selected_patch()
@@ -850,7 +849,7 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser):
                 return
     def do_duplicate(self, action=None):
         patch = self.get_selected_patch()
-        dialog = DuplicatePatchDialog(patch, parent=None, modal=False)
+        dialog = DuplicatePatchDialog(patch, parent=None)
         if dialog.run() == gtk.RESPONSE_CANCEL:
             dialog.destroy()
             return
@@ -881,7 +880,7 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser):
         dialogue.report_any_problems((res, sout, serr))
     def do_interdiff(self, action=None):
         patch = self.get_selected_patch()
-        dialog = DuplicatePatchDialog(patch, verb="Interdiff", parent=None, modal=False)
+        dialog = DuplicatePatchDialog(patch, verb="Interdiff", parent=None)
         if dialog.run() == gtk.RESPONSE_CANCEL:
             dialog.destroy()
             return
@@ -984,7 +983,7 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser):
         if not ifce.PM.get_enabled():
             dialogue.report_any_problems(ifce.PM.not_enabled_response)
             return
-        dialog = NewPatchDialog(parent=None, modal=False)
+        dialog = NewPatchDialog(parent=None)
         if dialog.run() == gtk.RESPONSE_CANCEL:
             dialog.destroy()
             return
@@ -1142,22 +1141,22 @@ class NewPatchDescrEditWidget(gtk.VBox):
         self.set_focus_child(self.view)
 
 class PatchDescrEditWidget(NewPatchDescrEditWidget):
-    def __init__(self, get_summary, set_summary, patch=None):
-        self.view = text_edit.PatchSummaryView(get_summary, set_summary, patch)
+    def __init__(self, get_summary, set_summary, patch=None, rootdir=None):
+        self.view = text_edit.PatchSummaryView(get_summary, set_summary, patch,
+                                               rootdir=rootdir)
         NewPatchDescrEditWidget.__init__(self, view=self.view)
         self.view.load_summary()
     def get_save_button(self):
         return self.view.save_button
 
-class GenericPatchDescrEditDialog(dialogue.Dialog):
-    def __init__(self, get_summary, set_summary, parent, patch=None, modal=False):
-        if modal:
-            flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
-        else:
-            flags = gtk.DIALOG_DESTROY_WITH_PARENT
-        dialogue.Dialog.__init__(self, "\"%s\" Description: %s" % (patch, utils.path_rel_home(os.getcwd())),
-            parent, flags, None)
-        self.edit_descr_widget = PatchDescrEditWidget(get_summary, set_summary, patch)
+class GenericPatchDescrEditDialog(dialogue.AmodalDialog):
+    def __init__(self, get_summary, set_summary, parent, patch=None):
+        flags = gtk.DIALOG_DESTROY_WITH_PARENT
+        rootdir = ifce.SCM.get_root()
+        title = '"%s" Description: %s' % (patch, utils.path_rel_home(rootdir))
+        dialogue.AmodalDialog.__init__(self, title, parent, flags, None)
+        self.edit_descr_widget = PatchDescrEditWidget(get_summary, set_summary,
+                                                      patch, rootdir=rootdir)
         self.vbox.pack_start(self.edit_descr_widget)
         self.action_area.pack_start(self.edit_descr_widget.get_save_button())
         self.add_button(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
@@ -1173,24 +1172,23 @@ class GenericPatchDescrEditDialog(dialogue.Dialog):
                 self.destroy()
 
 class PatchDescrEditDialog(GenericPatchDescrEditDialog):
-    def __init__(self, patch, parent, modal=False):
+    def __init__(self, patch, parent):
         GenericPatchDescrEditDialog.__init__(self,
             get_summary=ifce.PM.get_patch_description,
             set_summary=ifce.PM.do_set_patch_description,
-            parent=parent, patch=patch, modal=modal)
+            parent=parent, patch=patch)
 
 class DuplicatePatchDialog(dialogue.Dialog):
-    def __init__(self, patch, parent, verb="Duplicate", modal=False):
-        if modal:
-            flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
-        else:
-            flags = gtk.DIALOG_DESTROY_WITH_PARENT
-        dialogue.Dialog.__init__(self, "%s \"%s\": %s" % (verb, patch, utils.path_rel_home(os.getcwd())),
-            parent, flags, (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
+    def __init__(self, patch, parent, verb="Duplicate"):
+        flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
+        title = '%s "%s": %s' % (verb, patch, utils.path_rel_home(os.getcwd()))
+        dialogue.Dialog.__init__(self, title, parent, flags,
+                                 (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                  gtk.STOCK_OK, gtk.RESPONSE_OK))
         hbox = gtk.HBox()
         vbox = gtk.VBox()
-        vbox.pack_start(gtk.Label("%s Patch:" % verb))
-        vbox.pack_start(gtk.Label(" As Patch Named:"))
+        vbox.pack_start(gtk.Label('%s Patch:' % verb))
+        vbox.pack_start(gtk.Label(' As Patch Named:'))
         hbox.pack_start(vbox, fill=False, expand=False)
         vbox = gtk.VBox()
         entry = gtk.Entry()
@@ -1215,17 +1213,16 @@ class DuplicatePatchDialog(dialogue.Dialog):
         return self.edit_descr_widget.view.get_msg()
 
 class NewPatchDialog(dialogue.Dialog):
-    def __init__(self, parent, modal=False, objname="Patch"):
-        if modal:
-            flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
-        else:
-            flags = gtk.DIALOG_DESTROY_WITH_PARENT
-        dialogue.Dialog.__init__(self, "New %s: %s -- gwsmhg" % (objname, utils.path_rel_home(os.getcwd())),
-            parent, flags, (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
+    def __init__(self, parent, objname="Patch"):
+        flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
+        title = 'New %s: %s -- gwsmhg' % (objname, utils.path_rel_home(os.getcwd()))
+        dialogue.Dialog.__init__(self, title, parent, flags,
+                                 (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                  gtk.STOCK_OK, gtk.RESPONSE_OK))
         if not parent:
             self.set_icon_from_file(icons.app_icon_file)
         self.hbox = gtk.HBox()
-        self.hbox.pack_start(gtk.Label("New %s Name:" % objname), fill=False, expand=False)
+        self.hbox.pack_start(gtk.Label('New %s Name:' % objname), fill=False, expand=False)
         self.new_name_entry = gtk.Entry()
         self.new_name_entry.set_width_chars(32)
         self.hbox.pack_start(self.new_name_entry)

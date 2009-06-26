@@ -15,7 +15,7 @@
 
 import gtk, gobject, os
 from gwsmhg_pkg import dialogue, gutils, cmd_result, change_set, icons, file_tree, diff, \
-    ws_event, ifce
+    ws_event, ifce, utils
 
 PATH_TABLE_PRECIS_DESCR = \
 [
@@ -129,9 +129,11 @@ class PathCSTableView(change_set.ChangeSetTableView):
         self.set_size_request(640, 160)
 
 class IncomingParentsTableView(PathCSTableView):
-    def __init__(self, rev, path=None, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None):
+    def __init__(self, rev, path=None, sel_mode=gtk.SELECTION_SINGLE,
+                 busy_indicator=None, rootdir=None):
         self._path = path
         self._rev = rev
+        self._rootdir = rootdir
         PathCSTableView.__init__(self, get_data=self.get_table_data,
             path=path, sel_mode=sel_mode, busy_indicator=busy_indicator)
     def _view_cs_summary_acb(self, action):
@@ -139,23 +141,26 @@ class IncomingParentsTableView(PathCSTableView):
         self.show_busy()
         # a parent might be local so let's check
         if ifce.SCM.get_is_incoming(rev, self._path):
-            dialog = IncomingCSSummaryDialog(rev, self._path)
+            dialog = IncomingCSSummaryDialog(rev, self._path, rootdir=self._rootdir)
         else:
-            dialog = change_set.ChangeSetSummaryDialog(rev)
+            dialog = change_set.ChangeSetSummaryDialog(rev, rootdir=self._rootdir)
         self.unshow_busy()
         dialog.show()
     def get_table_data(self):
-        return ifce.SCM.get_incoming_parents_table_data(self._rev, self._path)
+        return ifce.SCM.get_incoming_parents_table_data(self._rev, self._path,
+                                                        rootdir=self._rootdir)
 
 class IncomingFileTreeStore(file_tree.FileTreeStore):
-    def __init__(self, rev, path):
+    def __init__(self, rev, path, rootdir=None):
         self._rev = rev
         self._path = path
+        self._rootdir = rootdir
         row_data = apply(file_tree.FileTreeRowData, ifce.SCM.get_status_row_data())
         file_tree.FileTreeStore.__init__(self, show_hidden=True, row_data=row_data)
         self.repopulate()
     def update(self, fsobj_iter=None):
-        res, files, dummy = ifce.SCM.get_incoming_change_set_files(self._rev, self._path)
+        res, files, dummy = ifce.SCM.get_incoming_change_set_files(self._rev, self._path,
+                                                                   rootdir=self._rootdir)
         if res == 0:
             for file_name, status, extra_info in files:
                 self.find_or_insert_file(file_name, file_status=status, extra_info=extra_info)
@@ -177,10 +182,11 @@ INCOMING_CS_FILES_UI_DESCR = \
 '''
 
 class IncomingFileTreeView(file_tree.FileTreeView):
-    def __init__(self, rev, path, busy_indicator):
+    def __init__(self, rev, path, busy_indicator, rootdir=None):
         self._rev = rev
         self._path = path
-        self.model = IncomingFileTreeStore(rev, path)
+        self._rootdir = rootdir
+        self.model = IncomingFileTreeStore(rev, path, rootdir=rootdir)
         file_tree.FileTreeView.__init__(self, model=self.model, busy_indicator=busy_indicator,
             auto_refresh=False, show_status=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
@@ -197,22 +203,28 @@ class IncomingFileTreeView(file_tree.FileTreeView):
         parent = dialogue.main_window
         self.show_busy()
         dialog = diff.IncomingDiffTextDialog(parent=parent,
-                                     rev=self._rev, path=self._path, modal=False)
+                                             rev=self._rev, path=self._path,
+                                             rootdir=self._rootdir)
         self.unshow_busy()
         dialog.show()
 
 class IncomingCSSummaryDialog(change_set.ChangeSetSummaryDialog):
-    def __init__(self, rev, path, parent=None):
+    def __init__(self, rev, path, parent=None, rootdir=None):
         self._path = path
-        change_set.ChangeSetSummaryDialog.__init__(self, rev=rev, parent=parent)
+        if not rootdir:
+            rootdir = ifce.SCM.get_root()
+        change_set.ChangeSetSummaryDialog.__init__(self, rev=rev, parent=parent,
+                                                   rootdir=rootdir)
         self.set_title("gwsmg: Change Set: %s : %s" % (rev, path))
-    def get_change_set_summary(self):
-        return ifce.SCM.get_incoming_change_set_summary(self._rev, self._path)
-    def get_file_tree_view(self):
-        return IncomingFileTreeView(self._rev, self._path, busy_indicator=self)
-    def get_parents_view(self):
+    def get_change_set_summary(self, rootdir):
+        return ifce.SCM.get_incoming_change_set_summary(self._rev, self._path,
+                                                        rootdir=rootdir)
+    def get_file_tree_view(self, rootdir):
+        return IncomingFileTreeView(self._rev, self._path, busy_indicator=self,
+                                                        rootdir=rootdir)
+    def get_parents_view(self, rootdir):
         return IncomingParentsTableView(self._rev, self._path,
-            busy_indicator=self)
+            busy_indicator=self, rootdir=rootdir)
 
 INCOMING_TABLE_UI_DESCR = \
 '''
@@ -231,8 +243,10 @@ INCOMING_TABLE_UI_DESCR = \
 '''
 
 class IncomingTableView(PathCSTableView):
-    def __init__(self, get_data, path=None, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None):
+    def __init__(self, get_data, path=None, sel_mode=gtk.SELECTION_SINGLE,
+                 busy_indicator=None, rootdir=None):
         self._path = path
+        self._rootdir = rootdir
         PathCSTableView.__init__(self, get_data=get_data, path=path,
             sel_mode=sel_mode, busy_indicator=busy_indicator)
         self._action_group[change_set.UNIQUE_SELECTION].add_actions(
@@ -244,13 +258,13 @@ class IncomingTableView(PathCSTableView):
     def _pull_to_cs_acb(self, action):
         rev = self.get_selected_change_set()
         self.show_busy()
-        ifce.SCM.do_pull_from(rev=rev, source=self._path)
+        ifce.SCM.do_pull_from(rev=rev, source=self._path, rootdir=self._rootdir)
         self._refresh_contents()
         self.unshow_busy()
     def _view_cs_summary_acb(self, action):
         rev = self.get_selected_change_set()
         self.show_busy()
-        dialog = IncomingCSSummaryDialog(rev, self._path)
+        dialog = IncomingCSSummaryDialog(rev, self._path, rootdir=self._rootdir)
         self.unshow_busy()
         dialog.show()
 
@@ -271,8 +285,10 @@ OUTGOING_TABLE_UI_DESCR = \
 '''
 
 class OutgoingTableView(PathCSTableView):
-    def __init__(self, get_data, path=None, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None):
+    def __init__(self, get_data, path=None, sel_mode=gtk.SELECTION_SINGLE,
+                 busy_indicator=None, rootdir=None):
         self._path = path
+        self._rootdir = rootdir
         PathCSTableView.__init__(self, get_data=get_data, path=path,
             sel_mode=sel_mode, busy_indicator=busy_indicator)
         self._action_group[change_set.UNIQUE_SELECTION_NOT_PMIC].add_actions(
@@ -284,18 +300,22 @@ class OutgoingTableView(PathCSTableView):
     def _push_to_cs_acb(self, action):
         rev = self.get_selected_change_set()
         self.show_busy()
-        ifce.SCM.do_push_to(rev=rev, path=self._path)
+        ifce.SCM.do_push_to(rev=rev, path=self._path, rootdir=self._rootdir)
         self._refresh_contents()
         self.unshow_busy()
 
-class PathCSDialog(dialogue.Dialog):
+class PathCSDialog(dialogue.AmodalDialog):
     def __init__(self, get_data, title, path=None, table=PathCSTableView, parent=None):
         self._path = path
-        dialogue.Dialog.__init__(self, title="gwsmg: %s: %s" % (title, path), parent=parent,
-                                 flags=gtk.DIALOG_DESTROY_WITH_PARENT,
-                                 buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
-                                )
-        self._view = table(get_data=get_data, path=path, busy_indicator=self)
+        self._rootdir = ifce.SCM.get_root()
+        title = 'gwsmg: %s(%s): %s' % (title, utils.path_rel_home(self._rootdir),
+                                       utils.path_rel_home(path))
+        dialogue.AmodalDialog.__init__(self, title=title, parent=parent,
+                                       flags=gtk.DIALOG_DESTROY_WITH_PARENT,
+                                       buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
+                                       )
+        self._view = table(get_data=get_data, path=path, busy_indicator=self,
+                           rootdir=self._rootdir)
         self.vbox.pack_start(gutils.wrap_in_scrolled_window(self._view))
         self.show_all()
         self._view.get_selection().unselect_all()
@@ -306,16 +326,16 @@ class PathCSDialog(dialogue.Dialog):
 class IncomingCSDialog(PathCSDialog):
     def __init__(self, path):
         PathCSDialog.__init__(self, get_data=self.get_data, path=path,
-            title="Incoming", table=IncomingTableView)
+            title="Incoming To", table=IncomingTableView)
     def get_data(self):
-        return ifce.SCM.get_incoming_table_data(self._path)
+        return ifce.SCM.get_incoming_table_data(self._path, rootdir=self._rootdir)
 
 class OutgoingCSDialog(PathCSDialog):
     def __init__(self, path):
         PathCSDialog.__init__(self, get_data=self.get_data, path=path,
-            title="Outgoing", table=OutgoingTableView)
+            title="Outgoing From", table=OutgoingTableView)
     def get_data(self):
-        return ifce.SCM.get_outgoing_table_data(self._path)
+        return ifce.SCM.get_outgoing_table_data(self._path, rootdir=self._rootdir)
 
 class PathSelectTableView(gutils.TableView):
     def __init__(self):

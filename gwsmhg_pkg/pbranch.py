@@ -225,8 +225,7 @@ class PBranchTable(table.Table, dialogue.BusyIndicatorUser):
             dialogue.inform_user(os.linesep.join([sout,serr]), problem_type=gtk.MESSAGE_INFO)
     def _pdiff_selection_acb(self, action=None):
         pbranch = self.get_selected_pbranch()
-        dialog = PbDiffTextDialog(parent=dialogue.main_window, pbranch=pbranch,
-                                  modal=False)
+        dialog = PbDiffTextDialog(parent=dialogue.main_window, pbranch=pbranch)
         dialog.show()
     def _edit_msg_selection_acb(self, action=None):
         pbranch = self.get_selected_pbranch()
@@ -267,7 +266,7 @@ class PBranchTable(table.Table, dialogue.BusyIndicatorUser):
         else:
             dialogue.inform_user(os.linesep.join([sout,serr]), problem_type=gtk.MESSAGE_INFO)
     def _pdiff_acb(self, action=None):
-        dialog = PbDiffTextDialog(parent=dialogue.main_window, modal=False)
+        dialog = PbDiffTextDialog(parent=dialogue.main_window)
         dialog.show()
     def _edit_msg_acb(self, action=None):
         PatchBranchDescrEditDialog(parent=None, modal=False).show()
@@ -308,43 +307,45 @@ class PatchBranchDescrEditDialog(patch_mgr.GenericPatchDescrEditDialog):
         patch_mgr.GenericPatchDescrEditDialog.__init__(self,
             get_summary=ifce.SCM.get_pbranch_description,
             set_summary=ifce.SCM.do_set_pbranch_description,
-            parent=parent, patch=pbranch, modal=modal)
+            parent=parent, patch=pbranch)
 
 class PbDiffTextBuffer(diff.DiffTextBuffer):
-    def __init__(self, file_list=[], pbranch=None, table=None):
-        diff.DiffTextBuffer.__init__(self, file_list=file_list, table=table)
+    def __init__(self, file_list=[], pbranch=None, table=None, rootdir=None):
+        diff.DiffTextBuffer.__init__(self, file_list=file_list, table=table,
+                                     rootdir=rootdir)
         self._pbranch = pbranch
         self.a_name_list = ["diff_save", "diff_save_as", "diff_refresh"]
         self.diff_buttons = gutils.ActionButtonList([self._action_group], self.a_name_list)
     def _get_diff_text(self):
-        res, text, serr = ifce.SCM.get_pdiff_for_files(self._file_list, self._pbranch)
+        res, text, serr = ifce.SCM.get_pdiff_for_files(self._file_list,
+                                                       self._pbranch,
+                                                       rootdir=self._rootdir)
         dialogue.report_any_problems((res, text, serr))
         return text
 
 class PbDiffTextView(diff.DiffTextView):
-    def __init__(self, file_list=[], pbranch=None):
-        buffer = PbDiffTextBuffer(file_list, pbranch=pbranch)
+    def __init__(self, file_list=[], pbranch=None, rootdir=None):
+        buffer = PbDiffTextBuffer(file_list, pbranch=pbranch, rootdir=rootdir)
         diff.DiffTextView.__init__(self, buffer=buffer)
 
 class PbDiffTextWidget(diff.DiffTextWidget):
-    def __init__(self, parent, file_list=[], pbranch=None):
-        diff_view = PbDiffTextView(file_list=file_list, pbranch=pbranch)
+    def __init__(self, parent, file_list=[], pbranch=None, rootdir=None):
+        diff_view = PbDiffTextView(file_list=file_list, pbranch=pbranch,
+                                   rootdir=rootdir)
         diff.DiffTextWidget.__init__(self, parent=parent, diff_view=diff_view)
 
-class PbDiffTextDialog(dialogue.Dialog):
-    def __init__(self, parent, file_list=[], pbranch=None, modal=False):
-        if modal or (parent and parent.get_modal()):
-            flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
-        else:
-            flags = gtk.DIALOG_DESTROY_WITH_PARENT
+class PbDiffTextDialog(dialogue.AmodalDialog):
+    def __init__(self, parent, file_list=[], pbranch=None):
+        flags = gtk.DIALOG_DESTROY_WITH_PARENT
         title = "diff: %s" % utils.path_rel_home(os.getcwd())
         mutable = pbranch is None
         if pbranch:
             title += " Patch Branch: %s" % pbranch
         else:
             title += " Patch Branch: []"
-        dialogue.Dialog.__init__(self, title, parent, flags, ())
-        dtw = PbDiffTextWidget(self, file_list, pbranch=pbranch)
+        dialogue.AmodalDialog.__init__(self, title, parent, flags, ())
+        rootdir = ifce.SCM.get_root()
+        dtw = PbDiffTextWidget(self, file_list, pbranch=pbranch, rootdir=rootdir)
         self.vbox.pack_start(dtw)
         tws_display = dtw.diff_view.get_buffer().tws_display
         self.action_area.pack_end(tws_display, expand=False, fill=False)

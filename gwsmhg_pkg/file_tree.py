@@ -1159,7 +1159,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         self.move_files(self.get_selected_files())
     def diff_selected_files_acb(self, action=None):
         dialog = diff.ScmDiffTextDialog(parent=dialogue.main_window,
-                                     file_list=self.get_selected_files(), modal=False)
+                                     file_list=self.get_selected_files())
         dialog.show()
     def revert_named_files(self, file_list, ask=True):
         if ask:
@@ -1217,8 +1217,9 @@ class ScmCwdFilesWidget(gtk.VBox):
         self.show_all()
 
 class ScmChangeFileTreeStore(FileTreeStore):
-    def __init__(self, show_hidden=True, view=None, file_mask=[]):
+    def __init__(self, show_hidden=True, view=None, file_mask=[], rootdir=None):
         self._file_mask = file_mask
+        self._rootdir = rootdir
         row_data = apply(FileTreeRowData, ifce.SCM.get_status_row_data())
         FileTreeStore.__init__(self, show_hidden=show_hidden, row_data=row_data)
         # if this is set to the associated view then the view will expand
@@ -1233,7 +1234,8 @@ class ScmChangeFileTreeStore(FileTreeStore):
     def get_file_mask(self):
         return self._file_mask
     def update(self, fsobj_iter=None):
-        res, dflists, dummy = ifce.SCM.get_file_status_lists(self._file_mask)
+        res, dflists, dummy = ifce.SCM.get_file_status_lists(self._file_mask,
+                                                             rootdir=self._rootdir)
         if res == 0:
             files = [tmpx[0] for tmpx in dflists[MODIFIED]] 
             for f in self.get_file_paths():
@@ -1273,9 +1275,13 @@ SCM_CHANGE_UI_DESCR = \
 '''
 
 class ScmChangeFileTreeView(FileTreeView):
-    def __init__(self, busy_indicator, auto_refresh=False, show_hidden=True, file_mask=[]):
+    def __init__(self, busy_indicator, auto_refresh=False, show_hidden=True,
+                 file_mask=[], rootdir=None):
         self.removeds = []
-        self.model = ScmChangeFileTreeStore(show_hidden=show_hidden, file_mask=file_mask)
+        self._rootdir = rootdir
+        self.model = ScmChangeFileTreeStore(show_hidden=show_hidden,
+                                            file_mask=file_mask,
+                                            rootdir=rootdir)
         self.model.set_view(self)
         FileTreeView.__init__(self, model=self.model, busy_indicator=busy_indicator,
             auto_refresh=auto_refresh, show_status=True)
@@ -1331,21 +1337,23 @@ class ScmChangeFileTreeView(FileTreeView):
     def _diff_selected_files_acb(self, action=None):
         parent = dialogue.main_window
         dialog = diff.ScmDiffTextDialog(parent=parent,
-                                     file_list=self.get_selected_files(),
-                                     modal=False)
+                                        file_list=self.get_selected_files(),
+                                        rootdir=self._rootdir)
         dialog.show()
     def _diff_all_files_acb(self, action=None):
         parent = dialogue.main_window
         dialog = diff.ScmDiffTextDialog(parent=parent,
-                                     file_list=self.get_file_mask(),
-                                     modal=False)
+                                        file_list=self.get_file_mask(),
+                                        rootdir=self._rootdir)
         dialog.show()
 
 class ScmCommitWidget(gtk.VPaned):
-    def __init__(self, busy_indicator, file_mask=[]):
+    def __init__(self, busy_indicator, file_mask=[], rootdir=None):
         gtk.VPaned.__init__(self)
         # TextView for change message
-        self.view = text_edit.ChangeSummaryView()
+        self._rootdir = rootdir
+        self._use_rootdir = None
+        self.view = text_edit.ChangeSummaryView(rootdir=rootdir)
         vbox = gtk.VBox()
         hbox = gtk.HBox()
         menubar = self.view.get_ui_widget("/change_summary_menubar")
@@ -1361,7 +1369,8 @@ class ScmCommitWidget(gtk.VPaned):
         self.files = ScmChangeFileTreeView(busy_indicator=busy_indicator,
                                           auto_refresh=False,
                                           show_hidden=True,
-                                          file_mask=file_mask)
+                                          file_mask=file_mask,
+                                          rootdir=rootdir)
         vbox = gtk.VBox()
         hbox = gtk.HBox()
         hbox.pack_start(gtk.Label("Files"), fill=True, expand=False)
@@ -1378,24 +1387,28 @@ class ScmCommitWidget(gtk.VPaned):
         self.add2(vbox)
         self.show_all()
         self.set_focus_child(self.view)
+        ws_event.add_notification_cb(ws_event.CHANGE_WD, self._change_wd_ncb)
+    def _change_wd_ncb(self, arg=None):
+        self._use_rootdir = self._rootdir
     def get_msg(self):
         return self.view.get_msg()
     def get_file_mask(self):
         return self.files.get_file_mask()
     def do_commit(self):
-        result = ifce.SCM.do_commit_change(self.get_msg(), self.get_file_mask())
+        result = ifce.SCM.do_commit_change(self.get_msg(),
+                                           self.get_file_mask(),
+                                           rootdir=self._use_rootdir)
         dialogue.report_any_problems(result)
         return cmd_result.is_less_than_error(result[0])
 
-class ScmCommitDialog(dialogue.Dialog):
-    def __init__(self, parent, filelist=None, modal=False):
-        if modal or (parent and parent.get_modal()):
-            flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
-        else:
-            flags = gtk.DIALOG_DESTROY_WITH_PARENT
-        dialogue.Dialog.__init__(self, "Commit Changes: %s" % utils.path_rel_home(os.getcwd()), parent, flags,
+class ScmCommitDialog(dialogue.AmodalDialog):
+    def __init__(self, parent, filelist=None):
+        flags = gtk.DIALOG_DESTROY_WITH_PARENT
+        rootdir = ifce.SCM.get_root()
+        title = "Commit Changes: %s" % utils.path_rel_home(rootdir)
+        dialogue.AmodalDialog.__init__(self, title, parent, flags,
             (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
-        self.commit_widget = ScmCommitWidget(busy_indicator=self, file_mask=filelist)
+        self.commit_widget = ScmCommitWidget(busy_indicator=self, file_mask=filelist, rootdir=rootdir)
         self.vbox.pack_start(self.commit_widget)
         self.connect("response", self._handle_response_cb)
         self.set_focus_child(self.commit_widget.view)
