@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import os, gtk, gobject, sys
-from gwsmhg_pkg import dialogue, icons, ifce, console, change_set, file_tree
+from gwsmhg_pkg import dialogue, icons, ifce, console, actions, change_set, file_tree
 from gwsmhg_pkg import gutils, path, cmd_result, diff, config, tortoise, const
 from gwsmhg_pkg import ws_event, patch_mgr, pbranch, utils
 
@@ -55,7 +55,7 @@ GWSM_UI_DESCR = \
 </ui>
 '''
 
-class gwsm(gtk.Window, dialogue.BusyIndicator):
+class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
     def __init__(self, dir_specified):
         gtk.Window.__init__(self, gtk.WINDOW_TOPLEVEL)
         self.set_icon_from_file(icons.app_icon_file)
@@ -78,12 +78,8 @@ class gwsm(gtk.Window, dialogue.BusyIndicator):
                 sys.exit()
             open_dialog.show_busy()
         dialogue.init(self)
-        self._action_group = {}
-        self._ui_manager = gtk.UIManager()
-        for condition in const.GWSM_CONDITIONS:
-            self._action_group[condition] = gtk.ActionGroup(condition)
-            self._ui_manager.insert_action_group(self._action_group[condition], -1)
-        self._action_group[const.ALWAYS_AVAILABLE].add_actions(
+        actions.AGandUIManager.__init__(self)
+        self.add_conditional_actions(actions.ON_REPO_INDEP,
             [
                 ("gwsm_working_directory", None, "_Working Directory"),
                 ("gwsm_configuration", None, "_Configuration"),
@@ -94,7 +90,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator):
                 ("gwsm_quit", gtk.STOCK_QUIT, "_Quit", "",
                  "Quit", self._quit),
             ])
-        self._action_group[const.NOT_IN_VALID_SCM_REPO].add_actions(
+        self.add_conditional_actions(actions.ON_NOT_IN_REPO,
             [
                 ("gwsm_init_wd", icons.STOCK_INIT, "_Initialise", "",
                  "Initialise the current working directory", self._init_wd_acb),
@@ -102,7 +98,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator):
                  "Clone a repository cd into the resultant working directory",
                  self._clone_repo_acb),
             ])
-        self._action_group[const.IN_VALID_SCM_REPO].add_actions(
+        self.add_conditional_actions(actions.ON_IN_REPO,
             [
                 ("gwsm_diff_ws", icons.STOCK_DIFF, "Diff", "",
                  "View diff(s) for the current working directory",
@@ -114,7 +110,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator):
                  "Verify the integrity of the repository",
                  self._verify_repo_acb),
             ])
-        self._action_group[const.IN_VALID_SCM_REPO_NOT_PMIC].add_actions(
+        self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC,
             [
                 ("gwsm_commit_ws", icons.STOCK_COMMIT, "Commit", "",
                  "Commit all changes in the current working directory", 
@@ -138,15 +134,12 @@ class gwsm(gtk.Window, dialogue.BusyIndicator):
                  "Roll back the last transaction",
                  self._rollback_repo_acb),
             ])
-        self._ui_manager.add_ui_from_string(GWSM_UI_DESCR)
+        self.ui_manager.add_ui_from_string(GWSM_UI_DESCR)
         if tortoise.is_available:
-            for condition in const.GWSM_CONDITIONS:
-                self._action_group[condition].add_actions(tortoise.main_group_actions[condition])
-            self._ui_manager.add_ui_from_string(tortoise.TORTOISE_HGTK_UI)
-        self._menubar = self._ui_manager.get_widget("/gwsm_menubar")
-        self._rhs_menubar = self._ui_manager.get_widget("/gwsm_right_side_menubar")
-        self._toolbar = self._ui_manager.get_widget("/gwsm_toolbar")
-        self._update_sensitivities()
+            self.ui_manager.add_ui_from_string(tortoise.TORTOISE_HGTK_UI)
+        self._menubar = self.ui_manager.get_widget("/gwsm_menubar")
+        self._rhs_menubar = self.ui_manager.get_widget("/gwsm_right_side_menubar")
+        self._toolbar = self.ui_manager.get_widget("/gwsm_toolbar")
         self._parent_view = change_set.ParentsTableView()
         self._file_tree_widget = file_tree.ScmCwdFilesWidget()
         self._notebook = gtk.Notebook()
@@ -185,8 +178,8 @@ class gwsm(gtk.Window, dialogue.BusyIndicator):
         self.add(vbox)
         self.show_all()
         self._update_title()
+        actions.update_class_indep_sensitivities()
         self._parent_view.get_selection().unselect_all()
-        ws_event.add_notification_cb(ws_event.PMIC_CHANGE, self._update_sensitivities)
         ws_event.add_notification_cb(ws_event.CHANGE_WD, self._reset_after_cd)
         if open_dialog:
             open_dialog.unshow_busy()
@@ -195,19 +188,8 @@ class gwsm(gtk.Window, dialogue.BusyIndicator):
         gtk.main_quit()
     def _update_title(self):
         self.set_title("gwsm%s: %s" % (ifce.SCM.name, utils.path_rel_home(os.getcwd())))
-    def _update_sensitivities(self, pm_ic=None):
-        in_valid_repo = ifce.SCM.get_root() != None
-        if pm_ic is None:
-            if in_valid_repo:
-                pm_ic = ifce.PM.get_in_progress()
-            else:
-                pm_ic = False
-        self._action_group[const.NOT_IN_VALID_SCM_REPO].set_sensitive(not in_valid_repo)
-        self._action_group[const.IN_VALID_SCM_REPO].set_sensitive(in_valid_repo)
-        self._action_group[const.IN_VALID_SCM_REPO_NOT_PMIC].set_sensitive(in_valid_repo and not pm_ic)
     def _reset_after_cd(self, arg=None):
         self.show_busy()
-        self._update_sensitivities()
         self._update_title()
         self.unshow_busy()
     def _change_wd_acb(self, action=None):

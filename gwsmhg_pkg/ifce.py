@@ -19,7 +19,7 @@ in_valid_repo = False
 
 import os
 
-from gwsmhg_pkg import console, ws_event, config, cmd_result
+from gwsmhg_pkg import console, ws_event, cmd_result
 
 log = None
 
@@ -40,6 +40,7 @@ def create_log(busy_indicator):
     return log
 
 def chdir(newdir=None):
+    global in_valid_repo
     if newdir:
         # TODO: pass error message if this fails
         try:
@@ -53,6 +54,7 @@ def chdir(newdir=None):
     if root:
         os.chdir(root)
         in_valid_repo = True
+        from gwsmhg_pkg import config
         config.append_saved_ws(root)
     else:
         in_valid_repo = False

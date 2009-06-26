@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import gtk
-from gwsmhg_pkg import utils, dialogue, icons, const, ws_event
+from gwsmhg_pkg import utils, dialogue, icons, const, ws_event, actions
 
 TORTOISE_HGTK_UI = \
 '''
@@ -84,25 +84,22 @@ main_group_actions = {}
 for condition in const.GWSM_CONDITIONS:
     main_group_actions[condition] = []
 
-main_group_actions[const.ALWAYS_AVAILABLE] = \
-    [
+actions.class_indep_ags[actions.ON_REPO_INDEP].add_actions([
         ('gwsm_tortoise', None, '_Tortoise Tools'),
         ('tortoise_recovery', icons.STOCK_RECOVERY, 'Recovery', '',
          'Launch tortoise "recovery" tool', _tortoise_tool_modal_acb),
         ('tortoise_userconfig', icons.STOCK_CONFIG, 'Userconfig', '',
          'Launch tortoise "userconfig" tool', _tortoise_tool_bgnd_acb),
-    ]
+    ])
 
-main_group_actions[const.NOT_IN_VALID_SCM_REPO] = \
-    [
+actions.class_indep_ags[actions.ON_NOT_IN_REPO].add_actions([
         ('tortoise_clone', icons.STOCK_CLONE, 'Clone', '',
          'Launch tortoise "clone" tool', _tortoise_tool_modal_acb),
         ('tortoise_init', icons.STOCK_INIT,'Init','',
          'Launch tortoise "init" tool', _tortoise_tool_modal_acb),
-    ]
+    ])
 
-main_group_actions[const.IN_VALID_SCM_REPO] = \
-    [
+actions.class_indep_ags[actions.ON_IN_REPO].add_actions([
         ('tortoise_datamine', gtk.STOCK_EXECUTE, 'Datamine', '',
          'Launch tortoise "datamine" tool', _tortoise_tool_bgnd_acb),
         ('tortoise_guess', icons.STOCK_GUESS, 'Guess', '',
@@ -115,10 +112,9 @@ main_group_actions[const.IN_VALID_SCM_REPO] = \
          'Launch tortoise "serve" tool', _tortoise_tool_modal_acb),
         ('tortoise_shelve', icons.STOCK_SHELVE, 'Shelve', '',
          'Launch tortoise "shelve" tool', _tortoise_tool_modal_acb),
-    ]
+    ])
 
-main_group_actions[const.IN_VALID_SCM_REPO_NOT_PMIC] = \
-    [
+actions.class_indep_ags[actions.ON_IN_REPO_NOT_PMIC].add_actions([
         ('tortoise_commit', icons.STOCK_COMMIT, 'Commit', '',
          'Launch tortoise "commit" tool', _tortoise_tool_modal_acb),
         ('tortoise_merge', icons.STOCK_MERGE, 'Merge', '',
@@ -129,7 +125,7 @@ main_group_actions[const.IN_VALID_SCM_REPO_NOT_PMIC] = \
          'Launch tortoise "synch" tool', _tortoise_tool_modal_acb),
         ('tortoise_update', icons.STOCK_UPDATE, 'Update', '',
          'Launch tortoise "update" tool', _tortoise_tool_modal_acb),
-    ]
+    ])
 
 FILES_UI_DESCR = \
 '''
@@ -150,18 +146,23 @@ from gwsmhg_pkg.const import NO_SELECTION, UNIQUE_SELECTION, SELECTION, \
 
 file_group_partial_actions = {}
 
-for condition in const.FILE_CONDITIONS:
+SELN_CONDITIONS = [
+    actions.ON_IN_REPO_UNIQUE_SELN,
+    actions.ON_IN_REPO_NOT_PMIC_SELN,
+    ]
+
+for condition in SELN_CONDITIONS:
     file_group_partial_actions[condition] = []
     
 file_menu = gtk.Action("tortoise_files_menu", "_Tortoise", None, None)
 
-file_group_partial_actions[UNIQUE_SELECTION] = \
+file_group_partial_actions[actions.ON_IN_REPO_UNIQUE_SELN] = \
     [
         ('tortoise_rename', icons.STOCK_RENAME, 'Rename', '',
          'Launch tortoise "rename" tool'),
     ]
 
-file_group_partial_actions[SELECTION_NOT_PMIC] = \
+file_group_partial_actions[actions.ON_IN_REPO_NOT_PMIC_SELN] = \
     [
         ('tortoise_commit', icons.STOCK_COMMIT, 'Commit', '',
          'Launch tortoise "commit" tool'),

@@ -24,8 +24,8 @@ REPO_TABLE_DESCR = \
     ["Path", gobject.TYPE_STRING, True, []],
 ]
 
-REPO_PATH = gutils.find_label_index(REPO_TABLE_DESCR, "Path")
-REPO_ALIAS = gutils.find_label_index(REPO_TABLE_DESCR, "Alias")
+REPO_PATH = table.find_label_index(REPO_TABLE_DESCR, "Path")
+REPO_ALIAS = table.find_label_index(REPO_TABLE_DESCR, "Alias")
 
 GSWMHG_D_NAME = os.sep.join([utils.HOME, ".gwsmhg.d"])
 SAVED_WS_FILE_NAME = os.sep.join([GSWMHG_D_NAME, "workspaces"])
@@ -43,10 +43,10 @@ def append_saved_ws(path, alias=None):
     file.write(os.linesep)
     file.close()
 
-class AliasPathView(gutils.TableView):
+class AliasPathView(table.TableView):
     def __init__(self, saved_file):
         self._saved_file = saved_file
-        gutils.TableView.__init__(self, REPO_TABLE_DESCR,
+        table.TableView.__init__(self, REPO_TABLE_DESCR,
                                   sel_mode=gtk.SELECTION_SINGLE,
                                   perm_headers=True)
         self._alias_ctr = self.get_column(REPO_ALIAS).get_cell_renderers()[0]

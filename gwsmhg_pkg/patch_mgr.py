@@ -16,6 +16,7 @@
 import gtk, gobject, pango, os, tempfile, re
 from gwsmhg_pkg import dialogue, ifce, cmd_result, gutils, file_tree, icons, utils
 from gwsmhg_pkg import text_edit, change_set, diff, path, tortoise, ws_event
+from gwsmhg_pkg import actions
 
 class PatchFileTreeStore(file_tree.FileTreeStore):
     def __init__(self, patch=None, view=None, rootdir=None):
@@ -73,27 +74,35 @@ class PatchFileTreeView(file_tree.CwdFileTreeView):
         file_tree.CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
              auto_refresh=False, show_status=True)
         model.set_view(self)
-        self._action_group[file_tree.SELECTION].add_actions(
+        if rootdir:
+            seldep = actions.ON_IN_REPO_PMIC_SELN
+            noseldep = actions.ON_IN_REPO_PMIC_NO_SELN
+            selindep = actions.ON_IN_REPO_PMIC_SELN_INDEP
+        else:
+            seldep = actions.ON_IN_REPO_INDEP_SELN
+            noseldep = actions.ON_IN_REPO_INDEP_NO_SELN
+            selindep = actions.ON_IN_REPO_INDEP_SELN_INDEP
+        self.add_conditional_actions(seldep,
             [
                 ("pm_diff_files_selection", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for selected file(s)", self.diff_selected_files_acb),
             ])
-        self._action_group[file_tree.NO_SELECTION].add_actions(
+        self.add_conditional_actions(noseldep,
             [
                 ("pm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for all changes", self.diff_all_files_acb),
             ])
-        self._action_group[file_tree.SELECTION_INDIFFERENT].add_actions(
+        self.add_conditional_actions(selindep,
             [
                 ("menu_files", None, "_Files"),
             ])
         model.show_hidden_action.set_visible(False)
         model.show_hidden_action.set_sensitive(False)
-        self._action_group[file_tree.SELECTION_INDIFFERENT].get_action("new_file").set_visible(False)
-        self._action_group[file_tree.SELECTION].get_action("edit_files").set_visible(False)
-        self._action_group[file_tree.SELECTION].get_action("delete_files").set_visible(False)
+        self.get_class_dep_action("new_file").set_visible(False)
+        self.get_class_dep_action("edit_files").set_visible(False)
+        self.get_class_dep_action("delete_files").set_visible(False)
         model.repopulate()
-        self.cwd_merge_id = self._ui_manager.add_ui_from_string(PATCH_FILES_UI_DESCR)
+        self.cwd_merge_id = self.ui_manager.add_ui_from_string(PATCH_FILES_UI_DESCR)
     def diff_selected_files_acb(self, action=None):
         dialog = diff.PmDiffTextDialog(parent=dialogue.main_window,
                                        patch=self._patch,
@@ -163,9 +172,9 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
             model=model, auto_refresh=auto_refresh, show_status=True)
         ws_event.add_notification_cb(ws_event.CHECKOUT|ws_event.CHANGE_WD, self.repopulate_tree)
         ws_event.add_notification_cb(ws_event.FILE_CHANGES, self.update_tree)
-        ws_event.add_notification_cb(ws_event.PMIC_CHANGE, self.update_pmic_sensitivity)
         model.set_view(self)
-        self._action_group[file_tree.SELECTION].add_actions(
+        self.move_class_dep_action('new_file', actions.ON_IN_REPO_PMIC_SELN_INDEP)
+        self.add_conditional_actions(actions.ON_IN_REPO_PMIC_SELN,
             [
                 ("pm_remove_files", gtk.STOCK_REMOVE, "_Remove", None,
                  "Remove the selected file(s) from the patch", self.remove_selected_files_acb),
@@ -178,48 +187,32 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
                 ("pm_revert_files_selection", gtk.STOCK_UNDO, "Rever_t", None,
                  "Revert changes in the selected file(s)", self.revert_selected_files_acb),
             ])
-        self._action_group[file_tree.UNIQUE_SELECTION].add_actions(
+        self.add_conditional_actions(actions.ON_IN_REPO_PMIC_UNIQUE_SELN,
             [
                 ("pm_rename_file", gtk.STOCK_PASTE, "Re_name/Move", None,
                  "Rename/move the selected file", self.move_selected_files_acb),
             ])
-        self._action_group[file_tree.NO_SELECTION].add_actions(
+        self.add_conditional_actions(actions.ON_IN_REPO_PMIC_NO_SELN,
             [
                 ("pm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for all changes", self.diff_all_files_acb),
                 ("pm_revert_files_all", gtk.STOCK_UNDO, "Rever_t", None,
                  "Revert all changes in working directory", self.revert_all_files_acb),
             ])
-        self._action_group[file_tree.SELECTION_INDIFFERENT].add_actions(
+        self.add_conditional_actions(actions.ON_IN_REPO_PMIC_SELN_INDEP,
             [
                 ("menu_files", None, "_Files"),
             ])
         model.show_hidden_action.set_visible(False)
         model.show_hidden_action.set_sensitive(False)
-        self.update_pmic_sensitivity()
         model.repopulate()
-        self.cwd_merge_id = self._ui_manager.add_ui_from_string(PM_FILES_UI_DESCR)
-        ws_event.add_notification_cb(ws_event.REPO_MOD, self.update_in_repo_sensitivity)
+        self.cwd_merge_id = self.ui_manager.add_ui_from_string(PM_FILES_UI_DESCR)
         ws_event.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir)
-        self.update_in_repo_sensitivity()
+        self._event_cond_change_cb()
     def update_for_chdir(self, arg=None):
         self.show_busy()
-        self.update_in_repo_sensitivity()
         self.get_model().repopulate()
         self.unshow_busy()
-    def update_in_repo_sensitivity(self):
-        if ifce.in_valid_repo:
-            self._action_group[file_tree.SELECTION_INDIFFERENT].set_sensitive(True)
-            self.update_pmic_sensitivity()
-        else:
-            for condition in file_tree.FILE_CONDITIONS:
-                self._action_group[condition].set_sensitive(False)
-    def update_pmic_sensitivity(self, pm_in_progress=None):
-        if pm_in_progress is None:
-            pm_in_progress = ifce.PM.get_in_progress()
-        self._action_group[file_tree.SELECTION_INDIFFERENT].get_action('new_file').set_sensitive(pm_in_progress)
-        self._action_group[file_tree.NO_SELECTION].set_sensitive(pm_in_progress and \
-            self.get_selection().count_selected_rows() == 0)
     def _check_if_force(self, result):
         if (result[0] & cmd_result.SUGGEST_FORCE) == cmd_result.SUGGEST_FORCE:
             dialog = gtk.MessageDialog(parent=dialogue.main_window,
@@ -366,7 +359,7 @@ class TopPatchFilesWidget(gtk.VBox):
         self.file_tree.set_size_request(240, 320)
         scw.add(self.file_tree)
         # file tree menu bar
-        self.menu_bar = self.file_tree.get_ui_widget("/files_menubar")
+        self.menu_bar = self.file_tree.ui_manager.get_widget("/files_menubar")
         self.pack_start(self.menu_bar, expand=False)
         self.pack_start(scw, expand=True, fill=True)
         self.show_all()

@@ -14,8 +14,8 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import gtk, gobject, os
-from gwsmhg_pkg import dialogue, gutils, cmd_result, change_set, icons, file_tree, diff, \
-    ws_event, ifce, utils
+from gwsmhg_pkg import dialogue, gutils, cmd_result, change_set, icons
+from gwsmhg_pkg import file_tree, diff, ws_event, ifce, utils, actions, table
 
 PATH_TABLE_PRECIS_DESCR = \
 [
@@ -42,14 +42,11 @@ PATH_TABLE_UI_DESCR = \
 </ui>
 '''
 
-class PathTableView(gutils.MapManagedTableView):
+class PathTableView(table.MapManagedTableView):
     def __init__(self, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None):
-        gutils.MapManagedTableView.__init__(self, descr=PATH_TABLE_PRECIS_DESCR,
+        table.MapManagedTableView.__init__(self, descr=PATH_TABLE_PRECIS_DESCR,
             sel_mode=sel_mode, busy_indicator=busy_indicator)
-        for condition in [change_set.UNIQUE_SELECTION, change_set.UNIQUE_SELECTION_NOT_PMIC]:
-            self._action_group[condition] = gtk.ActionGroup(condition)
-            self._ui_manager.insert_action_group(self._action_group[condition], -1)
-        self._action_group[change_set.UNIQUE_SELECTION].add_actions(
+        self.add_conditional_actions(actions.ON_IN_REPO_UNIQUE_SELN,
             [
                 ("view_incoming_from_path", gtk.STOCK_INFO, "Incoming", None,
                  "View the incoming change sets available to pull from the selected path",
@@ -61,26 +58,22 @@ class PathTableView(gutils.MapManagedTableView):
                  "Pull all available change sets from the selected path",
                  self._pull_from_acb),
             ])
-        self._action_group[change_set.UNIQUE_SELECTION_NOT_PMIC].add_actions(
+        self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_UNIQUE_SELN,
             [
                 ("push_to_path", gtk.STOCK_EXECUTE, "Push", None,
                  "Push all available change sets to the selected path",
                  self._push_to_acb),
             ])
-        self.cwd_merge_id.append(self._ui_manager.add_ui_from_string(PATH_TABLE_UI_DESCR))
+        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(PATH_TABLE_UI_DESCR))
         ws_event.add_notification_cb(ws_event.REPO_HGRC, self.refresh_contents_if_mapped)
         self.show_all()
-    def _set_action_sensitivities(self):
-        sel = self.get_selection().count_selected_rows() == 1
-        self._action_group[change_set.UNIQUE_SELECTION].set_sensitive(sel)
-        self._action_group[change_set.UNIQUE_SELECTION_NOT_PMIC].set_sensitive(sel and not ifce.PM.get_in_progress())
     def _refresh_contents(self):
         res, data, serr = ifce.SCM.get_path_table_data()
         if res == cmd_result.OK and data:
             self.set_contents(data)
         else:
             self.set_contents([])
-        gutils.MapManagedTableView._refresh_contents(self)
+        table.MapManagedTableView._refresh_contents(self)
     def get_selected_path_alias(self):
         data = self.get_selected_data([0])
         if len(data):
@@ -124,8 +117,9 @@ class PathCSTableView(change_set.ChangeSetTableView):
         ptype = change_set.PrecisType(change_set.LOG_TABLE_PRECIS_DESCR, get_data)
         change_set.ChangeSetTableView.__init__(self, ptype, sel_mode=sel_mode,
             busy_indicator=busy_indicator)
-        self._action_group[change_set.UNIQUE_SELECTION_NOT_PMIC].get_action("cs_update_ws_to").set_visible(False)
-        self._action_group[change_set.UNIQUE_SELECTION_NOT_PMIC].get_action("cs_merge_ws_with").set_visible(False)
+        self.get_class_dep_action("cs_update_ws_to").set_visible(False)
+        self.get_class_dep_action("cs_merge_ws_with").set_visible(False)
+        self.get_class_dep_action("cs_backout").set_visible(False)
         self.set_size_request(640, 160)
 
 class IncomingParentsTableView(PathCSTableView):
@@ -191,13 +185,17 @@ class IncomingFileTreeView(file_tree.FileTreeView):
             auto_refresh=False, show_status=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.set_headers_visible(False)
-        self._action_group[file_tree.NO_SELECTION].add_actions(
+        if rootdir:
+            noseldep = actions.ON_IN_REPO_NO_SELN
+        else:
+            noseldep = actions.ON_IN_REPO_INDEP_NO_SELN
+        self.add_conditional_actions(noseldep,
             [
                 ("incoming_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for all changes", self._diff_all_files_acb),
             ])
-        self._action_group[file_tree.SELECTION_INDIFFERENT].set_visible(False)
-        self.scm_change_merge_id = self._ui_manager.add_ui_from_string(INCOMING_CS_FILES_UI_DESCR)
+        self._action_groups[actions.ON_REPO_INDEP_SELN_INDEP].set_visible(False)
+        self.scm_change_merge_id = self.ui_manager.add_ui_from_string(INCOMING_CS_FILES_UI_DESCR)
         self.expand_all()
     def _diff_all_files_acb(self, action=None):
         parent = dialogue.main_window
@@ -249,12 +247,16 @@ class IncomingTableView(PathCSTableView):
         self._rootdir = rootdir
         PathCSTableView.__init__(self, get_data=get_data, path=path,
             sel_mode=sel_mode, busy_indicator=busy_indicator)
-        self._action_group[change_set.UNIQUE_SELECTION].add_actions(
-            [
+        if rootdir:
+            condn = actions.ON_IN_REPO_UNIQUE_SELN
+        else:
+            condn = actions.ON_IN_REPO_INDEP_UNIQUE_SELN
+        self.add_conditional_actions(condn,
+           [
                 ("cs_pull_to", gtk.STOCK_EXECUTE, "Pull To", None,
                  "Pull up to the selected change set", self._pull_to_cs_acb),
             ])
-        self.cwd_merge_id.append(self._ui_manager.add_ui_from_string(INCOMING_TABLE_UI_DESCR))
+        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(INCOMING_TABLE_UI_DESCR))
     def _pull_to_cs_acb(self, action):
         rev = self.get_selected_change_set()
         self.show_busy()
@@ -291,12 +293,16 @@ class OutgoingTableView(PathCSTableView):
         self._rootdir = rootdir
         PathCSTableView.__init__(self, get_data=get_data, path=path,
             sel_mode=sel_mode, busy_indicator=busy_indicator)
-        self._action_group[change_set.UNIQUE_SELECTION_NOT_PMIC].add_actions(
+        if rootdir:
+            condn = actions.ON_IN_REPO_NOT_PMIC_UNIQUE_SELN
+        else:
+            condn = actions.ON_IN_REPO_INDEP_UNIQUE_SELN
+        self.add_conditional_actions(condn,
             [
                 ("cs_push_to", gtk.STOCK_EXECUTE, "Push To", None,
                  "Push up to the selected change set", self._push_to_cs_acb),
             ])
-        self.cwd_merge_id.append(self._ui_manager.add_ui_from_string(OUTGOING_TABLE_UI_DESCR))
+        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(OUTGOING_TABLE_UI_DESCR))
     def _push_to_cs_acb(self, action):
         rev = self.get_selected_change_set()
         self.show_busy()
@@ -337,9 +343,9 @@ class OutgoingCSDialog(PathCSDialog):
     def get_data(self):
         return ifce.SCM.get_outgoing_table_data(self._path, rootdir=self._rootdir)
 
-class PathSelectTableView(gutils.TableView):
+class PathSelectTableView(table.TableView):
     def __init__(self):
-        gutils.TableView.__init__(self, descr=PATH_TABLE_PRECIS_DESCR, sel_mode=gtk.SELECTION_SINGLE)
+        table.TableView.__init__(self, descr=PATH_TABLE_PRECIS_DESCR, sel_mode=gtk.SELECTION_SINGLE)
         self.populate()
         self.show_all()
     def populate(self):

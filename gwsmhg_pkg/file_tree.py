@@ -558,76 +558,20 @@ class CwdFileTreeStore(FileTreeStore):
         self._update_dir(self.fs_path(dir_iter), dir_iter)
         FileTreeStore.on_row_expanded_cb(self, view, dir_iter, dummy)
 
-class ConditionalSensitivity:
-    def __init__(self, cond_func=None, cond_arg=None):
-        self._cond_func = cond_func
-        self._cond_arg = cond_arg
-    def conditional_set_sensitive(self, sensitive):
-        if sensitive and self._cond_func:
-            self.set_sensitive(self._cond_func(self._cond_arg))
-        else:
-            self.set_sensitive(sensitive)
-    def set_condition(self, cond_func=None, cond_arg=None):
-        self._cond_func = cond_func
-        self._cond_arg = cond_arg
+from gwsmhg_pkg import actions
 
-class ConditionalMenuItem(gtk.MenuItem, ConditionalSensitivity):
-    def __init__(self, label, cond_func=None, cond_arg=None):
-        ConditionalSensitivity.__init__(self, cond_func=cond_func, cond_arg=cond_arg)
-        gtk.ImageMenuItem.__init__(self, label)
-
-class ConditionalImageMenuItem(gtk.ImageMenuItem, ConditionalSensitivity):
-    def __init__(self, label, image_id, cond_func=None, cond_arg=None):
-        ConditionalSensitivity.__init__(self, cond_func=cond_func, cond_arg=cond_arg)
-        gtk.ImageMenuItem.__init__(self, label)
-        if image_id is not None:
-            img = gtk.Image()
-            img.set_from_stock(image_id, gtk.ICON_SIZE_MENU)
-            self.set_image(img)
-
-from gwsmhg_pkg.const import NO_SELECTION, UNIQUE_SELECTION, SELECTION, \
-    SELECTION_INDIFFERENT, NO_SELECTION_NOT_PMIC, SELECTION_NOT_PMIC, \
-    FILE_CONDITIONS
-
-class _ViewWithActionGroups(gtk.TreeView, dialogue.BusyIndicatorUser):
+class _ViewWithActionGroups(gtk.TreeView, dialogue.BusyIndicatorUser,
+                            actions.AGandUIManager):
     def __init__(self, busy_indicator, model=None):
-        dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
         gtk.TreeView.__init__(self, model)
-        self._ui_manager = gtk.UIManager()
-        self._action_group = {}
-        for sel_condition in FILE_CONDITIONS:
-            self._action_group[sel_condition] = gtk.ActionGroup(sel_condition)
-            self._ui_manager.insert_action_group(self._action_group[sel_condition], -1)
-        self._action_group[SELECTION_INDIFFERENT].add_action(model.show_hidden_action)
-        self.get_selection().connect("changed", self._selection_changed_cb)
-        self.connect("button_press_event", self._handle_button_press_cb)
-        # Initialize the action groups sensitivity
-        self._selection_changed_cb(self.get_selection())
-    def _selection_changed_cb(self, selection):
-        sel_sz = selection.count_selected_rows()
-        self._action_group[NO_SELECTION].set_sensitive(sel_sz == 0)
-        self._action_group[UNIQUE_SELECTION].set_sensitive(sel_sz == 1)
-        self._action_group[SELECTION].set_sensitive(sel_sz > 0)
-    def get_action_group(self, sel_cond):
-        return self._action_group[self-cond]
-    def get_action_groups(self):
-        return self._ui_manager.get_action_groups()
-    def get_action(self, action_name):
-        for action_group in self._ui_manager.get_action_groups():
-            action = action_group.get_action(action_name)
-            if action:
-                return action
-        return None
-    def get_ui_manager(self):
-        return self._ui_manager
-    def get_ui_widget(self, path):
-        return self._ui_manager.get_widget(path)
-    def get_accel_group(self):
-        return self._ui_manager.get_accel_group()
+        dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
+        actions.AGandUIManager.__init__(self, self.get_selection())
+        self.add_conditional_action(actions.ON_REPO_INDEP_SELN_INDEP, model.show_hidden_action)
+        self.connect('button_press_event', self._handle_button_press_cb)
     def _handle_button_press_cb(self, widget, event):
         if event.type == gtk.gdk.BUTTON_PRESS:
             if event.button == 3:
-                menu = self._ui_manager.get_widget("/files_popup")
+                menu = self.ui_manager.get_widget('/files_popup')
                 menu.popup(None, None, None, event.button, event.time)
                 return True
             elif event.button == 2:
@@ -681,13 +625,13 @@ class FileTreeView(_ViewWithActionGroups):
         self.auto_refresh_action.connect("toggled", self._toggle_auto_refresh_cb)
         self.auto_refresh_action.set_menu_item_type(gtk.CheckMenuItem)
         self.auto_refresh_action.set_tool_item_type(gtk.ToggleToolButton)
-        self._action_group[SELECTION_INDIFFERENT].add_action(self.auto_refresh_action)
-        self._action_group[SELECTION_INDIFFERENT].add_actions(
+        self.add_conditional_action(actions.ON_REPO_INDEP_SELN_INDEP, self.auto_refresh_action)
+        self.add_conditional_actions(actions.ON_REPO_INDEP_SELN_INDEP,
             [
                 ("refresh_files", gtk.STOCK_REFRESH, "_Refresh", None,
                  "Refresh/update the file tree display", self.update_tree),
             ])
-        self.cwd_merge_id = self._ui_manager.add_ui_from_string(UI_DESCR)
+        self.cwd_merge_id = self.ui_manager.add_ui_from_string(UI_DESCR)
         self.connect("key_press_event", self._key_press_cb)
         self._toggle_auto_refresh_cb()
     def _do_auto_refresh(self):
@@ -778,19 +722,19 @@ class CwdFileTreeView(FileTreeView):
             model = CwdFileTreeStore(show_hidden=show_hidden)
         FileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
             auto_refresh=auto_refresh, show_status=show_status)
-        self._action_group[SELECTION].add_actions(
+        self.add_conditional_actions(actions.ON_REPO_INDEP_SELN,
             [
                 ("edit_files", gtk.STOCK_EDIT, "_Edit", None,
                  "Edit the selected file(s)", self.edit_selected_files_acb),
                 ("delete_files", gtk.STOCK_DELETE, "_Delete", None,
                  "Delete the selected file(s) from the repository", self.delete_selected_files_acb),
             ])
-        self._action_group[SELECTION_INDIFFERENT].add_actions(
+        self.add_conditional_actions(actions.ON_REPO_INDEP_SELN_INDEP,
             [
                 ("new_file", gtk.STOCK_NEW, "_New", None,
                  "Create a new file and open for editing", self.create_new_file_acb),
             ])
-        self.cwd_merge_id = self._ui_manager.add_ui_from_string(CWD_UI_DESCR)
+        self.cwd_merge_id = self.ui_manager.add_ui_from_string(CWD_UI_DESCR)
     def _confirm_list_action(self, filelist, question):
         msg = os.linesep.join(filelist + [os.linesep, question])
         dialog = gtk.MessageDialog(parent=dialogue.main_window,
@@ -939,11 +883,10 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             auto_refresh=auto_refresh, show_status=True)
         self._ncbs = [
             ws_event.add_notification_cb(ws_event.CHECKOUT|ws_event.FILE_CHANGES, self.update_after_commit),
-            ws_event.add_notification_cb(ws_event.PMIC_CHANGE, self.update_pmic_sensitivity),
             ws_event.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir),
         ]
         self.connect("destroy", self._destroy_cb)
-        self._action_group[SELECTION].add_actions(
+        self.add_conditional_actions(actions.ON_IN_REPO_SELN,
             [
                 ("scm_remove_files", gtk.STOCK_REMOVE, "_Remove", None,
                  "Remove the selected file(s) from the repository", self.remove_selected_files_acb),
@@ -956,49 +899,48 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                 ("scm_move_files_selection", icons.STOCK_RENAME, "_Move/Rename", None,
                  "Move the selected file(s)", self.move_selected_files_acb),
             ])
-        self._action_group[SELECTION_NOT_PMIC].add_actions(
+        self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_SELN,
             [
                 ("scm_revert_files_selection", gtk.STOCK_UNDO, "Rever_t", None,
                  "Revert changes in the selected file(s)", self.revert_selected_files_acb),
                 ("scm_commit_files_selection", icons.STOCK_COMMIT, "_Commit", None,
                  "Commit changes for selected file(s)", self.commit_selected_files_acb),
             ])
-        self._action_group[UNIQUE_SELECTION].add_actions(
-            [
+        self.add_conditional_actions(actions.ON_IN_REPO_UNIQUE_SELN,
+           [
                 ("scm_rename_file", icons.STOCK_RENAME, "Re_name/Move", None,
                  "Rename/move the selected file", self.move_selected_files_acb),
             ])
-        self._action_group[NO_SELECTION].add_actions(
+        self.add_conditional_actions(actions.ON_IN_REPO_NO_SELN,
             [
                 ("scm_add_files_all", gtk.STOCK_ADD, "_Add all", None,
                  "Add all files to the repository", self.add_all_files_to_repo_acb),
                 ("scm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for all changes", self.diff_selected_files_acb),
             ])
-        self._action_group[NO_SELECTION_NOT_PMIC].add_actions(
+        self.add_conditional_actions(actions.ON_IN_REPO_PMIC_NO_SELN,
             [
                 ("scm_revert_files_all", gtk.STOCK_UNDO, "Rever_t", None,
                  "Revert all changes in working directory", self.revert_all_files_acb),
                 ("scm_commit_files_all", icons.STOCK_COMMIT, "_Commit", None,
                  "Commit all changes", self.commit_all_changes_acb),
             ])
-        self._action_group[SELECTION_INDIFFERENT].add_actions(
+        self.add_conditional_actions(actions.ON_REPO_INDEP_SELN_INDEP,
             [
                 ("menu_files", None, "_Files"),
             ])
-        self.cwd_merge_id = self._ui_manager.add_ui_from_string(SCM_CWD_UI_DESCR)
+        self.cwd_merge_id = self.ui_manager.add_ui_from_string(SCM_CWD_UI_DESCR)
         if tortoise.is_available:
-            self._action_group[SELECTION_INDIFFERENT].add_action(tortoise.file_menu)
-            for condition in FILE_CONDITIONS:
+            self.add_conditional_action(actions.ON_REPO_INDEP_SELN_INDEP, tortoise.file_menu)
+            for condition in tortoise.SELN_CONDITIONS:
                 action_list = []
                 for action in tortoise.file_group_partial_actions[condition]:
                     action_list.append(action + tuple([self._tortoise_tool_acb]))
-                self._action_group[condition].add_actions(action_list)
-            self._ui_manager.add_ui_from_string(tortoise.FILES_UI_DESCR)
-        self._update_menu_sensitivity(ifce.PM.get_in_progress())
+                self.add_conditional_actions(condition, action_list)
+            self.ui_manager.add_ui_from_string(tortoise.FILES_UI_DESCR)
+        self._event_cond_change_cb()
     def update_for_chdir(self):
         self.show_busy()
-        self.update_pmic_sensitivity()
         self.repopulate_tree()
         self.unshow_busy()
     def _destroy_cb(self, widget):
@@ -1014,23 +956,6 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         return result
     def delete_files(self, file_list):
         return ifce.SCM.do_delete_files(file_list)
-    def _update_menu_sensitivity(self, pm_in_progress, selection=None):
-        if pm_in_progress:
-            self._action_group[NO_SELECTION_NOT_PMIC].set_sensitive(False)
-            self._action_group[SELECTION_NOT_PMIC].set_sensitive(False)
-        else:
-            if not selection:
-                selection = self.get_selection()
-            sel_sz = selection.count_selected_rows()
-            self._action_group[NO_SELECTION_NOT_PMIC].set_sensitive(sel_sz == 0)
-            self._action_group[SELECTION_NOT_PMIC].set_sensitive(sel_sz > 0)
-    def update_pmic_sensitivity(self, pm_in_progress=None):
-        if pm_in_progress is None:
-            pm_in_progress = ifce.PM.get_in_progress()
-        self._update_menu_sensitivity(pm_in_progress)
-    def _selection_changed_cb(self, selection):
-        self._update_menu_sensitivity(ifce.PM.get_in_progress(), selection)
-        _ViewWithActionGroups._selection_changed_cb(self, selection)
     def get_scm_name(self):
         return ifce.SCM.name
     def _check_if_force(self, result):
@@ -1202,14 +1127,14 @@ class ScmCwdFilesWidget(gtk.VBox):
         self.file_tree.set_size_request(240, 320)
         scw.add(self.file_tree)
         # file tree menu bar
-        self.menu_bar = self.file_tree.get_ui_widget("/files_menubar")
+        self.menu_bar = self.file_tree.ui_manager.get_widget("/files_menubar")
         self.pack_start(self.menu_bar, expand=False)
         self.pack_start(scw, expand=True, fill=True)
         # Mode selectors
         hbox = gtk.HBox()
-        for action_name in ["show_hidden_files", "auto_refresh_files"]:
+        for action_name in ["auto_refresh_files", "show_hidden_files"]:
             button = gtk.CheckButton()
-            action = self.file_tree.get_action(action_name)
+            action = self.file_tree.get_class_dep_action(action_name)
             action.connect_proxy(button)
             dialogue.tooltips.set_tip(button, action.get_property("tooltip"))
             hbox.pack_start(button)
@@ -1287,25 +1212,25 @@ class ScmChangeFileTreeView(FileTreeView):
             auto_refresh=auto_refresh, show_status=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.set_headers_visible(False)
-        self._action_group[SELECTION].add_actions(
+        self.add_conditional_actions(actions.ON_IN_REPO_SELN,
             [
                 ("scmch_remove_files", gtk.STOCK_DELETE, "_Remove", None,
                  "Remove the selected files from the change set", self._remove_selected_files_acb),
                 ("scm_diff_files_selection", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for selected file(s)", self._diff_selected_files_acb),
             ])
-        self._action_group[SELECTION_INDIFFERENT].add_actions(
+        self.add_conditional_actions(actions.ON_IN_REPO_SELN_INDEP,
             [
                 ("scmch_undo_remove_files", gtk.STOCK_UNDO, "_Undo", None,
                  "Undo the last remove", self._undo_last_remove_acb),
             ])
-        self._action_group[NO_SELECTION].add_actions(
+        self.add_conditional_actions(actions.ON_IN_REPO_NO_SELN,
             [
                 ("scm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for all changes", self._diff_all_files_acb),
             ])
-        self._action_group[SELECTION_INDIFFERENT].get_action("scmch_undo_remove_files").set_sensitive(False)
-        self.scm_change_merge_id = self._ui_manager.add_ui_from_string(SCM_CHANGE_UI_DESCR)
+        self.scm_change_merge_id = self.ui_manager.add_ui_from_string(SCM_CHANGE_UI_DESCR)
+        self.get_class_dep_action("scmch_undo_remove_files").set_sensitive(False)
     def set_file_mask(self, file_mask):
         self.model.set_file_mask(file_mask)
     def get_file_mask(self):
@@ -1320,14 +1245,14 @@ class ScmChangeFileTreeView(FileTreeView):
             del file_mask[file_mask.index(sel_file)]
         self.model.set_file_mask(file_mask)
         self.removeds.append(selected_files)
-        self._action_group[SELECTION_INDIFFERENT].get_action("scmch_undo_remove_files").set_sensitive(True)
+        self.get_class_dep_action.get_action("scmch_undo_remove_files").set_sensitive(True)
         self.unshow_busy()
         self.update_tree()
     def _undo_last_remove_acb(self, menu_item):
         self.show_busy()
         restore_files = self.removeds[-1]
         del self.removeds[-1]
-        self._action_group[SELECTION_INDIFFERENT].get_action("scmch_undo_remove_files").set_sensitive(len(self.removeds) > 0)
+        self.get_class_dep_action.get_action("scmch_undo_remove_files").set_sensitive(len(self.removeds) > 0)
         file_mask = self.model.get_file_mask()
         for res_file in restore_files:
             file_mask.append(res_file)
@@ -1356,9 +1281,9 @@ class ScmCommitWidget(gtk.VPaned):
         self.view = text_edit.ChangeSummaryView(rootdir=rootdir)
         vbox = gtk.VBox()
         hbox = gtk.HBox()
-        menubar = self.view.get_ui_widget("/change_summary_menubar")
+        menubar = self.view.ui_manager.get_widget("/change_summary_menubar")
         hbox.pack_start(menubar, fill=True, expand=False)
-        toolbar = self.view.get_ui_widget("/change_summary_toolbar")
+        toolbar = self.view.ui_manager.get_widget("/change_summary_toolbar")
         toolbar.set_style(gtk.TOOLBAR_ICONS)
         toolbar.set_orientation(gtk.ORIENTATION_HORIZONTAL)
         hbox.pack_end(toolbar, fill=False, expand=False)
@@ -1367,14 +1292,14 @@ class ScmCommitWidget(gtk.VPaned):
         self.add1(vbox)
         # TreeView of files in change set
         self.files = ScmChangeFileTreeView(busy_indicator=busy_indicator,
-                                          auto_refresh=False,
-                                          show_hidden=True,
-                                          file_mask=file_mask,
-                                          rootdir=rootdir)
+                                           auto_refresh=False,
+                                           show_hidden=True,
+                                           file_mask=file_mask,
+                                           rootdir=rootdir)
         vbox = gtk.VBox()
         hbox = gtk.HBox()
         hbox.pack_start(gtk.Label("Files"), fill=True, expand=False)
-        toolbar = self.files.get_ui_widget("/files_refresh_toolbar")
+        toolbar = self.files.ui_manager.get_widget("/files_refresh_toolbar")
         toolbar.set_style(gtk.TOOLBAR_ICONS)
         toolbar.set_orientation(gtk.ORIENTATION_HORIZONTAL)
         hbox.pack_end(toolbar, fill=False, expand=False)
@@ -1436,4 +1361,3 @@ class ScmCommitDialog(dialogue.AmodalDialog):
                     self._finish_up()
         else:
             self._finish_up()
-

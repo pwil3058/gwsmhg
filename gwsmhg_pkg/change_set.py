@@ -15,7 +15,7 @@
 
 import gtk, gobject, os
 from gwsmhg_pkg import ifce, cmd_result, gutils, utils, icons, file_tree, diff
-from gwsmhg_pkg import text_edit, tortoise, ws_event, dialogue
+from gwsmhg_pkg import text_edit, tortoise, ws_event, dialogue, table, actions
 
 CS_TABLE_BASIC_UI_DESCR = \
 '''
@@ -44,24 +44,21 @@ class PrecisType:
         self.descr = descr
         self.get_data = get_data
 
-class PrecisTableView(gutils.MapManagedTableView):
+class PrecisTableView(table.MapManagedTableView):
     def __init__(self, ptype, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None,
                  rootdir=None):
         self._ptype = ptype
         self._rootdir = rootdir
-        gutils.MapManagedTableView.__init__(self, descr=ptype.descr, sel_mode=sel_mode,
+        table.MapManagedTableView.__init__(self, descr=ptype.descr, sel_mode=sel_mode,
             busy_indicator=busy_indicator)
         self._ncb = ws_event.add_notification_cb(ws_event.REPO_MOD, self.refresh_contents_if_mapped)
         self.connect("destroy", self._destroy_cb)
-        for condition in [UNIQUE_SELECTION, UNIQUE_SELECTION_NOT_PMIC]:
-            self._action_group[condition] = gtk.ActionGroup(condition)
-            self._ui_manager.insert_action_group(self._action_group[condition], -1)
-        self._action_group[UNIQUE_SELECTION].add_actions(
+        self.add_conditional_actions(actions.ON_IN_REPO_UNIQUE_SELN,
             [
                 ("cs_summary", gtk.STOCK_INFO, "Summary", None,
                  "View a summary of the selected change set", self._view_cs_summary_acb),
             ])
-        self._action_group[UNIQUE_SELECTION_NOT_PMIC].add_actions(
+        self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_UNIQUE_SELN,
             [
                 ("cs_update_ws_to", gtk.STOCK_JUMP_TO, "Update To", None,
                  "Update the work space to the selected change set",
@@ -73,14 +70,10 @@ class PrecisTableView(gutils.MapManagedTableView):
                  "Backout the selected change set",
                  self._backout_cs_acb),
             ])
-        self.cwd_merge_id.append(self._ui_manager.add_ui_from_string(CS_TABLE_BASIC_UI_DESCR))
+        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_BASIC_UI_DESCR))
         self.show_all()
     def _destroy_cb(self, widget):
         ws_event.del_notification_cb(self._ncb)
-    def _set_action_sensitivities(self):
-        sel = self.get_selection().count_selected_rows() == 1
-        self._action_group[UNIQUE_SELECTION].set_sensitive(sel)
-        self._action_group[UNIQUE_SELECTION_NOT_PMIC].set_sensitive(sel and not ifce.PM.get_in_progress())
     def _refresh_contents(self):
         res, data, serr = self._ptype.get_data()
         if res != cmd_result.OK:
@@ -89,7 +82,7 @@ class PrecisTableView(gutils.MapManagedTableView):
             self.set_contents(data)
         else:
             self.set_contents([])
-        gutils.MapManagedTableView._refresh_contents(self)
+        table.MapManagedTableView._refresh_contents(self)
     def get_selected_change_set(self):
         data = self.get_selected_data([0])
         if len(data):
@@ -190,7 +183,7 @@ class AUPrecisTableView(PrecisTableView):
                 self.rtoc.set_interval(desired_interval)
         else:
             self.set_contents([])
-        gutils.MapManagedTableView._refresh_contents(self)
+        table.MapManagedTableView._refresh_contents(self)
     def map_action(self):
         PrecisTableView.map_action(self)
         self.rtoc.restart_cycle()
@@ -202,10 +195,10 @@ class AUPrecisTableView(PrecisTableView):
         self._refresh_contents()
         self.rtoc.restart_cycle()
 
-class SelectView(gutils.TableView):
+class SelectView(table.TableView):
     def __init__(self, ptype, size=(640, 240), sel_mode=gtk.SELECTION_SINGLE):
         self._ptype = ptype
-        gutils.TableView.__init__(self, ptype.descr, sel_mode=sel_mode)
+        table.TableView.__init__(self, ptype.descr, sel_mode=sel_mode)
         self.set_size_request(size[0], size[1])
         self._set_contents()
         self.show_all()
@@ -246,7 +239,7 @@ LOG_TABLE_PRECIS_DESCR = \
     ["Description", gobject.TYPE_STRING, True, []],
 ]
 
-LOG_TABLE_PRECIS_AGE = gutils.find_label_index(LOG_TABLE_PRECIS_DESCR, "Age")
+LOG_TABLE_PRECIS_AGE = table.find_label_index(LOG_TABLE_PRECIS_DESCR, "Age")
 
 class ParentsTableView(AUPrecisTableView):
     def __init__(self, rev=None, sel_mode=gtk.SELECTION_SINGLE,
@@ -263,9 +256,10 @@ class ParentsTableView(AUPrecisTableView):
                                    rootdir=rootdir)
         ws_event.del_notification_cb(self._ncb)
         self._ncb = ws_event.add_notification_cb(ws_event.REPO_MOD|ws_event.CHECKOUT, self.refresh_contents_if_mapped)
-        self._action_group[UNIQUE_SELECTION_NOT_PMIC].get_action("cs_update_ws_to").set_visible(False)
-        self._action_group[UNIQUE_SELECTION_NOT_PMIC].get_action("cs_merge_ws_with").set_visible(False)
-        self._action_group[gutils.ALWAYS_ON].get_action("table_refresh_contents").set_visible(False)
+        self.get_class_dep_action("cs_update_ws_to").set_visible(False)
+        self.get_class_dep_action("cs_merge_ws_with").set_visible(False)
+        self.get_class_dep_action("cs_backout").set_visible(False)
+        self.get_class_dep_action("table_refresh_contents").set_visible(False)
     def get_parents_data(self):
         return ifce.SCM.get_parents_data(self._rev, rootdir=self._rootdir)
 
@@ -293,7 +287,7 @@ class TagMessageWidget(gtk.VBox):
     def __init__(self, label="Message (optional)"):
         gtk.VBox.__init__(self)
         self.view = text_edit.SummaryView()
-        self.view.get_ui_manager().add_ui_from_string(TAG_MSG_UI_DESCR)
+        self.view.ui_manager().add_ui_from_string(TAG_MSG_UI_DESCR)
         hbox = gtk.HBox()
         hbox.pack_start(gtk.Label(label), expand=False, fill=False)
         toolbar = self.view.get_ui_widget("/tag_message_toolbar")
@@ -359,13 +353,13 @@ class HistoryTableView(ChangeSetTableView):
     def __init__(self, sel_mode=gtk.SELECTION_SINGLE):
         ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, ifce.SCM.get_history_data)
         ChangeSetTableView.__init__(self, ptype, sel_mode=sel_mode)
-        self._action_group[UNIQUE_SELECTION_NOT_PMIC].add_actions(
+        self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_UNIQUE_SELN,
             [
                 ("cs_tag_selected", icons.STOCK_TAG, "Tag", None,
                  "Tag the selected change set",
                  self._tag_cs_acb),
             ])
-        self.cwd_merge_id.append(self._ui_manager.add_ui_from_string(HISTORY_TABLE_UI_DESCR))
+        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(HISTORY_TABLE_UI_DESCR))
     def _tag_cs_acb(self, action=None):
         rev = self.get_selected_change_set()
         self.show_busy()
@@ -454,7 +448,7 @@ class TagsTableView(ChangeSetTableView):
     def __init__(self, sel_mode=gtk.SELECTION_SINGLE):
         ptype = PrecisType(TAG_TABLE_PRECIS_DESCR, ifce.SCM.get_tags_data)
         ChangeSetTableView.__init__(self, ptype, sel_mode=sel_mode)
-        self._action_group[UNIQUE_SELECTION_NOT_PMIC].add_actions(
+        self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_UNIQUE_SELN,
             [
                 ("cs_remove_selected_tag", icons.STOCK_REMOVE, "Remove", None,
                  "Remove the selected tag from the repository",
@@ -463,7 +457,7 @@ class TagsTableView(ChangeSetTableView):
                  "Move the selected tag to another change set",
                  self._move_tag_cs_acb),
             ])
-        self.cwd_merge_id.append(self._ui_manager.add_ui_from_string(TAG_TABLE_UI_DESCR))
+        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(TAG_TABLE_UI_DESCR))
     def _remove_tag_cs_acb(self, action=None):
         tag = self.get_selected_change_set()
         self.show_busy()
@@ -616,18 +610,24 @@ class FileTreeView(file_tree.FileTreeView):
             auto_refresh=False, show_status=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.set_headers_visible(False)
-        self._action_group[file_tree.SELECTION].add_actions(
+        if rootdir:
+            seldep = actions.ON_IN_REPO_PMIC_SELN
+            noseldep = actions.ON_IN_REPO_PMIC_NO_SELN
+        else:
+            seldep = actions.ON_IN_REPO_INDEP_SELN
+            noseldep = actions.ON_IN_REPO_INDEP_NO_SELN
+        self.add_conditional_actions(seldep,
             [
                 ("scm_diff_files_selection", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for selected file(s)", self._diff_selected_files_acb),
             ])
-        self._action_group[file_tree.NO_SELECTION].add_actions(
+        self.add_conditional_actions(noseldep,
             [
                 ("scm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for all changes", self._diff_all_files_acb),
             ])
-        self._action_group[file_tree.SELECTION_INDIFFERENT].set_visible(False)
-        self.scm_change_merge_id = self._ui_manager.add_ui_from_string(CHANGE_SET_FILES_UI_DESCR)
+        self._action_groups[actions.ON_REPO_INDEP_SELN_INDEP].set_visible(False)
+        self.scm_change_merge_id = self.ui_manager.add_ui_from_string(CHANGE_SET_FILES_UI_DESCR)
         self.expand_all()
     def _diff_selected_files_acb(self, action=None):
         parent = dialogue.main_window
@@ -730,8 +730,8 @@ class BackoutDialog(dialogue.ReadTextAndToggleDialog):
         res, parents_data, serr = ifce.SCM.get_parents_data(rev)
         if len(parents_data) > 1:
             for data in parents_data:
-                rev = str(data[gutils.find_label_index(LOG_TABLE_PRECIS_DESCR, 'Rev')])
-                descr = data[gutils.find_label_index(LOG_TABLE_PRECIS_DESCR, 'Description')]
+                rev = str(data[table.find_label_index(LOG_TABLE_PRECIS_DESCR, 'Rev')])
+                descr = data[table.find_label_index(LOG_TABLE_PRECIS_DESCR, 'Description')]
                 self._radio_labels.append('%s: %s' % (rev, descr))
                 self._parent_revs.append(rev)
             self._radio_buttons = gutils.RadioButtonFramedVBox(title='Choose Parent', labels=self._radio_labels)
