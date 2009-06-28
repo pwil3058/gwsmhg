@@ -48,9 +48,8 @@ class PrecisTableView(table.MapManagedTableView):
     def __init__(self, ptype, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None,
                  rootdir=None):
         self._ptype = ptype
-        self._rootdir = rootdir
         table.MapManagedTableView.__init__(self, descr=ptype.descr, sel_mode=sel_mode,
-            busy_indicator=busy_indicator)
+            busy_indicator=busy_indicator, rootdir=rootdir)
         self._ncb = ws_event.add_notification_cb(ws_event.REPO_MOD, self.refresh_contents_if_mapped)
         self.connect("destroy", self._destroy_cb)
         self.add_conditional_actions(actions.ON_IN_REPO_UNIQUE_SELN,
@@ -246,7 +245,6 @@ class ParentsTableView(AUPrecisTableView):
         busy_indicator=None,
         auto_refresh_on=True, auto_refresh_interval=3600000, rootdir=None):
         self._rev = rev
-        self._rootdir = rootdir
         ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, self.get_parents_data)
         AUPrecisTableView.__init__(self, ptype, sel_mode=sel_mode,
                                    age_col = LOG_TABLE_PRECIS_AGE,
@@ -256,21 +254,24 @@ class ParentsTableView(AUPrecisTableView):
                                    rootdir=rootdir)
         ws_event.del_notification_cb(self._ncb)
         self._ncb = ws_event.add_notification_cb(ws_event.REPO_MOD|ws_event.CHECKOUT, self.refresh_contents_if_mapped)
-        self.get_class_dep_action("cs_update_ws_to").set_visible(False)
-        self.get_class_dep_action("cs_merge_ws_with").set_visible(False)
-        self.get_class_dep_action("cs_backout").set_visible(False)
-        self.get_class_dep_action("table_refresh_contents").set_visible(False)
+        self.get_conditional_action("cs_update_ws_to").set_visible(False)
+        self.get_conditional_action("cs_merge_ws_with").set_visible(False)
+        self.get_conditional_action("cs_backout").set_visible(False)
+        self.get_conditional_action("table_refresh_contents").set_visible(False)
     def get_parents_data(self):
         return ifce.SCM.get_parents_data(self._rev, rootdir=self._rootdir)
 
 class ChangeSetTableView(PrecisTableView):
-    def __init__(self, ptype, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None):
-        PrecisTableView.__init__(self, ptype=ptype, sel_mode=sel_mode, busy_indicator=busy_indicator)
+    def __init__(self, ptype, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None,
+                 rootdir=None):
+        PrecisTableView.__init__(self, ptype=ptype, sel_mode=sel_mode,
+                                 busy_indicator=busy_indicator, rootdir=rootdir)
 
 class HeadsTableView(ChangeSetTableView):
-    def __init__(self, sel_mode=gtk.SELECTION_SINGLE):
+    def __init__(self, sel_mode=gtk.SELECTION_SINGLE, rootdir=None):
         ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, ifce.SCM.get_heads_data)
-        ChangeSetTableView.__init__(self, ptype, sel_mode=sel_mode)
+        ChangeSetTableView.__init__(self, ptype, sel_mode=sel_mode,
+                                    rootdir=rootdir)
 
 TAG_MSG_UI_DESCR = \
 '''
@@ -350,9 +351,9 @@ HISTORY_TABLE_UI_DESCR = \
 '''
 
 class HistoryTableView(ChangeSetTableView):
-    def __init__(self, sel_mode=gtk.SELECTION_SINGLE):
+    def __init__(self, sel_mode=gtk.SELECTION_SINGLE, rootdir=None):
         ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, ifce.SCM.get_history_data)
-        ChangeSetTableView.__init__(self, ptype, sel_mode=sel_mode)
+        ChangeSetTableView.__init__(self, ptype, sel_mode=sel_mode, rootdir=rootdir)
         self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_UNIQUE_SELN,
             [
                 ("cs_tag_selected", icons.STOCK_TAG, "Tag", None,
@@ -445,9 +446,9 @@ TAG_TABLE_UI_DESCR = \
 '''
 
 class TagsTableView(ChangeSetTableView):
-    def __init__(self, sel_mode=gtk.SELECTION_SINGLE):
+    def __init__(self, sel_mode=gtk.SELECTION_SINGLE, rootdir=None):
         ptype = PrecisType(TAG_TABLE_PRECIS_DESCR, ifce.SCM.get_tags_data)
-        ChangeSetTableView.__init__(self, ptype, sel_mode=sel_mode)
+        ChangeSetTableView.__init__(self, ptype, sel_mode=sel_mode, rootdir=rootdir)
         self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_UNIQUE_SELN,
             [
                 ("cs_remove_selected_tag", icons.STOCK_REMOVE, "Remove", None,
@@ -605,23 +606,18 @@ class FileTreeView(file_tree.FileTreeView):
     def __init__(self, rev, busy_indicator, rootdir=None):
         self._rev = rev
         self.model = FileTreeStore(rev, rootdir=rootdir)
-        self._rootdir = rootdir
-        file_tree.FileTreeView.__init__(self, model=self.model, busy_indicator=busy_indicator,
-            auto_refresh=False, show_status=True)
+        file_tree.FileTreeView.__init__(self, model=self.model,
+                                        busy_indicator=busy_indicator,
+                                        auto_refresh=False, show_status=True,
+                                        rootdir=rootdir)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.set_headers_visible(False)
-        if rootdir:
-            seldep = actions.ON_IN_REPO_PMIC_SELN
-            noseldep = actions.ON_IN_REPO_PMIC_NO_SELN
-        else:
-            seldep = actions.ON_IN_REPO_INDEP_SELN
-            noseldep = actions.ON_IN_REPO_INDEP_NO_SELN
-        self.add_conditional_actions(seldep,
+        self.add_conditional_actions(actions.ON_IN_REPO_SELN,
             [
                 ("scm_diff_files_selection", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for selected file(s)", self._diff_selected_files_acb),
             ])
-        self.add_conditional_actions(noseldep,
+        self.add_conditional_actions(actions.ON_IN_REPO_NO_SELN,
             [
                 ("scm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for all changes", self._diff_all_files_acb),
@@ -647,15 +643,13 @@ class FileTreeView(file_tree.FileTreeView):
 
 class ChangeSetSummaryDialog(dialogue.AmodalDialog):
     def __init__(self, rev, parent=None, rootdir=None):
+        dialogue.AmodalDialog.__init__(self, parent=parent,
+                                       flags=gtk.DIALOG_DESTROY_WITH_PARENT,
+                                       buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE),
+                                       rootdir=rootdir)
         self._rev = rev
-        if not rootdir:
-            rootdir = ifce.SCM.get_root()
-        title = 'gwsmg: Change Set: %s : %s' % (rev, utils.path_rel_home(rootdir))
-        dialogue.AmodalDialog.__init__(self, title=title, parent=parent,
-                                 flags=gtk.DIALOG_DESTROY_WITH_PARENT,
-                                 buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
-                                )
-        res, summary, serr = self.get_change_set_summary(rootdir)
+        self.set_title('gwsmg: Change Set: %s : %s' % (rev, self._rel_rootdir))
+        res, summary, serr = self.get_change_set_summary()
         self._add_labelled_texts([("Precis:", summary['PRECIS'])])
         self._add_labelled_texts([("Revision:", summary['REV']), ("Node:", summary['NODE'])])
         self._add_labelled_texts([("Date:", summary['DATE']), ("Age:", summary['AGE'])])
@@ -675,24 +669,24 @@ class ChangeSetSummaryDialog(dialogue.AmodalDialog):
         vpaned2 = gtk.VPaned()
         vbox = gtk.VBox()
         self._add_label("File(s):", vbox)
-        self.ftv = self.get_file_tree_view(rootdir)
+        self.ftv = self.get_file_tree_view()
         vbox.pack_start(gutils.wrap_in_scrolled_window(self.ftv), expand=True)
         vpaned2.add1(vbox)
         vbox = gtk.VBox()
         self._add_label("Parent(s):", vbox)
-        ptv = self.get_parents_view(rootdir)
+        ptv = self.get_parents_view()
         vbox.pack_start(gutils.wrap_in_scrolled_window(ptv), expand=True)
         vpaned2.add2(vbox)
         vpaned1.add2(vpaned2)
         self.connect("response", self._close_cb)
         self.show_all()
-    def get_change_set_summary(self, rootdir):
-        return ifce.SCM.get_change_set_summary(self._rev, rootdir=rootdir)
-    def get_file_tree_view(self, rootdir):
-        return FileTreeView(self._rev, busy_indicator=self, rootdir=rootdir)
-    def get_parents_view(self, rootdir):
+    def get_change_set_summary(self):
+        return ifce.SCM.get_change_set_summary(self._rev, rootdir=self._rootdir)
+    def get_file_tree_view(self):
+        return FileTreeView(self._rev, busy_indicator=self, rootdir=self._rootdir)
+    def get_parents_view(self):
         return ParentsTableView(self._rev, auto_refresh_on=False,
-            busy_indicator=self, rootdir=rootdir)
+            busy_indicator=self, rootdir=self._rootdir)
     def _add_label(self, text, component=None):
         hbox = gtk.HBox()
         hbox.pack_start(gtk.Label(text), expand=False, fill=False)

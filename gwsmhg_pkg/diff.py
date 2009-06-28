@@ -251,10 +251,9 @@ class DiffTextWidget(gtk.VBox):
 
 class ScmDiffTextBuffer(DiffTextBuffer):
     def __init__(self, file_list=[], fromrev=None, torev=None, table=None, rootdir=None):
-        DiffTextBuffer.__init__(self, file_list=file_list, table=table)
+        DiffTextBuffer.__init__(self, file_list=file_list, table=table, rootdir=rootdir)
         self._fromrev = fromrev
         self._torev = torev
-        self._rootdir = rootdir
         if not torev:
             self.a_name_list = ["diff_save", "diff_save_as", "diff_refresh"]
         else:
@@ -282,11 +281,8 @@ class ScmDiffTextWidget(DiffTextWidget):
 class ScmDiffTextDialog(dialogue.AmodalDialog):
     def __init__(self, parent, file_list=[], fromrev=None, torev=None, rootdir=None):
         flags = gtk.DIALOG_DESTROY_WITH_PARENT
-        if rootdir:
-            title = "diff: %s" % utils.path_rel_home(rootdir)
-        else:
-            title = "diff: %s" % utils.path_rel_home(os.getcwd())
-        mutable = torev is None
+        dialogue.AmodalDialog.__init__(self, None, parent, flags, (), rootdir=rootdir)
+        title = "diff: %s" % self._rel_rootdir
         if fromrev:
             parents = [fromrev]
             if torev:
@@ -305,13 +301,13 @@ class ScmDiffTextDialog(dialogue.AmodalDialog):
                 title += " REV[%s] -> []" % (str(parents[0]))
             else:
                 title += " * -> []"
-        dialogue.AmodalDialog.__init__(self, title, parent, flags, ())
+        self.set_title(title)
         if len(parents) > 1:
             nb = gtk.Notebook()
             for parent in parents:
                 vbox = gtk.VBox()
                 dtw = ScmDiffTextWidget(self, file_list, fromrev=parent,
-                                        torev=torev, rootdir=rootdir)
+                                        torev=torev, rootdir=self._rootdir)
                 vbox.pack_start(dtw)
                 hbox = gtk.HBox()
                 tws_display = dtw.diff_view.get_buffer().tws_display
@@ -324,7 +320,7 @@ class ScmDiffTextDialog(dialogue.AmodalDialog):
             self.vbox.add(nb)
         else:
             dtw = ScmDiffTextWidget(self, file_list, fromrev=parents[0],
-                                    torev=torev, rootdir=rootdir)
+                                    torev=torev, rootdir=self._rootdir)
             self.vbox.pack_start(dtw)
             tws_display = dtw.diff_view.get_buffer().tws_display
             self.action_area.pack_end(tws_display, expand=False, fill=False)
@@ -364,17 +360,16 @@ class PmDiffTextWidget(DiffTextWidget):
         DiffTextWidget.__init__(self, parent=parent, diff_view=diff_view)
 
 class PmDiffTextDialog(dialogue.AmodalDialog):
-    def __init__(self, parent, file_list=[], patch=None):
+    def __init__(self, parent, file_list=[], patch=None, rootdir=None):
         flags = gtk.DIALOG_DESTROY_WITH_PARENT
-        rootdir = ifce.SCM.get_root()
-        title = "diff: %s" % utils.path_rel_home(rootdir)
-        mutable = patch is None
+        dialogue.AmodalDialog.__init__(self, None, parent, flags, (), rootdir=rootdir)
+        title = 'diff: %s' % self._rel_rootdir
         if patch:
             title += " Patch: %s" % patch
         else:
             title += " Patch: []"
-        dialogue.AmodalDialog.__init__(self, title, parent, flags, ())
-        dtw = PmDiffTextWidget(self, file_list, patch=patch, rootdir=rootdir)
+        self.set_title(title)
+        dtw = PmDiffTextWidget(self, file_list, patch=patch, rootdir=self._rootdir)
         self.vbox.pack_start(dtw)
         tws_display = dtw.diff_view.get_buffer().tws_display
         self.action_area.pack_end(tws_display, expand=False, fill=False)
@@ -413,15 +408,13 @@ class IncomingDiffTextWidget(DiffTextWidget):
 class IncomingDiffTextDialog(dialogue.AmodalDialog):
     def __init__(self, parent, rev, path=None, rootdir=None):
         flags = gtk.DIALOG_DESTROY_WITH_PARENT
-        if not rootdir:
-            rootdir = ifce.SCM.get_root()
         title = "diff: [%s]" % rev
         if path:
             title += " Path: %s" % path
         else:
             title += " Path: default"
-        dialogue.AmodalDialog.__init__(self, title, parent, flags, ())
-        dtw = IncomingDiffTextWidget(self, rev=rev, path=path, rootdir=rootdir)
+        dialogue.AmodalDialog.__init__(self, title, parent, flags, (), rootdir=rootdir)
+        dtw = IncomingDiffTextWidget(self, rev=rev, path=path, rootdir=self._rootdir)
         self.vbox.pack_start(dtw)
         tws_display = dtw.diff_view.get_buffer().tws_display
         self.action_area.pack_end(tws_display, expand=False, fill=False)

@@ -48,10 +48,13 @@ ON_NOT_IN_REPO_UNIQUE_SELN = ON_NOT_IN_REPO + '_unique_seln'
 ON_IN_REPO_PMIC_UNIQUE_SELN = ON_IN_REPO_PMIC + '_unique_seln'
 ON_IN_REPO_NOT_PMIC_UNIQUE_SELN = ON_IN_REPO_NOT_PMIC + '_unique_seln'
 
-CLASS_DEP_CONDS = [
+CLASS_DEP_SELN_INDEP_CONDS = [
         ON_REPO_INDEP_SELN_INDEP, ON_IN_REPO_SELN_INDEP,
         ON_NOT_IN_REPO_SELN_INDEP, ON_IN_REPO_PMIC_SELN_INDEP,
         ON_IN_REPO_NOT_PMIC_SELN_INDEP,
+    ]
+
+CLASS_DEP_SELN_DEP_CONDS = [
         ON_REPO_INDEP_SELN, ON_IN_REPO_SELN, ON_NOT_IN_REPO_SELN,
         ON_IN_REPO_PMIC_SELN, ON_IN_REPO_NOT_PMIC_SELN,
         ON_REPO_INDEP_NO_SELN, ON_IN_REPO_NO_SELN, ON_NOT_IN_REPO_NO_SELN,
@@ -77,30 +80,50 @@ def update_class_indep_sensitivities(arg=None):
     class_indep_ags[ON_IN_REPO_PMIC].set_sensitive(pmic)
     class_indep_ags[ON_IN_REPO_NOT_PMIC].set_sensitive(in_repo and not pmic)
 
+def add_class_indep_action(cond, action):
+    class_indep_ags[cond].add_action(action)
+
+def add_class_indep_actions(cond, actions):
+    class_indep_ags[cond].add_actions(actions)
+
+def get_class_indep_action(self, action_name):
+    for cond in CLASS_INDEP_CONDS:
+        action = class_indep_ags[cond].get_action(action_name)
+        if action:
+            return action
+    return None
+
 update_class_indep_sensitivities()
 
 ws_event.add_notification_cb(ws_event.CHANGE_WD|ws_event.PMIC_CHANGE,
                              update_class_indep_sensitivities)
 
 class AGandUIManager:
-    def __init__(self, selection=None):
+    def __init__(self, selection=None, rootdir=None):
+        self._rootdir = rootdir
         self.ui_manager = gtk.UIManager()
         for cond in CLASS_INDEP_CONDS:
             self.ui_manager.insert_action_group(class_indep_ags[cond], -1)
         self._seln = selection
+        self._action_groups ={}
+        for cond in CLASS_DEP_SELN_INDEP_CONDS:
+            self._action_groups[cond] = gtk.ActionGroup(cond)
+            self.ui_manager.insert_action_group(self._action_groups[cond], -1)
         if self._seln:
-            self._action_groups ={}
-            for cond in CLASS_DEP_CONDS:
+            for cond in CLASS_DEP_SELN_DEP_CONDS:
                 self._action_groups[cond] = gtk.ActionGroup(cond)
                 self.ui_manager.insert_action_group(self._action_groups[cond], -1)
             self._seln.connect('changed', self._seln_cond_change_cb)
-            ws_event.add_notification_cb(ws_event.CHANGE_WD|ws_event.PMIC_CHANGE,
-                                         self._event_cond_change_cb)
+        ws_event.add_notification_cb(ws_event.CHANGE_WD|ws_event.PMIC_CHANGE,
+                                     self._event_cond_change_cb)
         self.init_action_states()
-    def _seln_cond_change_cb(self, seln):
+    def _in_valid_repo(self):
+        if self._rootdir:
+            return True
+        else:
+            return ifce.in_valid_repo
+    def _seln_cond_change_update(self, seln, in_repo, pmic):
         selsz = seln.count_selected_rows()
-        in_repo = ifce.in_valid_repo
-        pmic = in_repo and ifce.PM.get_in_progress()
         self._action_groups[ON_REPO_INDEP_SELN].set_sensitive(selsz > 0)
         self._action_groups[ON_REPO_INDEP_NO_SELN].set_sensitive(selsz == 0)
         self._action_groups[ON_REPO_INDEP_UNIQUE_SELN].set_sensitive(selsz == 1)
@@ -132,42 +155,52 @@ class AGandUIManager:
                 self._action_groups[cond].set_sensitive(False)
             for cond in [ON_IN_REPO_PMIC_SELN, ON_IN_REPO_PMIC_NO_SELN, ON_IN_REPO_PMIC_UNIQUE_SELN]:
                 self._action_groups[cond].set_sensitive(False)
+    def _seln_cond_change_cb(self, seln):
+        in_repo = self._in_valid_repo()
+        pmic = in_repo and ifce.PM.get_in_progress(self._rootdir)
+        self._seln_cond_change_update(seln, in_repo, pmic)
     def _event_cond_change_cb(self, arg=None):
-        in_repo = ifce.in_valid_repo
-        pmic = in_repo and ifce.PM.get_in_progress()
+        in_repo = self._in_valid_repo()
+        pmic = in_repo and ifce.PM.get_in_progress(self._rootdir)
+        self._action_groups[ON_IN_REPO_SELN_INDEP].set_sensitive(in_repo)
+        self._action_groups[ON_NOT_IN_REPO_SELN_INDEP].set_sensitive(not in_repo)
+        self._action_groups[ON_IN_REPO_PMIC_SELN_INDEP].set_sensitive(pmic)
+        self._action_groups[ON_IN_REPO_NOT_PMIC_SELN_INDEP].set_sensitive(in_repo and not pmic)
         if self._seln:
-            self._action_groups[ON_IN_REPO_SELN_INDEP].set_sensitive(in_repo)
-            self._action_groups[ON_NOT_IN_REPO_SELN_INDEP].set_sensitive(not in_repo)
-            self._action_groups[ON_IN_REPO_PMIC_SELN_INDEP].set_sensitive(pmic)
-            self._action_groups[ON_IN_REPO_NOT_PMIC_SELN_INDEP].set_sensitive(in_repo and not pmic)
-            self._seln_cond_change_cb(self._seln)
+            self._seln_cond_change_update(self._seln, in_repo, pmic)
+    def add_new_action_group(self, cond):
+        self._action_groups[cond] = gtk.ActionGroup(cond)
+        self.ui_manager.insert_action_group(self._action_groups[cond], -1)
     def add_conditional_action(self, cond, action):
-        if cond in CLASS_INDEP_CONDS:
-            class_indep_ags[cond].add_action(action)
-        else:
-            self._action_groups[cond].add_action(action)
+        self._action_groups[cond].add_action(action)
     def add_conditional_actions(self, cond, actions):
-        if cond in CLASS_INDEP_CONDS:
-            class_indep_ags[cond].add_actions(actions)
-        else:
-            self._action_groups[cond].add_actions(actions)
-    def get_class_dep_action(self, action_name):
-        for cond in CLASS_DEP_CONDS:
+        self._action_groups[cond].add_actions(actions)
+    def get_conditional_action(self, action_name):
+        conditions = CLASS_DEP_SELN_INDEP_CONDS
+        if self._seln:
+            conditions += CLASS_DEP_SELN_DEP_CONDS
+        for cond in conditions:
             action = self._action_groups[cond].get_action(action_name)
             if action:
                 return action
-    def move_class_dep_action(self, action_name, new_cond):
-        for cond in CLASS_DEP_CONDS:
+    def copy_conditional_action(self, action_name, new_cond):
+        conditions = CLASS_DEP_SELN_INDEP_CONDS
+        if self._seln:
+            conditions += CLASS_DEP_SELN_INDEP_CONDS
+        for cond in conditions:
+            action = self._action_groups[cond].get_action(action_name)
+            if action:
+               self._action_groups[new_cond].add_action(action)
+               return
+    def move_conditional_action(self, action_name, new_cond):
+        conditions = CLASS_DEP_SELN_INDEP_CONDS
+        if self._seln:
+            conditions += CLASS_DEP_SELN_INDEP_CONDS
+        for cond in conditions:
             action = self._action_groups[cond].get_action(action_name)
             if action:
                 self._action_groups[cond].remove_action(action)
                 self._action_groups[new_cond].add_action(action)
                 return
-    def get_class_indep_action(self, action_name):
-        for cond in CLASS_INDEP_CONDS:
-            action = class_indep_ags[cond].get_action(action_name)
-            if action:
-                return action
-        return None
     def init_action_states(self):
         self._event_cond_change_cb()

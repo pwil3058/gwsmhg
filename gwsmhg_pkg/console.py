@@ -103,16 +103,16 @@ class ConsoleLog(gtk.VBox, dialogue.BusyIndicatorUser):
         self._buffer = ConsoleLogBuffer()
         self._view = ConsoleLogView(buffer=self._buffer)
         self._action_group = gtk.ActionGroup("console_log")
-        self._ui_manager = gtk.UIManager()
-        self._ui_manager.insert_action_group(self._action_group, -1)
+        self.ui_manager = gtk.UIManager()
+        self.ui_manager.insert_action_group(self._action_group, -1)
         self._action_group.add_actions(
             [
                 ("console_log_clear", gtk.STOCK_CLEAR, "_Clear", None,
                  "Clear the console log", self._clear_acb),
                 ("menu_console", None, "_Console"),
             ])
-        self.change_summary_merge_id = self._ui_manager.add_ui_from_string(CONSOLE_LOG_UI_DESCR)
-        self._menubar = self._ui_manager.get_widget("/console_log_menubar")
+        self.change_summary_merge_id = self.ui_manager.add_ui_from_string(CONSOLE_LOG_UI_DESCR)
+        self._menubar = self.ui_manager.get_widget("/console_log_menubar")
         hbox = gtk.HBox()
         hbox.pack_start(self._menubar, expand=False)
         hbox.pack_start(gtk.Label("Run: "), expand=False)
@@ -123,17 +123,11 @@ class ConsoleLog(gtk.VBox, dialogue.BusyIndicatorUser):
         self.pack_start(gutils.wrap_in_scrolled_window(self._view), expand=True, fill=True)
         self.show_all()
     def get_action(self, action_name):
-        for action_group in self._ui_manager.get_action_groups():
+        for action_group in self.ui_manager.get_action_groups():
             action = action_group.get_action(action_name)
             if action:
                 return action
         return None
-    def get_ui_manager(self):
-        return self._ui_manager
-    def get_ui_widget(self, path):
-        return self._ui_manager.get_widget(path)
-    def get_accel_group(self):
-        return self._ui_manager.get_accel_group()
     def _clear_acb(self, action):
         self._buffer.clear()
     def start_cmd(self, cmd):

@@ -15,7 +15,7 @@
 
 import gtk, gobject, os
 from gwsmhg_pkg import dialogue, ifce, table, icons, ws_event, cmd_result, gutils, patch_mgr
-from gwsmhg_pkg import diff, utils
+from gwsmhg_pkg import diff, utils, actions
 
 PBRANCH_UI_DESCR = \
 '''
@@ -105,10 +105,15 @@ PBRANCH_LIST_TABLE_DESCR = \
   ]
 ]
 
-class PBranchTable(table.Table, dialogue.BusyIndicatorUser):
-    def __init__(self, busy_indicator=None):
-        self._local_action_group = gtk.ActionGroup('in_pbranch')
-        self._local_action_group.add_actions(
+ON_IN_PBRANCH = 'in_pbranch'
+
+class PBranchTable(table.MapManagedTable):
+    def __init__(self, busy_indicator=None, rootdir=None):
+        table.MapManagedTable.__init__(self, PBRANCH_LIST_MODEL_DESCR,
+                                       PBRANCH_LIST_TABLE_DESCR,
+                                       popup='/pbranch_popup', rootdir=rootdir)
+        self.add_new_action_group(ON_IN_PBRANCH)
+        self.add_conditional_actions(ON_IN_PBRANCH,
             [
                 ('pbranch_edit_msg', gtk.STOCK_EDIT, 'P_Message', None,
                  'Edit the message for the current patch branch',
@@ -126,14 +131,8 @@ class PBranchTable(table.Table, dialogue.BusyIndicatorUser):
                  'Back out the current patch branch',
                   self._pbackout_acb),
             ])
-        dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
-        table.Table.__init__(self, PBRANCH_LIST_MODEL_DESCR, PBRANCH_LIST_TABLE_DESCR)
-        ws_event.add_notification_cb(ws_event.REPO_MOD|ws_event.FILE_CHANGES|ws_event.CHECKOUT, self.update_contents)
-        self.action_groups[table.ALWAYS_ON].add_actions(
+        self.add_conditional_actions(actions.ON_IN_REPO_SELN_INDEP,
             [
-                ('pbranch_pnew', icons.STOCK_NEW_PATCH, 'P_New', None,
-                 'Start a new patch branch',
-                  self._pnew_acb),
                 ('pbranch_pgraph', icons.STOCK_GRAPH, 'P_Graph', None,
                  'Display pgraph output',
                   self._pgraph_acb),
@@ -141,7 +140,13 @@ class PBranchTable(table.Table, dialogue.BusyIndicatorUser):
                  'Refresh patch branch display',
                   self._refresh_acb),
             ])
-        self.action_groups[table.UNIQUE_SELECTION].add_actions(
+        self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_SELN_INDEP,
+            [
+                ('pbranch_pnew', icons.STOCK_NEW_PATCH, 'P_New', None,
+                 'Start a new patch branch',
+                  self._pnew_acb),
+            ])
+        self.add_conditional_actions(actions.ON_IN_REPO_UNIQUE_SELN,
             [
                 ('pbranch_pstatus_selection', icons.STOCK_STATUS, 'P_Status', None,
                  'Display status message for selected patch branch',
@@ -152,72 +157,46 @@ class PBranchTable(table.Table, dialogue.BusyIndicatorUser):
                 ('pbranch_edit_msg_selection', gtk.STOCK_EDIT, 'P_Message', None,
                  'Edit the message for the selected patch branch',
                   self._edit_msg_selection_acb),
+            ])
+        self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_UNIQUE_SELN,
+            [
                 ('pbranch_update_to_selection', icons.STOCK_UPDATE, '_Update To', None,
                  'Update the work space to the selected patch branch',
                   self._update_to_selection_acb),
             ])
-        self.action_groups[table.SELECTION].add_actions(
+        self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_SELN,
             [
                 ('pbranch_pmerge_into_selection', icons.STOCK_MERGE, 'P_Merge', None,
                  'Merge pending heads from dependencies into selected patch branches',
                   self._pmerge_selection_acb),
             ])
-        self._ui_manager = gtk.UIManager()
-        for condition in [table.ALWAYS_ON, table.SELECTION, table.UNIQUE_SELECTION]:
-            self._ui_manager.insert_action_group(self.action_groups[condition], -1)
-        self._ui_manager.insert_action_group(self._local_action_group, -1)
-        self.cwd_merge_id = self._ui_manager.add_ui_from_string(PBRANCH_UI_DESCR)
-        self.action_groups[table.ALWAYS_ON].set_sensitive(ifce.in_valid_repo)
-        self.view.connect("button_press_event", self._handle_button_press_cb)
-        self._tool_bar = self._ui_manager.get_widget("/pbranch_toolbar")
-        ws_event.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir)
+        self.cwd_merge_id = self.ui_manager.add_ui_from_string(PBRANCH_UI_DESCR)
+        self._tool_bar = self.ui_manager.get_widget("/pbranch_toolbar")
+        ws_event.add_notification_cb(ws_event.REPO_MOD|ws_event.FILE_CHANGES|ws_event.CHECKOUT,
+                                     self.refresh_contents_if_mapped)
         self.pack_start(self._tool_bar, expand=False)
         self.reorder_child(self._tool_bar, 0)
-    def _handle_button_press_cb(self, widget, event):
-        if event.type == gtk.gdk.BUTTON_PRESS:
-            if event.button == 3:
-                menu = self._ui_manager.get_widget("/pbranch_popup")
-                menu.popup(None, None, None, event.button, event.time)
-                return True
-        return False
+        self.refresh_contents()
+        self._seln.unselect_all()
     def _fetch_contents(self):
-        res, pbranches, serr = ifce.SCM.get_pbranch_table_data()
+        res, pbranches, serr = ifce.SCM.get_pbranch_table_data(rootdir=self._rootdir)
         in_pbranch_branch = False
         for pb in pbranches:
             if pb[table.model_col(PBRANCH_LIST_MODEL_DESCR, 'current')]:
                 in_pbranch_branch = True
                 break
-        self._local_action_group.set_sensitive(in_pbranch_branch)
+        self._action_groups[ON_IN_PBRANCH].set_sensitive(in_pbranch_branch)
         return pbranches
     def update_for_chdir(self):
-        self.show_busy()
-        self.action_groups[table.ALWAYS_ON].set_sensitive(ifce.in_valid_repo)
-        self.set_contents()
-        self.unshow_busy()
-    def update_contents(self):
-        # TODO something more sophisticated needed here to improve usability
-        # e.g. leave selection intact
         self.set_contents()
     def get_selected_pbranch(self):
-        model, paths = self.seln.get_selected_rows()
-        assert len(paths) <= 1
-        if len(paths) == 0:
-            return None
-        else:
-            return model.get_labelled_value(model.get_iter(paths[0]), 'pbranch')
+        return self.get_selected_key_by_label('pbranch')
     def get_selected_pbranches(self):
-        model, paths = self.seln.get_selected_rows()
-        if len(paths) == 0:
-            return []
-        else:
-            pbranches = []
-            for path in paths:
-                pbranches.append(model.get_labelled_value(model.get_iter(path), 'pbranch'))
-            return pbranches
+        return self.get_selected_keys_by_label('pbranch')
     def _pstatus_selection_acb(self, action=None):
         pbranch = self.get_selected_pbranch()
         self.show_busy()
-        res, sout, serr = ifce.SCM.get_pstatus(pbranch)
+        res, sout, serr = ifce.SCM.get_pstatus(pbranch, rootdir=self._rootdir)
         self.unshow_busy()
         if res:
             dialogue.report_any_problems((res, sout, serr))
@@ -225,25 +204,26 @@ class PBranchTable(table.Table, dialogue.BusyIndicatorUser):
             dialogue.inform_user(os.linesep.join([sout,serr]), problem_type=gtk.MESSAGE_INFO)
     def _pdiff_selection_acb(self, action=None):
         pbranch = self.get_selected_pbranch()
-        dialog = PbDiffTextDialog(parent=dialogue.main_window, pbranch=pbranch)
+        dialog = PbDiffTextDialog(parent=dialogue.main_window, pbranch=pbranch,
+                                  rootdir=self._rootdir)
         dialog.show()
     def _edit_msg_selection_acb(self, action=None):
         pbranch = self.get_selected_pbranch()
-        PatchBranchDescrEditDialog(parent=None, modal=False, pbranch=pbranch).show()
+        PatchBranchDescrEditDialog(parent=None, pbranch=pbranch, rootdir=self._rootdir).show()
     def _update_to_selection_acb(self, action=None):
         pbranch = self.get_selected_pbranch()
         self.show_busy()
-        result = ifce.SCM.do_update_workspace(rev=pbranch)
+        result = ifce.SCM.do_update_workspace(rev=pbranch, rootdir=self._rootdir)
         self.unshow_busy()
         dialogue.report_any_problems(result)
     def _pmerge_selection_acb(self, action=None):
         pbranches = self.get_selected_pbranches()
         self.show_busy()
-        result = ifce.SCM.do_pmerge(pbranches)
+        result = ifce.SCM.do_pmerge(pbranches, rootdir=self._rootdir)
         self.unshow_busy()
         dialogue.report_any_problems(result)
     def _pnew_acb(self, action=None):
-        dialog = NewPatchBranchDialog(parent=None, modal=False)
+        dialog = NewPatchBranchDialog(parent=None)
         if dialog.run() == gtk.RESPONSE_CANCEL:
             dialog.destroy()
             return
@@ -254,35 +234,36 @@ class PBranchTable(table.Table, dialogue.BusyIndicatorUser):
         if not new_pbranch_name:
             return
         self.show_busy()
-        result = ifce.SCM.do_new_pbranch(new_pbranch_name, new_pbranch_descr, preserve)
+        result = ifce.SCM.do_new_pbranch(new_pbranch_name, new_pbranch_descr,
+                                         preserve, rootdir=self._rootdir)
         self.unshow_busy()
         dialogue.report_any_problems(result)
     def _pstatus_acb(self, action=None):
         self.show_busy()
-        res, sout, serr = ifce.SCM.get_pstatus()
+        res, sout, serr = ifce.SCM.get_pstatus(rootdir=self._rootdir)
         self.unshow_busy()
         if res:
             dialogue.report_any_problems((res, sout, serr))
         else:
             dialogue.inform_user(os.linesep.join([sout,serr]), problem_type=gtk.MESSAGE_INFO)
     def _pdiff_acb(self, action=None):
-        dialog = PbDiffTextDialog(parent=dialogue.main_window)
+        dialog = PbDiffTextDialog(parent=dialogue.main_window, rootdir=self._rootdir)
         dialog.show()
     def _edit_msg_acb(self, action=None):
-        PatchBranchDescrEditDialog(parent=None, modal=False).show()
+        PatchBranchDescrEditDialog(parent=None, rootdir=self._rootdir).show()
     def _pbackout_acb(self, action=None):
         self.show_busy()
-        result = ifce.SCM.do_pbackout()
+        result = ifce.SCM.do_pbackout(rootdir=self._rootdir)
         self.unshow_busy()
         dialogue.report_any_problems(result)
     def _pmerge_acb(self, action=None):
         self.show_busy()
-        result = ifce.SCM.do_pmerge()
+        result = ifce.SCM.do_pmerge(rootdir=self._rootdir)
         self.unshow_busy()
         dialogue.report_any_problems(result)
     def _pgraph_acb(self, action=None):
         self.show_busy()
-        res, sout, serr = ifce.SCM.get_pgraph()
+        res, sout, serr = ifce.SCM.get_pgraph(rootdir=self._rootdir)
         self.unshow_busy()
         if res:
             dialogue.report_any_problems((res, sout, serr))
@@ -292,9 +273,8 @@ class PBranchTable(table.Table, dialogue.BusyIndicatorUser):
         self.update_contents()
 
 class NewPatchBranchDialog(patch_mgr.NewPatchDialog):
-    def __init__(self, parent, modal=False):
-        patch_mgr.NewPatchDialog.__init__(self, parent=parent,
-            modal=modal, objname='Patch Branch')
+    def __init__(self, parent, rootdir=None):
+        patch_mgr.NewPatchDialog.__init__(self, parent=parent, objname='Patch Branch', rootdir=rootdir)
         self._preserve = gtk.CheckButton('Preserve', False)
         self._preserve.set_active(False)
         self.hbox.pack_start(self._preserve, expand=False, fill=False)
@@ -303,11 +283,11 @@ class NewPatchBranchDialog(patch_mgr.NewPatchDialog):
         return self._preserve.get_active()
 
 class PatchBranchDescrEditDialog(patch_mgr.GenericPatchDescrEditDialog):
-    def __init__(self, parent, pbranch=None, modal=False):
+    def __init__(self, parent, pbranch=None, rootdir=None):
         patch_mgr.GenericPatchDescrEditDialog.__init__(self,
             get_summary=ifce.SCM.get_pbranch_description,
             set_summary=ifce.SCM.do_set_pbranch_description,
-            parent=parent, patch=pbranch)
+            parent=parent, patch=pbranch, rootdir=rootdir)
 
 class PbDiffTextBuffer(diff.DiffTextBuffer):
     def __init__(self, file_list=[], pbranch=None, table=None, rootdir=None):
@@ -335,17 +315,16 @@ class PbDiffTextWidget(diff.DiffTextWidget):
         diff.DiffTextWidget.__init__(self, parent=parent, diff_view=diff_view)
 
 class PbDiffTextDialog(dialogue.AmodalDialog):
-    def __init__(self, parent, file_list=[], pbranch=None):
+    def __init__(self, parent, file_list=[], pbranch=None, rootdir=None):
         flags = gtk.DIALOG_DESTROY_WITH_PARENT
-        title = "diff: %s" % utils.path_rel_home(os.getcwd())
-        mutable = pbranch is None
+        dialogue.AmodalDialog.__init__(self, None, parent, flags, (), rootdir=rootdir)
+        title = "diff: %s" % self._rel_rootdir
         if pbranch:
             title += " Patch Branch: %s" % pbranch
         else:
             title += " Patch Branch: []"
-        dialogue.AmodalDialog.__init__(self, title, parent, flags, ())
-        rootdir = ifce.SCM.get_root()
-        dtw = PbDiffTextWidget(self, file_list, pbranch=pbranch, rootdir=rootdir)
+        self.set_title(title)
+        dtw = PbDiffTextWidget(self, file_list, pbranch=pbranch, rootdir=self._rootdir)
         self.vbox.pack_start(dtw)
         tws_display = dtw.diff_view.get_buffer().tws_display
         self.action_area.pack_end(tws_display, expand=False, fill=False)

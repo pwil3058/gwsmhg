@@ -79,7 +79,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
             open_dialog.show_busy()
         dialogue.init(self)
         actions.AGandUIManager.__init__(self)
-        self.add_conditional_actions(actions.ON_REPO_INDEP,
+        actions.add_class_indep_actions(actions.ON_REPO_INDEP,
             [
                 ("gwsm_working_directory", None, "_Working Directory"),
                 ("gwsm_configuration", None, "_Configuration"),
@@ -90,7 +90,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
                 ("gwsm_quit", gtk.STOCK_QUIT, "_Quit", "",
                  "Quit", self._quit),
             ])
-        self.add_conditional_actions(actions.ON_NOT_IN_REPO,
+        actions.add_class_indep_actions(actions.ON_NOT_IN_REPO,
             [
                 ("gwsm_init_wd", icons.STOCK_INIT, "_Initialise", "",
                  "Initialise the current working directory", self._init_wd_acb),
@@ -98,7 +98,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
                  "Clone a repository cd into the resultant working directory",
                  self._clone_repo_acb),
             ])
-        self.add_conditional_actions(actions.ON_IN_REPO,
+        actions.add_class_indep_actions(actions.ON_IN_REPO,
             [
                 ("gwsm_diff_ws", icons.STOCK_DIFF, "Diff", "",
                  "View diff(s) for the current working directory",
@@ -110,7 +110,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
                  "Verify the integrity of the repository",
                  self._verify_repo_acb),
             ])
-        self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC,
+        actions.add_class_indep_actions(actions.ON_IN_REPO_NOT_PMIC,
             [
                 ("gwsm_commit_ws", icons.STOCK_COMMIT, "Commit", "",
                  "Commit all changes in the current working directory", 
@@ -231,7 +231,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
             clone_dialog.destroy()
     def _diff_ws_acb(self, action=None):
         self.show_busy()
-        dialog = diff.ScmDiffTextDialog(parent=self, modal=False)
+        dialog = diff.ScmDiffTextDialog(parent=self)
         self.unshow_busy()
         dialog.show()
     def _commit_ws_acb(self, action=None):
