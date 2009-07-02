@@ -17,6 +17,39 @@ import gtk, gobject, os
 from gwsmhg_pkg import dialogue, gutils, cmd_result, change_set, icons
 from gwsmhg_pkg import file_tree, diff, ws_event, ifce, utils, actions, table
 
+PATH_PRECIS_MODEL_DESCR = \
+[
+    ['Alias', gobject.TYPE_STRING],
+    ['Path', gobject.TYPE_STRING],
+]
+
+PATH_PRECIS_TABLE_DESCR = \
+[ [ ('enable-grid-lines', False), ('reorderable', False), ('rules_hint', False),
+    ('headers-visible', True),
+  ], # properties
+  gtk.SELECTION_SINGLE, # selection mode
+  [
+    [ 'Alias', # column name
+      [ ('expand', False), ('resizable', True) ], # column properties
+      [ [ (gtk.CellRendererText, False, True), # renderer
+            [ ('editable', False), ], # properties
+            None, # cell_renderer_function
+            [ ('text', table.model_col(PATH_PRECIS_MODEL_DESCR, 'Alias')), ] # attributes
+        ],
+      ] # renderers
+    ],
+    [ 'Path', # column name
+      [ ('expand', False), ('resizable', True) ], # column properties
+      [ [ (gtk.CellRendererText, False, True), # renderer
+            [ ('editable', False), ], # properties
+            None, # cell_renderer_function
+            [ ('text', table.model_col(PATH_PRECIS_MODEL_DESCR, 'Path')), ] # attributes
+        ],
+      ] # renderers
+    ],
+  ]
+]
+
 PATH_TABLE_PRECIS_DESCR = \
 [
     ["Alias", gobject.TYPE_STRING, False, []],
@@ -42,10 +75,12 @@ PATH_TABLE_UI_DESCR = \
 </ui>
 '''
 
-class PathTableView(table.MapManagedTableView):
-    def __init__(self, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None, rootdir=None):
-        table.MapManagedTableView.__init__(self, descr=PATH_TABLE_PRECIS_DESCR,
-            sel_mode=sel_mode, busy_indicator=busy_indicator, rootdir=rootdir)
+class PathTable(table.MapManagedTable):
+    def __init__(self, busy_indicator=None, rootdir=None):
+        table.MapManagedTable.__init__(self, model_descr=PATH_PRECIS_MODEL_DESCR,
+                                       table_descr=PATH_PRECIS_TABLE_DESCR,
+                                       busy_indicator=busy_indicator,
+                                       rootdir=rootdir, popup='/table_popup')
         self.add_conditional_actions(actions.ON_IN_REPO_UNIQUE_SELN,
             [
                 ("view_incoming_from_path", gtk.STOCK_INFO, "Incoming", None,
@@ -64,28 +99,20 @@ class PathTableView(table.MapManagedTableView):
                  "Push all available change sets to the selected path",
                  self._push_to_acb),
             ])
-        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(PATH_TABLE_UI_DESCR))
+        self.cwd_merge_id = [self.ui_manager.add_ui_from_string(PATH_TABLE_UI_DESCR)]
+        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(change_set.CS_TABLE_REFRESH_UI_DESCR))
         ws_event.add_notification_cb(ws_event.REPO_HGRC, self.refresh_contents_if_mapped)
         self.show_all()
-    def _refresh_contents(self):
+    def _fetch_contents(self):
         res, data, serr = ifce.SCM.get_path_table_data(rootdir=self._rootdir)
         if res == cmd_result.OK and data:
-            self.set_contents(data)
+            return data
         else:
-            self.set_contents([])
-        table.MapManagedTableView._refresh_contents(self)
+            return []
     def get_selected_path_alias(self):
-        data = self.get_selected_data([0])
-        if len(data):
-            return str(data[0][0])
-        else:
-            return ""
+        return self.get_selected_key_by_label('Alias')
     def get_selected_path(self):
-        data = self.get_selected_data([1])
-        if len(data):
-            return str(data[0][0])
-        else:
-            return ""
+        return self.get_selected_key_by_label('Path')
     def _view_incoming_acb(self, action):
         path = self.get_selected_path()
         self.show_busy()
@@ -111,39 +138,27 @@ class PathTableView(table.MapManagedTableView):
         self.unshow_busy()
         dialogue.report_any_problems(result)
 
-
-class PathCSTableView(change_set.ChangeSetTableView):
-    def __init__(self, get_data, path=None, sel_mode=gtk.SELECTION_SINGLE,
-                 busy_indicator=None, rootdir=None):
-        ptype = change_set.PrecisType(change_set.LOG_TABLE_PRECIS_DESCR, get_data)
-        change_set.ChangeSetTableView.__init__(self, ptype, sel_mode=sel_mode,
-            busy_indicator=busy_indicator, rootdir=rootdir)
-        self.get_conditional_action("cs_update_ws_to").set_visible(False)
-        self.get_conditional_action("cs_merge_ws_with").set_visible(False)
-        self.get_conditional_action("cs_backout").set_visible(False)
-        self.set_size_request(640, 160)
-
-class IncomingParentsTableView(PathCSTableView):
+class IncomingParentsTable(change_set.ChangeSetTable):
     def __init__(self, rev, path=None, sel_mode=gtk.SELECTION_SINGLE,
                  busy_indicator=None, rootdir=None):
         self._path = path
         self._rev = rev
-        PathCSTableView.__init__(self, get_data=self.get_table_data,
-            path=path, sel_mode=sel_mode, busy_indicator=busy_indicator,
-            rootdir=rootdir)
+        change_set.ChangeSetTable.__init__(self, busy_indicator=busy_indicator,
+                                           rootdir=rootdir, scroll_bar=False)
     def _view_cs_summary_acb(self, action):
-        rev = self.get_selected_change_set()
+        rev = self.get_selected_key()
         self.show_busy()
         # a parent might be local so let's check
-        if ifce.SCM.get_is_incoming(rev, self._path):
+        if ifce.SCM.get_is_incoming(rev, self._path, rootdir=self._rootdir):
             dialog = IncomingCSSummaryDialog(rev, self._path, rootdir=self._rootdir)
         else:
             dialog = change_set.ChangeSetSummaryDialog(rev, rootdir=self._rootdir)
         self.unshow_busy()
         dialog.show()
-    def get_table_data(self):
-        return ifce.SCM.get_incoming_parents_table_data(self._rev, self._path,
+    def _fetch_contents(self):
+        res, parents, serr = ifce.SCM.get_incoming_parents_table_data(self._rev, self._path,
                                                         rootdir=self._rootdir)
+        return parents
 
 class IncomingFileTreeStore(file_tree.FileTreeStore):
     def __init__(self, rev, path, rootdir=None):
@@ -208,14 +223,14 @@ class IncomingCSSummaryDialog(change_set.ChangeSetSummaryDialog):
         change_set.ChangeSetSummaryDialog.__init__(self, rev=rev, parent=parent,
                                                    rootdir=rootdir)
         self.set_title("gwsmg: Change Set: %s : %s" % (rev, path))
-    def get_change_set_summary(self, rootdir):
+    def get_change_set_summary(self):
         return ifce.SCM.get_incoming_change_set_summary(self._rev, self._path,
                                                         rootdir=self._rootdir)
-    def get_file_tree_view(self, rootdir):
+    def get_file_tree_view(self):
         return IncomingFileTreeView(self._rev, self._path, busy_indicator=self,
                                                         rootdir=self._rootdir)
-    def get_parents_view(self, rootdir):
-        return IncomingParentsTableView(self._rev, self._path,
+    def get_parents_view(self):
+        return IncomingParentsTable(self._rev, self._path,
             busy_indicator=self, rootdir=self._rootdir)
 
 INCOMING_TABLE_UI_DESCR = \
@@ -234,19 +249,19 @@ INCOMING_TABLE_UI_DESCR = \
 </ui>
 '''
 
-class IncomingTableView(PathCSTableView):
-    def __init__(self, get_data, path=None, sel_mode=gtk.SELECTION_SINGLE,
-                 busy_indicator=None, rootdir=None):
+class IncomingTable(change_set.ChangeSetTable):
+    def __init__(self, path=None, busy_indicator=None, rootdir=None):
         self._path = path
-        PathCSTableView.__init__(self, get_data=get_data, path=path,
-            sel_mode=sel_mode, busy_indicator=busy_indicator,
-            rootdir=rootdir)
+        change_set.ChangeSetTable.__init__(self, busy_indicator=busy_indicator,
+                                           size_req = (640, 240),
+                                           rootdir=rootdir)
         self.add_conditional_actions(actions.ON_IN_REPO_UNIQUE_SELN,
            [
                 ("cs_pull_to", gtk.STOCK_EXECUTE, "Pull To", None,
                  "Pull up to the selected change set", self._pull_to_cs_acb),
             ])
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(INCOMING_TABLE_UI_DESCR))
+        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(change_set.CS_TABLE_REFRESH_UI_DESCR))
     def _pull_to_cs_acb(self, action):
         rev = self.get_selected_change_set()
         self.show_busy()
@@ -254,11 +269,14 @@ class IncomingTableView(PathCSTableView):
         self._refresh_contents()
         self.unshow_busy()
     def _view_cs_summary_acb(self, action):
-        rev = self.get_selected_change_set()
+        rev = self.get_selected_key()
         self.show_busy()
         dialog = IncomingCSSummaryDialog(rev, self._path, rootdir=self._rootdir)
         self.unshow_busy()
         dialog.show()
+    def _fetch_contents(self):
+        res, outgoing, serr = ifce.SCM.get_incoming_table_data(self._path, rootdir=self._rootdir)
+        return outgoing
 
 OUTGOING_TABLE_UI_DESCR = \
 '''
@@ -276,28 +294,31 @@ OUTGOING_TABLE_UI_DESCR = \
 </ui>
 '''
 
-class OutgoingTableView(PathCSTableView):
-    def __init__(self, get_data, path=None, sel_mode=gtk.SELECTION_SINGLE,
-                 busy_indicator=None, rootdir=None):
+class OutgoingTable(change_set.ChangeSetTable):
+    def __init__(self, path=None, busy_indicator=None, rootdir=None):
         self._path = path
-        PathCSTableView.__init__(self, get_data=get_data, path=path,
-            sel_mode=sel_mode, busy_indicator=busy_indicator,
-            rootdir=rootdir)
+        change_set.ChangeSetTable.__init__(self, busy_indicator=busy_indicator,
+                                           size_req = (640, 240),
+                                           rootdir=rootdir)
         self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_UNIQUE_SELN,
             [
                 ("cs_push_to", gtk.STOCK_EXECUTE, "Push To", None,
                  "Push up to the selected change set", self._push_to_cs_acb),
             ])
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(OUTGOING_TABLE_UI_DESCR))
+        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(change_set.CS_TABLE_REFRESH_UI_DESCR))
     def _push_to_cs_acb(self, action):
-        rev = self.get_selected_change_set()
+        rev = self.get_selected_key()
         self.show_busy()
         ifce.SCM.do_push_to(rev=rev, path=self._path, rootdir=self._rootdir)
         self._refresh_contents()
         self.unshow_busy()
+    def _fetch_contents(self):
+        res, outgoing, serr = ifce.SCM.get_outgoing_table_data(self._path, rootdir=self._rootdir)
+        return outgoing
 
 class PathCSDialog(dialogue.AmodalDialog):
-    def __init__(self, get_data, title, path=None, table=PathCSTableView,
+    def __init__(self, title, path=None, table=None,
                  parent=None, rootdir=None):
         dialogue.AmodalDialog.__init__(self, title=title, parent=parent,
                                        flags=gtk.DIALOG_DESTROY_WITH_PARENT,
@@ -306,53 +327,42 @@ class PathCSDialog(dialogue.AmodalDialog):
         self._path = path
         self.set_title('gwsmg: %s(%s): %s' % (title, self._rel_rootdir,
                        utils.path_rel_home(path)))
-        self._view = table(get_data=get_data, path=path, busy_indicator=self,
-                           rootdir=self._rootdir)
-        self.vbox.pack_start(gutils.wrap_in_scrolled_window(self._view))
+        self._table = table( path=path, busy_indicator=self, rootdir=self._rootdir)
+        self.vbox.pack_start(self._table)
         self.show_all()
-        self._view.get_selection().unselect_all()
+        self._table.seln.unselect_all()
         self.connect("response", self._close_cb)
     def _close_cb(self, dialog, response_id):
         self.destroy()
 
 class IncomingCSDialog(PathCSDialog):
     def __init__(self, path, rootdir=None):
-        PathCSDialog.__init__(self, get_data=self.get_data, path=path,
-            title="Incoming To", table=IncomingTableView, rootdir=rootdir)
-    def get_data(self):
-        return ifce.SCM.get_incoming_table_data(self._path, rootdir=self._rootdir)
+        PathCSDialog.__init__(self, path=path, title="Incoming To",
+                              table=IncomingTable, rootdir=rootdir)
 
 class OutgoingCSDialog(PathCSDialog):
     def __init__(self, path, rootdir=None):
-        PathCSDialog.__init__(self, get_data=self.get_data, path=path,
-            title="Outgoing From", table=OutgoingTableView, rootdir=rootdir)
-    def get_data(self):
-        return ifce.SCM.get_outgoing_table_data(self._path, rootdir=self._rootdir)
+        PathCSDialog.__init__(self, path=path, title="Outgoing From",
+                              table=OutgoingTable, rootdir=rootdir)
 
-class PathSelectTableView(table.TableView):
-    def __init__(self, rootdir=None):
+class PathSelectTable(table.TableWithAGandUI):
+    def __init__(self, rootdir=None, size_req=(640, 240), busy_indicator=None):
         self._rootdir = rootdir
-        table.TableView.__init__(self, descr=PATH_TABLE_PRECIS_DESCR, sel_mode=gtk.SELECTION_SINGLE)
-        self.populate()
+        table.TableWithAGandUI.__init__(self, model_descr=PATH_PRECIS_MODEL_DESCR,
+                                             table_descr=PATH_PRECIS_TABLE_DESCR,
+                                             size_req=size_req, busy_indicator=busy_indicator)
+        self.set_contents()
         self.show_all()
-    def populate(self):
+    def _fetch_contents(self):
         res, data, serr = ifce.SCM.get_path_table_data(rootdir=self._rootdir)
         if res == cmd_result.OK and data:
-            self.set_contents(data)
+            return data
         else:
-            self.set_contents([])
+            return []
     def get_selected_path_alias(self):
-        data = self.get_selected_data([0])
-        if len(data):
-            return data[0][0]
-        else:
-            return ""
+        return self.get_selected_key_by_label('Alias')
     def get_selected_path(self):
-        data = self.get_selected_data([1])
-        if len(data):
-            return data[0][0]
-        else:
-            return ""
+        return self.get_selected_key_by_label('Path')
 
 class PullDialog(dialogue.Dialog):
     def __init__(self, parent=None, rootdir=None):
@@ -363,9 +373,9 @@ class PullDialog(dialogue.Dialog):
                                           gtk.STOCK_OK, gtk.RESPONSE_OK)
                                 )
         hbox = gtk.HBox()
-        self.path_view = PathSelectTableView(rootdir=self._rootdir)
-        self.path_view.get_selection().connect("changed", self._selection_cb)
-        hbox.pack_start(gutils.wrap_in_scrolled_window(self.path_view))
+        self.path_table = PathSelectTable(rootdir=self._rootdir)
+        self.path_table.seln.connect("changed", self._selection_cb)
+        hbox.pack_start(self.path_table)
         self._select_button = gtk.Button(label="_Select")
         self._select_button.connect("clicked", self._select_cb)
         hbox.pack_start(self._select_button, expand=False, fill=False)
@@ -396,7 +406,7 @@ class PullDialog(dialogue.Dialog):
         hbox.pack_start(self._incoming_button, expand=False, fill=False)
         self.vbox.pack_start(hbox, expand=False, fill=False)
         self.show_all()
-        self.path_view.get_selection().unselect_all()
+        self.path_table.seln.unselect_all()
     def _selection_cb(self, selection=None):
         self._select_button.set_sensitive(selection.count_selected_rows())
     def _select_cb(self, button=None):
@@ -413,13 +423,12 @@ class PullDialog(dialogue.Dialog):
         dirname = dialogue.ask_dir_name("gwsmhg: Browse for Path", existing=True, parent=self)
         if dirname:
             self._path.set_text(dirname)
-    def _get_incoming_data(self):
-        return ifce.SCM.get_incoming_table_data(self.get_path(), rootdir=self._rootdir)
+    def _get_incoming_data(self, rootdir):
+        return ifce.SCM.get_incoming_table_data(self.get_path(), rootdir=rootdir)
     def _incoming_cb(self, button=None):
         self.show_busy()
         title = "Choose Revision"
-        ptype = change_set.PrecisType(descr=change_set.LOG_TABLE_PRECIS_DESCR,
-            get_data=self._get_incoming_data)
+        ptype = change_set.PrecisType(get_data=self._get_incoming_data)
         dialog = change_set.SelectDialog(ptype=ptype, title=title, parent=self,
                                          rootdir=self._rootdir)
         self.unshow_busy()

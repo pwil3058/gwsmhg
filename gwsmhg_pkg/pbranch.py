@@ -73,7 +73,7 @@ PBRANCH_LIST_TABLE_DESCR = \
     [ 'Current', [('expand', False), ], # column name and properties
       [ [ (gtk.CellRendererPixbuf, False, True), # renderer
           [ ], # properties
-          set_current_pixbuf, # cell_renderer_function
+          (set_current_pixbuf, None), # cell_renderer_function
           [ ] # attributes
         ],
       ]
@@ -81,7 +81,7 @@ PBRANCH_LIST_TABLE_DESCR = \
     [ 'Status', [('expand', False), ], # column name and properties
       [ [ (gtk.CellRendererPixbuf, False, True), # renderer
           [ ], # properties
-          set_status_pixbuf, # cell_renderer_function
+          (set_status_pixbuf, None), # cell_renderer_function
           [ ] # attributes
         ],
       ]
@@ -177,7 +177,7 @@ class PBranchTable(table.MapManagedTable):
         self.pack_start(self._tool_bar, expand=False)
         self.reorder_child(self._tool_bar, 0)
         self.refresh_contents()
-        self._seln.unselect_all()
+        self.seln.unselect_all()
     def _fetch_contents(self):
         res, pbranches, serr = ifce.SCM.get_pbranch_table_data(rootdir=self._rootdir)
         in_pbranch_branch = False

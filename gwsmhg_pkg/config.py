@@ -18,14 +18,41 @@
 import os, gobject, gtk, urlparse, fnmatch, os.path
 from gwsmhg_pkg import dialogue, gutils, utils, icons, table
 
-REPO_TABLE_DESCR = \
+REPO_PRECIS_MODEL_DESCR = \
 [
-    ["Alias", gobject.TYPE_STRING, True, [("editable", True)]],
-    ["Path", gobject.TYPE_STRING, True, []],
+    ["Alias", gobject.TYPE_STRING],
+    ["Path", gobject.TYPE_STRING],
 ]
 
-REPO_PATH = table.find_label_index(REPO_TABLE_DESCR, "Path")
-REPO_ALIAS = table.find_label_index(REPO_TABLE_DESCR, "Alias")
+REPO_PRECIS_TABLE_DESCR = \
+[ [ ('enable-grid-lines', False), ('reorderable', False), ('rules_hint', False),
+    ('headers-visible', True),
+  ], # properties
+  gtk.SELECTION_SINGLE, # selection mode
+  [
+    [ 'Alias', # column name
+      [ ('expand', False), ('resizable', True) ], # column properties
+      [ [ (gtk.CellRendererText, False, True), # renderer
+            [ ('editable', True), ], # properties
+            None, # cell_renderer_function
+            [ ('text', table.model_col(REPO_PRECIS_MODEL_DESCR, 'Alias')), ] # attributes
+        ],
+      ] # renderers
+    ],
+    [ 'Path', # column name
+      [ ('expand', False), ('resizable', True) ], # column properties
+      [ [ (gtk.CellRendererText, False, True), # renderer
+            [ ('editable', False), ], # properties
+            None, # cell_renderer_function
+            [ ('text', table.model_col(REPO_PRECIS_MODEL_DESCR, 'Path')), ] # attributes
+        ],
+      ] # renderers
+    ],
+  ]
+]
+
+REPO_PATH = table.model_col(REPO_PRECIS_MODEL_DESCR, 'Path')
+REPO_ALIAS = table.model_col(REPO_PRECIS_MODEL_DESCR, 'Alias')
 
 GSWMHG_D_NAME = os.sep.join([utils.HOME, ".gwsmhg.d"])
 SAVED_WS_FILE_NAME = os.sep.join([GSWMHG_D_NAME, "workspaces"])
@@ -43,37 +70,20 @@ def append_saved_ws(path, alias=None):
     file.write(os.linesep)
     file.close()
 
-class AliasPathView(table.TableView):
+class AliasPathTable(table.Table):
     def __init__(self, saved_file):
         self._saved_file = saved_file
-        table.TableView.__init__(self, REPO_TABLE_DESCR,
-                                  sel_mode=gtk.SELECTION_SINGLE,
-                                  perm_headers=True)
-        self._alias_ctr = self.get_column(REPO_ALIAS).get_cell_renderers()[0]
-        self._alias_ctr.connect("edited", self._edited_cb, self.get_model())
-        self.set_size_request(480, 160)
-#        model = self.get_model()
-#        model.set_sort_func(REPO_ALIAS, self._sort_func, REPO_ALIAS)
-#        model.set_sort_func(REPO_PATH, self._sort_func, REPO_PATH)
-        self.read_saved_file()
-#        model.set_sort_column_id(REPO_ALIAS, gtk.SORT_ASCENDING)
-#        self.set_headers_clickable(True)
-#    def _sort_func(self, model, iter1, iter2, index):
-#        v1 = model.get_value(iter1, index)
-#        v2 = model.get_value(iter2, index)
-#        if v1 < v2:
-#            return -1
-#        elif v1 > v2:
-#            return 1
-#        else:
-#            return 0
+        table.Table.__init__(self, model_descr=REPO_PRECIS_MODEL_DESCR,
+                             table_descr=REPO_PRECIS_TABLE_DESCR,
+                             size_req=(480, 160))
+        self.view.register_modification_callback(self.save_to_file)
+        self.set_contents()
     def _extant_path(self, path):
         return os.path.exists(os.path.expanduser(path))
-    def read_saved_file(self):
+    def _fetch_contents(self):
         extant_ap_list = []
         if not os.path.exists(self._saved_file):
-            self.set_contents([])
-            return
+            return []
         file = open(self._saved_file, 'r')
         lines = file.readlines()
         file.close()
@@ -84,9 +94,8 @@ class AliasPathView(table.TableView):
             if self._extant_path(data[REPO_PATH]):
                 extant_ap_list.append(data)
         extant_ap_list.sort()
-        self.set_contents(extant_ap_list)
         self._write_list_to_file(extant_ap_list)
-        self.get_selection().unselect_all()
+        return extant_ap_list
     def _write_list_to_file(self, list):
         file = open(self._saved_file, 'w')
         for ap in list:
@@ -116,31 +125,28 @@ class AliasPathView(table.TableView):
             data[REPO_ALIAS] = alias
             store.append(data)
             self.save_to_file()
-    def save_to_file(self):
+    def save_to_file(self, arg=None):
         list = self.get_contents()
         self._write_list_to_file(list)
     def get_selected_ap(self):
         data = self.get_selected_data([REPO_PATH, REPO_ALIAS])
         return data[0]
-    def _edited_cb(self, cell, path, new_text, model):
-        model[path][REPO_ALIAS] = new_text
-        self.save_to_file()
 
-class WSPathView(AliasPathView):
+class WSPathTable(AliasPathTable):
     def __init__(self):
-        AliasPathView.__init__(self, SAVED_WS_FILE_NAME)
+        AliasPathTable.__init__(self, SAVED_WS_FILE_NAME)
 
 class PathSelectDialog(dialogue.Dialog):
-    def __init__(self, create_view, label, parent=None):
+    def __init__(self, create_table, label, parent=None):
         dialogue.Dialog.__init__(self, title="gwsmg: Select %s" % label, parent=parent,
                                  flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                                  buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
                                           gtk.STOCK_OK, gtk.RESPONSE_OK)
                                 )
         hbox = gtk.HBox()
-        self.ap_view = create_view()
-        self.ap_view.get_selection().connect("changed", self._selection_cb)
-        hbox.pack_start(gutils.wrap_in_scrolled_window(self.ap_view))
+        self.ap_table = create_table()
+        self.ap_table.seln.connect("changed", self._selection_cb)
+        hbox.pack_start(self.ap_table)
         self._select_button = gtk.Button(label="_Select")
         self._select_button.connect("clicked", self._select_cb)
         hbox.pack_start(self._select_button, expand=False, fill=False)
@@ -156,11 +162,11 @@ class PathSelectDialog(dialogue.Dialog):
         hbox.pack_start(self._browse_button, expand=False, fill=False)
         self.vbox.pack_start(hbox, expand=False, fill=False)
         self.show_all()
-        self.ap_view.get_selection().unselect_all()
+        self.ap_table.seln.unselect_all()
     def _selection_cb(self, selection=None):
         self._select_button.set_sensitive(selection.count_selected_rows())
     def _select_cb(self, button=None):
-        ap = self.ap_view.get_selected_ap()
+        ap = self.ap_table.get_selected_ap()
         self._path.set_text(ap[0])
     def _path_cb(self, entry=None):
         self.response(gtk.RESPONSE_OK)
@@ -173,17 +179,17 @@ class PathSelectDialog(dialogue.Dialog):
 
 class WSOpenDialog(PathSelectDialog):
     def __init__(self, parent=None):
-        PathSelectDialog.__init__(self, create_view=WSPathView,
+        PathSelectDialog.__init__(self, create_table=WSPathTable,
             label="Workspace/Directory", parent=parent)
 
-class RepoPathView(AliasPathView):
+class RepoPathTable(AliasPathTable):
     def __init__(self):
-        AliasPathView.__init__(self, SAVED_REPO_FILE_NAME)
+        AliasPathTable.__init__(self, SAVED_REPO_FILE_NAME)
     def _extant_path(self, path):
         if urlparse.urlparse(path).scheme:
             # for the time being treat all paths expressed as URLs as extant
             return True
-        return AliasPathView._extant_path(self, path)
+        return AliasPathTable._extant_path(self, path)
     def _same_paths(self, path1, path2):
         up1 = urlparse.urlparse(path1)
         if up1.scheme:
@@ -206,7 +212,7 @@ class RepoPathView(AliasPathView):
 
 class RepoSelectDialog(PathSelectDialog):
     def __init__(self, parent=None):
-        PathSelectDialog.__init__(self, create_view=RepoPathView,
+        PathSelectDialog.__init__(self, create_table=RepoPathTable,
             label="Repository", parent=parent)
         hbox = gtk.HBox()
         hbox.pack_start(gtk.Label("As:"))

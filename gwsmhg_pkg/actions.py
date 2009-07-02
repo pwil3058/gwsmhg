@@ -104,16 +104,16 @@ class AGandUIManager:
         self.ui_manager = gtk.UIManager()
         for cond in CLASS_INDEP_CONDS:
             self.ui_manager.insert_action_group(class_indep_ags[cond], -1)
-        self._seln = selection
+        self.seln = selection
         self._action_groups ={}
         for cond in CLASS_DEP_SELN_INDEP_CONDS:
             self._action_groups[cond] = gtk.ActionGroup(cond)
             self.ui_manager.insert_action_group(self._action_groups[cond], -1)
-        if self._seln:
+        if self.seln:
             for cond in CLASS_DEP_SELN_DEP_CONDS:
                 self._action_groups[cond] = gtk.ActionGroup(cond)
                 self.ui_manager.insert_action_group(self._action_groups[cond], -1)
-            self._seln.connect('changed', self._seln_cond_change_cb)
+            self.seln.connect('changed', self._seln_cond_change_cb)
         ws_event.add_notification_cb(ws_event.CHANGE_WD|ws_event.PMIC_CHANGE,
                                      self._event_cond_change_cb)
         self.init_action_states()
@@ -166,8 +166,8 @@ class AGandUIManager:
         self._action_groups[ON_NOT_IN_REPO_SELN_INDEP].set_sensitive(not in_repo)
         self._action_groups[ON_IN_REPO_PMIC_SELN_INDEP].set_sensitive(pmic)
         self._action_groups[ON_IN_REPO_NOT_PMIC_SELN_INDEP].set_sensitive(in_repo and not pmic)
-        if self._seln:
-            self._seln_cond_change_update(self._seln, in_repo, pmic)
+        if self.seln:
+            self._seln_cond_change_update(self.seln, in_repo, pmic)
     def add_new_action_group(self, cond):
         self._action_groups[cond] = gtk.ActionGroup(cond)
         self.ui_manager.insert_action_group(self._action_groups[cond], -1)
@@ -177,7 +177,7 @@ class AGandUIManager:
         self._action_groups[cond].add_actions(actions)
     def get_conditional_action(self, action_name):
         conditions = CLASS_DEP_SELN_INDEP_CONDS
-        if self._seln:
+        if self.seln:
             conditions += CLASS_DEP_SELN_DEP_CONDS
         for cond in conditions:
             action = self._action_groups[cond].get_action(action_name)
@@ -185,7 +185,7 @@ class AGandUIManager:
                 return action
     def copy_conditional_action(self, action_name, new_cond):
         conditions = CLASS_DEP_SELN_INDEP_CONDS
-        if self._seln:
+        if self.seln:
             conditions += CLASS_DEP_SELN_INDEP_CONDS
         for cond in conditions:
             action = self._action_groups[cond].get_action(action_name)
@@ -194,7 +194,7 @@ class AGandUIManager:
                return
     def move_conditional_action(self, action_name, new_cond):
         conditions = CLASS_DEP_SELN_INDEP_CONDS
-        if self._seln:
+        if self.seln:
             conditions += CLASS_DEP_SELN_INDEP_CONDS
         for cond in conditions:
             action = self._action_groups[cond].get_action(action_name)

@@ -146,7 +146,8 @@ class View(gtk.TreeView):
         for prop in cell_d[_CR_PROPS]:
             cell.set_property(prop[_P_NAME], prop[_P_VAL])
         if cell_d[_CR_CELL_DATA_FUNC] is not None:
-            col.set_cell_data_func(cell, cell_d[_CR_CELL_DATA_FUNC])
+            col.set_cell_data_func(cell, cell_d[_CR_CELL_DATA_FUNC][0],
+                                   cell_d[_CR_CELL_DATA_FUNC][1])
         for attr in cell_d[_CR_ATTRS]:
             col.add_attribute(cell, attr[_A_NAME], attr[_A_INDEX])
             if attr[_A_NAME] == 'text':
@@ -271,11 +272,21 @@ class Table(gtk.VBox):
         iter = self.model.insert_before(model.get_iter(paths[0]), None)
         self.view.get_selection().select_iter(iter)
         return
+    def get_selected_data(self, columns=None):
+        store, selected_rows = self.seln.get_selected_rows()
+        if not columns:
+            columns = range(store.get_n_columns())
+        list = []
+        for row in selected_rows:
+            iter = store.get_iter(row)
+            assert iter is not None
+            list.append(store.get_values(iter, columns))
+        return list
 
 from gwsmhg_pkg import dialogue
 
 class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorUser):
-    def __init__(self, model_descr, table_descr, popup=None,
+    def __init__(self, model_descr, table_descr, popup=None, scroll_bar=True,
                  busy_indicator=None, size_req=None, rootdir=None):
         self._popup = popup
         gtk.VBox.__init__(self)
@@ -285,7 +296,10 @@ class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorU
         actions.AGandUIManager.__init__(self, self.view.get_selection(), rootdir)
         if size_req:
             self.view.set_size_request(size_req[0], size_req[1])
-        self.pack_start(gutils.wrap_in_scrolled_window(self.view))
+        if scroll_bar:
+            self.pack_start(gutils.wrap_in_scrolled_window(self.view))
+        else:
+            self.pack_start(self.view)
         self.view.connect("button_press_event", self._handle_button_press_cb)
         self.view.connect("key_press_event", self._handle_key_press_cb)
     def _handle_button_press_cb(self, widget, event):
@@ -295,12 +309,12 @@ class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorU
                 menu.popup(None, None, None, event.button, event.time)
                 return True
             elif event.button == 2:
-                self._seln.unselect_all()
+                self.seln.unselect_all()
                 return True
         return False
     def _handle_key_press_cb(self, widget, event):
         if event.keyval == gtk.gdk.keyval_from_name('Escape'):
-            self._seln.unselect_all()
+            self.seln.unselect_all()
             return True
         return False
     def _fetch_contents(self):
@@ -310,13 +324,13 @@ class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorU
         self.view.set_model(None)
         self.model.set_contents(self._fetch_contents())
         self.view.set_model(self.model)
-        self._seln.unselect_all()
         self.view.columns_autosize()
+        self.seln.unselect_all()
         self.unshow_busy()
     def get_contents(self):
         return self.model.get_contents()
     def get_selected_data(self, columns=None):
-        store, selected_rows = self._seln.get_selected_rows()
+        store, selected_rows = self.seln.get_selected_rows()
         if not columns:
             columns = range(store.get_n_columns())
         list = []
@@ -326,7 +340,7 @@ class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorU
             list.append(store.get_values(iter, columns))
         return list
     def get_selected_keys(self, keycol=0):
-        store, selected_rows = self._seln.get_selected_rows()
+        store, selected_rows = self.seln.get_selected_rows()
         keys = []
         for row in selected_rows:
             iter = store.get_iter(row)
@@ -339,18 +353,22 @@ class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorU
         return self.get_selected_keys(self.model.get_col(label))
     def get_selected_key(self, keycol=0):
         keys = self.get_selected_keys(keycol)
-        assert len(keys) == 1
-        return keys[0]
+        assert len(keys) <= 1
+        if keys:
+            return keys[0]
+        else:
+            return None
     def get_selected_key_by_label(self, label):
         return self.get_selected_key(self.model.get_col(label))
 
 class MapManagedTable(TableWithAGandUI, gutils.MappedManager):
-    def __init__(self, model_descr, table_descr, popup=None,
+    def __init__(self, model_descr, table_descr, popup=None, scroll_bar=True,
                  busy_indicator=None, size_req=None, rootdir=None):
         TableWithAGandUI.__init__(self, model_descr=model_descr,
                                   table_descr=table_descr, popup=popup,
                                   busy_indicator=busy_indicator,
-                                  size_req=size_req, rootdir=rootdir)
+                                  size_req=size_req, rootdir=rootdir,
+                                  scroll_bar=scroll_bar)
         gutils.MappedManager.__init__(self)
         self._needs_refresh = True
         self.add_conditional_actions(actions.ON_IN_REPO_SELN_INDEP,
@@ -358,7 +376,6 @@ class MapManagedTable(TableWithAGandUI, gutils.MappedManager):
                 ("table_refresh_contents", gtk.STOCK_REFRESH, "Refresh", None,
                  "Refresh the tables contents", self._refresh_contents_acb),
             ])
-        self.cwd_merge_id = [self.ui_manager.add_ui_from_string(BASIC_TABLE_UI_DESCR)]
         from gwsmhg_pkg import ws_event
         if not self._rootdir:
             ws_event.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir)
@@ -372,182 +389,12 @@ class MapManagedTable(TableWithAGandUI, gutils.MappedManager):
     def _refresh_contents(self):
         self.set_contents()
         self._needs_refresh = False
-    def refresh_contents(self):
-        self._refresh_contents()
-    def refresh_contents_if_mapped(self, *args):
-        if self.is_mapped:
-            self.refresh_contents()
-        else:
-            self._needs_refresh = True
-    def _refresh_contents_acb(self, action):
-        self.show_busy()
-        self.refresh_contents()
-        self.unshow_busy()
-    def update_for_chdir(self, arg=None):
-        self.show_busy()
-        self.refresh_contents()
-        self.unshow_busy()
-
-ROW_LABEL, ROW_TYPE, ROW_EXPAND, ROW_PROPERTIES = range(4)
-PROPERTY_NAME, PROPERTY_VALUE = range(2)
-
-def find_label_index(descr, label):
-    index = 0
-    for index in range(len(descr)):
-        if label == descr[index][0]:
-            return index
-    return None
-
-# Table descriptor is:
-#[
-#  [ROW_LABEL, ROW_TYPE, ROW_EXPAND, [ (name, value), (name, value), ...]],
-#  [ROW_LABEL, ROW_TYPE, ROW_EXPAND, ROW_PROPERTIES],
-#  .....
-#]
-#
-# e.g.
-#PARENTS_TABLE_DESCR = \
-#[
-#    ["Rev", gobject.TYPE_INT, False, [("cell-background", "#F0F0F0")]],
-#    ["Age", gobject.TYPE_STRING, False, [("cell-background", "white")]],
-#    ["Tags", gobject.TYPE_STRING, False, [("cell-background", "#F0F0F0")]],
-#    ["Branches", gobject.TYPE_STRING, False, [("cell-background", "white")]],
-#    ["Author", gobject.TYPE_STRING, False, [("cell-background", "#F0F0F0")]],
-#    ["Description", gobject.TYPE_STRING, True, [("cell-background", "white")]],
-#]
-
-class TableView(gtk.TreeView):
-    def __init__(self, descr, sel_mode=gtk.SELECTION_SINGLE,
-                 perm_headers=False, bgnd=["white", "#F0F0F0"], popup=None):
-        self._model = apply(gtk.ListStore, self._get_type_list(descr))
-        self._perm_headers = perm_headers
-        self._popup = popup
-        self.column_labels = self._get_label_list(descr)
-        gtk.TreeView.__init__(self, self._model)
-        
-        lenbgnd = len(bgnd)
-        self._ncols = len(descr)
-        for colid in range(self._ncols):
-            col_d = descr[colid]
-            cell = gtk.CellRendererText()
-            tvcolumn = gtk.TreeViewColumn(col_d[ROW_LABEL], cell, text=colid)
-            if bgnd:
-                cell.set_property("cell-background", bgnd[colid % lenbgnd])
-            for prop in col_d[ROW_PROPERTIES]:
-                cell.set_property(prop[PROPERTY_NAME], prop[PROPERTY_VALUE])
-            tvcolumn.set_expand(col_d[ROW_EXPAND])
-            self.append_column(tvcolumn)
-        self.set_headers_visible(perm_headers)
-        self.get_selection().set_mode(sel_mode)
-        self.get_selection().unselect_all()
-        self.connect("button_press_event", self._handle_button_press_cb)
-    def _handle_button_press_cb(self, widget, event):
-        if event.type == gtk.gdk.BUTTON_PRESS:
-            if event.button == 3 and self._popup:
-                menu = self.ui_manager.get_widget(self._popup)
-                menu.popup(None, None, None, event.button, event.time)
-                return True
-            elif event.button == 2:
-                self.get_selection().unselect_all()
-                return True
-        return False
-    def _get_type_list(self, descr):
-        list = []
-        for cdescr in descr:
-            list.append(cdescr[ROW_TYPE])
-        return list
-    def _get_label_list(self, descr):
-        list = []
-        for cdescr in descr:
-            list.append(cdescr[ROW_LABEL])
-        return list
-    def get_col_for_label(self, label):
-        return self.column_labels.index(label)
-    def get_cols_for_labels(self, labels):
-        cols = []
-        for label in labels:
-            cols.append(self.column_labels.index(label))
-        return cols
-    def set_contents(self, cset_list):
-        self.set_model(None)
-        self._model.clear()
-        for cset in cset_list:
-            self._model.append(cset)
-        self.set_model(self._model)
-        if not self._perm_headers:
-            self.set_headers_visible(self._model.iter_n_children(None) > 0)
-        self.get_selection().unselect_all()
-        self.columns_autosize()
-    def get_contents(self):
-        list = []
-        iter = self._model.get_iter_first()
-        while iter:
-            row = []
-            for index in range(self._ncols):
-                row.append(self._model.get_value(iter, index))
-            list.append(row)
-            iter = self._model.iter_next(iter)
-        return list
-    def get_selected_data(self, columns):
-        store, selection = self.get_selection().get_selected_rows()
-        list = []
-        for row in selection:
-            iter = store.get_iter(row)
-            assert iter is not None, "gutils:get_selected_data"
-            row_data = []
-            for col in columns:
-                row_data.append(store.get_value(iter, col))
-            list.append(row_data)
-        return list
-    def get_selected_data_by_label(self, labels):
-        return self.get_selected_data(self.get_cols_for_labels(labels))
-
-BASIC_TABLE_UI_DESCR = \
-'''
-<ui>
-  <popup name="table_popup">
-    <placeholder name="top"/>
-    <placeholder name="middle"/>
-    <placeholder name="bottom">
-        <menuitem action="table_refresh_contents"/>
-    </placeholder>
-  </popup>
-</ui>
-'''
-
-class MapManagedTableView(TableView, gutils.MappedManager,
-                          dialogue.BusyIndicatorUser, actions.AGandUIManager):
-    def __init__(self, descr, busy_indicator, sel_mode=gtk.SELECTION_SINGLE,
-                 perm_headers=False, bgnd=["white", "#F0F0F0"], rootdir=None):
-        TableView.__init__(self, descr=descr, sel_mode=sel_mode,
-            perm_headers=perm_headers, bgnd=bgnd, popup="/table_popup")
-        gutils.MappedManager.__init__(self)
-        dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
-        actions.AGandUIManager.__init__(self, self.get_selection(), rootdir)
-        self._needs_refresh = True
-        self.set_headers_visible(perm_headers)
-        self.add_conditional_actions(actions.ON_IN_REPO_SELN_INDEP,
-            [
-                ("table_refresh_contents", gtk.STOCK_REFRESH, "Refresh", None,
-                 "Refresh the tables contents", self._refresh_contents_acb),
-            ])
-        self.cwd_merge_id = [self.ui_manager.add_ui_from_string(BASIC_TABLE_UI_DESCR)]
-        self.refresh_contents()
-        self.get_selection().set_mode(sel_mode)
-        self.get_selection().unselect_all()
-        from gwsmhg_pkg import ws_event
-        ws_event.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir)
-    def map_action(self):
-        if self._needs_refresh:
-            self.show_busy()
-            self._refresh_contents()
-            self.unshow_busy()
-    def unmap_action(self):
-        pass
-    def _refresh_contents(self):
+    def set_contents(self):
+        TableWithAGandUI.set_contents(self)
         self._needs_refresh = False
     def refresh_contents(self):
         self._refresh_contents()
+        self.seln.unselect_all()
     def refresh_contents_if_mapped(self, *args):
         if self.is_mapped:
             self.refresh_contents()
@@ -562,25 +409,25 @@ class MapManagedTableView(TableView, gutils.MappedManager,
         self.refresh_contents()
         self.unshow_busy()
 
-class AutoRefreshTableView(MapManagedTableView):
-    def __init__(self, descr, busy_indicator, sel_mode=gtk.SELECTION_SINGLE,
-                 perm_headers=False, bgnd=["white", "#F0F0F0"],
-                 auto_refresh_on=False, auto_refresh_interval=30000,
-                 rootdir=None):
-        self.rtoc = RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
-        self._normal_interval = auto_refresh_interval
-        MapManagedTableView.__init__(self, descr=descr, sel_mode=sel_mode,
-            perm_headers=False, bgnd=bgnd, busy_indicator=busy_indicator,
-            rootdir=None)
-        self.rtoc.set_function(self._refresh_contents)
-        self.show_all()
-    def map_action(self):
-        MapManagedTableView.map_action(self)
-        self.rtoc.restart_cycle()
-    def unmap_action(self):
-        self.rtoc.stop_cycle()
-        MapManagedTableView.unmap_action(self)
-    def refresh_contents(self):
-        self.rtoc.stop_cycle()
-        self._refresh_contents()
-        self.rtoc.restart_cycle()
+#class AutoRefreshTableView(MapManagedTableView):
+#    def __init__(self, descr, busy_indicator, sel_mode=gtk.SELECTION_SINGLE,
+#                 perm_headers=False, bgnd=["white", "#F0F0F0"],
+#                 auto_refresh_on=False, auto_refresh_interval=30000,
+#                 rootdir=None):
+#        self.rtoc = RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
+#        self._normal_interval = auto_refresh_interval
+#        MapManagedTableView.__init__(self, descr=descr, sel_mode=sel_mode,
+#            perm_headers=False, bgnd=bgnd, busy_indicator=busy_indicator,
+#            rootdir=None)
+#        self.rtoc.set_function(self._refresh_contents)
+#        self.show_all()
+#    def map_action(self):
+#        MapManagedTableView.map_action(self)
+#        self.rtoc.restart_cycle()
+#    def unmap_action(self):
+#        self.rtoc.stop_cycle()
+#        MapManagedTableView.unmap_action(self)
+#    def refresh_contents(self):
+#        self.rtoc.stop_cycle()
+#        self._refresh_contents()
+#        self.rtoc.restart_cycle()

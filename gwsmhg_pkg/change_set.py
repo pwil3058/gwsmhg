@@ -13,9 +13,79 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import gtk, gobject, os
+import gtk, gobject, os, pango
 from gwsmhg_pkg import ifce, cmd_result, gutils, utils, icons, file_tree, diff
 from gwsmhg_pkg import text_edit, tortoise, ws_event, dialogue, table, actions
+
+
+LOG_MODEL_DESCR = [
+    ['Rev', gobject.TYPE_INT],
+    ['Age', gobject.TYPE_STRING],
+    ['Tags', gobject.TYPE_STRING],
+    ['Branches', gobject.TYPE_STRING],
+    ['Author', gobject.TYPE_STRING],
+    ['Description', gobject.TYPE_STRING],
+]
+
+def cs_table_column(model_descr, name):
+    return [ name, # column name
+             [('expand', False), ('resizable', True)], # column properties
+             [ [ (gtk.CellRendererText, False, True), # renderer
+                 [ ('editable', False),
+                 ], # properties
+                 None, # cell_renderer_function
+                 [ ('text', table.model_col(model_descr, name)), ] # attributes
+               ],
+             ] # renderers
+           ]
+
+import re
+base_entities = { '&':'amp', '<':'lt', '>':'gt' }
+base_entities_re = re.compile("([<>&])")
+def safe_escape(s):
+    return base_entities_re.sub(
+        lambda m: '&%s;' % base_entities[m.group(0)[0]], s )
+
+def cs_description_crf(column, cell, model, iter, mcols):
+    markup = safe_escape(model.get_value(iter, mcols[0]))
+    colours = [ 'yellow', 'cyan', ]
+    extras = mcols[1:]
+    for index in range(len(extras)):
+        if extras[index]:
+            tags = model.get_value(iter, extras[index])
+            for tag in tags.split():
+                markup += ' <span background="%s"><b>%s</b></span>' % (colours[index], tag)
+    cell.set_property('markup', markup)
+
+def cs_description_column(model_descr):
+    mcols = ( table.model_col(model_descr, 'Description'),
+              table.model_col(model_descr, 'Tags'),
+              table.model_col(model_descr, 'Branches'),
+            )
+    return [ 'Description', # column name
+             [('expand', False), ('resizable', True)
+             ], # column properties
+             [ [ (gtk.CellRendererText, False, True), # renderer
+                 [ ('editable', False)
+                 ], # properties
+                 (cs_description_crf, mcols), # cell_renderer_function
+                 [ ] # attributes
+               ],
+             ] # renderers
+           ]
+
+LOG_TABLE_DESCR = \
+[ [ ('enable-grid-lines', False), ('reorderable', False), ('rules_hint', False),
+    ('headers-visible', True),
+  ], # properties
+  gtk.SELECTION_SINGLE, # selection mode
+  [
+    cs_table_column(LOG_MODEL_DESCR, 'Rev'),
+    cs_table_column(LOG_MODEL_DESCR, 'Age'),
+    cs_description_column(LOG_MODEL_DESCR),
+    cs_table_column(LOG_MODEL_DESCR, 'Author'),
+  ]
+]
 
 CS_TABLE_BASIC_UI_DESCR = \
 '''
@@ -25,33 +95,23 @@ CS_TABLE_BASIC_UI_DESCR = \
       <menuitem action="cs_summary"/>
     </placeholder>
     <separator/>
-    <placeholder name="middle">
-      <menuitem action="cs_update_ws_to"/>
-      <menuitem action="cs_merge_ws_with"/>
-      <menuitem action="cs_backout"/>
-    </placeholder>
+    <placeholder name="middle"/>
     <separator/>
     <placeholder name="bottom"/>
   </popup>
 </ui>
 '''
 
-UNIQUE_SELECTION = "unique_selection"
-UNIQUE_SELECTION_NOT_PMIC = "unique_selection_not_pmic"
-
-class PrecisType:
-    def __init__(self, descr, get_data):
-        self.descr = descr
-        self.get_data = get_data
-
-class PrecisTableView(table.MapManagedTableView):
-    def __init__(self, ptype, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None,
+class ChangeSetTable(table.MapManagedTable):
+    def __init__(self, model_descr = LOG_MODEL_DESCR,
+                 table_descr = LOG_TABLE_DESCR, popup='/table_popup',
+                 scroll_bar=True, busy_indicator=None, size_req=None,
                  rootdir=None):
-        self._ptype = ptype
-        table.MapManagedTableView.__init__(self, descr=ptype.descr, sel_mode=sel_mode,
-            busy_indicator=busy_indicator, rootdir=rootdir)
-        self._ncb = ws_event.add_notification_cb(ws_event.REPO_MOD, self.refresh_contents_if_mapped)
-        self.connect("destroy", self._destroy_cb)
+        table.MapManagedTable.__init__(self, model_descr=model_descr,
+                                       table_descr=table_descr, popup=popup,
+                                       busy_indicator=busy_indicator,
+                                       size_req=size_req, rootdir=rootdir,
+                                       scroll_bar=scroll_bar)
         self.add_conditional_actions(actions.ON_IN_REPO_UNIQUE_SELN,
             [
                 ("cs_summary", gtk.STOCK_INFO, "Summary", None,
@@ -68,64 +128,44 @@ class PrecisTableView(table.MapManagedTableView):
                 ("cs_backout", icons.STOCK_BACKOUT, "Backout", None,
                  "Backout the selected change set",
                  self._backout_cs_acb),
+                ("cs_tag_selected", icons.STOCK_TAG, "Tag", None,
+                 "Tag the selected change set",
+                 self._tag_cs_acb),
             ])
-        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_BASIC_UI_DESCR))
-        self.show_all()
+        self.cwd_merge_id = [self.ui_manager.add_ui_from_string(CS_TABLE_BASIC_UI_DESCR)]
+        self.connect("destroy", self._destroy_cb)
+        self._ncb = ws_event.add_notification_cb(ws_event.REPO_MOD, self.refresh_contents_if_mapped)
     def _destroy_cb(self, widget):
         ws_event.del_notification_cb(self._ncb)
-    def _refresh_contents(self):
-        res, data, serr = self._ptype.get_data()
-        if res != cmd_result.OK:
-            dialogue.report_any_problems((res, data, serr))
-        elif data:
-            self.set_contents(data)
-        else:
-            self.set_contents([])
-        table.MapManagedTableView._refresh_contents(self)
-    def get_selected_change_set(self):
-        data = self.get_selected_data([0])
-        if len(data):
-            return str(data[0][0])
-        else:
-            return ""
-    def get_selected_change_set_descr(self):
-        dcol = self.get_col_for_label('Description')
-        if dcol < 0:
-            return ''
-        data = self.get_selected_data([dcol])
-        if len(data):
-            return str(data[0][0])
-        else:
-            return ""
     def _view_cs_summary_acb(self, action):
-        rev = self.get_selected_change_set()
+        rev = self.get_selected_key()
         self.show_busy()
         dialog = ChangeSetSummaryDialog(rev, rootdir=self._rootdir)
         self.unshow_busy()
         dialog.show()
     def _update_ws_to_cs_acb(self, action):
-        rev = str(self.get_selected_change_set())
+        rev = str(self.get_selected_key())
         self.show_busy()
-        result = ifce.SCM.do_update_workspace(rev=rev)
+        result = ifce.SCM.do_update_workspace(rev=rev, rootdir=self._rootdir)
         self.unshow_busy()
         if result[0] & cmd_result.SUGGEST_MERGE_OR_DISCARD:
             question = os.linesep.join(result[1:])
             ans = dialogue.ask_merge_discard_or_cancel(question, result[0])
             if ans == dialogue.RESPONSE_DISCARD:
                 self.show_busy()
-                result = ifce.SCM.do_update_workspace(rev=rev, discard=True)
+                result = ifce.SCM.do_update_workspace(rev=rev, discard=True, rootdir=self._rootdir)
                 self.unshow_busy()
                 dialogue.report_any_problems(result)
             elif ans == dialogue.RESPONSE_MERGE:
                 self.show_busy()
-                result = ifce.SCM.do_merge_workspace(rev=rev, force=False)
+                result = ifce.SCM.do_merge_workspace(rev=rev, force=False, rootdir=self._rootdir)
                 self.unshow_busy()
                 if result[0] & cmd_result.SUGGEST_FORCE:
                     question = os.linesep.join(result[1:])
                     ans = dialogue.ask_force_or_cancel(question)
                     if ans == dialogue.RESPONSE_FORCE:
                         self.show_busy()
-                        result = ifce.SCM.do_merge_workspace(rev=rev, force=True)
+                        result = ifce.SCM.do_merge_workspace(rev=rev, force=True, rootdir=self._rootdir)
                         self.unshow_busy()
                         dialogue.report_any_problems(result)
                 else:
@@ -133,145 +173,307 @@ class PrecisTableView(table.MapManagedTableView):
         else:
             dialogue.report_any_problems(result)
     def _merge_ws_with_cs_acb(self, action):
-        rev = str(self.get_selected_change_set())
+        rev = str(self.get_selected_key())
         self.show_busy()
-        result = ifce.SCM.do_merge_workspace(rev=rev)
+        result = ifce.SCM.do_merge_workspace(rev=rev, rootdir=self._rootdir)
         self.unshow_busy()
         if result[0] & cmd_result.SUGGEST_FORCE:
             question = os.linesep.join(result[1:])
             ans = dialogue.ask_force_or_cancel(question)
             if ans == dialogue.RESPONSE_FORCE:
                 self.show_busy()
-                result = ifce.SCM.do_merge_workspace(rev=rev, force=True)
+                result = ifce.SCM.do_merge_workspace(rev=rev, force=True, rootdir=self._rootdir)
                 self.unshow_busy()
                 dialogue.report_any_problems(result)
         else:
             dialogue.report_any_problems(result)
     def _backout_cs_acb(self, action):
-        rev = str(self.get_selected_change_set())
-        descr = self.get_selected_change_set_descr()
+        rev = str(self.get_selected_key())
+        descr = self.get_selected_key_by_label('Description')
         self.show_busy()
-        BackoutDialog(rev=rev, descr=descr)
+        BackoutDialog(rev=rev, descr=descr, rootdir=self._rootdir)
+        self.unshow_busy()
+    def _tag_cs_acb(self, action=None):
+        rev = self.get_selected_key()
+        self.show_busy()
+        SetTagDialog(rev=str(rev), rootdir=self._rootdir).run()
         self.unshow_busy()
 
-class AUPrecisTableView(PrecisTableView):
-    def __init__(self, ptype, age_col, sel_mode=gtk.SELECTION_SINGLE,
-        busy_indicator=None,
-        auto_refresh_on=True, auto_refresh_interval=3600000, rootdir=None):
-        self._age_col = age_col
-        self.rtoc = gutils.RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
-        self._normal_interval = auto_refresh_interval
-        self.rtoc.set_function(self._refresh_contents)
-        PrecisTableView.__init__(self, ptype, sel_mode=sel_mode,
-                                 busy_indicator=busy_indicator,
-                                 rootdir=rootdir)
-    def _refresh_contents(self):
-        res, parents, serr = self._ptype.get_data()
-        if res == cmd_result.OK and parents:
-            desired_interval = self._normal_interval
-            self.set_contents(parents)
-            # if any parent's age is expressed in seconds then update every second
-            # they're in time order so only need to look at first one
-            if parents[0][self._age_col].find("sec") != -1:
-                desired_interval = 10000
-            elif parents[0][self._age_col].find("min") != -1:
-                desired_interval = 60000
-            elif parents[0][self._age_col].find("hour") != -1:
-                    desired_interval = 3600000
-            if desired_interval is not self.rtoc.get_interval():
-                self.rtoc.set_interval(desired_interval)
-        else:
-            self.set_contents([])
-        table.MapManagedTableView._refresh_contents(self)
-    def map_action(self):
-        PrecisTableView.map_action(self)
-        self.rtoc.restart_cycle()
-    def unmap_action(self):
-        self.rtoc.stop_cycle()
-        PrecisTableView.unmap_action(self)
-    def refresh_contents(self):
-        self.rtoc.stop_cycle()
-        self._refresh_contents()
-        self.rtoc.restart_cycle()
+CS_TABLE_REFRESH_UI_DESCR = \
+'''
+<ui>
+  <popup name="table_popup">
+    <placeholder name="top"/>
+    <separator/>
+    <placeholder name="middle"/>
+    <separator/>
+    <placeholder name="bottom">
+      <menuitem action="table_refresh_contents"/>
+    </placeholder>
+  </popup>
+</ui>
+'''
 
-class SelectView(table.TableView):
-    def __init__(self, ptype, size=(640, 240), sel_mode=gtk.SELECTION_SINGLE):
+CS_TABLE_EXEC_UI_DESCR = \
+'''
+<ui>
+  <popup name="table_popup">
+    <placeholder name="top"/>
+    <separator/>
+    <placeholder name="middle">
+      <menuitem action="cs_update_ws_to"/>
+      <menuitem action="cs_merge_ws_with"/>
+      <menuitem action="cs_backout"/>
+    </placeholder>
+    <separator/>
+    <placeholder name="bottom"/>
+  </popup>
+</ui>
+'''
+
+CS_TABLE_TAG_UI_DESCR = \
+'''
+<ui>
+  <popup name="table_popup">
+    <placeholder name="top"/>
+    <separator/>
+    <placeholder name="middle">
+      <menuitem action="cs_tag_selected"/>
+    </placeholder>
+    <separator/>
+    <placeholder name="bottom"/>
+  </popup>
+</ui>
+'''
+
+class HeadsTable(ChangeSetTable):
+    def __init__(self, busy_indicator=None, size_req=None, rootdir=None):
+        ChangeSetTable.__init__(self, busy_indicator=busy_indicator,
+                                size_req=size_req, rootdir=rootdir)
+        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR))
+        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR))
+        self.set_contents()
+    def _fetch_contents(self):
+        res, heads, serr = ifce.SCM.get_heads_data(rootdir=self._rootdir)
+        dialogue.report_any_problems((res, heads, serr))
+        if cmd_result.is_ok(res):
+            return heads
+        else:
+            return []
+
+class HistoryTable(ChangeSetTable):
+    def __init__(self, busy_indicator=None, size_req=None, rootdir=None):
+        ChangeSetTable.__init__(self, busy_indicator=busy_indicator,
+                                size_req=size_req, rootdir=rootdir)
+        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR))
+        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR))
+        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_TAG_UI_DESCR))
+        self.set_contents()
+    def _fetch_contents(self):
+        res, history, serr = ifce.SCM.get_history_data(rootdir=self._rootdir)
+        dialogue.report_any_problems((res, history, serr))
+        if cmd_result.is_ok(res):
+            return history
+        else:
+            return []
+
+class ParentsTable(ChangeSetTable):
+    def __init__(self, rev=None, busy_indicator=None, size_req=None, rootdir=None):
+        ChangeSetTable.__init__(self, busy_indicator=busy_indicator,
+                                size_req=size_req, rootdir=rootdir,
+                                scroll_bar=False)
+        self._rev = rev
+        if rev is None:
+            self._cocb = ws_event.add_notification_cb(ws_event.CHECKOUT, self._checkout_cb)
+        self.set_contents()
+    def _checkout_cb(self, arg=None):
+        self.set_contents()
+    def _fetch_contents(self):
+        res, parents, serr = ifce.SCM.get_parents_data(rev=self._rev, rootdir=self._rootdir)
+        if cmd_result.is_ok(res):
+            self.show()
+            return parents
+        else:
+            self.hide()
+            return []
+
+TAGS_MODEL_DESCR = \
+[
+    ['Tag', gobject.TYPE_STRING],
+    ['Scope', gobject.TYPE_STRING],
+    ['Rev', gobject.TYPE_INT],
+    ['Branches', gobject.TYPE_STRING],
+    ['Age', gobject.TYPE_STRING],
+    ['Author', gobject.TYPE_STRING],
+    ['Description', gobject.TYPE_STRING],
+]
+
+def cs_tag_crf(column, cell, model, iter, mcols):
+    markup = safe_escape(model.get_value(iter, mcols[0]))
+    local = model.get_value(iter, mcols[1])
+    markup += ' <span background="yellow"><b>%s</b></span>' % local
+    cell.set_property('markup', markup)
+
+def cs_tag_column(model_descr):
+    mcols = ( table.model_col(model_descr, 'Tag'),
+              table.model_col(model_descr, 'Scope'),
+            )
+    return [ 'Tag', # column name
+             [('expand', False), ('resizable', True)
+             ], # column properties
+             [ [ (gtk.CellRendererText, False, True), # renderer
+                 [ ('editable', False),
+                 ], # properties
+                 (cs_tag_crf, mcols), # cell_renderer_function
+                 [ ] # attributes
+               ],
+             ] # renderers
+           ]
+
+TAGS_TABLE_DESCR = \
+[ [ ('enable-grid-lines', False), ('reorderable', False), ('rules_hint', False),
+    ('headers-visible', True),
+  ], # properties
+  gtk.SELECTION_SINGLE, # selection mode
+  [
+    cs_tag_column(TAGS_MODEL_DESCR),
+    cs_table_column(TAGS_MODEL_DESCR, 'Rev'),
+    cs_table_column(TAGS_MODEL_DESCR, 'Age'),
+    cs_description_column(TAGS_MODEL_DESCR),
+    cs_table_column(TAGS_MODEL_DESCR, 'Author'),
+  ]
+]
+
+TAG_TABLE_UI_DESCR = \
+'''
+<ui>
+  <popup name="table_popup">
+    <placeholder name="top"/>
+    <separator/>
+    <placeholder name="middle">
+      <menuitem action="cs_remove_selected_tag"/>
+      <menuitem action="cs_move_selected_tag"/>
+    </placeholder>
+    <separator/>
+    <placeholder name="bottom"/>
+  </popup>
+</ui>
+'''
+
+class TagsTable(ChangeSetTable):
+    def __init__(self, busy_indicator=None, size_req=None, rootdir=None):
+        ChangeSetTable.__init__(self, model_descr = TAGS_MODEL_DESCR,
+                                table_descr = TAGS_TABLE_DESCR,
+                                busy_indicator=busy_indicator,
+                                size_req=size_req, rootdir=rootdir)
+        self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_UNIQUE_SELN,
+            [
+                ("cs_remove_selected_tag", icons.STOCK_REMOVE, "Remove", None,
+                 "Remove the selected tag from the repository",
+                 self._remove_tag_cs_acb),
+                ("cs_move_selected_tag", icons.STOCK_MOVE, "Move", None,
+                 "Move the selected tag to another change set",
+                 self._move_tag_cs_acb),
+            ])
+        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR))
+        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR))
+        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(TAG_TABLE_UI_DESCR))
+        self.set_contents()
+    def _remove_tag_cs_acb(self, action=None):
+        tag = self.get_selected_key()
+        self.show_busy()
+        RemoveTagDialog(tag=tag).run()
+        self.unshow_busy()
+    def _move_tag_cs_acb(self, action=None):
+        tag = self.get_selected_key()
+        self.show_busy()
+        MoveTagDialog(tag=tag).run()
+        self.unshow_busy()
+    def _fetch_contents(self):
+        res, tags, serr = ifce.SCM.get_tags_data(rootdir=self._rootdir)
+        dialogue.report_any_problems((res, tags, serr))
+        if cmd_result.is_ok(res):
+            return tags
+        else:
+            return []
+
+BRANCHES_MODEL_DESCR = \
+[
+    ['Branch', gobject.TYPE_STRING],
+    ['Rev', gobject.TYPE_INT],
+    ['Tags', gobject.TYPE_STRING],
+    ['Age', gobject.TYPE_STRING],
+    ['Author', gobject.TYPE_STRING],
+    ['Description', gobject.TYPE_STRING],
+]
+
+BRANCHES_TABLE_DESCR = \
+[ [ ('enable-grid-lines', False), ('reorderable', False), ('rules_hint', False),
+    ('headers-visible', True),
+  ], # properties
+  gtk.SELECTION_SINGLE, # selection mode
+  [
+    cs_table_column(BRANCHES_MODEL_DESCR, 'Branch'),
+    cs_table_column(BRANCHES_MODEL_DESCR, 'Rev'),
+    cs_table_column(BRANCHES_MODEL_DESCR, 'Age'),
+    cs_description_column(BRANCHES_MODEL_DESCR),
+    cs_table_column(BRANCHES_MODEL_DESCR, 'Author'),
+  ]
+]
+
+class BranchesTable(ChangeSetTable):
+    def __init__(self, busy_indicator=None, size_req=None, rootdir=None):
+        ChangeSetTable.__init__(self, model_descr = BRANCHES_MODEL_DESCR,
+                                table_descr = BRANCHES_TABLE_DESCR,
+                                busy_indicator=busy_indicator,
+                                size_req=size_req, rootdir=rootdir)
+        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR))
+        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR))
+        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_TAG_UI_DESCR))
+        self.set_contents()
+    def _fetch_contents(self):
+        res, branches, serr = ifce.SCM.get_branches_data(rootdir=self._rootdir)
+        dialogue.report_any_problems((res, branches, serr))
+        if cmd_result.is_ok(res):
+            return branches
+        else:
+            return []
+
+class PrecisType:
+    def __init__(self, get_data, model_descr=LOG_MODEL_DESCR,
+                 table_descr=LOG_TABLE_DESCR):
+        self.model_descr = model_descr
+        self.table_descr = table_descr
+        self.get_data = get_data
+
+class SelectTable(table.TableWithAGandUI):
+    def __init__(self, ptype, size=(640, 240), rootdir=None):
         self._ptype = ptype
-        table.TableView.__init__(self, ptype.descr, sel_mode=sel_mode)
-        self.set_size_request(size[0], size[1])
-        self._set_contents()
+        table.TableWithAGandUI.__init__(self, model_descr = ptype.model_descr,
+                                        table_descr = ptype.table_descr,
+                                        size_req=size, rootdir=rootdir)
+        self.set_contents()
         self.show_all()
-    def _set_contents(self):
-        res, data, serr = self._ptype.get_data()
-        if res == cmd_result.OK and data:
-            self.set_contents(data)
+    def _fetch_contents(self):
+        res, data, serr = self._ptype.get_data(rootdir=self._rootdir)
+        if cmd_result.is_ok(res):
+            return data
         else:
-            self.set_contents([])
-    def get_selected_change_set(self):
-        data = self.get_selected_data([0])
-        if len(data):
-            return str(data[0][0])
-        else:
-            return ""
+            return []
 
 class SelectDialog(dialogue.Dialog):
-    def __init__(self, ptype, title, size=(640, 240), parent=None):
+    def __init__(self, ptype, title, size=(640, 240), parent=None, rootdir=None):
         dialogue.Dialog.__init__(self, title="gwsmg: Select %s" % title, parent=parent,
                                  flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                                  buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
                                           gtk.STOCK_OK, gtk.RESPONSE_OK)
                                 )
-        self._view = SelectView(ptype=ptype, size=size)
-        self.vbox.pack_start(gutils.wrap_in_scrolled_window(self._view))
+        self._table = SelectTable(ptype=ptype, size=size, rootdir=rootdir)
+        self.vbox.pack_start(self._table)
         self.show_all()
-        self._view.get_selection().unselect_all()
+        self._table.seln.unselect_all()
     def get_change_set(self):
-        return self._view.get_selected_change_set()
-
-LOG_TABLE_PRECIS_DESCR = \
-[
-    ["Rev", gobject.TYPE_INT, False, []],
-    ["Age", gobject.TYPE_STRING, False, []],
-    ["Tags", gobject.TYPE_STRING, False, []],
-    ["Branches", gobject.TYPE_STRING, False, []],
-    ["Author", gobject.TYPE_STRING, False, []],
-    ["Description", gobject.TYPE_STRING, True, []],
-]
-
-LOG_TABLE_PRECIS_AGE = table.find_label_index(LOG_TABLE_PRECIS_DESCR, "Age")
-
-class ParentsTableView(AUPrecisTableView):
-    def __init__(self, rev=None, sel_mode=gtk.SELECTION_SINGLE,
-        busy_indicator=None,
-        auto_refresh_on=True, auto_refresh_interval=3600000, rootdir=None):
-        self._rev = rev
-        ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, self.get_parents_data)
-        AUPrecisTableView.__init__(self, ptype, sel_mode=sel_mode,
-                                   age_col = LOG_TABLE_PRECIS_AGE,
-                                   auto_refresh_on=auto_refresh_on,
-                                   auto_refresh_interval=auto_refresh_interval,
-                                   busy_indicator=busy_indicator,
-                                   rootdir=rootdir)
-        ws_event.del_notification_cb(self._ncb)
-        self._ncb = ws_event.add_notification_cb(ws_event.REPO_MOD|ws_event.CHECKOUT, self.refresh_contents_if_mapped)
-        self.get_conditional_action("cs_update_ws_to").set_visible(False)
-        self.get_conditional_action("cs_merge_ws_with").set_visible(False)
-        self.get_conditional_action("cs_backout").set_visible(False)
-        self.get_conditional_action("table_refresh_contents").set_visible(False)
-    def get_parents_data(self):
-        return ifce.SCM.get_parents_data(self._rev, rootdir=self._rootdir)
-
-class ChangeSetTableView(PrecisTableView):
-    def __init__(self, ptype, sel_mode=gtk.SELECTION_SINGLE, busy_indicator=None,
-                 rootdir=None):
-        PrecisTableView.__init__(self, ptype=ptype, sel_mode=sel_mode,
-                                 busy_indicator=busy_indicator, rootdir=rootdir)
-
-class HeadsTableView(ChangeSetTableView):
-    def __init__(self, sel_mode=gtk.SELECTION_SINGLE, rootdir=None):
-        ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, ifce.SCM.get_heads_data)
-        ChangeSetTableView.__init__(self, ptype, sel_mode=sel_mode,
-                                    rootdir=rootdir)
+        return str(self._table.get_selected_key())
 
 TAG_MSG_UI_DESCR = \
 '''
@@ -288,10 +490,10 @@ class TagMessageWidget(gtk.VBox):
     def __init__(self, label="Message (optional)"):
         gtk.VBox.__init__(self)
         self.view = text_edit.SummaryView()
-        self.view.ui_manager().add_ui_from_string(TAG_MSG_UI_DESCR)
+        self.view.ui_manager.add_ui_from_string(TAG_MSG_UI_DESCR)
         hbox = gtk.HBox()
         hbox.pack_start(gtk.Label(label), expand=False, fill=False)
-        toolbar = self.view.get_ui_widget("/tag_message_toolbar")
+        toolbar = self.view.ui_manager.get_widget("/tag_message_toolbar")
         toolbar.set_style(gtk.TOOLBAR_ICONS)
         toolbar.set_orientation(gtk.ORIENTATION_HORIZONTAL)
         hbox.pack_end(toolbar, fill=False, expand=False)
@@ -334,38 +536,6 @@ class SetTagDialog(dialogue.ReadTextAndToggleDialog):
             else:
                 dialogue.report_any_problems(result)
             self.destroy()
-
-HISTORY_TABLE_UI_DESCR = \
-'''
-<ui>
-  <popup name="table_popup">
-    <placeholder name="top"/>
-    <separator/>
-    <placeholder name="middle">
-      <menuitem action="cs_tag_selected"/>
-    </placeholder>
-    <separator/>
-    <placeholder name="bottom"/>
-  </popup>
-</ui>
-'''
-
-class HistoryTableView(ChangeSetTableView):
-    def __init__(self, sel_mode=gtk.SELECTION_SINGLE, rootdir=None):
-        ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, ifce.SCM.get_history_data)
-        ChangeSetTableView.__init__(self, ptype, sel_mode=sel_mode, rootdir=rootdir)
-        self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_UNIQUE_SELN,
-            [
-                ("cs_tag_selected", icons.STOCK_TAG, "Tag", None,
-                 "Tag the selected change set",
-                 self._tag_cs_acb),
-            ])
-        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(HISTORY_TABLE_UI_DESCR))
-    def _tag_cs_acb(self, action=None):
-        rev = self.get_selected_change_set()
-        self.show_busy()
-        SetTagDialog(rev=str(rev)).run()
-        self.unshow_busy()
 
 class RemoveTagDialog(dialogue.ReadTextDialog):
     def __init__(self, tag=None, parent=None):
@@ -418,86 +588,36 @@ class MoveTagDialog(dialogue.ReadTextDialog):
             dialogue.report_any_problems(result)
             self.destroy()
 
-TAG_TABLE_PRECIS_DESCR = \
-[
-    ["Tag", gobject.TYPE_STRING, False, []],
-    ["Scope", gobject.TYPE_STRING, False, []],
-    ["Rev", gobject.TYPE_INT, False, []],
-    ["Branches", gobject.TYPE_STRING, False, []],
-    ["Age", gobject.TYPE_STRING, False, []],
-    ["Author", gobject.TYPE_STRING, False, []],
-    ["Description", gobject.TYPE_STRING, True, []],
+
+TAG_LIST_MODEL_DESCR = [['Tag', gobject.TYPE_STRING],]
+
+TAG_LIST_TABLE_DESCR = \
+[ [ ('enable-grid-lines', False), ('reorderable', False), ('rules_hint', False),
+    ('headers-visible', False),
+  ], # properties
+  gtk.SELECTION_SINGLE, # selection mode
+  [
+    cs_table_column(TAG_LIST_MODEL_DESCR, 'Tag'),
+  ]
 ]
 
-TAG_TABLE_UI_DESCR = \
-'''
-<ui>
-  <popup name="table_popup">
-    <placeholder name="top"/>
-    <separator/>
-    <placeholder name="middle">
-      <menuitem action="cs_remove_selected_tag"/>
-      <menuitem action="cs_move_selected_tag"/>
-    </placeholder>
-    <separator/>
-    <placeholder name="bottom"/>
-  </popup>
-</ui>
-'''
+BRANCH_LIST_MODEL_DESCR = [['Branch', gobject.TYPE_STRING],]
 
-class TagsTableView(ChangeSetTableView):
-    def __init__(self, sel_mode=gtk.SELECTION_SINGLE, rootdir=None):
-        ptype = PrecisType(TAG_TABLE_PRECIS_DESCR, ifce.SCM.get_tags_data)
-        ChangeSetTableView.__init__(self, ptype, sel_mode=sel_mode, rootdir=rootdir)
-        self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_UNIQUE_SELN,
-            [
-                ("cs_remove_selected_tag", icons.STOCK_REMOVE, "Remove", None,
-                 "Remove the selected tag from the repository",
-                 self._remove_tag_cs_acb),
-                ("cs_move_selected_tag", icons.STOCK_MOVE, "Move", None,
-                 "Move the selected tag to another change set",
-                 self._move_tag_cs_acb),
-            ])
-        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(TAG_TABLE_UI_DESCR))
-    def _remove_tag_cs_acb(self, action=None):
-        tag = self.get_selected_change_set()
-        self.show_busy()
-        RemoveTagDialog(tag=tag).run()
-        self.unshow_busy()
-    def _move_tag_cs_acb(self, action=None):
-        tag = self.get_selected_change_set()
-        self.show_busy()
-        MoveTagDialog(tag=tag).run()
-        self.unshow_busy()
-
-TAG_LIST_DESCR = \
-[
-    ["Tag", gobject.TYPE_STRING, False, []],
-]
-
-BRANCH_TABLE_PRECIS_DESCR = \
-[
-    ["Branch", gobject.TYPE_STRING, False, []],
-    ["Rev", gobject.TYPE_INT, False, []],
-    ["Tags", gobject.TYPE_STRING, False, []],
-    ["Age", gobject.TYPE_STRING, False, []],
-    ["Author", gobject.TYPE_STRING, False, []],
-    ["Description", gobject.TYPE_STRING, True, []],
-]
-
-class BranchesTableView(ChangeSetTableView):
-    def __init__(self, sel_mode=gtk.SELECTION_SINGLE):
-        ptype = PrecisType(BRANCH_TABLE_PRECIS_DESCR, ifce.SCM.get_branches_data)
-        ChangeSetTableView.__init__(self, ptype, sel_mode=sel_mode)
-
-BRANCH_LIST_DESCR = \
-[
-    ["Branch", gobject.TYPE_STRING, False, []],
+BRANCH_LIST_TABLE_DESCR = \
+[ [ ('enable-grid-lines', False), ('reorderable', False), ('rules_hint', False),
+    ('headers-visible', False),
+  ], # properties
+  gtk.SELECTION_SINGLE, # selection mode
+  [
+    cs_table_column(BRANCH_LIST_MODEL_DESCR, 'Branch'),
+  ]
 ]
 
 class ChangeSetSelectWidget(gtk.VBox, dialogue.BusyIndicatorUser):
-    def __init__(self, busy_indicator, label="Change Set:", discard_toggle=False):
+    def __init__(self, busy_indicator, label="Change Set:", discard_toggle=False,
+                 rootdir=None):
         gtk.VBox.__init__(self)
+        self._rootdir=rootdir
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
         hbox = gtk.HBox()
         self._tags_button = gtk.Button(label="Browse _Tags")
@@ -527,24 +647,27 @@ class ChangeSetSelectWidget(gtk.VBox, dialogue.BusyIndicatorUser):
         self.show_all()
     def _browse_change_set(self, ptype, title, size=(640, 240)):
         self.show_busy()
-        dialog = SelectDialog(ptype=ptype, title=title, size=size, parent=None)
+        dialog = SelectDialog(ptype=ptype, title=title, size=size, parent=None,
+                              rootdir=self._rootdir)
         self.unshow_busy()
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
             self._entry.set_text(dialog.get_change_set())
         dialog.destroy()
     def _browse_tags_cb(self, button=None):
-        ptype = PrecisType(TAG_LIST_DESCR, ifce.SCM.get_tags_list_for_table)
-        self._browse_change_set(ptype, "Tag", size=(160, 320))
+        ptype = PrecisType(ifce.SCM.get_tags_list_for_table,
+                           TAG_LIST_MODEL_DESCR, TAG_LIST_TABLE_DESCR)
+        self._browse_change_set(ptype, 'Tags', size=(160, 320))
     def _browse_branches_cb(self, button=None):
-        ptype = PrecisType(TAG_LIST_DESCR, ifce.SCM.get_branches_list_for_table)
-        self._browse_change_set(ptype, "Branch", size=(160, 320))
+        ptype = PrecisType(ifce.SCM.get_branches_list_for_table,
+                           TAG_LIST_MODEL_DESCR, TAG_LIST_TABLE_DESCR)
+        self._browse_change_set(ptype, 'Branches', size=(160, 320))
     def _browse_heads_cb(self, button=None):
-        ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, ifce.SCM.get_heads_data)
-        self._browse_change_set(ptype, "Head", size=(640, 480))
+        ptype = PrecisType(ifce.SCM.get_heads_data)
+        self._browse_change_set(ptype, 'Heads', size=(640, 480))
     def _browse_history_cb(self, button=None):
-        ptype = PrecisType(LOG_TABLE_PRECIS_DESCR, ifce.SCM.get_history_data)
-        self._browse_change_set(ptype, "Change Set", size=(640, 480))
+        ptype = PrecisType(ifce.SCM.get_history_data)
+        self._browse_change_set(ptype, 'History', size=(640, 480))
     def _entry_cb(self, entry=None):
         self.response(gtk.RESPONSE_OK)
     def get_change_set(self):
@@ -555,7 +678,7 @@ class ChangeSetSelectWidget(gtk.VBox, dialogue.BusyIndicatorUser):
         return self._discard_toggle.get_active()
 
 class ChangeSetSelectDialog(dialogue.Dialog):
-    def __init__(self, discard_toggle=False, parent=None):
+    def __init__(self, discard_toggle=False, parent=None, rootdir=None):
         title = "gwsmg: Select Change Set: %s" % utils.path_rel_home(os.getcwd())
         dialogue.Dialog.__init__(self, title=title, parent=parent,
                                  flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
@@ -563,7 +686,7 @@ class ChangeSetSelectDialog(dialogue.Dialog):
                                           gtk.STOCK_OK, gtk.RESPONSE_OK)
                                 )
         self._widget = ChangeSetSelectWidget(busy_indicator=self,
-            discard_toggle=discard_toggle)
+            discard_toggle=discard_toggle, rootdir=rootdir)
         self.vbox.pack_start(self._widget)
         self.show_all()
     def get_change_set(self):
@@ -675,7 +798,7 @@ class ChangeSetSummaryDialog(dialogue.AmodalDialog):
         vbox = gtk.VBox()
         self._add_label("Parent(s):", vbox)
         ptv = self.get_parents_view()
-        vbox.pack_start(gutils.wrap_in_scrolled_window(ptv), expand=True)
+        vbox.pack_start(ptv, expand=True)
         vpaned2.add2(vbox)
         vpaned1.add2(vpaned2)
         self.connect("response", self._close_cb)
@@ -685,7 +808,7 @@ class ChangeSetSummaryDialog(dialogue.AmodalDialog):
     def get_file_tree_view(self):
         return FileTreeView(self._rev, busy_indicator=self, rootdir=self._rootdir)
     def get_parents_view(self):
-        return ParentsTableView(self._rev, auto_refresh_on=False,
+        return ParentsTable(self._rev, #auto_refresh_on=False,
             busy_indicator=self, rootdir=self._rootdir)
     def _add_label(self, text, component=None):
         hbox = gtk.HBox()
@@ -713,19 +836,20 @@ class ChangeSetSummaryDialog(dialogue.AmodalDialog):
         self.destroy()
 
 class BackoutDialog(dialogue.ReadTextAndToggleDialog):
-    def __init__(self, rev=None, descr='', parent=None):
+    def __init__(self, rev=None, descr='', parent=None, rootdir=None):
         self._rev = rev
+        self._rootdir = rootdir
         dialogue.ReadTextAndToggleDialog.__init__(self, title='gwsmhg: Backout',
             prompt='Backing Out: ', suggestion='%s: %s' % (rev, descr), parent=parent,
             toggle_prompt='Auto Merge', toggle_state=False)
         self.entry.set_editable(False)
         self._radio_labels = []
         self._parent_revs = []
-        res, parents_data, serr = ifce.SCM.get_parents_data(rev)
+        res, parents_data, serr = ifce.SCM.get_parents_data(rev, rootdir=self._rootdir)
         if len(parents_data) > 1:
             for data in parents_data:
-                rev = str(data[table.find_label_index(LOG_TABLE_PRECIS_DESCR, 'Rev')])
-                descr = data[table.find_label_index(LOG_TABLE_PRECIS_DESCR, 'Description')]
+                rev = str(data[table.model_col(LOG_MODEL_DESCR, 'Rev')])
+                descr = data[table.model_col(LOG_MODEL_DESCR, 'Description')]
                 self._radio_labels.append('%s: %s' % (rev, descr))
                 self._parent_revs.append(rev)
             self._radio_buttons = gutils.RadioButtonFramedVBox(title='Choose Parent', labels=self._radio_labels)
@@ -747,7 +871,8 @@ class BackoutDialog(dialogue.ReadTextAndToggleDialog):
                 parent = None
             msg = self.message.get_msg()
             self.show_busy()
-            result = ifce.SCM.do_backout(rev=self._rev, merge=merge, parent=parent, msg=msg)
+            result = ifce.SCM.do_backout(rev=self._rev, merge=merge, parent=parent,
+                                         msg=msg, rootdir=self._rootdir)
             self.unshow_busy()
             dialogue.report_any_problems(result)
             self.destroy()
