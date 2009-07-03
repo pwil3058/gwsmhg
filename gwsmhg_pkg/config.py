@@ -110,20 +110,19 @@ class AliasPathTable(table.Table):
         return utils.path_rel_home(path)
     def add_ap(self, path, alias=""):
         if self._extant_path(path):
-            store = self.get_model()
-            iter = store.get_iter_first()
+            iter = self.model.get_iter_first()
             while iter:
-                if self._same_paths(store.get_value(iter, REPO_PATH), path):
+                if self._same_paths(self.model.get_value(iter, REPO_PATH), path):
                     if alias:
-                        store.set_value(iter, REPO_ALIAS, alias)
+                        self.model.set_value(iter, REPO_ALIAS, alias)
                     return
-                iter = store.iter_next(iter)
+                iter = self.model.iter_next(iter)
             if not alias:
                 alias = self._default_alias(path)
             data = ["",""]
             data[REPO_PATH] = self._abbrev_path(path)
             data[REPO_ALIAS] = alias
-            store.append(data)
+            self.model.append(data)
             self.save_to_file()
     def save_to_file(self, arg=None):
         list = self.get_contents()
@@ -202,11 +201,11 @@ class RepoPathTable(AliasPathTable):
         elif urlparse.urlparse(path2).scheme:
             return False
         else:
-            return AliasPathView._same_paths(self, path1, path2)
+            return AliasPathTable._same_paths(self, path1, path2)
     def _default_alias(self, path):
         up = urlparse.urlparse(path)
         if not up.scheme:
-            return AliasPathView._default_alias(self, path)
+            return AliasPathTable._default_alias(self, path)
         else:
             return os.path.basename(up.path)
 

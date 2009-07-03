@@ -923,7 +923,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                 ("scm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for all changes", self.diff_selected_files_acb),
             ])
-        self.add_conditional_actions(actions.ON_IN_REPO_PMIC_NO_SELN,
+        self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_NO_SELN,
             [
                 ("scm_revert_files_all", gtk.STOCK_UNDO, "Rever_t", None,
                  "Revert all changes in working directory", self.revert_all_files_acb),

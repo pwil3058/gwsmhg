@@ -225,7 +225,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
             result = ifce.chdir(target)
             clone_dialog.unshow_busy()
             dialogue.report_any_problems(result)
-            clone_dialog.ap_view.add_ap(cloned_path)
+            clone_dialog.ap_table.add_ap(cloned_path)
             clone_dialog.destroy()
         else:
             clone_dialog.destroy()

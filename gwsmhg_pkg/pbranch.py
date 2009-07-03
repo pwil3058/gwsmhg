@@ -50,14 +50,14 @@ PBRANCH_LIST_MODEL_DESCR = \
   ['status', gobject.TYPE_BOOLEAN],
 ]
 
-def set_current_pixbuf(column, cell, model, iter):
+def set_current_pixbuf(column, cell, model, iter, data=None):
     current = model.get_labelled_value(iter, 'current')
     if current:
         cell.set_property('stock-id', gtk.STOCK_YES)
     else:
         cell.set_property('stock-id', gtk.STOCK_REMOVE)
 
-def set_status_pixbuf(column, cell, model, iter):
+def set_status_pixbuf(column, cell, model, iter, data=None):
     status = model.get_labelled_value(iter, 'status')
     if status:
         cell.set_property('stock-id', icons.STOCK_STATUS_OK)
@@ -273,8 +273,8 @@ class PBranchTable(table.MapManagedTable):
         self.update_contents()
 
 class NewPatchBranchDialog(patch_mgr.NewPatchDialog):
-    def __init__(self, parent, rootdir=None):
-        patch_mgr.NewPatchDialog.__init__(self, parent=parent, objname='Patch Branch', rootdir=rootdir)
+    def __init__(self, parent):
+        patch_mgr.NewPatchDialog.__init__(self, parent=parent, objname='Patch Branch')
         self._preserve = gtk.CheckButton('Preserve', False)
         self._preserve.set_active(False)
         self.hbox.pack_start(self._preserve, expand=False, fill=False)
