@@ -1249,14 +1249,14 @@ class ScmChangeFileTreeView(FileTreeView):
             del file_mask[file_mask.index(sel_file)]
         self.model.set_file_mask(file_mask)
         self.removeds.append(selected_files)
-        self.get_conditional_action.get_action("scmch_undo_remove_files").set_sensitive(True)
+        self.get_conditional_action("scmch_undo_remove_files").set_sensitive(True)
         self.unshow_busy()
         self.update_tree()
     def _undo_last_remove_acb(self, menu_item):
         self.show_busy()
         restore_files = self.removeds[-1]
         del self.removeds[-1]
-        self.get_conditional_action.get_action("scmch_undo_remove_files").set_sensitive(len(self.removeds) > 0)
+        self.get_conditional_action("scmch_undo_remove_files").set_sensitive(len(self.removeds) > 0)
         file_mask = self.model.get_file_mask()
         for res_file in restore_files:
             file_mask.append(res_file)

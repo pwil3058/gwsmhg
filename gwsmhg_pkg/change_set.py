@@ -381,8 +381,9 @@ class TagsTable(ChangeSetTable):
         self.set_contents()
     def _remove_tag_cs_acb(self, action=None):
         tag = self.get_selected_key()
+        local = self.get_selected_key_by_label('Scope')
         self.show_busy()
-        RemoveTagDialog(tag=tag).run()
+        RemoveTagDialog(tag=tag, local=local).run()
         self.unshow_busy()
     def _move_tag_cs_acb(self, action=None):
         tag = self.get_selected_key()
@@ -504,8 +505,9 @@ class TagMessageWidget(gtk.VBox):
         return self.view.get_msg()
 
 class SetTagDialog(dialogue.ReadTextAndToggleDialog):
-    def __init__(self, rev=None, parent=None):
+    def __init__(self, rev=None, parent=None, rootdir=None):
         self._rev = rev
+        self._rootdir = rootdir
         dialogue.ReadTextAndToggleDialog.__init__(self, title="gwsmhg: Set Tag",
             prompt="Tag:", toggle_prompt="Local", toggle_state=False, parent=parent)
         self.message = TagMessageWidget()
@@ -521,7 +523,8 @@ class SetTagDialog(dialogue.ReadTextAndToggleDialog):
             local = self.toggle.get_active()
             msg = self.message.get_msg()
             self.show_busy()
-            result = ifce.SCM.do_set_tag(tag=tag, local=local, msg=msg, rev=self._rev)
+            result = ifce.SCM.do_set_tag(tag=tag, local=local, msg=msg,
+                                         rev=self._rev, rootdir=self._rootdir)
             self.unshow_busy()
             if result[0] & cmd_result.SUGGEST_FORCE:
                 ans = dialogue.ask_rename_force_or_cancel(result[1] + result[2], result[0])
@@ -530,7 +533,9 @@ class SetTagDialog(dialogue.ReadTextAndToggleDialog):
                     return
                 if ans == dialogue.RESPONSE_FORCE:
                     self.show_busy()
-                    result = ifce.SCM.do_set_tag(tag=tag, local=local, msg=msg, rev=self._rev, force=True)
+                    result = ifce.SCM.do_set_tag(tag=tag, local=local, msg=msg,
+                                                 rev=self._rev, force=True,
+                                                 rootdir=self._rootdir)
                     self.unshow_busy()
                     dialogue.report_any_problems(result)
             else:
@@ -538,8 +543,10 @@ class SetTagDialog(dialogue.ReadTextAndToggleDialog):
             self.destroy()
 
 class RemoveTagDialog(dialogue.ReadTextDialog):
-    def __init__(self, tag=None, parent=None):
+    def __init__(self, tag=None, local=False, parent=None, rootdir=None):
         self._tag = tag
+        self._local = local
+        self._rootdir = rootdir
         dialogue.ReadTextDialog.__init__(self, title='gwsmhg: Remove Tag',
             prompt='Removing Tag: ', suggestion=tag, parent=parent)
         self.entry.set_editable(False)
@@ -555,14 +562,17 @@ class RemoveTagDialog(dialogue.ReadTextDialog):
         else:
             msg = self.message.get_msg()
             self.show_busy()
-            result = ifce.SCM.do_remove_tag(tag=self._tag, msg=msg)
+            result = ifce.SCM.do_remove_tag(tag=self._tag, msg=msg,
+                                            local=self._local,
+                                            rootdir=self._rootdir)
             self.unshow_busy()
             dialogue.report_any_problems(result)
             self.destroy()
 
 class MoveTagDialog(dialogue.ReadTextDialog):
-    def __init__(self, tag=None, parent=None):
+    def __init__(self, tag=None, parent=None, rootdir=None):
         self._tag = tag
+        self._rootdir = rootdir
         dialogue.ReadTextDialog.__init__(self, title="gwsmhg: Move Tag",
             prompt='Move Tag: ', suggestion=tag, parent=parent)
         self.entry.set_editable(False)
@@ -583,7 +593,8 @@ class MoveTagDialog(dialogue.ReadTextDialog):
             rev = self._select_widget.get_change_set()
             msg = self.message.get_msg()
             self.show_busy()
-            result = ifce.SCM.do_move_tag(tag=self._tag, rev=rev, msg=msg)
+            result = ifce.SCM.do_move_tag(tag=self._tag, rev=rev, msg=msg,
+                                          rootdir=self._rootdir)
             self.unshow_busy()
             dialogue.report_any_problems(result)
             self.destroy()

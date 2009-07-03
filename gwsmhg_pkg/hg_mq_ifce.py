@@ -682,8 +682,10 @@ class SCMInterface(BaseInterface):
         if cmd_result.is_less_than_error(result[0]):
             ws_event.notify_events(ws_event.REPO_MOD)
         return result
-    def do_remove_tag(self, tag, msg=None, rootdir=None):
+    def do_remove_tag(self, tag, local=False, msg=None, rootdir=None):
         cmd = _hg_cmd_str('tag --remove', rootdir)
+        if local:
+            cmd += ' -l'
         if msg:
             cmd += ' -m "%s"' % msg.replace('"', '\\"')
         cmd += ' %s' % tag
