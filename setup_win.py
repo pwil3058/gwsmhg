@@ -30,15 +30,15 @@ setup(
     author = setup_generic.AUTHOR,
     author_email = setup_generic.AUTHOR_EMAIL,
     url = setup_generic.URL,
-#    console = [
-#    	{
-#	    'script':setup_generic.SCRIPTS[0],
-#	    'icon_resources': [(1, 'share/pixmaps/gwsmhg.png')],
-#	}
-#   ],
-    windows = setup_generic.SCRIPTS,
+    windows = [
+    	{
+	    'script': setup_generic.SCRIPTS[0],
+	    'icon_resources': [(1, 'gwsmhg.ico')],
+	}
+   ],
+#    windows = setup_generic.SCRIPTS,
     packages = setup_generic.PACKAGES,
-    data_files = setup_generic.PIXMAPS,
+    data_files = setup_generic.PIXMAPS + [('share/pixmaps', ['gwsmhg.ico'])],
     options = {
         'py2exe': {
             'packages':'encodings',
