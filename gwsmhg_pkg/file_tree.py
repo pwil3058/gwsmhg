@@ -610,6 +610,7 @@ UI_DESCR = \
 
 _KEYVAL_c = gtk.gdk.keyval_from_name('c')
 _KEYVAL_C = gtk.gdk.keyval_from_name('C')
+_KEYVAL_ESCAPE = gtk.gdk.keyval_from_name('Escape')
 
 class FileTreeView(_ViewWithActionGroups):
     def __init__(self, busy_indicator, model=None, auto_refresh=False,
@@ -682,6 +683,9 @@ class FileTreeView(_ViewWithActionGroups):
             if event.keyval in [_KEYVAL_c, _KEYVAL_C]:
                 self.add_selected_files_to_clipboard()
                 return True
+        elif event.keyval == _KEYVAL_ESCAPE:
+            self.get_selection().unselect_all()
+            return True
         return False
     def repopulate_tree(self):
         self.show_busy()
