@@ -46,7 +46,8 @@ class BaseInterface:
         self._name_envars = DEFAULT_NAME_EVARS
         self._email_envars = DEFAULT_EMAIL_VARS
     def _inotify_warning(self, serr):
-        return serr.strip() == '(found dead inotify server socket; removing it)'
+        return serr.strip() in ['(found dead inotify server socket; removing it)',
+            '(inotify: received response from incompatible server version 1)']
     def get_extensions(self):
         res, sout, serr = utils.run_cmd("hg showconfig extensions")
         extens = []
