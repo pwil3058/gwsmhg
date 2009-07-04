@@ -16,21 +16,6 @@
 import os, gtk, gwsmhg_pkg.sourceview, pango, time
 from gwsmhg_pkg import dialogue, utils, cmd_result, gutils
 
-class DummyConsoleLog:
-    def start_cmd(self, cmd):
-        print "%s: %s" % (time.strftime("%Y-%m-%d %H:%M:%S"), cmd.rstrip())
-    def append_stdout(self, msg):
-        print msg
-    def append_stderr(self, msg):
-        print msg
-    def end_cmd(self):
-        if sout or serr:
-            print (sout + serr).rstrip()
-        print "%",
-    def append_entry(self, msg):
-        print msg.rstrip()
-        print "%",
-
 class ConsoleLogBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
     def __init__(self, view=None, table=None):
         self._view = view
