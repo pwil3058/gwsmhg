@@ -133,10 +133,7 @@ class ChangeSetTable(table.MapManagedTable):
                  self._tag_cs_acb),
             ])
         self.cwd_merge_id = [self.ui_manager.add_ui_from_string(CS_TABLE_BASIC_UI_DESCR)]
-        self.connect("destroy", self._destroy_cb)
-        self._ncb = ws_event.add_notification_cb(ws_event.REPO_MOD, self.refresh_contents_if_mapped)
-    def _destroy_cb(self, widget):
-        ws_event.del_notification_cb(self._ncb)
+        self.add_notification_cb(ws_event.REPO_MOD, self.refresh_contents_if_mapped)
     def _view_cs_summary_acb(self, action):
         rev = self.get_selected_key()
         self.show_busy()
@@ -284,7 +281,7 @@ class ParentsTable(ChangeSetTable):
                                 scroll_bar=False)
         self._rev = rev
         if rev is None:
-            self._cocb = ws_event.add_notification_cb(ws_event.CHECKOUT, self._checkout_cb)
+            self.add_notification_cb(ws_event.CHECKOUT, self._checkout_cb)
         self.set_contents()
     def _checkout_cb(self, arg=None):
         self.set_contents()

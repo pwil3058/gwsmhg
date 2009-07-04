@@ -378,7 +378,7 @@ class MapManagedTable(TableWithAGandUI, gutils.MappedManager):
             ])
         from gwsmhg_pkg import ws_event
         if not self._rootdir:
-            ws_event.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir)
+            self.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir)
     def map_action(self):
         if self._needs_refresh:
             self.show_busy()

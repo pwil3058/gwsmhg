@@ -165,8 +165,6 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
         file_tree.CwdFileTreeView.__init__(self, busy_indicator=busy_indicator,
             model=model, auto_refresh=auto_refresh, show_status=True,
             rootdir=rootdir)
-        ws_event.add_notification_cb(ws_event.CHECKOUT|ws_event.CHANGE_WD, self.repopulate_tree)
-        ws_event.add_notification_cb(ws_event.FILE_CHANGES, self.update_tree)
         model.set_view(self)
         self.move_conditional_action('new_file', actions.ON_IN_REPO_PMIC_SELN_INDEP)
         self.add_conditional_actions(actions.ON_IN_REPO_PMIC_SELN,
@@ -202,12 +200,9 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
         model.show_hidden_action.set_sensitive(False)
         model.repopulate()
         self.cwd_merge_id = self.ui_manager.add_ui_from_string(PM_FILES_UI_DESCR)
-        ws_event.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir)
+        self.add_notification_cb(ws_event.CHECKOUT|ws_event.CHANGE_WD, self.repopulate_tree)
+        self.add_notification_cb(ws_event.FILE_CHANGES, self.update_tree)
         self._event_cond_change_cb()
-    def update_for_chdir(self, arg=None):
-        self.show_busy()
-        self.get_model().repopulate()
-        self.unshow_busy()
     def _check_if_force(self, result):
         if (result[0] & cmd_result.SUGGEST_FORCE) == cmd_result.SUGGEST_FORCE:
             dialog = gtk.MessageDialog(parent=dialogue.main_window,
@@ -468,14 +463,14 @@ WS_UPDATE_CONDITIONS = [
     WS_UPDATE_CLEAN_UP_READY,
 ]
 
-class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser):
+class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener):
     def __init__(self, busy_indicator, rootdir=None):
         self._rootdir = rootdir
         self.store = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_INT,
                                    gobject.TYPE_STRING, gobject.TYPE_STRING)
         gtk.TreeView.__init__(self, self.store)
+        ws_event.Listener.__init__(self)
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
-        ws_event.add_notification_cb(ws_event.CHANGE_WD, self.set_contents)
         text_cell = gtk.CellRendererText()
         icon_cell = gtk.CellRendererPixbuf()
         tvcolumn = gtk.TreeViewColumn("patch_list")
@@ -604,8 +599,8 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser):
         self._selection_changed_cb(self.get_selection())
         self.connect("button_press_event", self._handle_button_press_cb)
         self.connect("key_press_event", self._handle_key_press_cb)
-        ws_event.add_notification_cb(ws_event.REPO_MOD, self.update_in_repo_sensitivity)
-        ws_event.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir)
+        self.add_notification_cb(ws_event.REPO_MOD, self.update_in_repo_sensitivity)
+        self.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir)
         self.update_in_repo_sensitivity()
     def update_for_chdir(self):
         self.show_busy()

@@ -890,11 +890,8 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         model = ScmCwdFileTreeStore(show_hidden=show_hidden, rootdir=rootdir)
         CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
             auto_refresh=auto_refresh, show_status=True, rootdir=rootdir)
-        self._ncbs = [
-            ws_event.add_notification_cb(ws_event.CHECKOUT|ws_event.FILE_CHANGES, self.update_after_commit),
-            ws_event.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir),
-        ]
-        self.connect("destroy", self._destroy_cb)
+        self.add_notification_cb(ws_event.CHECKOUT|ws_event.FILE_CHANGES, self.update_after_commit),
+        self.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir),
         self.add_conditional_actions(actions.ON_IN_REPO_SELN,
             [
                 ("scm_remove_files", gtk.STOCK_REMOVE, "_Remove", None,
@@ -952,8 +949,6 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         self.show_busy()
         self.repopulate_tree()
         self.unshow_busy()
-    def _destroy_cb(self, widget):
-        ws_event.del_notification_cbs(self._ncbs)
     def _tortoise_tool_acb(self, action=None):
         tortoise.run_tool_for_files(action, self.get_selected_files())
     def new_file(self, new_file_name):
@@ -1280,9 +1275,10 @@ class ScmChangeFileTreeView(FileTreeView):
                                         rootdir=self._rootdir)
         dialog.show()
 
-class ScmCommitWidget(gtk.VPaned):
+class ScmCommitWidget(gtk.VPaned, ws_event.Listener):
     def __init__(self, busy_indicator, file_mask=[], rootdir=None):
         gtk.VPaned.__init__(self)
+        ws_event.Listener.__init__(self)
         # TextView for change message
         self._rootdir = rootdir
         self._use_rootdir = None
@@ -1320,7 +1316,7 @@ class ScmCommitWidget(gtk.VPaned):
         self.add2(vbox)
         self.show_all()
         self.set_focus_child(self.view)
-        ws_event.add_notification_cb(ws_event.CHANGE_WD, self._change_wd_ncb)
+        self.add_notification_cb(ws_event.CHANGE_WD, self._change_wd_ncb)
     def _change_wd_ncb(self, arg=None):
         self._use_rootdir = self._rootdir
     def get_msg(self):

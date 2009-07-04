@@ -101,7 +101,7 @@ class PathTable(table.MapManagedTable):
             ])
         self.cwd_merge_id = [self.ui_manager.add_ui_from_string(PATH_TABLE_UI_DESCR)]
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(change_set.CS_TABLE_REFRESH_UI_DESCR))
-        ws_event.add_notification_cb(ws_event.REPO_HGRC, self.refresh_contents_if_mapped)
+        self.add_notification_cb(ws_event.REPO_HGRC, self.refresh_contents_if_mapped)
         self.show_all()
     def _fetch_contents(self):
         res, data, serr = ifce.SCM.get_path_table_data(rootdir=self._rootdir)

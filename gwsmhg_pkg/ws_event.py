@@ -66,3 +66,15 @@ def notify_events(events, data=None):
                 invalid_cbs.append(ncb)
     del_notification_cbs(invalid_cbs)
 
+class Listener:
+    def __init__(self):
+        try:
+            len(self._listener_cbs)
+            print "already inited", self
+        except:
+            self._listener_cbs = []
+        self.connect('destroy', self._listener_destroy_cb)
+    def add_notification_cb(self, events, cb):
+        self._listener_cbs.append(add_notification_cb(events, cb))
+    def _listener_destroy_cb(self, widget):
+        del_notification_cbs(self._listener_cbs)

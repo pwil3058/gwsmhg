@@ -180,7 +180,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
         self._update_title()
         actions.update_class_indep_sensitivities()
         self._parent_table.seln.unselect_all()
-        ws_event.add_notification_cb(ws_event.CHANGE_WD, self._reset_after_cd)
+        self.add_notification_cb(ws_event.CHANGE_WD, self._reset_after_cd)
         if open_dialog:
             open_dialog.unshow_busy()
             open_dialog.destroy()

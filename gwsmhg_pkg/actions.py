@@ -98,8 +98,9 @@ update_class_indep_sensitivities()
 ws_event.add_notification_cb(ws_event.CHANGE_WD|ws_event.PMIC_CHANGE,
                              update_class_indep_sensitivities)
 
-class AGandUIManager:
+class AGandUIManager(ws_event.Listener):
     def __init__(self, selection=None, rootdir=None):
+        ws_event.Listener.__init__(self)
         self._rootdir = rootdir
         self.ui_manager = gtk.UIManager()
         for cond in CLASS_INDEP_CONDS:
@@ -114,8 +115,8 @@ class AGandUIManager:
                 self._action_groups[cond] = gtk.ActionGroup(cond)
                 self.ui_manager.insert_action_group(self._action_groups[cond], -1)
             self.seln.connect('changed', self._seln_cond_change_cb)
-        ws_event.add_notification_cb(ws_event.CHANGE_WD|ws_event.PMIC_CHANGE,
-                                     self._event_cond_change_cb)
+        self.add_notification_cb(ws_event.CHANGE_WD|ws_event.PMIC_CHANGE,
+                                 self._event_cond_change_cb)
         self.init_action_states()
     def _in_valid_repo(self):
         if self._rootdir:
