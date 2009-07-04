@@ -603,6 +603,7 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser):
         self.get_selection().unselect_all()
         self._selection_changed_cb(self.get_selection())
         self.connect("button_press_event", self._handle_button_press_cb)
+        self.connect("key_press_event", self._handle_key_press_cb)
         ws_event.add_notification_cb(ws_event.REPO_MOD, self.update_in_repo_sensitivity)
         ws_event.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir)
         self.update_in_repo_sensitivity()
@@ -631,6 +632,11 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser):
             elif event.button == 2:
                 self.get_selection().unselect_all()
                 return True
+        return False
+    def _handle_key_press_cb(self, widget, event):
+        if event.keyval == gtk.gdk.keyval_from_name('Escape'):
+            self.get_selection().unselect_all()
+            return True
         return False
     def get_selected_patch(self):
         model, iter = self.get_selection().get_selected()
