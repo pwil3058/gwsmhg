@@ -10,6 +10,9 @@ SRCDIST:=gwsmhg-$(VERSION).tar.gz
 WINDIST:=gwsmhg-$(VERSION).win32.exe
 RPMDIST:=gwsmhg-$(VERSION)-$(RELEASE).noarch.rpm
 RPMSRC:=$(RPMBDIR)/SOURCES/$(SRCDIST)
+DEBDIR=debian
+DEBSPECDIR:=$(DEBDIR)/DEBIAN
+DEBSPEC:=$(DEBSPECDIR)/control
 
 help:
 	@echo "Choices are:"
@@ -22,7 +25,7 @@ help:
 
 all_dist: $(SRCDIST)  $(WINDIST) $(RPMDIST)
 
-gwsmhg.spec: setup.py Makefile
+gwsmhg.spec: setup.py setup_generic.py Makefile
 	python setup.py bdist_rpm --build-requires python --spec-only \
 		--group "Development/Tools" --release $(RELEASE) \
 		--requires "$(RPMREQS)" --dist-dir .
@@ -47,6 +50,14 @@ $(RPMSRC): $(SRCDIST)
 $(RPMDIST): $(RPMSRC) gwsmhg.spec
 	rpmbuild -bb gwsmhg.spec
 	cp $(RPMBDIR)/RPMS/noarch/$(RPMDIST) .
+
+$(DEBSPEC): create_deb_spec setup_generic.py setup.py sMakefile
+	mkdir -p $(DEBSPECDIR)
+	python create_deb_spec $(RPMREQS) > $(DEBSPEC)
+
+deb: $(DEBSPEC) $(SRCS)
+	python setup.py install --prefix $(DEBDIR)/$(PREFIX)
+	dpkg-deb --build $(DEBDIR)
 
 install:
 	python setup.py install --prefix=$(PREFIX)
