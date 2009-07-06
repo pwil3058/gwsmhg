@@ -20,6 +20,9 @@ import os, setup_generic
 
 os.environ['PATH'] += ';gtk/lib;gtk/bin;lib/site-packages/cairo'
 
+DATA_FILES = setup_generic.PIXMAPS + setup_generic.COPYRIGHT + \
+             [('share/pixmaps', ['gwsmhg.ico'])]
+
 setup(
     name = setup_generic.NAME,
     version = setup_generic.VERSION,
@@ -36,9 +39,8 @@ setup(
 	    'icon_resources': [(1, 'gwsmhg.ico')],
 	}
    ],
-#    windows = setup_generic.SCRIPTS,
     packages = setup_generic.PACKAGES,
-    data_files = setup_generic.PIXMAPS + [('share/pixmaps', ['gwsmhg.ico'])],
+    data_files = DATA_FILES,
     options = {
         'py2exe': {
             'packages':'encodings',

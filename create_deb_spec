@@ -32,7 +32,13 @@ print 'Package: %s' % setup_generic.NAME
 print 'Version: %s' % setup_generic.VERSION
 print 'Maintainer: %s <%s>' % (setup_generic.AUTHOR, setup_generic.AUTHOR_EMAIL)
 print 'Description: %s' % setup_generic.DESCRIPTION
-print 'Section: programming'
+first = True
+for line in setup_generic.LONG_DESCRIPTION.splitlines():
+    if first and not line:
+        first = False
+        continue
+    print ' %s' % line
+print 'Section: devel'
 print 'Priority: optional'
 print 'Architecture: all'
-print 'Depends: python %s' % ' '.join(arg_list)
+print 'Depends: %s' % ', '.join(arg_list)

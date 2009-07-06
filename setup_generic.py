@@ -17,7 +17,7 @@ import glob
 
 NAME = 'gwsmhg'
 
-VERSION = '0.6_rc1'
+VERSION = '0.6'
 
 DESCRIPTION = 'a PyGTK GUI wrapper for hg and mq'
 
@@ -32,6 +32,8 @@ space.
 pixmaps = glob.glob('pixmaps/*.png')
 
 PIXMAPS = [('share/pixmaps', ['gwsmhg.png']), ('share/pixmaps/gwsmhg', pixmaps)]
+
+COPYRIGHT = [('share/doc/gwsmhg', ['COPYING', 'copyright'])]
 
 LICENSE = 'GNU General Public License (GPL) Version 2.0'
 

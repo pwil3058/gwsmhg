@@ -17,7 +17,8 @@
 from distutils.core import setup
 import os, setup_generic
 
-DATA_FILES = [('share/applications', ['gwsmhg.desktop'])]
+DATA_FILES = setup_generic.PIXMAPS + setup_generic.COPYRIGHT + \
+             [('share/applications', ['gwsmhg.desktop'])]
 
 setup(
     name = setup_generic.NAME,
@@ -31,6 +32,6 @@ setup(
     url = setup_generic.URL,
     scripts = setup_generic.SCRIPTS,
     packages = setup_generic.PACKAGES,
-    data_files = setup_generic.PIXMAPS + DATA_FILES,
+    data_files = DATA_FILES
 )
 

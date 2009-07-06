@@ -10,9 +10,10 @@ SRCDIST:=gwsmhg-$(VERSION).tar.gz
 WINDIST:=gwsmhg-$(VERSION).win32.exe
 RPMDIST:=gwsmhg-$(VERSION)-$(RELEASE).noarch.rpm
 RPMSRC:=$(RPMBDIR)/SOURCES/$(SRCDIST)
-DEBDIR=debian
+DEBDIR=deb_bld
 DEBSPECDIR:=$(DEBDIR)/DEBIAN
 DEBSPEC:=$(DEBSPECDIR)/control
+DEBREQS:= python python-gtk2 python-gtksourceview2 python-gobject python-cairo mercurial
 
 help:
 	@echo "Choices are:"
@@ -51,13 +52,14 @@ $(RPMDIST): $(RPMSRC) gwsmhg.spec
 	rpmbuild -bb gwsmhg.spec
 	cp $(RPMBDIR)/RPMS/noarch/$(RPMDIST) .
 
-$(DEBSPEC): create_deb_spec setup_generic.py setup.py sMakefile
+$(DEBSPEC): create_deb_spec setup_generic.py setup.py Makefile
 	mkdir -p $(DEBSPECDIR)
-	python create_deb_spec $(RPMREQS) > $(DEBSPEC)
+	python create_deb_spec $(DEBREQS) > $(DEBSPEC)
 
 deb: $(DEBSPEC) $(SRCS)
-	python setup.py install --prefix $(DEBDIR)/$(PREFIX)
-	dpkg-deb --build $(DEBDIR)
+	sudo mkdir -p $(DEBDIR)/$(PREFIX)
+	sudo python setup_deb.py install --prefix $(DEBDIR)/$(PREFIX)
+	dpkg-deb --build $(DEBDIR) .
 
 install:
 	python setup.py install --prefix=$(PREFIX)
