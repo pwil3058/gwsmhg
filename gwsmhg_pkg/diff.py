@@ -219,15 +219,13 @@ class DiffTextView(gwsmhg_pkg.sourceview.SourceView):
         self.tws_nav_buttonbox = gutils.ActionHButtonBox([self._action_group],
             ["tws_nav_first", "tws_nav_prev", "tws_nav_next", "tws_nav_last"])
     def _tws_nav_first_acb(self, action):
-        self.scroll_to_iter(self.get_buffer().get_tws_first_iter(), 0.01)
-        iter = self.get_buffer().get_tws_first_iter()
-        self.scroll_to_iter(iter, 0.01)
+        self.scroll_to_iter(self.get_buffer().get_tws_first_iter(), 0.01, True)
     def _tws_nav_prev_acb(self, action):
-        self.scroll_to_iter(self.get_buffer().get_tws_prev_iter(), 0.01)
+        self.scroll_to_iter(self.get_buffer().get_tws_prev_iter(), 0.01, True)
     def _tws_nav_next_acb(self, action):
-        self.scroll_to_iter(self.get_buffer().get_tws_next_iter(), 0.01)
+        self.scroll_to_iter(self.get_buffer().get_tws_next_iter(), 0.01, True)
     def _tws_nav_last_acb(self, action):
-        self.scroll_to_iter(self.get_buffer().get_tws_last_iter(), 0.01)
+        self.scroll_to_iter(self.get_buffer().get_tws_last_iter(), 0.01, True)
 
 class DiffTextWidget(gtk.VBox):
     def __init__(self, parent, diff_view):
