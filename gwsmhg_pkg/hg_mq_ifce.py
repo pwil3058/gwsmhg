@@ -1127,7 +1127,7 @@ class PMInterface(BaseInterface):
         if pf_descr != rep_descr.strip():
             top = self.get_top_patch()
             if top == patch:
-                utils.run_cmd('hg qrefresh')
+                utils.run_cmd(_hg_cmd_str('qrefresh', rootdir))
             else:
                 # let's hope the user doesn't mind having the top patch refreshed
                 utils.run_cmd(_hg_cmd_str('qrefresh', rootdir))
@@ -1191,10 +1191,10 @@ class PMInterface(BaseInterface):
         else:
             res, sout, serr = utils.run_cmd(_hg_cmd_str('qprev', rootdir))
             parent = sout.strip()
-        cmd = _hg_cmd_str('hg revert --rev %s' % parent, rootdir)
+        cmd = _hg_cmd_str('revert --rev %s' % parent, rootdir)
         if force:
             cmd += ' -f'
-        cmd += utils.patch_file_name(file_list)
+        cmd += utils.file_list_to_string(file_list)
         result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.FILE_DEL)
         return result

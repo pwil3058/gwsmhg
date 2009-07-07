@@ -227,10 +227,10 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
         if not ask or self._confirm_list_action(file_list, "About to be removed. OK?"):
             model = self.get_model()
             self.show_busy()
-            result = model._ifce.PM.do_remove_files(file_list, rootdir=self._rootdir)
+            result = ifce.PM.do_remove_files(file_list, rootdir=self._rootdir)
             self.show_busy()
             if self._check_if_force(result):
-                result = model._ifce.PM.do_remove_files(file_list, force=True, rootdir=self._rootdir)
+                result = ifce.PM.do_remove_files(file_list, force=True, rootdir=self._rootdir)
             self.update_tree()
             dialogue.report_any_problems(result)
     def remove_selected_files_acb(self, menu_item):
@@ -774,7 +774,7 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
     def do_push_all_with_merge(self, action=None):
         self._do_push_to("", merge=True)
     def do_finish_to(self, action=None):
-        patch = self.get_selected_patch(rootdir=self._rootdir)
+        patch = self.get_selected_patch()
         while True:
             next = ifce.PM.get_base_patch(rootdir=self._rootdir)
             if not next:
