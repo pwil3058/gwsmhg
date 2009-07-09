@@ -287,13 +287,13 @@ from gwsmhg_pkg import dialogue
 
 class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorUser):
     def __init__(self, model_descr, table_descr, popup=None, scroll_bar=True,
-                 busy_indicator=None, size_req=None, rootdir=None):
+                 busy_indicator=None, size_req=None):
         self._popup = popup
         gtk.VBox.__init__(self)
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
         self.model = Model(model_descr)
         self.view = View(table_descr, self.model)
-        actions.AGandUIManager.__init__(self, self.view.get_selection(), rootdir)
+        actions.AGandUIManager.__init__(self, self.view.get_selection())
         if size_req:
             self.view.set_size_request(size_req[0], size_req[1])
         if scroll_bar:
@@ -363,11 +363,11 @@ class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorU
 
 class MapManagedTable(TableWithAGandUI, gutils.MappedManager):
     def __init__(self, model_descr, table_descr, popup=None, scroll_bar=True,
-                 busy_indicator=None, size_req=None, rootdir=None):
+                 busy_indicator=None, size_req=None):
         TableWithAGandUI.__init__(self, model_descr=model_descr,
                                   table_descr=table_descr, popup=popup,
                                   busy_indicator=busy_indicator,
-                                  size_req=size_req, rootdir=rootdir,
+                                  size_req=size_req,
                                   scroll_bar=scroll_bar)
         gutils.MappedManager.__init__(self)
         self._needs_refresh = True
@@ -377,8 +377,7 @@ class MapManagedTable(TableWithAGandUI, gutils.MappedManager):
                  "Refresh the tables contents", self._refresh_contents_acb),
             ])
         from gwsmhg_pkg import ws_event
-        if not self._rootdir:
-            self.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir)
+        self.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir)
     def map_action(self):
         if self._needs_refresh:
             self.show_busy()
@@ -412,13 +411,11 @@ class MapManagedTable(TableWithAGandUI, gutils.MappedManager):
 #class AutoRefreshTableView(MapManagedTableView):
 #    def __init__(self, descr, busy_indicator, sel_mode=gtk.SELECTION_SINGLE,
 #                 perm_headers=False, bgnd=["white", "#F0F0F0"],
-#                 auto_refresh_on=False, auto_refresh_interval=30000,
-#                 rootdir=None):
+#                 auto_refresh_on=False, auto_refresh_interval=30000):
 #        self.rtoc = RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
 #        self._normal_interval = auto_refresh_interval
 #        MapManagedTableView.__init__(self, descr=descr, sel_mode=sel_mode,
-#            perm_headers=False, bgnd=bgnd, busy_indicator=busy_indicator,
-#            rootdir=None)
+#            perm_headers=False, bgnd=bgnd, busy_indicator=busy_indicator)
 #        self.rtoc.set_function(self._refresh_contents)
 #        self.show_all()
 #    def map_action(self):

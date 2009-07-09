@@ -63,18 +63,11 @@ class Dialog(gtk.Dialog, BusyIndicator):
         inform_user(msg, problem_type, self)
 
 class AmodalDialog(Dialog, ws_event.Listener):
-    def __init__(self, title=None, parent=None, flags=0, buttons=None, rootdir=None):
+    def __init__(self, title=None, parent=None, flags=0, buttons=None):
         flags &= ~gtk.DIALOG_MODAL
         Dialog.__init__(self, title=title, parent=parent, flags=flags, buttons=buttons)
         ws_event.Listener.__init__(self)
         self.set_type_hint(gtk.gdk.WINDOW_TYPE_HINT_NORMAL)
-        if rootdir:
-            self._rootdir = rootdir
-        else:
-            from gwsmhg_pkg import ifce
-            self._rootdir = ifce.SCM.get_root()
-        from gwsmhg_pkg import utils
-        self._rel_rootdir = utils.path_rel_home(self._rootdir)
         self.add_notification_cb(ws_event.CHANGE_WD, self._change_wd_cb)
     def _change_wd_cb(self, arg=None):
         self.destroy()

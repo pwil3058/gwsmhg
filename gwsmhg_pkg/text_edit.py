@@ -35,8 +35,7 @@ def edit_files_extern(file_list):
 import time
 
 class SummaryBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
-    def __init__(self, table=None, rootdir=None):
-        self._rootdir = rootdir
+    def __init__(self, table=None):
         if not table:
             table = gwsmhg_pkg.sourceview.SourceTagTable()
         gwsmhg_pkg.sourceview.SourceBuffer.__init__(self, table=table)
@@ -51,20 +50,19 @@ class SummaryBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
                  "Insert Author tag at cursor position", self._insert_author_acb),
             ])
     def _insert_sign_off_acb(self, action=None):
-        data = ifce.SCM.get_author_name_and_email(rootdir=self._rootdir)
+        data = ifce.SCM.get_author_name_and_email()
         self.insert_at_cursor("Signed-off-by: %s\n" % data)
     def _insert_ack_acb(self, action=None):
-        data = ifce.SCM.get_author_name_and_email(rootdir=self._rootdir)
+        data = ifce.SCM.get_author_name_and_email()
         self.insert_at_cursor("Acked-by: %s\n" % data)
     def _insert_author_acb(self, action=None):
-        data = ifce.SCM.get_author_name_and_email(rootdir=self._rootdir)
+        data = ifce.SCM.get_author_name_and_email()
         self.insert_at_cursor("Author: %s\n" % data)
 
 class SummaryView(gwsmhg_pkg.sourceview.SourceView):
-    def __init__(self, buffer=None, table=None, rootdir=None):
-        self._rootdir = rootdir
+    def __init__(self, buffer=None, table=None):
         if not buffer:
-            buffer = SummaryBuffer(table, rootdir=self._rootdir)
+            buffer = SummaryBuffer(table)
         gwsmhg_pkg.sourceview.SourceView.__init__(self, buffer)
         fdesc = pango.FontDescription("mono, 10")
         self.modify_font(fdesc)
@@ -90,12 +88,12 @@ class SummaryView(gwsmhg_pkg.sourceview.SourceView):
         return buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter())
 
 class ChangeSummaryBuffer(SummaryBuffer):
-    def __init__(self, table=None, auto_save=True, rootdir=None):
+    def __init__(self, table=None, auto_save=True):
         if not table:
             table = gwsmhg_pkg.sourceview.SourceTagTable()
-        SummaryBuffer.__init__(self, table=table, rootdir=rootdir)
+        SummaryBuffer.__init__(self, table=table)
         self._save_interval = 1000 # milliseconds
-        self._save_file_name = ifce.SCM.get_default_commit_save_file(rootdir=self._rootdir)
+        self._save_file_name = ifce.SCM.get_default_commit_save_file()
         if not os.path.exists(self._save_file_name):
             self.save_summary(content="")
         self._action_group.add_actions(
@@ -199,7 +197,7 @@ class ChangeSummaryBuffer(SummaryBuffer):
             self.set_auto_save(False)
             self.do_auto_save()
         if clear_save:
-            self.save_summary(file_name=ifce.SCM.get_default_commit_save_file(rootdir=self._rootdir),
+            self.save_summary(file_name=ifce.SCM.get_default_commit_save_file(),
                               content="")
 
 CHANGE_SUMMARY_UI_DESCR = \
@@ -224,17 +222,17 @@ CHANGE_SUMMARY_UI_DESCR = \
 '''
 
 class ChangeSummaryView(SummaryView):
-    def __init__(self, buffer=None, auto_save=True, table=None, rootdir=None):
+    def __init__(self, buffer=None, auto_save=True, table=None):
         if not buffer:
-            buffer = ChangeSummaryBuffer(table, auto_save, rootdir=rootdir)
-        SummaryView.__init__(self, buffer, table, rootdir=rootdir)
+            buffer = ChangeSummaryBuffer(table, auto_save)
+        SummaryView.__init__(self, buffer, table)
         self.change_summary_merge_id = self.ui_manager.add_ui_from_string(CHANGE_SUMMARY_UI_DESCR)
 
 class NewPatchSummaryBuffer(SummaryBuffer):
-    def __init__(self, table=None, rootdir=None):
+    def __init__(self, table=None):
         if not table:
             table = gwsmhg_pkg.sourceview.SourceTagTable()
-        SummaryBuffer.__init__(self, table=table, rootdir=rootdir)
+        SummaryBuffer.__init__(self, table=table)
         self._action_group.add_actions(
             [
                 ("menu_summary", None, "_Description"),
@@ -252,13 +250,13 @@ class NewPatchSummaryBuffer(SummaryBuffer):
             dialogue.inform_user("Insert at cursor from file failed!")
 
 class PatchSummaryBuffer(NewPatchSummaryBuffer):
-    def __init__(self, get_summary, set_summary, patch=None, table=None, rootdir=None):
+    def __init__(self, get_summary, set_summary, patch=None, table=None):
         self.patch = patch
         self._set_summary = set_summary
         self._get_summary = get_summary
         if not table:
             table = gwsmhg_pkg.sourceview.SourceTagTable()
-        NewPatchSummaryBuffer.__init__(self, table=table, rootdir=rootdir)
+        NewPatchSummaryBuffer.__init__(self, table=table)
         self._action_group.add_actions(
             [
                 ("patch_summary_save", gtk.STOCK_SAVE, "_Save", "",
@@ -268,7 +266,7 @@ class PatchSummaryBuffer(NewPatchSummaryBuffer):
             ])
     def _save_summary_acb(self, action=None):
         text = self.get_text(self.get_start_iter(), self.get_end_iter())
-        res, sout, serr = self._set_summary(self.patch, text, rootdir=self._rootdir)
+        res, sout, serr = self._set_summary(self.patch, text)
         if res:
             dialogue.inform_user(os.linesep.join([sout, serr]))
         else:
@@ -278,7 +276,7 @@ class PatchSummaryBuffer(NewPatchSummaryBuffer):
             return dialogue.ask_ok_cancel("Buffer contents will be destroyed. Continue?")
         return True
     def load_summary(self):
-        res, text, serr = self._get_summary(self.patch, rootdir=self._rootdir)
+        res, text, serr = self._get_summary(self.patch)
         if res:
             dialogue.inform_user(os.linesep.join([text, serr]))
         else:
@@ -306,10 +304,10 @@ NEW_PATCH_SUMMARY_UI_DESCR = \
 '''
 
 class NewPatchSummaryView(SummaryView):
-    def __init__(self, buffer=None, table=None, rootdir=None):
+    def __init__(self, buffer=None, table=None):
         if not buffer:
-            buffer = NewPatchSummaryBuffer(table, rootdir=rootdir)
-        SummaryView.__init__(self, buffer, table, rootdir=rootdir)
+            buffer = NewPatchSummaryBuffer(table)
+        SummaryView.__init__(self, buffer, table)
         self.patch_summary_merge_id = self.ui_manager.add_ui_from_string(NEW_PATCH_SUMMARY_UI_DESCR)
 
 PATCH_SUMMARY_UI_DESCR = \
@@ -327,9 +325,9 @@ PATCH_SUMMARY_UI_DESCR = \
 '''
 
 class PatchSummaryView(NewPatchSummaryView):
-    def __init__(self, get_summary, set_summary, patch=None, table=None, rootdir=None):
-        buffer = PatchSummaryBuffer(get_summary, set_summary, patch, table, rootdir=rootdir)
-        NewPatchSummaryView.__init__(self, buffer, table, rootdir=rootdir)
+    def __init__(self, get_summary, set_summary, patch=None, table=None):
+        buffer = PatchSummaryBuffer(get_summary, set_summary, patch, table)
+        NewPatchSummaryView.__init__(self, buffer, table)
         self.patch_summary_merge_id = self.ui_manager.add_ui_from_string(PATCH_SUMMARY_UI_DESCR)
         action = buffer._action_group.get_action("patch_summary_save")
         self.save_button = gutils.ActionButton(action, use_underline=False)

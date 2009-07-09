@@ -179,10 +179,9 @@ class RowDataUser:
         cell_renderer.set_property("text", self.formatted_file_name(store, tree_iter))
 
 class FileTreeStore(gtk.TreeStore, RowDataUser):
-    def __init__(self, show_hidden=False, row_data=DEFAULT_ROW_DATA, rootdir=None):
+    def __init__(self, show_hidden=False, row_data=DEFAULT_ROW_DATA):
         apply(gtk.TreeStore.__init__, (self,) + COLUMNS)
         RowDataUser.__init__(self, row_data)
-        self._rootdir = rootdir
         self.show_hidden_action = gtk.ToggleAction("show_hidden_files", "Show Hidden Files",
                                                    "Show/hide files beginning with \".\"", None)
         self.show_hidden_action.set_active(show_hidden)
@@ -422,8 +421,8 @@ class FileTreeStore(gtk.TreeStore, RowDataUser):
         self._insert_place_holder_if_needed(dir_iter)
 
 class CwdFileTreeStore(FileTreeStore):
-    def __init__(self, show_hidden=False, row_data=DEFAULT_ROW_DATA, rootdir=None):
-        FileTreeStore.__init__(self, show_hidden=show_hidden, row_data=row_data, rootdir=rootdir)
+    def __init__(self, show_hidden=False, row_data=DEFAULT_ROW_DATA):
+        FileTreeStore.__init__(self, show_hidden=show_hidden, row_data=row_data)
         # This will be automatically set when the first row is expanded
         self.view = None
         self.repopulate()
@@ -563,10 +562,10 @@ from gwsmhg_pkg import actions
 
 class _ViewWithActionGroups(gtk.TreeView, dialogue.BusyIndicatorUser,
                             actions.AGandUIManager):
-    def __init__(self, busy_indicator, model=None, rootdir=None):
+    def __init__(self, busy_indicator, model=None):
         gtk.TreeView.__init__(self, model)
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
-        actions.AGandUIManager.__init__(self, self.get_selection(), rootdir)
+        actions.AGandUIManager.__init__(self, self.get_selection())
         self.add_conditional_action(actions.ON_REPO_INDEP_SELN_INDEP, model.show_hidden_action)
         self.connect('button_press_event', self._handle_button_press_cb)
     def _handle_button_press_cb(self, widget, event):
@@ -614,10 +613,10 @@ _KEYVAL_ESCAPE = gtk.gdk.keyval_from_name('Escape')
 
 class FileTreeView(_ViewWithActionGroups):
     def __init__(self, busy_indicator, model=None, auto_refresh=False,
-                 show_hidden=False, show_status=False, rootdir=None):
+                 show_hidden=False, show_status=False):
         if model is None:
-            model = FileTreeStore(show_hidden=show_hidden, rootdir=rootdir)
-        _ViewWithActionGroups.__init__(self, busy_indicator, model=model, rootdir=rootdir)
+            model = FileTreeStore(show_hidden=show_hidden)
+        _ViewWithActionGroups.__init__(self, busy_indicator, model=model)
         self._refresh_interval = 60000 # milliseconds
         self._create_column(show_status)
         self.connect("row-expanded", model.on_row_expanded_cb)
@@ -724,11 +723,11 @@ CWD_UI_DESCR = \
 
 class CwdFileTreeView(FileTreeView):
     def __init__(self, busy_indicator, model=None, auto_refresh=False,
-                 show_hidden=False, show_status=False, rootdir=None):
+                 show_hidden=False, show_status=False):
         if not model:
-            model = CwdFileTreeStore(show_hidden=show_hidden, rootdir=rootdir)
+            model = CwdFileTreeStore(show_hidden=show_hidden)
         FileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
-            auto_refresh=auto_refresh, show_status=show_status, rootdir=rootdir)
+            auto_refresh=auto_refresh, show_status=show_status)
         self.add_conditional_actions(actions.ON_REPO_INDEP_SELN,
             [
                 ("edit_files", gtk.STOCK_EDIT, "_Edit", None,
@@ -815,10 +814,9 @@ class CwdFileTreeView(FileTreeView):
         self._delete_named_files(self.get_selected_files())
 
 class ScmCwdFileTreeStore(CwdFileTreeStore):
-    def __init__(self, show_hidden=False, rootdir=None):
+    def __init__(self, show_hidden=False):
         row_data = apply(FileTreeRowData, ifce.SCM.get_status_row_data())
-        CwdFileTreeStore.__init__(self, show_hidden=show_hidden, row_data=row_data,
-                                  rootdir=rootdir)
+        CwdFileTreeStore.__init__(self, show_hidden=show_hidden, row_data=row_data)
         self._update_statuses()
     def _update_statuses(self, fspath_list=[]):
         res, dflists, dummy = ifce.SCM.get_file_status_lists(fspath_list)
@@ -885,11 +883,10 @@ SCM_CWD_UI_DESCR = \
 '''
 
 class ScmCwdFileTreeView(CwdFileTreeView):
-    def __init__(self, busy_indicator, auto_refresh=False, show_hidden=False,
-                 rootdir=None):
-        model = ScmCwdFileTreeStore(show_hidden=show_hidden, rootdir=rootdir)
+    def __init__(self, busy_indicator, auto_refresh=False, show_hidden=False):
+        model = ScmCwdFileTreeStore(show_hidden=show_hidden)
         CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
-            auto_refresh=auto_refresh, show_status=True, rootdir=rootdir)
+            auto_refresh=auto_refresh, show_status=True)
         self.add_notification_cb(ws_event.CHECKOUT|ws_event.FILE_CHANGES, self.update_after_commit),
         self.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir),
         self.add_conditional_actions(actions.ON_IN_REPO_SELN,
@@ -1146,11 +1143,10 @@ class ScmCwdFilesWidget(gtk.VBox):
         self.show_all()
 
 class ScmChangeFileTreeStore(FileTreeStore):
-    def __init__(self, show_hidden=True, view=None, file_mask=[], rootdir=None):
+    def __init__(self, show_hidden=True, view=None, file_mask=[]):
         self._file_mask = file_mask
         row_data = apply(FileTreeRowData, ifce.SCM.get_status_row_data())
-        FileTreeStore.__init__(self, show_hidden=show_hidden, row_data=row_data,
-                               rootdir=rootdir)
+        FileTreeStore.__init__(self, show_hidden=show_hidden, row_data=row_data)
         # if this is set to the associated view then the view will expand
         # to show new files without disturbing other expansion states
         self._view = view
@@ -1163,8 +1159,7 @@ class ScmChangeFileTreeStore(FileTreeStore):
     def get_file_mask(self):
         return self._file_mask
     def update(self, fsobj_iter=None):
-        res, dflists, dummy = ifce.SCM.get_file_status_lists(self._file_mask,
-                                                             rootdir=self._rootdir)
+        res, dflists, dummy = ifce.SCM.get_file_status_lists(self._file_mask)
         if res == 0:
             files = [tmpx[0] for tmpx in dflists[MODIFIED]] 
             for f in self.get_file_paths():
@@ -1204,15 +1199,12 @@ SCM_CHANGE_UI_DESCR = \
 '''
 
 class ScmChangeFileTreeView(FileTreeView):
-    def __init__(self, busy_indicator, auto_refresh=False, show_hidden=True,
-                 file_mask=[], rootdir=None):
+    def __init__(self, busy_indicator, auto_refresh=False, show_hidden=True, file_mask=[]):
         self.removeds = []
-        self.model = ScmChangeFileTreeStore(show_hidden=show_hidden,
-                                            file_mask=file_mask,
-                                            rootdir=rootdir)
+        self.model = ScmChangeFileTreeStore(show_hidden=show_hidden, file_mask=file_mask)
         self.model.set_view(self)
         FileTreeView.__init__(self, model=self.model, busy_indicator=busy_indicator,
-            auto_refresh=auto_refresh, show_status=True, rootdir=rootdir)
+                              auto_refresh=auto_refresh, show_status=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.set_headers_visible(False)
         self.add_conditional_actions(actions.ON_IN_REPO_SELN,
@@ -1264,25 +1256,19 @@ class ScmChangeFileTreeView(FileTreeView):
         self.update_tree()
     def _diff_selected_files_acb(self, action=None):
         parent = dialogue.main_window
-        dialog = diff.ScmDiffTextDialog(parent=parent,
-                                        file_list=self.get_selected_files(),
-                                        rootdir=self._rootdir)
+        dialog = diff.ScmDiffTextDialog(parent=parent, file_list=self.get_selected_files())
         dialog.show()
     def _diff_all_files_acb(self, action=None):
         parent = dialogue.main_window
-        dialog = diff.ScmDiffTextDialog(parent=parent,
-                                        file_list=self.get_file_mask(),
-                                        rootdir=self._rootdir)
+        dialog = diff.ScmDiffTextDialog(parent=parent, file_list=self.get_file_mask())
         dialog.show()
 
 class ScmCommitWidget(gtk.VPaned, ws_event.Listener):
-    def __init__(self, busy_indicator, file_mask=[], rootdir=None):
+    def __init__(self, busy_indicator, file_mask=[]):
         gtk.VPaned.__init__(self)
         ws_event.Listener.__init__(self)
         # TextView for change message
-        self._rootdir = rootdir
-        self._use_rootdir = None
-        self.view = text_edit.ChangeSummaryView(rootdir=self._rootdir)
+        self.view = text_edit.ChangeSummaryView()
         vbox = gtk.VBox()
         hbox = gtk.HBox()
         menubar = self.view.ui_manager.get_widget("/change_summary_menubar")
@@ -1298,8 +1284,7 @@ class ScmCommitWidget(gtk.VPaned, ws_event.Listener):
         self.files = ScmChangeFileTreeView(busy_indicator=busy_indicator,
                                            auto_refresh=False,
                                            show_hidden=True,
-                                           file_mask=file_mask,
-                                           rootdir=self._rootdir)
+                                           file_mask=file_mask)
         vbox = gtk.VBox()
         hbox = gtk.HBox()
         hbox.pack_start(gtk.Label("Files"), fill=True, expand=False)
@@ -1316,31 +1301,23 @@ class ScmCommitWidget(gtk.VPaned, ws_event.Listener):
         self.add2(vbox)
         self.show_all()
         self.set_focus_child(self.view)
-        self.add_notification_cb(ws_event.CHANGE_WD, self._change_wd_ncb)
-    def _change_wd_ncb(self, arg=None):
-        self._use_rootdir = self._rootdir
     def get_msg(self):
         return self.view.get_msg()
     def get_file_mask(self):
         return self.files.get_file_mask()
     def do_commit(self):
-        result = ifce.SCM.do_commit_change(self.get_msg(),
-                                           self.get_file_mask(),
-                                           rootdir=self._use_rootdir)
+        result = ifce.SCM.do_commit_change(self.get_msg(), self.get_file_mask())
         dialogue.report_any_problems(result)
         return cmd_result.is_less_than_error(result[0])
 
 class ScmCommitDialog(dialogue.AmodalDialog):
-    def __init__(self, parent, filelist=None, rootdir=None):
+    def __init__(self, parent, filelist=None):
         flags = gtk.DIALOG_DESTROY_WITH_PARENT
         dialogue.AmodalDialog.__init__(self, None, parent, flags,
                                        (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                                       gtk.STOCK_OK, gtk.RESPONSE_OK),
-                                       rootdir=rootdir)
-        self.set_title('Commit Changes: %s' % self._rel_rootdir)
-        self.commit_widget = ScmCommitWidget(busy_indicator=self,
-                                             file_mask=filelist,
-                                             rootdir=self._rootdir)
+                                       gtk.STOCK_OK, gtk.RESPONSE_OK))
+        self.set_title('Commit Changes: %s' % utils.cwd_rel_home())
+        self.commit_widget = ScmCommitWidget(busy_indicator=self, file_mask=filelist)
         self.vbox.pack_start(self.commit_widget)
         self.connect('response', self._handle_response_cb)
         self.set_focus_child(self.commit_widget.view)

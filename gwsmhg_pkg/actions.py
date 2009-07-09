@@ -99,9 +99,8 @@ ws_event.add_notification_cb(ws_event.CHANGE_WD|ws_event.PMIC_CHANGE,
                              update_class_indep_sensitivities)
 
 class AGandUIManager(ws_event.Listener):
-    def __init__(self, selection=None, rootdir=None):
+    def __init__(self, selection=None):
         ws_event.Listener.__init__(self)
-        self._rootdir = rootdir
         self.ui_manager = gtk.UIManager()
         for cond in CLASS_INDEP_CONDS:
             self.ui_manager.insert_action_group(class_indep_ags[cond], -1)
@@ -118,11 +117,6 @@ class AGandUIManager(ws_event.Listener):
         self.add_notification_cb(ws_event.CHANGE_WD|ws_event.PMIC_CHANGE,
                                  self._event_cond_change_cb)
         self.init_action_states()
-    def _in_valid_repo(self):
-        if self._rootdir:
-            return True
-        else:
-            return ifce.in_valid_repo
     def _seln_cond_change_update(self, seln, in_repo, pmic):
         selsz = seln.count_selected_rows()
         self._action_groups[ON_REPO_INDEP_SELN].set_sensitive(selsz > 0)
@@ -157,12 +151,12 @@ class AGandUIManager(ws_event.Listener):
             for cond in [ON_IN_REPO_PMIC_SELN, ON_IN_REPO_PMIC_NO_SELN, ON_IN_REPO_PMIC_UNIQUE_SELN]:
                 self._action_groups[cond].set_sensitive(False)
     def _seln_cond_change_cb(self, seln):
-        in_repo = self._in_valid_repo()
-        pmic = in_repo and ifce.PM.get_in_progress(self._rootdir)
+        in_repo = ifce.in_valid_repo
+        pmic = in_repo and ifce.PM.get_in_progress()
         self._seln_cond_change_update(seln, in_repo, pmic)
     def _event_cond_change_cb(self, arg=None):
-        in_repo = self._in_valid_repo()
-        pmic = in_repo and ifce.PM.get_in_progress(self._rootdir)
+        in_repo = ifce.in_valid_repo
+        pmic = in_repo and ifce.PM.get_in_progress()
         self._action_groups[ON_IN_REPO_SELN_INDEP].set_sensitive(in_repo)
         self._action_groups[ON_NOT_IN_REPO_SELN_INDEP].set_sensitive(not in_repo)
         self._action_groups[ON_IN_REPO_PMIC_SELN_INDEP].set_sensitive(pmic)

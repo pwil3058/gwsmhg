@@ -40,12 +40,11 @@ class tws_line_count_display(gtk.HBox):
                 self._entry.modify_base(state, gtk.gdk.color_parse("#00FF00"))
 
 class DiffTextBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
-    def __init__(self, file_list=[], table=None, rootdir=None):
+    def __init__(self, file_list=[], table=None):
         if not table:
             table = gwsmhg_pkg.sourceview.SourceTagTable()
         gwsmhg_pkg.sourceview.SourceBuffer.__init__(self, table)
         self._file_list = file_list
-        self._rootdir = rootdir
         self._tws_change_cbs = []
         self.tws_check = re.compile('^(\+.*\S)(\s+\n)$')
         self.tws_list = []
@@ -248,8 +247,8 @@ class DiffTextWidget(gtk.VBox):
             self._tws_nav_buttons_packed = True
 
 class ScmDiffTextBuffer(DiffTextBuffer):
-    def __init__(self, file_list=[], fromrev=None, torev=None, table=None, rootdir=None):
-        DiffTextBuffer.__init__(self, file_list=file_list, table=table, rootdir=rootdir)
+    def __init__(self, file_list=[], fromrev=None, torev=None, table=None):
+        DiffTextBuffer.__init__(self, file_list=file_list, table=table)
         self._fromrev = fromrev
         self._torev = torev
         if not torev:
@@ -259,28 +258,26 @@ class ScmDiffTextBuffer(DiffTextBuffer):
             self.a_name_list = ["diff_save", "diff_save_as"]
         self.diff_buttons = gutils.ActionButtonList([self._action_group], self.a_name_list)
     def _get_diff_text(self):
-        res, text, serr = ifce.SCM.get_diff_for_files(self._file_list, self._fromrev, self._torev,
-                                                      rootdir=self._rootdir)
+        res, text, serr = ifce.SCM.get_diff_for_files(self._file_list, self._fromrev, self._torev)
         dialogue.report_any_problems((res, text, serr))
         return text
 
 class ScmDiffTextView(DiffTextView):
-    def __init__(self, file_list=[], fromrev=None, torev=None, rootdir=None):
-        buffer = ScmDiffTextBuffer(file_list, fromrev=fromrev, torev=torev,
-                                   rootdir=rootdir)
+    def __init__(self, file_list=[], fromrev=None, torev=None):
+        buffer = ScmDiffTextBuffer(file_list, fromrev=fromrev, torev=torev)
         DiffTextView.__init__(self, buffer=buffer)
 
 class ScmDiffTextWidget(DiffTextWidget):
-    def __init__(self, parent, file_list=[], fromrev=None, torev=None, rootdir=None):
+    def __init__(self, parent, file_list=[], fromrev=None, torev=None):
         diff_view = ScmDiffTextView(file_list=file_list, fromrev=fromrev,
-                                    torev=torev, rootdir=rootdir)
+                                    torev=torev)
         DiffTextWidget.__init__(self, parent=parent, diff_view=diff_view)
 
 class ScmDiffTextDialog(dialogue.AmodalDialog):
-    def __init__(self, parent, file_list=[], fromrev=None, torev=None, rootdir=None):
+    def __init__(self, parent, file_list=[], fromrev=None, torev=None):
         flags = gtk.DIALOG_DESTROY_WITH_PARENT
-        dialogue.AmodalDialog.__init__(self, None, parent, flags, (), rootdir=rootdir)
-        title = "diff: %s" % self._rel_rootdir
+        dialogue.AmodalDialog.__init__(self, None, parent, flags, ())
+        title = "diff: %s" % utils.cwd_rel_home()
         if fromrev:
             parents = [fromrev]
             if torev:
@@ -304,8 +301,7 @@ class ScmDiffTextDialog(dialogue.AmodalDialog):
             nb = gtk.Notebook()
             for parent in parents:
                 vbox = gtk.VBox()
-                dtw = ScmDiffTextWidget(self, file_list, fromrev=parent,
-                                        torev=torev, rootdir=self._rootdir)
+                dtw = ScmDiffTextWidget(self, file_list, fromrev=parent, torev=torev)
                 vbox.pack_start(dtw)
                 hbox = gtk.HBox()
                 tws_display = dtw.diff_view.get_buffer().tws_display
@@ -317,8 +313,7 @@ class ScmDiffTextDialog(dialogue.AmodalDialog):
                 nb.append_page(vbox,tab_label=tab_label)
             self.vbox.add(nb)
         else:
-            dtw = ScmDiffTextWidget(self, file_list, fromrev=parents[0],
-                                    torev=torev, rootdir=self._rootdir)
+            dtw = ScmDiffTextWidget(self, file_list, fromrev=parents[0], torev=torev)
             self.vbox.pack_start(dtw)
             tws_display = dtw.diff_view.get_buffer().tws_display
             self.action_area.pack_end(tws_display, expand=False, fill=False)
@@ -331,8 +326,8 @@ class ScmDiffTextDialog(dialogue.AmodalDialog):
         dialog.destroy()
 
 class PmDiffTextBuffer(DiffTextBuffer):
-    def __init__(self, file_list=[], patch=None, table=None, rootdir=None):
-        DiffTextBuffer.__init__(self, file_list=file_list, table=table, rootdir=rootdir)
+    def __init__(self, file_list=[], patch=None, table=None):
+        DiffTextBuffer.__init__(self, file_list=file_list, table=table)
         self._patch = patch
         if not patch:
             self.a_name_list = ["diff_save", "diff_save_as", "diff_refresh"]
@@ -341,33 +336,31 @@ class PmDiffTextBuffer(DiffTextBuffer):
             self.a_name_list = ["diff_save", "diff_save_as"]
         self.diff_buttons = gutils.ActionButtonList([self._action_group], self.a_name_list)
     def _get_diff_text(self):
-        res, text, serr = ifce.PM.get_diff_for_files(self._file_list, self._patch,
-                                                     rootdir=self._rootdir)
+        res, text, serr = ifce.PM.get_diff_for_files(self._file_list, self._patch)
         dialogue.report_any_problems((res, text, serr))
         return text
 
 class PmDiffTextView(DiffTextView):
-    def __init__(self, file_list=[], patch=None, rootdir=None):
-        buffer = PmDiffTextBuffer(file_list, patch=patch, rootdir=rootdir)
+    def __init__(self, file_list=[], patch=None):
+        buffer = PmDiffTextBuffer(file_list, patch=patch)
         DiffTextView.__init__(self, buffer=buffer)
 
 class PmDiffTextWidget(DiffTextWidget):
-    def __init__(self, parent, file_list=[], patch=None, rootdir=None):
-        diff_view = PmDiffTextView(file_list=file_list, patch=patch,
-                                   rootdir=rootdir)
+    def __init__(self, parent, file_list=[], patch=None):
+        diff_view = PmDiffTextView(file_list=file_list, patch=patch)
         DiffTextWidget.__init__(self, parent=parent, diff_view=diff_view)
 
 class PmDiffTextDialog(dialogue.AmodalDialog):
-    def __init__(self, parent, file_list=[], patch=None, rootdir=None):
+    def __init__(self, parent, file_list=[], patch=None):
         flags = gtk.DIALOG_DESTROY_WITH_PARENT
-        dialogue.AmodalDialog.__init__(self, None, parent, flags, (), rootdir=rootdir)
-        title = 'diff: %s' % self._rel_rootdir
+        dialogue.AmodalDialog.__init__(self, None, parent, flags, ())
+        title = 'diff: %s' % utils.cwd_rel_home()
         if patch:
             title += " Patch: %s" % patch
         else:
             title += " Patch: []"
         self.set_title(title)
-        dtw = PmDiffTextWidget(self, file_list, patch=patch, rootdir=self._rootdir)
+        dtw = PmDiffTextWidget(self, file_list, patch=patch)
         self.vbox.pack_start(dtw)
         tws_display = dtw.diff_view.get_buffer().tws_display
         self.action_area.pack_end(tws_display, expand=False, fill=False)
@@ -380,39 +373,37 @@ class PmDiffTextDialog(dialogue.AmodalDialog):
         dialog.destroy()
 
 class IncomingDiffTextBuffer(DiffTextBuffer):
-    def __init__(self, rev, path=None, table=None, rootdir=None):
-        DiffTextBuffer.__init__(self, table=table, rootdir=rootdir)
+    def __init__(self, rev, path=None, table=None):
+        DiffTextBuffer.__init__(self, table=table)
         self._path = path
         self._rev = rev
-        self._rootdir = rootdir
         self.a_name_list = ["diff_save", "diff_save_as"]
         self.diff_buttons = gutils.ActionButtonList([self._action_group], self.a_name_list)
     def _get_diff_text(self):
-        res, text, serr = ifce.SCM.get_incoming_diff(self._rev, self._path,
-                                                     rootdir=self._rootdir)
+        res, text, serr = ifce.SCM.get_incoming_diff(self._rev, self._path)
         dialogue.report_any_problems((res, text, serr))
         return text
 
 class IncomingDiffTextView(DiffTextView):
-    def __init__(self, rev, path=None, rootdir=None):
-        buffer = IncomingDiffTextBuffer(rev=rev, path=path, rootdir=rootdir)
+    def __init__(self, rev, path=None):
+        buffer = IncomingDiffTextBuffer(rev=rev, path=path)
         DiffTextView.__init__(self, buffer=buffer)
 
 class IncomingDiffTextWidget(DiffTextWidget):
-    def __init__(self, parent, rev, path=None, rootdir=None):
-        diff_view = IncomingDiffTextView(rev=rev, path=path, rootdir=rootdir)
+    def __init__(self, parent, rev, path=None):
+        diff_view = IncomingDiffTextView(rev=rev, path=path)
         DiffTextWidget.__init__(self, parent=parent, diff_view=diff_view)
 
 class IncomingDiffTextDialog(dialogue.AmodalDialog):
-    def __init__(self, parent, rev, path=None, rootdir=None):
+    def __init__(self, parent, rev, path=None):
         flags = gtk.DIALOG_DESTROY_WITH_PARENT
         title = "diff: [%s]" % rev
         if path:
             title += " Path: %s" % path
         else:
             title += " Path: default"
-        dialogue.AmodalDialog.__init__(self, title, parent, flags, (), rootdir=rootdir)
-        dtw = IncomingDiffTextWidget(self, rev=rev, path=path, rootdir=self._rootdir)
+        dialogue.AmodalDialog.__init__(self, title, parent, flags, ())
+        dtw = IncomingDiffTextWidget(self, rev=rev, path=path)
         self.vbox.pack_start(dtw)
         tws_display = dtw.diff_view.get_buffer().tws_display
         self.action_area.pack_end(tws_display, expand=False, fill=False)

@@ -29,6 +29,9 @@ def path_rel_home(path):
         path = "~" + path[len_home:]
     return path
 
+def cwd_rel_home():
+    return path_rel_home(os.getcwd())
+
 def file_list_to_string(file_list):
     return ' "%s"' % '" "'.join(file_list)
 

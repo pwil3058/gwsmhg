@@ -105,12 +105,11 @@ CS_TABLE_BASIC_UI_DESCR = \
 class ChangeSetTable(table.MapManagedTable):
     def __init__(self, model_descr = LOG_MODEL_DESCR,
                  table_descr = LOG_TABLE_DESCR, popup='/table_popup',
-                 scroll_bar=True, busy_indicator=None, size_req=None,
-                 rootdir=None):
+                 scroll_bar=True, busy_indicator=None, size_req=None):
         table.MapManagedTable.__init__(self, model_descr=model_descr,
                                        table_descr=table_descr, popup=popup,
                                        busy_indicator=busy_indicator,
-                                       size_req=size_req, rootdir=rootdir,
+                                       size_req=size_req,
                                        scroll_bar=scroll_bar)
         self.add_conditional_actions(actions.ON_IN_REPO_UNIQUE_SELN,
             [
@@ -137,32 +136,32 @@ class ChangeSetTable(table.MapManagedTable):
     def _view_cs_summary_acb(self, action):
         rev = self.get_selected_key()
         self.show_busy()
-        dialog = ChangeSetSummaryDialog(rev, rootdir=self._rootdir)
+        dialog = ChangeSetSummaryDialog(rev)
         self.unshow_busy()
         dialog.show()
     def _update_ws_to_cs_acb(self, action):
         rev = str(self.get_selected_key())
         self.show_busy()
-        result = ifce.SCM.do_update_workspace(rev=rev, rootdir=self._rootdir)
+        result = ifce.SCM.do_update_workspace(rev=rev)
         self.unshow_busy()
         if result[0] & cmd_result.SUGGEST_MERGE_OR_DISCARD:
             question = os.linesep.join(result[1:])
             ans = dialogue.ask_merge_discard_or_cancel(question, result[0])
             if ans == dialogue.RESPONSE_DISCARD:
                 self.show_busy()
-                result = ifce.SCM.do_update_workspace(rev=rev, discard=True, rootdir=self._rootdir)
+                result = ifce.SCM.do_update_workspace(rev=rev, discard=True)
                 self.unshow_busy()
                 dialogue.report_any_problems(result)
             elif ans == dialogue.RESPONSE_MERGE:
                 self.show_busy()
-                result = ifce.SCM.do_merge_workspace(rev=rev, force=False, rootdir=self._rootdir)
+                result = ifce.SCM.do_merge_workspace(rev=rev, force=False)
                 self.unshow_busy()
                 if result[0] & cmd_result.SUGGEST_FORCE:
                     question = os.linesep.join(result[1:])
                     ans = dialogue.ask_force_or_cancel(question)
                     if ans == dialogue.RESPONSE_FORCE:
                         self.show_busy()
-                        result = ifce.SCM.do_merge_workspace(rev=rev, force=True, rootdir=self._rootdir)
+                        result = ifce.SCM.do_merge_workspace(rev=rev, force=True)
                         self.unshow_busy()
                         dialogue.report_any_problems(result)
                 else:
@@ -172,14 +171,14 @@ class ChangeSetTable(table.MapManagedTable):
     def _merge_ws_with_cs_acb(self, action):
         rev = str(self.get_selected_key())
         self.show_busy()
-        result = ifce.SCM.do_merge_workspace(rev=rev, rootdir=self._rootdir)
+        result = ifce.SCM.do_merge_workspace(rev=rev)
         self.unshow_busy()
         if result[0] & cmd_result.SUGGEST_FORCE:
             question = os.linesep.join(result[1:])
             ans = dialogue.ask_force_or_cancel(question)
             if ans == dialogue.RESPONSE_FORCE:
                 self.show_busy()
-                result = ifce.SCM.do_merge_workspace(rev=rev, force=True, rootdir=self._rootdir)
+                result = ifce.SCM.do_merge_workspace(rev=rev, force=True)
                 self.unshow_busy()
                 dialogue.report_any_problems(result)
         else:
@@ -188,12 +187,12 @@ class ChangeSetTable(table.MapManagedTable):
         rev = str(self.get_selected_key())
         descr = self.get_selected_key_by_label('Description')
         self.show_busy()
-        BackoutDialog(rev=rev, descr=descr, rootdir=self._rootdir)
+        BackoutDialog(rev=rev, descr=descr)
         self.unshow_busy()
     def _tag_cs_acb(self, action=None):
         rev = self.get_selected_key()
         self.show_busy()
-        SetTagDialog(rev=str(rev), rootdir=self._rootdir).run()
+        SetTagDialog(rev=str(rev)).run()
         self.unshow_busy()
 
 CS_TABLE_REFRESH_UI_DESCR = \
@@ -244,14 +243,13 @@ CS_TABLE_TAG_UI_DESCR = \
 '''
 
 class HeadsTable(ChangeSetTable):
-    def __init__(self, busy_indicator=None, size_req=None, rootdir=None):
-        ChangeSetTable.__init__(self, busy_indicator=busy_indicator,
-                                size_req=size_req, rootdir=rootdir)
+    def __init__(self, busy_indicator=None, size_req=None):
+        ChangeSetTable.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR))
         self.set_contents()
     def _fetch_contents(self):
-        res, heads, serr = ifce.SCM.get_heads_data(rootdir=self._rootdir)
+        res, heads, serr = ifce.SCM.get_heads_data()
         dialogue.report_any_problems((res, heads, serr))
         if cmd_result.is_ok(res):
             return heads
@@ -259,15 +257,14 @@ class HeadsTable(ChangeSetTable):
             return []
 
 class HistoryTable(ChangeSetTable):
-    def __init__(self, busy_indicator=None, size_req=None, rootdir=None):
-        ChangeSetTable.__init__(self, busy_indicator=busy_indicator,
-                                size_req=size_req, rootdir=rootdir)
+    def __init__(self, busy_indicator=None, size_req=None):
+        ChangeSetTable.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_TAG_UI_DESCR))
         self.set_contents()
     def _fetch_contents(self):
-        res, history, serr = ifce.SCM.get_history_data(rootdir=self._rootdir)
+        res, history, serr = ifce.SCM.get_history_data()
         dialogue.report_any_problems((res, history, serr))
         if cmd_result.is_ok(res):
             return history
@@ -275,10 +272,9 @@ class HistoryTable(ChangeSetTable):
             return []
 
 class ParentsTable(ChangeSetTable):
-    def __init__(self, rev=None, busy_indicator=None, size_req=None, rootdir=None):
+    def __init__(self, rev=None, busy_indicator=None, size_req=None):
         ChangeSetTable.__init__(self, busy_indicator=busy_indicator,
-                                size_req=size_req, rootdir=rootdir,
-                                scroll_bar=False)
+                                size_req=size_req, scroll_bar=False)
         self._rev = rev
         if rev is None:
             self.add_notification_cb(ws_event.CHECKOUT, self._checkout_cb)
@@ -286,7 +282,7 @@ class ParentsTable(ChangeSetTable):
     def _checkout_cb(self, arg=None):
         self.set_contents()
     def _fetch_contents(self):
-        res, parents, serr = ifce.SCM.get_parents_data(rev=self._rev, rootdir=self._rootdir)
+        res, parents, serr = ifce.SCM.get_parents_data(rev=self._rev)
         if cmd_result.is_ok(res):
             self.show()
             return parents
@@ -358,11 +354,11 @@ TAG_TABLE_UI_DESCR = \
 '''
 
 class TagsTable(ChangeSetTable):
-    def __init__(self, busy_indicator=None, size_req=None, rootdir=None):
+    def __init__(self, busy_indicator=None, size_req=None):
         ChangeSetTable.__init__(self, model_descr = TAGS_MODEL_DESCR,
                                 table_descr = TAGS_TABLE_DESCR,
                                 busy_indicator=busy_indicator,
-                                size_req=size_req, rootdir=rootdir)
+                                size_req=size_req)
         self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_UNIQUE_SELN,
             [
                 ("cs_remove_selected_tag", icons.STOCK_REMOVE, "Remove", None,
@@ -388,7 +384,7 @@ class TagsTable(ChangeSetTable):
         MoveTagDialog(tag=tag).run()
         self.unshow_busy()
     def _fetch_contents(self):
-        res, tags, serr = ifce.SCM.get_tags_data(rootdir=self._rootdir)
+        res, tags, serr = ifce.SCM.get_tags_data()
         dialogue.report_any_problems((res, tags, serr))
         if cmd_result.is_ok(res):
             return tags
@@ -420,17 +416,17 @@ BRANCHES_TABLE_DESCR = \
 ]
 
 class BranchesTable(ChangeSetTable):
-    def __init__(self, busy_indicator=None, size_req=None, rootdir=None):
+    def __init__(self, busy_indicator=None, size_req=None):
         ChangeSetTable.__init__(self, model_descr = BRANCHES_MODEL_DESCR,
                                 table_descr = BRANCHES_TABLE_DESCR,
                                 busy_indicator=busy_indicator,
-                                size_req=size_req, rootdir=rootdir)
+                                size_req=size_req)
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_TAG_UI_DESCR))
         self.set_contents()
     def _fetch_contents(self):
-        res, branches, serr = ifce.SCM.get_branches_data(rootdir=self._rootdir)
+        res, branches, serr = ifce.SCM.get_branches_data()
         dialogue.report_any_problems((res, branches, serr))
         if cmd_result.is_ok(res):
             return branches
@@ -445,28 +441,28 @@ class PrecisType:
         self.get_data = get_data
 
 class SelectTable(table.TableWithAGandUI):
-    def __init__(self, ptype, size=(640, 240), rootdir=None):
+    def __init__(self, ptype, size=(640, 240)):
         self._ptype = ptype
         table.TableWithAGandUI.__init__(self, model_descr = ptype.model_descr,
                                         table_descr = ptype.table_descr,
-                                        size_req=size, rootdir=rootdir)
+                                        size_req=size)
         self.set_contents()
         self.show_all()
     def _fetch_contents(self):
-        res, data, serr = self._ptype.get_data(rootdir=self._rootdir)
+        res, data, serr = self._ptype.get_data()
         if cmd_result.is_ok(res):
             return data
         else:
             return []
 
 class SelectDialog(dialogue.Dialog):
-    def __init__(self, ptype, title, size=(640, 240), parent=None, rootdir=None):
+    def __init__(self, ptype, title, size=(640, 240), parent=None):
         dialogue.Dialog.__init__(self, title="gwsmg: Select %s" % title, parent=parent,
                                  flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                                  buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
                                           gtk.STOCK_OK, gtk.RESPONSE_OK)
                                 )
-        self._table = SelectTable(ptype=ptype, size=size, rootdir=rootdir)
+        self._table = SelectTable(ptype=ptype, size=size)
         self.vbox.pack_start(self._table)
         self.show_all()
         self._table.seln.unselect_all()
@@ -502,9 +498,8 @@ class TagMessageWidget(gtk.VBox):
         return self.view.get_msg()
 
 class SetTagDialog(dialogue.ReadTextAndToggleDialog):
-    def __init__(self, rev=None, parent=None, rootdir=None):
+    def __init__(self, rev=None, parent=None):
         self._rev = rev
-        self._rootdir = rootdir
         dialogue.ReadTextAndToggleDialog.__init__(self, title="gwsmhg: Set Tag",
             prompt="Tag:", toggle_prompt="Local", toggle_state=False, parent=parent)
         self.message = TagMessageWidget()
@@ -521,7 +516,7 @@ class SetTagDialog(dialogue.ReadTextAndToggleDialog):
             msg = self.message.get_msg()
             self.show_busy()
             result = ifce.SCM.do_set_tag(tag=tag, local=local, msg=msg,
-                                         rev=self._rev, rootdir=self._rootdir)
+                                         rev=self._rev)
             self.unshow_busy()
             if result[0] & cmd_result.SUGGEST_FORCE:
                 ans = dialogue.ask_rename_force_or_cancel(result[1] + result[2], result[0])
@@ -531,8 +526,7 @@ class SetTagDialog(dialogue.ReadTextAndToggleDialog):
                 if ans == dialogue.RESPONSE_FORCE:
                     self.show_busy()
                     result = ifce.SCM.do_set_tag(tag=tag, local=local, msg=msg,
-                                                 rev=self._rev, force=True,
-                                                 rootdir=self._rootdir)
+                                                 rev=self._rev, force=True)
                     self.unshow_busy()
                     dialogue.report_any_problems(result)
             else:
@@ -540,10 +534,9 @@ class SetTagDialog(dialogue.ReadTextAndToggleDialog):
             self.destroy()
 
 class RemoveTagDialog(dialogue.ReadTextDialog):
-    def __init__(self, tag=None, local=False, parent=None, rootdir=None):
+    def __init__(self, tag=None, local=False, parent=None):
         self._tag = tag
         self._local = local
-        self._rootdir = rootdir
         dialogue.ReadTextDialog.__init__(self, title='gwsmhg: Remove Tag',
             prompt='Removing Tag: ', suggestion=tag, parent=parent)
         self.entry.set_editable(False)
@@ -559,17 +552,14 @@ class RemoveTagDialog(dialogue.ReadTextDialog):
         else:
             msg = self.message.get_msg()
             self.show_busy()
-            result = ifce.SCM.do_remove_tag(tag=self._tag, msg=msg,
-                                            local=self._local,
-                                            rootdir=self._rootdir)
+            result = ifce.SCM.do_remove_tag(tag=self._tag, msg=msg, local=self._local)
             self.unshow_busy()
             dialogue.report_any_problems(result)
             self.destroy()
 
 class MoveTagDialog(dialogue.ReadTextDialog):
-    def __init__(self, tag=None, parent=None, rootdir=None):
+    def __init__(self, tag=None, parent=None):
         self._tag = tag
-        self._rootdir = rootdir
         dialogue.ReadTextDialog.__init__(self, title="gwsmhg: Move Tag",
             prompt='Move Tag: ', suggestion=tag, parent=parent)
         self.entry.set_editable(False)
@@ -590,8 +580,7 @@ class MoveTagDialog(dialogue.ReadTextDialog):
             rev = self._select_widget.get_change_set()
             msg = self.message.get_msg()
             self.show_busy()
-            result = ifce.SCM.do_move_tag(tag=self._tag, rev=rev, msg=msg,
-                                          rootdir=self._rootdir)
+            result = ifce.SCM.do_move_tag(tag=self._tag, rev=rev, msg=msg)
             self.unshow_busy()
             dialogue.report_any_problems(result)
             self.destroy()
@@ -622,10 +611,8 @@ BRANCH_LIST_TABLE_DESCR = \
 ]
 
 class ChangeSetSelectWidget(gtk.VBox, dialogue.BusyIndicatorUser):
-    def __init__(self, busy_indicator, label="Change Set:", discard_toggle=False,
-                 rootdir=None):
+    def __init__(self, busy_indicator, label="Change Set:", discard_toggle=False):
         gtk.VBox.__init__(self)
-        self._rootdir=rootdir
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
         hbox = gtk.HBox()
         self._tags_button = gtk.Button(label="Browse _Tags")
@@ -655,8 +642,7 @@ class ChangeSetSelectWidget(gtk.VBox, dialogue.BusyIndicatorUser):
         self.show_all()
     def _browse_change_set(self, ptype, title, size=(640, 240)):
         self.show_busy()
-        dialog = SelectDialog(ptype=ptype, title=title, size=size, parent=None,
-                              rootdir=self._rootdir)
+        dialog = SelectDialog(ptype=ptype, title=title, size=size, parent=None)
         self.unshow_busy()
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
@@ -686,7 +672,7 @@ class ChangeSetSelectWidget(gtk.VBox, dialogue.BusyIndicatorUser):
         return self._discard_toggle.get_active()
 
 class ChangeSetSelectDialog(dialogue.Dialog):
-    def __init__(self, discard_toggle=False, parent=None, rootdir=None):
+    def __init__(self, discard_toggle=False, parent=None):
         title = "gwsmg: Select Change Set: %s" % utils.path_rel_home(os.getcwd())
         dialogue.Dialog.__init__(self, title=title, parent=parent,
                                  flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
@@ -694,7 +680,7 @@ class ChangeSetSelectDialog(dialogue.Dialog):
                                           gtk.STOCK_OK, gtk.RESPONSE_OK)
                                 )
         self._widget = ChangeSetSelectWidget(busy_indicator=self,
-            discard_toggle=discard_toggle, rootdir=rootdir)
+            discard_toggle=discard_toggle)
         self.vbox.pack_start(self._widget)
         self.show_all()
     def get_change_set(self):
@@ -703,14 +689,13 @@ class ChangeSetSelectDialog(dialogue.Dialog):
         return self._widget.get_discard()
 
 class FileTreeStore(file_tree.FileTreeStore):
-    def __init__(self, rev, rootdir=None):
+    def __init__(self, rev):
         self._rev = rev
-        self._rootdir = rootdir
         row_data = apply(file_tree.FileTreeRowData, ifce.SCM.get_status_row_data())
         file_tree.FileTreeStore.__init__(self, show_hidden=True, row_data=row_data)
         self.repopulate()
     def update(self, fsobj_iter=None):
-        res, files, dummy = ifce.SCM.get_change_set_files(self._rev, rootdir=self._rootdir)
+        res, files, dummy = ifce.SCM.get_change_set_files(self._rev)
         if res == 0:
             for file_name, status, extra_info in files:
                 self.find_or_insert_file(file_name, file_status=status, extra_info=extra_info)
@@ -734,13 +719,12 @@ CHANGE_SET_FILES_UI_DESCR = \
 '''
 
 class FileTreeView(file_tree.FileTreeView):
-    def __init__(self, rev, busy_indicator, rootdir=None):
+    def __init__(self, rev, busy_indicator):
         self._rev = rev
-        self.model = FileTreeStore(rev, rootdir=rootdir)
+        self.model = FileTreeStore(rev)
         file_tree.FileTreeView.__init__(self, model=self.model,
                                         busy_indicator=busy_indicator,
-                                        auto_refresh=False, show_status=True,
-                                        rootdir=rootdir)
+                                        auto_refresh=False, show_status=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.set_headers_visible(False)
         self.add_conditional_actions(actions.ON_IN_REPO_SELN,
@@ -761,25 +745,23 @@ class FileTreeView(file_tree.FileTreeView):
         self.show_busy()
         dialog = diff.ScmDiffTextDialog(parent=parent,
                                      file_list=self.get_selected_files(),
-                                     torev=self._rev, rootdir=self._rootdir)
+                                     torev=self._rev)
         self.unshow_busy()
         dialog.show()
     def _diff_all_files_acb(self, action=None):
         parent = dialogue.main_window
         self.show_busy()
-        dialog = diff.ScmDiffTextDialog(parent=parent, torev=self._rev,
-                                        rootdir=self._rootdir)
+        dialog = diff.ScmDiffTextDialog(parent=parent, torev=self._rev)
         self.unshow_busy()
         dialog.show()
 
 class ChangeSetSummaryDialog(dialogue.AmodalDialog):
-    def __init__(self, rev, parent=None, rootdir=None):
+    def __init__(self, rev, parent=None):
         dialogue.AmodalDialog.__init__(self, parent=parent,
                                        flags=gtk.DIALOG_DESTROY_WITH_PARENT,
-                                       buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE),
-                                       rootdir=rootdir)
+                                       buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE))
         self._rev = rev
-        self.set_title('gwsmg: Change Set: %s : %s' % (rev, self._rel_rootdir))
+        self.set_title('gwsmg: Change Set: %s : %s' % (rev, utils.cwd_rel_home()))
         res, summary, serr = self.get_change_set_summary()
         self._add_labelled_texts([("Precis:", summary['PRECIS'])])
         self._add_labelled_texts([("Revision:", summary['REV']), ("Node:", summary['NODE'])])
@@ -812,12 +794,12 @@ class ChangeSetSummaryDialog(dialogue.AmodalDialog):
         self.connect("response", self._close_cb)
         self.show_all()
     def get_change_set_summary(self):
-        return ifce.SCM.get_change_set_summary(self._rev, rootdir=self._rootdir)
+        return ifce.SCM.get_change_set_summary(self._rev)
     def get_file_tree_view(self):
-        return FileTreeView(self._rev, busy_indicator=self, rootdir=self._rootdir)
+        return FileTreeView(self._rev, busy_indicator=self)
     def get_parents_view(self):
         return ParentsTable(self._rev, #auto_refresh_on=False,
-            busy_indicator=self, rootdir=self._rootdir)
+            busy_indicator=self)
     def _add_label(self, text, component=None):
         hbox = gtk.HBox()
         hbox.pack_start(gtk.Label(text), expand=False, fill=False)
@@ -844,16 +826,15 @@ class ChangeSetSummaryDialog(dialogue.AmodalDialog):
         self.destroy()
 
 class BackoutDialog(dialogue.ReadTextAndToggleDialog):
-    def __init__(self, rev=None, descr='', parent=None, rootdir=None):
+    def __init__(self, rev=None, descr='', parent=None):
         self._rev = rev
-        self._rootdir = rootdir
         dialogue.ReadTextAndToggleDialog.__init__(self, title='gwsmhg: Backout',
             prompt='Backing Out: ', suggestion='%s: %s' % (rev, descr), parent=parent,
             toggle_prompt='Auto Merge', toggle_state=False)
         self.entry.set_editable(False)
         self._radio_labels = []
         self._parent_revs = []
-        res, parents_data, serr = ifce.SCM.get_parents_data(rev, rootdir=self._rootdir)
+        res, parents_data, serr = ifce.SCM.get_parents_data(rev)
         if len(parents_data) > 1:
             for data in parents_data:
                 rev = str(data[table.model_col(LOG_MODEL_DESCR, 'Rev')])
@@ -879,8 +860,7 @@ class BackoutDialog(dialogue.ReadTextAndToggleDialog):
                 parent = None
             msg = self.message.get_msg()
             self.show_busy()
-            result = ifce.SCM.do_backout(rev=self._rev, merge=merge, parent=parent,
-                                         msg=msg, rootdir=self._rootdir)
+            result = ifce.SCM.do_backout(rev=self._rev, merge=merge, parent=parent, msg=msg)
             self.unshow_busy()
             dialogue.report_any_problems(result)
             self.destroy()
