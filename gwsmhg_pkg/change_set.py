@@ -256,13 +256,35 @@ class HeadsTable(ChangeSetTable):
         else:
             return []
 
-class HistoryTable(ChangeSetTable):
+class SearchableChangeSetTable(ChangeSetTable):
     def __init__(self, busy_indicator=None, size_req=None):
         ChangeSetTable.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
+        self._search = gutils.LabelledEntry('Rev/Tag/Node Id:')
+        self._search.entry.connect('activate', self._search_entry_cb)
+        self.pack_start(self._search, expand=False)
+        self.reorder_child(self._search, 0)
+    def _search_entry_cb(self, entry):
+        text = entry.get_text_and_clear_to_history()
+        if not text:
+            return
+        res, sout, serr = self._fetch_rev(text)
+        if not cmd_result.is_ok(res):
+            dialogue.report_any_problems((res, sout, serr))
+            return
+        rev = int(sout)
+        self.select_and_scroll_to_row_with_key_value('Rev', rev)
+    def _fetch_rev(self, revarg):
+        assert True, 'define in child'
+
+class HistoryTable(SearchableChangeSetTable):
+    def __init__(self, busy_indicator=None, size_req=None):
+        SearchableChangeSetTable.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_TAG_UI_DESCR))
         self.set_contents()
+    def _fetch_rev(self, revarg):
+        return ifce.SCM.get_rev(revarg)
     def _fetch_contents(self):
         res, history, serr = ifce.SCM.get_history_data()
         dialogue.report_any_problems((res, history, serr))

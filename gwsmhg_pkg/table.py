@@ -74,6 +74,15 @@ class Model(gtk.ListStore):
             contents.append(self.get_row(iter))
             iter = self.iter_next(iter)
         return contents
+    def get_row_with_key_value(self, key_label, key_value):
+        index = self.get_col(key_label)
+        iter = self.get_iter_first()
+        while iter:
+            if self.get_value(iter, index) == key_value:
+                return iter
+            else:
+                iter = self.iter_next(iter)
+        return None
 
 # Table description is [ properties, selection_mode, [column_descr, ...] ]
 # Properties is [ (property_name, value), ... ]
@@ -360,6 +369,14 @@ class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorU
             return None
     def get_selected_key_by_label(self, label):
         return self.get_selected_key(self.model.get_col(label))
+    def select_and_scroll_to_row_with_key_value(self, key_label, key_value):
+        iter = self.model.get_row_with_key_value(key_label, key_value)
+        if not iter:
+            return False
+        self.seln.select_iter(iter)
+        path = self.model.get_path(iter)
+        self.view.scroll_to_cell(path, use_align=True, row_align=0.5)
+        return True
 
 class MapManagedTable(TableWithAGandUI, gutils.MappedManager):
     def __init__(self, model_descr, table_descr, popup=None, scroll_bar=True,

@@ -387,6 +387,9 @@ class SCMInterface(BaseInterface):
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return (res, plist, serr)
+    def get_outgoing_rev(self, revarg, rootdir=None):
+        cmd = _hg_cmd_str('outgoing -n -l 1 --template "{rev}" --rev %s' % revarg, rootdir, ' -q')
+        return utils.run_cmd(cmd)
     def get_incoming_table_data(self, path=None, rootdir=None):
         cstr = 'incoming --template "%s"' % self.cs_table_template
         cmd = _hg_cmd_str(cstr, rootdir, '-q')
@@ -404,6 +407,9 @@ class SCMInterface(BaseInterface):
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return (res, plist, serr)
+    def get_incoming_rev(self, revarg, rootdir=None):
+        cmd = _hg_cmd_str('incoming -n -l 1 --template "{rev}" --rev %s' % revarg, rootdir, ' -q')
+        return utils.run_cmd(cmd)
     def get_is_incoming(self, rev, path=None, rootdir=None):
         cstr = 'incoming -qnl1 --template "{rev}" --rev %s' % str(rev)
         cmd = _hg_cmd_str(cstr, rootdir)
@@ -526,6 +532,9 @@ class SCMInterface(BaseInterface):
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return (res, plist, serr)
+    def get_rev(self, revarg, rootdir=None):
+        cmd = _hg_cmd_str('log --template "{rev}" --rev %s' % revarg, rootdir)
+        return utils.run_cmd(cmd)
     def get_tags_data(self, rootdir=None):
         if not self.get_root(rootdir=rootdir): return (cmd_result.OK, [], '')
         cmd = _hg_cmd_str('tags', rootdir, '-v')

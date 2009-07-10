@@ -241,11 +241,11 @@ INCOMING_TABLE_UI_DESCR = \
 </ui>
 '''
 
-class IncomingTable(change_set.ChangeSetTable):
+class IncomingTable(change_set.SearchableChangeSetTable):
     def __init__(self, path=None, busy_indicator=None):
         self._path = path
-        change_set.ChangeSetTable.__init__(self, busy_indicator=busy_indicator,
-                                           size_req = (640, 240))
+        change_set.SearchableChangeSetTable.__init__(self, busy_indicator=busy_indicator,
+                                                     size_req = (640, 240))
         self.add_conditional_actions(actions.ON_IN_REPO_UNIQUE_SELN,
            [
                 ("cs_pull_to", gtk.STOCK_EXECUTE, "Pull To", None,
@@ -253,6 +253,8 @@ class IncomingTable(change_set.ChangeSetTable):
             ])
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(INCOMING_TABLE_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(change_set.CS_TABLE_REFRESH_UI_DESCR))
+    def _fetch_rev(self, revarg):
+        return ifce.SCM.get_incoming_rev(revarg)
     def _pull_to_cs_acb(self, action):
         rev = self.get_selected_change_set()
         self.show_busy()
@@ -285,11 +287,11 @@ OUTGOING_TABLE_UI_DESCR = \
 </ui>
 '''
 
-class OutgoingTable(change_set.ChangeSetTable):
+class OutgoingTable(change_set.SearchableChangeSetTable):
     def __init__(self, path=None, busy_indicator=None):
         self._path = path
-        change_set.ChangeSetTable.__init__(self, busy_indicator=busy_indicator,
-                                           size_req = (640, 240))
+        change_set.SearchableChangeSetTable.__init__(self, busy_indicator=busy_indicator,
+                                                     size_req = (640, 240))
         self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_UNIQUE_SELN,
             [
                 ("cs_push_to", gtk.STOCK_EXECUTE, "Push To", None,
@@ -297,6 +299,8 @@ class OutgoingTable(change_set.ChangeSetTable):
             ])
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(OUTGOING_TABLE_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(change_set.CS_TABLE_REFRESH_UI_DESCR))
+    def _fetch_rev(self, revarg):
+        return ifce.SCM.get_outgoing_rev(revarg)
     def _push_to_cs_acb(self, action):
         rev = self.get_selected_key()
         self.show_busy()

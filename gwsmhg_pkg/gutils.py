@@ -226,3 +226,12 @@ TOC_DEFAULT_SAVE_TD = ["auto_save_toggle", "Auto _Save", "Turn data auto save on
 class SaveController(TimeOutController):
     def __init__(self, toggle_data=TOC_DEFAULT_SAVE_TD, function=None, is_on=True, interval=10000):
         TimeOutController.__init__(self, toggle_data, function=function, is_on=is_on, interval=interval)
+
+class LabelledEntry(gtk.HBox):
+    def __init__(self, label="", max=0, text=""):
+        gtk.HBox.__init__(self)
+        self.label = gtk.Label(label)
+        self.pack_start(self.label, expand=False)
+        self.entry = EntryWithHistory(max)
+        self.pack_start(self.entry, expand=True, fill=True)
+        self.entry.set_text(text)
