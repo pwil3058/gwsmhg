@@ -517,11 +517,17 @@ class SCMInterface(BaseInterface):
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return (res, plist, serr)
-    def get_history_data(self, rev=None, rootdir=None):
+    def get_history_data(self, rev=None, maxitems=None, rootdir=None):
         if not self.get_root(rootdir=rootdir): return (cmd_result.OK, [], '')
         cstr = 'log --template "%s"' % self.cs_table_template
         cmd = _hg_cmd_str(cstr, rootdir)
-        if rev:
+        if maxitems:
+            if rev:
+                rev2 = int(rev) - maxitems + 1
+                cmd += ' --rev %d:%d' % (int(rev), rev2)
+            else:
+                cmd += ' -l %d' % maxitems
+        elif rev:
             cmd += ' --rev %s' % rev
         res, sout, serr = utils.run_cmd(cmd)
         if res != 0:

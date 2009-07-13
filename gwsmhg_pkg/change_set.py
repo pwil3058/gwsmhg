@@ -261,8 +261,7 @@ class SearchableChangeSetTable(ChangeSetTable):
         ChangeSetTable.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
         self._search = gutils.LabelledEntry('Rev/Tag/Node Id:')
         self._search.entry.connect('activate', self._search_entry_cb)
-        self.pack_start(self._search, expand=False)
-        self.reorder_child(self._search, 0)
+        self.header.lhs.pack_start(self._search, expand=True, fill=True)
     def _search_entry_cb(self, entry):
         text = entry.get_text_and_clear_to_history()
         if not text:
@@ -272,6 +271,8 @@ class SearchableChangeSetTable(ChangeSetTable):
             dialogue.report_any_problems((res, sout, serr))
             return
         rev = int(sout)
+        self._select_and_scroll_to_rev(rev)
+    def _select_and_scroll_to_rev(self, rev):
         self.select_and_scroll_to_row_with_key_value('Rev', rev)
     def _fetch_rev(self, revarg):
         assert True, 'define in child'
@@ -279,19 +280,69 @@ class SearchableChangeSetTable(ChangeSetTable):
 class HistoryTable(SearchableChangeSetTable):
     def __init__(self, busy_indicator=None, size_req=None):
         SearchableChangeSetTable.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
+        self._default_max = 8192
+        self._current_max = self._default_max
+        self.add_conditional_actions(actions.ON_IN_REPO_SELN_INDEP,
+            [
+                ('cs_next_tranch', gtk.STOCK_GO_FORWARD, '', None,
+                 'Load the next tranche of change sets', self._cs_next_tranche_acb),
+                ('cs_load_all', gtk.STOCK_GOTO_LAST, '', None,
+                 'Load all of the remaining change sets', self._cs_load_all_acb),
+            ])
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_TAG_UI_DESCR))
+        self._button_box = self.create_action_button_box(['cs_next_tranch', 'cs_load_all'],
+                                                         expand=False)
+        self.header.rhs.pack_start(gtk.VSeparator(), expand=True)
+        self.header.rhs.pack_end(self._button_box, expand=False)
         self.set_contents()
+    def _oldest_loaded_rev(self):
+        return int(self.model[-1][self.model.get_col('Rev')])
     def _fetch_rev(self, revarg):
         return ifce.SCM.get_rev(revarg)
     def _fetch_contents(self):
-        res, history, serr = ifce.SCM.get_history_data()
+        res, history, serr = ifce.SCM.get_history_data(maxitems=self._current_max)
         dialogue.report_any_problems((res, history, serr))
         if cmd_result.is_ok(res):
             return history
         else:
             return []
+    def _select_and_scroll_to_rev(self, rev):
+        while not self.select_and_scroll_to_row_with_key_value('Rev', rev):
+            self._append_contents(torev=rev)
+    def _append_contents(self, torev=None):
+        self.show_busy()
+        oldest_rev = self._oldest_loaded_rev()
+        start_rev = oldest_rev - 1
+        if start_rev < 0:
+            start_rev = 0
+        if torev is None:
+            count = self._default_max
+        else:
+            count = start_rev - torev + 1
+        self._current_max += count
+        res, data, serr = ifce.SCM.get_history_data(rev=start_rev,
+                                                    maxitems=count)
+        self.model.append_contents(data)
+        self.view.columns_autosize()
+        self._check_button_visibility()
+        self.unshow_busy()
+    def _check_button_visibility(self):
+        if self._oldest_loaded_rev() == 0:
+            self._button_box.hide()
+            self._current_max=None
+    def update_for_chdir(self, arg=None):
+        self._current_max = self._default_max
+        self._button_box.show()
+        SearchableChangeSetTable.update_for_chdir(self, arg)
+    def set_contents(self):
+        SearchableChangeSetTable.set_contents(self)
+        self._check_button_visibility()
+    def _cs_next_tranche_acb(self, action=None):
+        self._append_contents()
+    def _cs_load_all_acb(self, action=None):
+        self._append_contents(torev=0)
 
 class ParentsTable(ChangeSetTable):
     def __init__(self, rev=None, busy_indicator=None, size_req=None):

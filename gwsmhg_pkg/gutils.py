@@ -131,14 +131,14 @@ class ActionButton(gtk.Button):
     def __init__(self, action, use_underline=True):
         label = action.get_property("label")
         stock_id = action.get_property("stock-id")
-        if label:
+        if label is not None:
             gtk.Button.__init__(self, label=label, use_underline=use_underline)
             if stock_id:
                 image = gtk.Image()
                 image.set_from_stock(stock_id, gtk.ICON_SIZE_BUTTON)
                 self.set_image(image)
         elif stock_id:
-            gtk.Button.__init__(self, stock_id=stock_id, use_underline=use_underline)
+            gtk.Button.__init__(self, stock=stock_id, use_underline=use_underline)
         else:
             gtk.Button.__init__(self, use_underline=use_underline)
         self.set_tooltip_text(action.get_property("tooltip"))
@@ -235,3 +235,11 @@ class LabelledEntry(gtk.HBox):
         self.entry = EntryWithHistory(max)
         self.pack_start(self.entry, expand=True, fill=True)
         self.entry.set_text(text)
+
+class SplitBar(gtk.HBox):
+    def __init__(self, expand_lhs=True, expand_rhs=False):
+        gtk.HBox.__init__(self)
+        self.lhs = gtk.HBox()
+        self.pack_start(self.lhs, expand=expand_lhs)
+        self.rhs = gtk.HBox()
+        self.pack_end(self.rhs, expand=expand_rhs)

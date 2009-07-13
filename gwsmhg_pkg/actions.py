@@ -199,3 +199,29 @@ class AGandUIManager(ws_event.Listener):
                 return
     def init_action_states(self):
         self._event_cond_change_cb()
+    def create_action_button(self, action_name, use_underline=True):
+        action = self.get_conditional_action(action_name)
+        label = action.get_property('label')
+        stock_id = action.get_property('stock-id')
+        if label is None:
+            button = gtk.Button(stock=stock_id, use_underline=use_underline)
+        else:
+            button = gtk.Button(label=label, use_underline=use_underline)
+            if stock_id:
+                image = gtk.Image()
+                image.set_from_stock(stock_id, gtk.ICON_SIZE_BUTTON)
+                button.set_image(image)
+        button.set_tooltip_text(action.get_property("tooltip"))
+        action.connect_proxy(button)
+        return button
+    def create_action_button_box(self, action_name_list, use_underline=True,
+                                 horizontal=True,
+                                 expand=True, fill=True, padding=0):
+        if horizontal:
+            box = gtk.HBox()
+        else:
+            box = gtk.VBox()
+        for action_name in action_name_list:
+            button = self.create_action_button(action_name, use_underline)
+            box.pack_start(button, expand, fill, padding)
+        return box

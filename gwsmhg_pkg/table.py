@@ -63,6 +63,9 @@ class Model(gtk.ListStore):
             else:
                 col_values.append(label_values[index])
         self.set_values(iter, col_values)
+    def append_contents(self, rows):
+        for row in rows:
+            self.append(row)
     def set_contents(self, rows):
         self.clear()
         for row in rows:
@@ -300,6 +303,8 @@ class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorU
         self._popup = popup
         gtk.VBox.__init__(self)
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
+        self.header = gutils.SplitBar()
+        self.pack_start(self.header, expand=False)
         self.model = Model(model_descr)
         self.view = View(table_descr, self.model)
         actions.AGandUIManager.__init__(self, self.view.get_selection())
