@@ -331,10 +331,15 @@ class HistoryTable(SearchableChangeSetTable):
     def _check_button_visibility(self):
         if self._oldest_loaded_rev() == 0:
             self._button_box.hide()
+            self._button_box.set_no_show_all(True)
             self._current_max=None
+        elif self._button_box.get_no_show_all():
+            self._button_box.set_no_show_all(False)
+            self._button_box.show()
+            if self._current_max == None:
+                self._current_max = self._default_max
     def update_for_chdir(self, arg=None):
         self._current_max = self._default_max
-        self._button_box.show()
         SearchableChangeSetTable.update_for_chdir(self, arg)
     def set_contents(self):
         SearchableChangeSetTable.set_contents(self)
