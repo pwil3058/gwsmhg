@@ -185,7 +185,7 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
                 ("pm_revert_files_all", gtk.STOCK_UNDO, "Rever_t", None,
                  "Revert all changes in working directory", self.revert_all_files_acb),
             ])
-        self.add_conditional_actions(actions.ON_IN_REPO_PMIC_SELN_INDEP,
+        self.add_conditional_actions(actions.ON_IN_REPO_SELN_INDEP,
             [
                 ("menu_files", None, "_Files"),
             ])
