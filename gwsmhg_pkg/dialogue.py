@@ -276,7 +276,7 @@ def report_any_problems(result, parent=None):
         problem_type = gtk.MESSAGE_ERROR
     else:
         problem_type = gtk.MESSAGE_WARNING
-    inform_user(os.linesep.join(result[1:]), problem_type, parent)
+    inform_user(os.linesep.join(result[1:]), parent, problem_type)
 
 class CancelOKDialog(Dialog):
     def __init__(self, title=None, parent=None):

@@ -744,15 +744,6 @@ class CwdFileTreeView(FileTreeView):
                  "Create a new file and open for editing", self.create_new_file_acb),
             ])
         self.cwd_merge_id = self.ui_manager.add_ui_from_string(CWD_UI_DESCR)
-    def _confirm_list_action(self, filelist, question):
-        msg = os.linesep.join(filelist + [os.linesep, question])
-        dialog = gtk.MessageDialog(parent=dialogue.main_window,
-                                   flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
-                                   type=gtk.MESSAGE_QUESTION, buttons=gtk.BUTTONS_OK_CANCEL,
-                                   message_format=msg)
-        response = dialog.run()
-        dialog.destroy()
-        return response == gtk.RESPONSE_OK
     def _edit_named_files_extern(self, file_list):
         text_edit.edit_files_extern(file_list)
     def edit_selected_files_acb(self, menu_item):
@@ -806,7 +797,7 @@ class CwdFileTreeView(FileTreeView):
             return (cmd_result.ERROR, "", serr)
         return (cmd_result.OK, "", "")
     def _delete_named_files(self, file_list, ask=True):
-        if not ask or self._confirm_list_action(file_list, "About to be deleted. OK?"):
+        if not ask or dialogue.confirm_list_action(file_list, 'About to be deleted. OK?'):
             model = self.get_model()
             self.show_busy()
             result = self.delete_files(file_list)
@@ -974,7 +965,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         else:
             return False
     def _remove_named_files(self, file_list, ask=True):
-        if not ask or self._confirm_list_action(file_list, "About to be removed. OK?"):
+        if not ask or dialogue.confirm_list_action(file_list, 'About to be removed. OK?'):
             model = self.get_model()
             self.show_busy()
             result = ifce.SCM.do_remove_files(file_list)
@@ -999,7 +990,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         if res != cmd_result.OK:
             dialogue.report_any_problems((res, info, serr))
             return
-        if self._confirm_list_action((info + serr).splitlines(), "About to be actioned. OK?"):
+        if dialogue.confirm_list_action((info + serr).splitlines(), 'About to be actioned. OK?'):
             self.show_busy()
             result = operation([], dry_run=False)
             self.unshow_busy()
@@ -1055,7 +1046,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                     res, sout, serr = operation(file_list, target, force=force, dry_run=True)
                     self.unshow_busy()
                     if cmd_result.is_less_than_error(res):
-                        ok = self._confirm_list_action(sout.splitlines(), "About to be actioned. OK?")
+                        ok = dialogue.confirm_list_action(sout.splitlines(), 'About to be actioned. OK?')
                         break
                     elif not force and (res & cmd_result.SUGGEST_FORCE) == cmd_result.SUGGEST_FORCE:
                         ok = force = self._check_if_force((res, sout, serr))
@@ -1096,7 +1087,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             self.unshow_busy()
             if res == cmd_result.OK:
                 if sout:
-                    ok = self._confirm_list_action(sout.splitlines(), "About to be actioned. OK?")
+                    ok = dialogue.confirm_list_action(sout.splitlines(), 'About to be actioned. OK?')
                 else:
                     dialogue.inform_user('Nothing to revert')
                     return

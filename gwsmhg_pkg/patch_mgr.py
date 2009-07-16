@@ -216,7 +216,7 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
     def delete_files(self, file_list):
         return ifce.PM.do_delete_files(file_list)
     def _remove_named_files(self, file_list, ask=True):
-        if not ask or self._confirm_list_action(file_list, "About to be removed. OK?"):
+        if not ask or dialogue.confirm_list_action(file_list, 'About to be removed. OK?'):
             model = self.get_model()
             self.show_busy()
             result = ifce.PM.do_remove_files(file_list)
@@ -264,7 +264,7 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
                                                 dry_run=True)
                     self.unshow_busy()
                     if res == cmd_result.OK:
-                        ok = self._confirm_list_action(sout.splitlines(), "About to be actioned. OK?")
+                        ok = dialogue.confirm_list_action(sout.splitlines(), 'About to be actioned. OK?')
                         break
                     elif not force and (res & cmd_result.SUGGEST_FORCE) == cmd_result.SUGGEST_FORCE:
                         ok = force = self._check_if_force((res, sout, serr))
@@ -308,7 +308,7 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
             self.unshow_busy()
             if res == cmd_result.OK:
                 if sout:
-                    ok = self._confirm_list_action(sout.splitlines(), "About to be actioned. OK?")
+                    ok = dialogue.confirm_list_action(sout.splitlines(), 'About to be actioned. OK?')
                 else:
                     dialogue.inform_user('Nothing to revert')
                     return
