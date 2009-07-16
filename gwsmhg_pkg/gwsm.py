@@ -24,6 +24,7 @@ GWSM_UI_DESCR = \
   <toolbar name="gwsm_toolbar">
     <placeholder name="gwsm_ws_tools">
       <toolitem name="Diff" action="gwsm_diff_ws"/>
+      <toolitem name="Revert" action="gwsm_revert_ws"/>
       <toolitem name="Commit" action="gwsm_commit_ws"/>
       <toolitem name="Tag" action="gwsm_tag_ws"/>
       <toolitem name="Branch" action="gwsm_branch_ws"/>
@@ -34,8 +35,8 @@ GWSM_UI_DESCR = \
     <placeholder name="gwsm_repo_tools">
       <toolitem name="Pull" action="gwsm_pull_repo"/>
       <toolitem name="Push" action="gwsm_push_repo"/>
-      <toolitem name="Verify" action="gwsm_verify_repo"/>
       <separator/>
+      <toolitem name="Verify" action="gwsm_verify_repo"/>
       <toolitem name="Rollback" action="gwsm_rollback_repo"/>
     </placeholder>
   </toolbar>
@@ -112,17 +113,20 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
             ])
         actions.add_class_indep_actions(actions.ON_IN_REPO_NOT_PMIC,
             [
+                ("gwsm_revert_ws", icons.STOCK_REVERT, "Revert", "",
+                 "Revert all changes in the current working directory",
+                 self._revert_ws_acb),
                 ("gwsm_commit_ws", icons.STOCK_COMMIT, "Commit", "",
-                 "Commit all changes in the current working directory", 
+                 "Commit all changes in the current working directory",
                  self._commit_ws_acb),
                 ("gwsm_tag_ws", icons.STOCK_TAG, "Tag", "",
-                 "Tag the parent of the current working directory", 
+                 "Tag the parent of the current working directory",
                  self._tag_ws_acb),
                 ("gwsm_branch_ws", icons.STOCK_BRANCH, "Branch", "",
-                 "Set the branch for the current working directory", 
+                 "Set the branch for the current working directory",
                  self._branch_ws_acb),
                 ("gwsm_checkout_ws", icons.STOCK_CHECKOUT, "Checkout", "",
-                 "Check out a different revision in the current working directory", 
+                 "Check out a different revision in the current working directory",
                  self._checkout_ws_acb),
                 ("gwsm_update_ws", icons.STOCK_UPDATE, "Update", "",
                  "Update the current working directory to the tip of the current branch", 
@@ -239,6 +243,22 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
         dialog = file_tree.ScmCommitDialog(parent=self)
         self.unshow_busy()
         dialog.show()
+    def _revert_ws_acb(self, action=None):
+        self.show_busy()
+        res, sout, serr = ifce.SCM.do_revert_files(dry_run=True)
+        self.unshow_busy()
+        if cmd_result.is_less_than_error(res):
+            if sout:
+                ok = dialogue.confirm_list_action(sout.splitlines(), 'About to be actioned. OK?')
+                if not ok:
+                    return
+                self.show_busy()
+                res, sout, serr = ifce.SCM.do_revert_files(dry_run=False)
+                self.unshow_busy()
+            else:
+                dialogue.inform_user('Nothing to revert', gtk.MESSAGE_INFO)
+                return
+        dialogue.report_any_problems((res, sout, serr))
     def _tag_ws_acb(self, action=None):
         self.show_busy()
         change_set.SetTagDialog(parent=self).run()

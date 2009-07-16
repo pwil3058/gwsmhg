@@ -118,7 +118,7 @@ class BaseInterface:
             result = self._run_cmd_on_console(cmd)
             ws_event.notify_events(ws_event.FILE_DEL|ws_event.FILE_ADD)
             return result
-    def do_revert_files(self, file_list, dry_run=False, rootdir=None):
+    def do_revert_files(self, file_list=[], dry_run=False, rootdir=None):
         cmd = _hg_cmd_str('revert', rootdir)
         if dry_run:
             cmd += ' -n --verbose'

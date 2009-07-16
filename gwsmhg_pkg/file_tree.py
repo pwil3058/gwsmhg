@@ -906,7 +906,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             ])
         self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_SELN,
             [
-                ("scm_revert_files_selection", gtk.STOCK_UNDO, "Rever_t", None,
+                ("scm_revert_files_selection", icons.STOCK_REVERT, "Rever_t", None,
                  "Revert changes in the selected file(s)", self.revert_selected_files_acb),
                 ("scm_commit_files_selection", icons.STOCK_COMMIT, "_Commit", None,
                  "Commit changes for selected file(s)", self.commit_selected_files_acb),
@@ -925,7 +925,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             ])
         self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_NO_SELN,
             [
-                ("scm_revert_files_all", gtk.STOCK_UNDO, "Rever_t", None,
+                ("scm_revert_files_all", icons.STOCK_REVERT, "Rever_t", None,
                  "Revert all changes in working directory", self.revert_all_files_acb),
                 ("scm_commit_files_all", icons.STOCK_COMMIT, "_Commit", None,
                  "Commit all changes", self.commit_all_changes_acb),

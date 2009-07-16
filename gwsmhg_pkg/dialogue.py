@@ -134,6 +134,9 @@ def ask_yes_no(question, parent=None):
     buttons = (gtk.STOCK_NO, gtk.RESPONSE_NO, gtk.STOCK_YES, gtk.RESPONSE_YES)
     return ask_question(question, parent, buttons) == gtk.RESPONSE_YES
 
+def confirm_list_action(list, question, parent=None):
+    return ask_ok_cancel('\n'.join(list + ['\n', question]), parent)
+
 RESPONSE_SKIP = 1
 RESPONSE_SKIP_ALL = 2
 
