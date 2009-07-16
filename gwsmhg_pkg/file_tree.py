@@ -698,10 +698,13 @@ class FileTreeView(_ViewWithActionGroups):
 CWD_UI_DESCR = \
 '''
 <ui>
-  <popup name="files_popup">
-    <placeholder name="selection_indifferent">
+  <menubar name="files_menubar">
+    <menu name="files_menu" action="menu_files">
       <menuitem action="new_file"/>
-    </placeholder>
+    </menu>
+  </menubar>
+  <popup name="files_popup">
+    <placeholder name="selection_indifferent"/>
     <separator/>
     <placeholder name="selection">
       <menuitem action="edit_files"/>
@@ -845,14 +848,13 @@ SCM_CWD_UI_DESCR = \
 <ui>
   <menubar name="files_menubar">
     <menu name="files_menu" action="menu_files">
+      <menuitem action="new_file"/>
       <menuitem action="scm_add_files_all"/>
       <menuitem action="refresh_files"/>
     </menu>
   </menubar>
   <popup name="files_popup">
-    <placeholder name="selection_indifferent">
-      <menuitem action="new_file"/>
-    </placeholder>
+    <placeholder name="selection_indifferent"/>
     <placeholder name="selection">
       <menuitem action="edit_files"/>
       <menuitem action="delete_files"/>

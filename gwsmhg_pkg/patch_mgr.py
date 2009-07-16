@@ -124,15 +124,14 @@ PM_FILES_UI_DESCR = \
 <ui>
   <menubar name="files_menubar">
     <menu name="files_menu" action="menu_files">
+      <menuitem action="new_file"/>
       <menuitem action="refresh_files"/>
       <separator/>
       <menuitem action="auto_refresh_files"/>
     </menu>
   </menubar>
   <popup name="files_popup">
-    <placeholder name="selection_indifferent">
-      <menuitem action="new_file"/>
-    </placeholder>
+    <placeholder name="selection_indifferent"/>
     <placeholder name="selection">
       <menuitem action="edit_files"/>
       <menuitem action="delete_files"/>
