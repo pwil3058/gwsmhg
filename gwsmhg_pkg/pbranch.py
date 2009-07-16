@@ -201,7 +201,7 @@ class PBranchTable(table.MapManagedTable):
         if res:
             dialogue.report_any_problems((res, sout, serr))
         else:
-            dialogue.inform_user(os.linesep.join([sout,serr]), problem_type=gtk.MESSAGE_INFO)
+            dialogue.inform_user(os.linesep.join([sout,serr]))
     def _pdiff_selection_acb(self, action=None):
         pbranch = self.get_selected_pbranch()
         dialog = PbDiffTextDialog(parent=dialogue.main_window, pbranch=pbranch)
@@ -244,7 +244,7 @@ class PBranchTable(table.MapManagedTable):
         if res:
             dialogue.report_any_problems((res, sout, serr))
         else:
-            dialogue.inform_user(os.linesep.join([sout,serr]), problem_type=gtk.MESSAGE_INFO)
+            dialogue.inform_user(os.linesep.join([sout,serr]))
     def _pdiff_acb(self, action=None):
         dialog = PbDiffTextDialog(parent=dialogue.main_window)
         dialog.show()
@@ -267,7 +267,7 @@ class PBranchTable(table.MapManagedTable):
         if res:
             dialogue.report_any_problems((res, sout, serr))
         else:
-            dialogue.inform_user(os.linesep.join([sout,serr]), problem_type=gtk.MESSAGE_INFO)
+            dialogue.inform_user(os.linesep.join([sout,serr]))
     def _refresh_acb(self, action=None):
         self.update_contents()
 

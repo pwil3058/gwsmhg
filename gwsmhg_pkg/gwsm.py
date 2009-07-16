@@ -256,7 +256,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
                 res, sout, serr = ifce.SCM.do_revert_files(dry_run=False)
                 self.unshow_busy()
             else:
-                dialogue.inform_user('Nothing to revert', gtk.MESSAGE_INFO)
+                dialogue.inform_user('Nothing to revert')
                 return
         dialogue.report_any_problems((res, sout, serr))
     def _tag_ws_acb(self, action=None):

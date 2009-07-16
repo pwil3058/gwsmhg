@@ -134,7 +134,7 @@ class ChangeSummaryBuffer(SummaryBuffer):
             self._save_file_name = file_name
             self.set_modified(False)
         except:
-            dialogue.inform_user("Save failed!")
+            dialogue.alert_user('Save failed!')
     def _save_summary_acb(self, action=None):
         self.save_summary()
     def save_summary_as(self, action=None):
@@ -160,7 +160,7 @@ class ChangeSummaryBuffer(SummaryBuffer):
             self._save_file_name = file_name
             self.set_modified(False)
         except:
-            dialogue.inform_user("Load from file failed!")
+            dialogue.alert_user('Load from file failed!')
     def _load_summary_acb(self, action=None):
         self.load_summary()
     def load_summary_from(self, action=None):
@@ -176,7 +176,7 @@ class ChangeSummaryBuffer(SummaryBuffer):
             save_file.close()
             self.set_modified(True)
         except:
-            dialogue.inform_user("Insert at cursor from file failed!")
+            dialogue.alert_user('Insert at cursor from file failed!')
     def get_auto_save(self):
         return self.save_toggle_action.get_active()
     def set_auto_save(self, active=True):
@@ -247,7 +247,7 @@ class NewPatchSummaryBuffer(SummaryBuffer):
             save_file.close()
             self.set_modified(True)
         except:
-            dialogue.inform_user("Insert at cursor from file failed!")
+            dialogue.alert_user('Insert at cursor from file failed!')
 
 class PatchSummaryBuffer(NewPatchSummaryBuffer):
     def __init__(self, get_summary, set_summary, patch=None, table=None):
@@ -268,7 +268,7 @@ class PatchSummaryBuffer(NewPatchSummaryBuffer):
         text = self.get_text(self.get_start_iter(), self.get_end_iter())
         res, sout, serr = self._set_summary(self.patch, text)
         if res:
-            dialogue.inform_user(os.linesep.join([sout, serr]))
+            dialogue.alert_user(os.linesep.join([sout, serr]))
         else:
             self.set_modified(False)
     def _ok_to_overwrite_summary(self):
@@ -278,7 +278,7 @@ class PatchSummaryBuffer(NewPatchSummaryBuffer):
     def load_summary(self):
         res, text, serr = self._get_summary(self.patch)
         if res:
-            dialogue.inform_user(os.linesep.join([text, serr]))
+            dialogue.alert_user(os.linesep.join([text, serr]))
         else:
             self.set_text(text)
             self.set_modified(False)

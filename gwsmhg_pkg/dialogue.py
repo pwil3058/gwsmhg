@@ -59,8 +59,12 @@ class Dialog(gtk.Dialog, BusyIndicator):
         BusyIndicator.__init__(self)
     def report_any_problems(self, result):
         report_any_problems(result, self)
-    def inform_user(msg, problem_type=gtk.MESSAGE_ERROR):
-        inform_user(msg, problem_type, self)
+    def inform_user(self, msg):
+        inform_user(msg, parent=self)
+    def warn_user(self, msg):
+        warn_user(msg, parent=self)
+    def alert_user(self, msg):
+        alert_user(msg, parent=self)
 
 class AmodalDialog(Dialog, ws_event.Listener):
     def __init__(self, title=None, parent=None, flags=0, buttons=None):
@@ -251,13 +255,19 @@ def ask_dir_name(prompt, suggestion=None, existing=True, parent=None):
     dialog.destroy()
     return new_dir_name
 
-def inform_user(msg, problem_type=gtk.MESSAGE_ERROR, parent=None):
+def inform_user(msg, parent=None, problem_type=gtk.MESSAGE_INFO):
     dialog = MessageDialog(parent=parent,
                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                            type=problem_type, buttons=gtk.BUTTONS_CLOSE,
                            message_format=msg)
     dialog.run()
     dialog.destroy()
+
+def warn_user(msg, parent=None):
+    inform_user(msg, parent=parent, problem_type=gtk.MESSAGE_WARNING)
+
+def alert_user(msg, parent=None):
+    inform_user(msg, parent=parent, problem_type=gtk.MESSAGE_ERROR)
 
 def report_any_problems(result, parent=None):
     if cmd_result.is_ok(result[0]):

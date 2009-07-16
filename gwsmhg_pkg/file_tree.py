@@ -1098,7 +1098,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                 if sout:
                     ok = self._confirm_list_action(sout.splitlines(), "About to be actioned. OK?")
                 else:
-                    self._report_info("Nothing to revert")
+                    dialogue.inform_user('Nothing to revert')
                     return
             else:
                 dialogue.report_any_problems((res, sout, serr))
