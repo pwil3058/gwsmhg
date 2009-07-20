@@ -298,6 +298,8 @@ class HistoryTable(SearchableChangeSetTable):
         self.header.rhs.pack_end(self._button_box, expand=False)
         self.set_contents()
     def _oldest_loaded_rev(self):
+        if len(self.model) == 0:
+            return 0
         return int(self.model[-1][self.model.get_col('Rev')])
     def _fetch_rev(self, revarg):
         return ifce.SCM.get_rev(revarg)

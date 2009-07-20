@@ -254,7 +254,7 @@ if os.name == 'nt' or os.name == 'dos':
 for env in ['VISUAL', 'EDITOR']:
     try:
         ed = os.environ[env]
-        if ed is not "":
+        if ed != "":
             DEFAULT_EDITOR = ed
             break
     except KeyError:
@@ -263,7 +263,7 @@ for env in ['VISUAL', 'EDITOR']:
 for env in ['COLORTERM', 'TERM']:
     try:
         term = os.environ[env]
-        if term is not "":
+        if term != "":
             DEFAULT_TERMINAL = term
             break
     except KeyError:

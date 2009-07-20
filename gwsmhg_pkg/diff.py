@@ -313,7 +313,11 @@ class ScmDiffTextDialog(dialogue.AmodalDialog):
                 nb.append_page(vbox,tab_label=tab_label)
             self.vbox.add(nb)
         else:
-            dtw = ScmDiffTextWidget(self, file_list, fromrev=parents[0], torev=torev)
+            if len(parents) == 0:
+                frev = None
+            else:
+                frev = parents[0]
+            dtw = ScmDiffTextWidget(self, file_list, fromrev=frev, torev=torev)
             self.vbox.pack_start(dtw)
             tws_display = dtw.diff_view.get_buffer().tws_display
             self.action_area.pack_end(tws_display, expand=False, fill=False)
@@ -414,4 +418,3 @@ class IncomingDiffTextDialog(dialogue.AmodalDialog):
         self.show_all()
     def _close_cb(self, dialog, response_id):
         dialog.destroy()
-

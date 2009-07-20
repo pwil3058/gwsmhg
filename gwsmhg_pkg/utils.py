@@ -78,7 +78,7 @@ def run_cmd(cmd):
         os.environ['TERM'] = "dumb"
     except:
         oldterm = None
-    is_posix = os.name is 'posix'
+    is_posix = os.name == 'posix'
     if is_posix:
         savedsh = signal.getsignal(signal.SIGPIPE)
         signal.signal(signal.SIGPIPE, signal.SIG_DFL)
@@ -101,7 +101,7 @@ def run_cmd_in_console(cmd, console):
         os.environ['TERM'] = "dumb"
     except:
         oldterm = None
-    is_posix = os.name is 'posix'
+    is_posix = os.name == 'posix'
     if is_posix:
         savedsh = signal.getsignal(signal.SIGPIPE)
         signal.signal(signal.SIGPIPE, signal.SIG_DFL)

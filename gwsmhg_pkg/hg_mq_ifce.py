@@ -156,7 +156,7 @@ class BaseInterface:
         cmd = _hg_cmd_str('pull', rootdir)
         if update:
             cmd += ' -u'
-        if rev:
+        if rev is not None:
             cmd += ' -r %s' % rev
         if source:
             cmd += ' "%s"' % source
@@ -195,13 +195,13 @@ class SCMInterface(BaseInterface):
             return cmd_result.map_cmd_result(result, ignore_err_re=ignore_err_re)
         else:
             flags = cmd_result.ERROR
-            if result[2].find('use -f to force') is not -1:
+            if result[2].find('use -f to force') != -1:
                 flags |= cmd_result.SUGGEST_FORCE
-            if result[2].find('already exists') is not -1:
+            if result[2].find('already exists') != -1:
                 flags |= cmd_result.SUGGEST_RENAME
-            if result[2].find('use \'hg merge\' or \'hg update -C\'') is not -1:
+            if result[2].find('use \'hg merge\' or \'hg update -C\'') != -1:
                 flags |= cmd_result.SUGGEST_MERGE_OR_DISCARD
-            elif result[2].find('use \'hg update -C\'') is not -1:
+            elif result[2].find('use \'hg update -C\'') != -1:
                 flags |= cmd_result.SUGGEST_DISCARD
             return (flags, result[1], result[2])
     def _run_cmd_on_console(self, cmd):
@@ -216,7 +216,7 @@ class SCMInterface(BaseInterface):
         for envar in envar_list:
             try:
                 value = os.environ[envar]
-                if value is not '':
+                if value != '':
                     return value
             except KeyError:
                 continue
@@ -235,14 +235,14 @@ class SCMInterface(BaseInterface):
         return None
     def get_parents(self, rev=None, rootdir=None):
         cmd = _hg_cmd_str('parents --template "{rev}\\n"', rootdir)
-        if not rev:
+        if rev is None:
             qbase = self._get_qbase()
             if qbase:
                 rev = qbase
-        if rev:
+        if rev is not None:
             cmd += ' -r %s' % rev
         res, sout, serr = utils.run_cmd(cmd)
-        if res or not sout:
+        if res:
             revs = [sout]
         else:
             revs = []
@@ -345,11 +345,11 @@ class SCMInterface(BaseInterface):
         return (cmd_result.OK, files, '')
     def get_parents_data(self, rev=None, rootdir=None):
         cmd = _hg_cmd_str('parents --template "%s"' % self.cs_table_template, rootdir)
-        if not rev:
+        if rev is None:
             qbase = self._get_qbase(rootdir=rootdir)
             if qbase:
                 rev = qbase
-        if rev:
+        if rev is not None:
             cmd += ' --rev %s' % str(rev)
         res, sout, serr = utils.run_cmd(cmd)
         if res != 0:
@@ -522,12 +522,12 @@ class SCMInterface(BaseInterface):
         cstr = 'log --template "%s"' % self.cs_table_template
         cmd = _hg_cmd_str(cstr, rootdir)
         if maxitems:
-            if rev:
-                rev2 = int(rev) - maxitems + 1
+            if rev is not None:
+                rev2 = max(int(rev) - maxitems + 1, 0)
                 cmd += ' --rev %d:%d' % (int(rev), rev2)
             else:
                 cmd += ' -l %d' % maxitems
-        elif rev:
+        elif rev is not None:
             cmd += ' --rev %s' % rev
         res, sout, serr = utils.run_cmd(cmd)
         if res != 0:
@@ -626,7 +626,7 @@ class SCMInterface(BaseInterface):
         if file_list:
             cmd += self._file_list_to_I_string(file_list)
         res, sout, serr = self._run_cmd_on_console(cmd)
-        ws_event.notify_events(ws_event.REPO_MOD|ws_event.CHECKOUT, sout.splitlines()[:-1])
+        ws_event.notify_events(ws_event.REPO_MOD|ws_event.CHECKOUT, file_list)
         return (res, sout, serr)
     def do_remove_files(self, file_list, force=False, rootdir=None):
         if force:
@@ -638,8 +638,13 @@ class SCMInterface(BaseInterface):
         return result
     def get_diff_for_files(self, file_list, fromrev, torev=None, rootdir=None):
         # because of the likelihood of a multiple parents we'll never use the
-        # zero rev option so fromrev is compulsory
-        cmd = _hg_cmd_str('diff --rev %s' % fromrev, rootdir)
+        # zero rev option so fromrev is compulsory (except when there are no
+        # revisions yet e.g. in a brand new repository)
+        cmd = _hg_cmd_str('diff', rootdir)
+        if fromrev:
+            cmd += ' --rev %s' % fromrev
+        else:
+            assert self.get_parents() == (0, [], '')
         if torev:
             cmd += ' --rev %s' % torev
         if file_list:
@@ -652,7 +657,7 @@ class SCMInterface(BaseInterface):
         cmd = _hg_cmd_str('update', rootdir)
         if discard:
             cmd += ' -C'
-        if rev:
+        if rev is not None:
             cmd += ' -r %s' %rev
         result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.CHECKOUT)
@@ -661,7 +666,7 @@ class SCMInterface(BaseInterface):
         cmd = _hg_cmd_str('merge', rootdir)
         if force:
             cmd += ' -f'
-        if rev:
+        if rev is not None:
             cmd += ' -r %s' %rev
         result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.CHECKOUT)
@@ -670,7 +675,7 @@ class SCMInterface(BaseInterface):
         cmd = cmd = _hg_cmd_str('push', rootdir)
         if force:
             cmd += ' -f'
-        if rev:
+        if rev is not None:
             cmd += ' -r %s' %rev
         if path:
             cmd += ' "%s"' % path
@@ -689,7 +694,7 @@ class SCMInterface(BaseInterface):
             cmd += ' -f'
         if local:
             cmd += ' -l'
-        if rev:
+        if rev is not None:
             cmd += ' -r %s' % rev
         if msg:
             cmd += ' -m "%s"' % msg.replace('"', '\\"')
@@ -741,7 +746,7 @@ class SCMInterface(BaseInterface):
             cmd += ' --merge'
         if parent:
             cmd += ' --parent %s' % parent
-        if rev:
+        if rev is not None:
             cmd += ' %s' % rev
         result = self._run_cmd_on_console(cmd)
         if merge:
@@ -925,11 +930,11 @@ class PMInterface(BaseInterface):
             return cmd_result.map_cmd_result(result, ignore_err_re=ignore_err_re)
         else:
             flags = cmd_result.ERROR
-            if result[2].find('use -f to force') is not -1:
+            if result[2].find('use -f to force') != -1:
                 flags |= cmd_result.SUGGEST_FORCE
-            if result[2].find('refresh first') is not -1:
+            if result[2].find('refresh first') != -1:
                 flags |= cmd_result.SUGGEST_REFRESH
-            if result[2].find('(revert --all, qpush to recover)') is not -1:
+            if result[2].find('(revert --all, qpush to recover)') != -1:
                 flags |= cmd_result.SUGGEST_RECOVER
             return (flags, result[1], result[2])
     def _run_cmd_on_console(self, cmd, ignore_err_re=None):
@@ -1226,7 +1231,7 @@ class PMInterface(BaseInterface):
         return result
     def do_update_workspace(self, rev=None, rootdir=None):
         cmd = _hg_cmd_str('update -C', rootdir)
-        if rev:
+        if rev is not None:
             cmd += ' -r %s' %rev
         result = self._run_cmd_on_console(cmd)
         if not result[0]:

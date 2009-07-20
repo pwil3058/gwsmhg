@@ -205,13 +205,13 @@ class TimeOutController():
         self._function = function
         self._toggle_acb()
     def set_interval(self, interval):
-        if interval > 0 and interval is not self._interval:
+        if interval > 0 and interval != self._interval:
             self._interval = interval
             self.restart_cycle()
     def get_interval(self):
         return self._interval
     def set_active(self, active=True):
-        if active is not self.toggle_action.get_active():
+        if active != self.toggle_action.get_active():
             self.toggle_action.set_active(active)
         self.restart_cycle()
 

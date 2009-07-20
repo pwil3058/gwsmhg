@@ -58,6 +58,14 @@ def is_error(res):
 def is_less_than_error(res):
     return basic_value(res) < ERROR
 
+import types
+
+def suggests_force(res):
+    if type(res) in [types.ListType, types.TupleType]:
+        return (res[0] & SUGGEST_FORCE) == SUGGEST_FORCE
+    else:
+        return (res & SUGGEST_FORCE) == SUGGEST_FORCE
+
 def map_cmd_result(result, ignore_err_re=None):
     if result[0] == 0:
         if result[2] and not (ignore_err_re and ignore_err_re.match(result[2])):
