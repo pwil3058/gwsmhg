@@ -939,9 +939,9 @@ class BackoutDialog(dialogue.ReadTextAndToggleDialog):
             else:
                 parent = None
             msg = self.message.get_msg()
-            self.show_busy()
+            dialogue.main_window.show_busy()
             result = ifce.SCM.do_backout(rev=self._rev, merge=merge, parent=parent, msg=msg)
-            self.unshow_busy()
+            dialogue.main_window.unshow_busy()
             dialogue.report_any_problems(result)
             self.destroy()
 
