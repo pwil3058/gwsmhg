@@ -190,7 +190,7 @@ class SCMInterface(BaseInterface):
         self.cs_table_template = '{rev}:{date|age}:{tags}:{branches}:{author|person}:{desc|firstline}\\n'
     def _map_cmd_result(self, result, ignore_err_re=None):
         if not result[0]:
-            if self._inotify_warning(result[1]):
+            if self._inotify_warning(result[2]):
                 return result
             return cmd_result.map_cmd_result(result, ignore_err_re=ignore_err_re)
         else:
