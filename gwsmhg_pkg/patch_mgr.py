@@ -1037,7 +1037,7 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
         sf.close()
         series.reverse()
         index = 0
-        patch_name_re = re.compile("\s*([^\s#]*)[\s#]*.*$")
+        patch_name_re = re.compile("\s*([^\s#]+)[\s#]*.*$")
         while index < len(series):
             match = patch_name_re.match(series[index])
             if not match:
