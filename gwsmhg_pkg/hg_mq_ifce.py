@@ -19,12 +19,6 @@ from gwsmhg_pkg import ifce, text_edit, utils, cmd_result, putils, ws_event
 DEFAULT_NAME_EVARS = ["GIT_AUTHOR_NAME", "GECOS"]
 DEFAULT_EMAIL_VARS = ["GIT_AUTHOR_EMAIL", "EMAIL_ADDRESS"]
 
-def _hg_cmd_str(cmd, rootdir, gflags=''):
-    if rootdir:
-        return 'hg -R "%s" %s %s' % (rootdir, gflags, cmd)
-    else:
-        return 'hg %s %s' % (gflags, cmd)
-
 class BaseInterface:
     def __init__(self, name):
         self.name = name
@@ -57,8 +51,8 @@ class BaseInterface:
         return extens
     def get_extension_enabled(self, exten):
         return exten in self.get_extensions()
-    def get_author_name_and_email(self, rootdir=None):
-        cmd = _hg_cmd_str('showconfig ui.username', rootdir)
+    def get_author_name_and_email(self):
+        cmd = 'hg showconfig ui.username'
         res, uiusername, serr = utils.run_cmd(cmd)
         if res == 0 and uiusername:
             return uiusername.strip()
@@ -80,8 +74,8 @@ class BaseInterface:
         return (outres, sout, serr)
     def _file_list_to_I_string(self, file_list):
         return ' -I "%s"' % '" -I "'.join(file_list)
-    def do_add_files(self, file_list, dry_run=False, rootdir=None):
-        cmd = _hg_cmd_str('add', rootdir)
+    def do_add_files(self, file_list, dry_run=False):
+        cmd = 'hg add'
         if dry_run:
             cmd += ' -n --verbose'
         if file_list:
@@ -92,8 +86,8 @@ class BaseInterface:
             result = self._run_cmd_on_console(cmd)
             ws_event.notify_events(ws_event.FILE_ADD)
             return result
-    def do_copy_files(self, file_list, target, force=False, dry_run=False, rootdir=None):
-        cmd = _hg_cmd_str('copy', rootdir)
+    def do_copy_files(self, file_list, target, force=False, dry_run=False):
+        cmd = 'hg copy'
         if dry_run:
             cmd += ' -n --verbose'
         if force:
@@ -105,8 +99,8 @@ class BaseInterface:
             result = self._run_cmd_on_console(cmd)
             ws_event.notify_events(ws_event.FILE_ADD)
             return result
-    def do_move_files(self, file_list, target, force=False, dry_run=False, rootdir=None):
-        cmd = _hg_cmd_str('rename', rootdir)
+    def do_move_files(self, file_list, target, force=False, dry_run=False):
+        cmd = 'hg rename'
         if dry_run:
             cmd += ' -n --verbose'
         if force:
@@ -118,8 +112,8 @@ class BaseInterface:
             result = self._run_cmd_on_console(cmd)
             ws_event.notify_events(ws_event.FILE_DEL|ws_event.FILE_ADD)
             return result
-    def do_revert_files(self, file_list=[], dry_run=False, rootdir=None):
-        cmd = _hg_cmd_str('revert', rootdir)
+    def do_revert_files(self, file_list=[], dry_run=False):
+        cmd = 'hg revert'
         if dry_run:
             cmd += ' -n --verbose'
         if file_list:
@@ -152,8 +146,8 @@ class BaseInterface:
         if serr:
             return (cmd_result.ERROR, "", serr)
         return (cmd_result.OK, "", "")
-    def do_pull_from(self, rev=None, update=False, source=None, rootdir=None):
-        cmd = _hg_cmd_str('pull', rootdir)
+    def do_pull_from(self, rev=None, update=False, source=None):
+        cmd = 'hg pull'
         if update:
             cmd += ' -u'
         if rev is not None:
@@ -207,11 +201,8 @@ class SCMInterface(BaseInterface):
     def _run_cmd_on_console(self, cmd):
         result = utils.run_cmd_in_console(cmd, ifce.log)
         return self._map_cmd_result(result)
-    def get_default_commit_save_file(self, rootdir=None):
-        if rootdir:
-            return os.path.join(os.path.abspath(rootdir), '.hg', 'gwsmhg.saved.commit')
-        else:
-            return os.path.join('.hg', 'gwsmhg.saved.commit')
+    def get_default_commit_save_file(self):
+        return os.path.join('.hg', 'gwsmhg.saved.commit')
     def _get_first_in_envar(self, envar_list):
         for envar in envar_list:
             try:
@@ -221,20 +212,20 @@ class SCMInterface(BaseInterface):
             except KeyError:
                 continue
         return ''
-    def get_root(self, rootdir=None):
-        cmd = _hg_cmd_str('root', rootdir)
+    def get_root(self):
+        cmd = 'hg root'
         res, root, serr = utils.run_cmd(cmd)
         if res != 0:
             return None
         return root.strip()
-    def _get_qbase(self, rootdir=None):
-        cmd = _hg_cmd_str('log --template "{rev}" -r qbase', rootdir)
+    def _get_qbase(self):
+        cmd = 'hg log --template "{rev}" -r qbase'
         res, rev, serr = utils.run_cmd(cmd)
         if not res:
             return rev
         return None
-    def get_parents(self, rev=None, rootdir=None):
-        cmd = _hg_cmd_str('parents --template "{rev}\\n"', rootdir)
+    def get_parents(self, rev=None):
+        cmd = 'hg parents --template "{rev}\\n"'
         if rev is None:
             qbase = self._get_qbase()
             if qbase:
@@ -249,17 +240,17 @@ class SCMInterface(BaseInterface):
             for line in sout.splitlines():
                 revs.append(line)
         return (res, revs, serr)
-    def _get_qbase_parents(self, rootdir=None):
-        res, parents, serr = self.get_parents('qbase', rootdir=rootdir)
+    def _get_qbase_parents(self):
+        res, parents, serr = self.get_parents('qbase')
         if res:
             # probably should pop up a problem report
             return []
         else:
             return parents
-    def get_file_status_lists(self, fspath_list=[], revs=[], rootdir=None):
-        cmd = _hg_cmd_str('status -marduiC', rootdir)
+    def get_file_status_lists(self, fspath_list=[], revs=[]):
+        cmd = 'hg status -marduiC'
         if not revs:
-            revs = self._get_qbase_parents(rootdir=rootdir)
+            revs = self._get_qbase_parents()
         if revs:
             for rev in revs:
                 cmd += ' --rev %s' % rev
@@ -306,18 +297,16 @@ class SCMInterface(BaseInterface):
         summary['BRANCHES'] = lines[self._css_line_index('{branches}')]
         summary['DESCR'] = '\n'.join(lines[self._css_line_index('{desc}'):])
         return (res, summary, serr)
-    def get_change_set_summary(self, rev, rootdir=None):
-        cstr = 'log --template "%s" --rev %s' % (self.cs_summary_template, rev)
-        cmd = _hg_cmd_str(cstr, rootdir)
+    def get_change_set_summary(self, rev):
+        cmd = 'hg log --template "%s" --rev %s' % (self.cs_summary_template, rev)
         res, sout, serr = utils.run_cmd(cmd)
         if res:
             return (res, sout, serr)
         return self._process_change_set_summary(res, sout, serr)
-    def get_change_set_files(self, rev, rootdir=None):
-        res, parents, serr = self.get_parents(rev, rootdir=rootdir)
+    def get_change_set_files(self, rev):
+        res, parents, serr = self.get_parents(rev)
         template = '{files}\\n{file_adds}\\n{file_dels}\\n'
-        cstr = 'log --template "%s" --rev %s' % (template, rev)
-        cmd = _hg_cmd_str(cstr, rootdir)
+        cmd = 'hg log --template "%s" --rev %s' % (template, rev)
         res, sout, serr = utils.run_cmd(cmd)
         if res:
             return (res, sout, serr)
@@ -330,8 +319,7 @@ class SCMInterface(BaseInterface):
             if name in added_files:
                 extra_info = None
                 for parent in parents:
-                    cstr = 'status -aC --rev %s --rev %s "%s"' % (parent, rev, name)
-                    cmd = _hg_cmd_str(cstr, rootdir)
+                    cmd = 'hg status -aC --rev %s --rev %s "%s"' % (parent, rev, name)
                     res, sout, serr = utils.run_cmd(cmd)
                     lines = sout.splitlines()
                     if len(lines) > 1 and lines[1][0] == ' ':
@@ -343,10 +331,10 @@ class SCMInterface(BaseInterface):
             else:
                 files.append((name, 'M', None))
         return (cmd_result.OK, files, '')
-    def get_parents_data(self, rev=None, rootdir=None):
-        cmd = _hg_cmd_str('parents --template "%s"' % self.cs_table_template, rootdir)
+    def get_parents_data(self, rev=None):
+        cmd = 'hg parents --template "%s"' % self.cs_table_template
         if rev is None:
-            qbase = self._get_qbase(rootdir=rootdir)
+            qbase = self._get_qbase()
             if qbase:
                 rev = qbase
         if rev is not None:
@@ -360,9 +348,9 @@ class SCMInterface(BaseInterface):
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return (res, plist, serr)
-    def get_path_table_data(self, rootdir=None):
+    def get_path_table_data(self):
         path_re = re.compile('^(\S*)\s+=\s+(\S*)\s*$')
-        cmd = _hg_cmd_str('paths', rootdir)
+        cmd = 'hg paths'
         res, sout, serr = utils.run_cmd(cmd)
         paths = []
         for line in sout.splitlines():
@@ -370,9 +358,8 @@ class SCMInterface(BaseInterface):
             if match:
                 paths.append([match.group(1), match.group(2)])
         return (res, paths, serr)
-    def get_outgoing_table_data(self, path=None, rootdir=None):
-        cstr = 'outgoing --template "%s"' % self.cs_table_template
-        cmd = _hg_cmd_str(cstr, rootdir, '-q')
+    def get_outgoing_table_data(self, path=None):
+        cmd = 'hg -q outgoing --template "%s"' % self.cs_table_template
         if path:
             cmd += ' "%s"' % path
         res, sout, serr = utils.run_cmd(cmd)
@@ -387,12 +374,11 @@ class SCMInterface(BaseInterface):
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return (res, plist, serr)
-    def get_outgoing_rev(self, revarg, rootdir=None):
-        cmd = _hg_cmd_str('outgoing -n -l 1 --template "{rev}" --rev %s' % revarg, rootdir, ' -q')
+    def get_outgoing_rev(self, revarg):
+        cmd = 'hg -q outgoing -n -l 1 --template "{rev}" --rev %s' % revarg
         return utils.run_cmd(cmd)
-    def get_incoming_table_data(self, path=None, rootdir=None):
-        cstr = 'incoming --template "%s"' % self.cs_table_template
-        cmd = _hg_cmd_str(cstr, rootdir, '-q')
+    def get_incoming_table_data(self, path=None):
+        cmd = 'hg -q incoming --template "%s"' % self.cs_table_template
         if path:
             cmd += ' "%s"' % path
         res, sout, serr = utils.run_cmd(cmd)
@@ -407,29 +393,26 @@ class SCMInterface(BaseInterface):
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return (res, plist, serr)
-    def get_incoming_rev(self, revarg, rootdir=None):
-        cmd = _hg_cmd_str('incoming -n -l 1 --template "{rev}" --rev %s' % revarg, rootdir, ' -q')
+    def get_incoming_rev(self, revarg):
+        cmd = 'hg -q incoming -n -l 1 --template "{rev}" --rev %s' % revarg
         return utils.run_cmd(cmd)
-    def get_is_incoming(self, rev, path=None, rootdir=None):
-        cstr = 'incoming -qnl1 --template "{rev}" --rev %s' % str(rev)
-        cmd = _hg_cmd_str(cstr, rootdir)
+    def get_is_incoming(self, rev, path=None):
+        cmd = 'hg incoming -qnl1 --template "{rev}" --rev %s' % str(rev)
         if path:
             cmd += ' "%s"' % path
         res, sout, serr = utils.run_cmd(cmd)
         return sout == str(rev)
-    def get_incoming_change_set_summary(self, rev, path=None, rootdir=None):
-        cstr = 'incoming --template "%s" -nl 1 --rev %s' % (self.cs_summary_template, rev)
-        cmd = _hg_cmd_str(cstr, rootdir, '-q')
+    def get_incoming_change_set_summary(self, rev, path=None):
+        cmd = 'hg -q incoming --template "%s" -nl 1 --rev %s' % (self.cs_summary_template, rev)
         if path:
             cmd += ' "%s"' % path
         res, sout, serr = utils.run_cmd(cmd)
         if res:
             return (res, sout, serr)
         return self._process_change_set_summary(res, sout, serr)
-    def get_incoming_change_set_files(self, rev, path=None, rootdir=None):
+    def get_incoming_change_set_files(self, rev, path=None):
         template = '{files}\\n{file_adds}\\n{file_dels}\\n'
-        cstr = 'incoming --template "%s" -nl 1 --rev %s' % (template, rev)
-        cmd = _hg_cmd_str(cstr, rootdir, '-q')
+        cmd = 'hg -q incoming --template "%s" -nl 1 --rev %s' % (template, rev)
         if path:
             cmd += ' "%s"' % path
         res, sout, serr = utils.run_cmd(cmd)
@@ -448,9 +431,8 @@ class SCMInterface(BaseInterface):
             else:
                 files.append((name, 'M', None))
         return (cmd_result.OK, files, "")
-    def get_incoming_parents(self, rev, path=None, rootdir=None):
-        cstr = 'incoming --template "{parents}" -nl 1 --rev %s' % rev
-        cmd = _hg_cmd_str(cstr, rootdir, '-q')
+    def get_incoming_parents(self, rev, path=None):
+        cmd = 'hg -q incoming --template "{parents}" -nl 1 --rev %s' % rev
         if path:
             cmd += ' "%s"' % path
         res, psout, serr = utils.run_cmd(cmd)
@@ -465,17 +447,16 @@ class SCMInterface(BaseInterface):
             if irev > 0:
                 parents = [str(irev - 1)]
         return (res, parents, serr)
-    def get_incoming_parents_table_data(self, rev, path=None, rootdir=None):
-        res, parents, serr = self.get_incoming_parents(rev, path, rootdir=rootdir)
+    def get_incoming_parents_table_data(self, rev, path=None):
+        res, parents, serr = self.get_incoming_parents(rev, path)
         if res != 0:
             return (res, parents, serr)
         plist = []
-        cstr = 'incoming --template "%s" -nl 1' % self.cs_table_template
-        base_cmd = _hg_cmd_str(cstr, rootdir, '-q')
+        cmd = 'hg -q incoming --template "%s" -nl 1' % self.cs_table_template
         for parent in parents:
-            if not self.get_is_incoming(parent, path, rootdir=rootdir):
+            if not self.get_is_incoming(parent, path):
                 # the parent is local
-                res, sublist, serr = self.get_history_data(rev=parent, rootdir=rootdir)
+                res, sublist, serr = self.get_history_data(rev=parent)
                 plist += sublist
                 continue
             if path:
@@ -489,9 +470,8 @@ class SCMInterface(BaseInterface):
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return (res, plist, serr)
-    def get_incoming_diff(self, rev, path=None, rootdir=None):
-        cstr = 'incoming --patch -nl 1 --rev %s' % rev
-        cmd = _hg_cmd_str(cstr, rootdir)
+    def get_incoming_diff(self, rev, path=None):
+        cmd = 'hg incoming --patch -nl 1 --rev %s' % rev
         if path:
             cmd += ' "%s"' % path
         res, sout, serr = utils.run_cmd(cmd)
@@ -504,10 +484,9 @@ class SCMInterface(BaseInterface):
         else:
             patch = '\n'.join(lines[patch_data[0]:])
             return (res, patch, serr)
-    def get_heads_data(self, rootdir=None):
-        if not self.get_root(rootdir=rootdir): return (cmd_result.OK, [], '')
-        cstr = 'heads --template "%s"' % self.cs_table_template
-        cmd = _hg_cmd_str(cstr, rootdir)
+    def get_heads_data(self):
+        if not self.get_root(): return (cmd_result.OK, [], '')
+        cmd = 'hg heads --template "%s"' % self.cs_table_template
         res, sout, serr = utils.run_cmd(cmd)
         if res != 0:
             return (res, sout, serr)
@@ -517,10 +496,9 @@ class SCMInterface(BaseInterface):
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return (res, plist, serr)
-    def get_history_data(self, rev=None, maxitems=None, rootdir=None):
-        if not self.get_root(rootdir=rootdir): return (cmd_result.OK, [], '')
-        cstr = 'log --template "%s"' % self.cs_table_template
-        cmd = _hg_cmd_str(cstr, rootdir)
+    def get_history_data(self, rev=None, maxitems=None):
+        if not self.get_root(): return (cmd_result.OK, [], '')
+        cmd = 'hg log --template "%s"' % self.cs_table_template
         if maxitems:
             if rev is not None:
                 rev2 = max(int(rev) - maxitems + 1, 0)
@@ -538,19 +516,19 @@ class SCMInterface(BaseInterface):
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return (res, plist, serr)
-    def get_rev(self, revarg, rootdir=None):
-        cmd = _hg_cmd_str('log --template "{rev}" --rev %s' % revarg, rootdir)
+    def get_rev(self, revarg):
+        cmd = 'hg log --template "{rev}" --rev %s' % revarg
         return utils.run_cmd(cmd)
-    def get_tags_data(self, rootdir=None):
-        if not self.get_root(rootdir=rootdir): return (cmd_result.OK, [], '')
-        cmd = _hg_cmd_str('tags', rootdir, '-v')
+    def get_tags_data(self):
+        if not self.get_root(): return (cmd_result.OK, [], '')
+        cmd = 'hg -v tags'
         res, sout, serr = utils.run_cmd(cmd)
         if res:
             return (res, sout, serr)
         de = re.compile('^(\S+)\s*(\d+):(\S+)\s*(\S*)')
         tag_list = []
         template = '{rev}:{branches}:{date|age}:{author|person}:{desc|firstline}\\n'
-        cmd = _hg_cmd_str('log --template "%s"' % template, rootdir)
+        cmd = 'hg log --template "%s"' % template
         lastrev = None
         for line in sout.splitlines():
             dat = de.match(line)
@@ -571,8 +549,8 @@ class SCMInterface(BaseInterface):
                 tag_list[index].extend(addon)
                 index += 1
         return (res, tag_list, serr)
-    def get_tags_list_for_table(self, rootdir=None):
-        cmd = _hg_cmd_str('tags', rootdir)
+    def get_tags_list_for_table(self):
+        cmd = 'hg tags'
         res, sout, serr = utils.run_cmd(cmd)
         if res:
             return (res, sout, serr)
@@ -583,9 +561,9 @@ class SCMInterface(BaseInterface):
             if dat:
                 tag_list.append([dat.group(1)])
         return (res, tag_list, serr)
-    def get_branches_data(self, rootdir=None):
-        if not self.get_root(rootdir=rootdir): return (cmd_result.OK, [], '')
-        cmd = _hg_cmd_str('branches', rootdir)
+    def get_branches_data(self):
+        if not self.get_root(): return (cmd_result.OK, [], '')
+        cmd = 'hg branches'
         res, sout, serr = utils.run_cmd(cmd)
         if res:
             return (res, sout, serr)
@@ -594,14 +572,13 @@ class SCMInterface(BaseInterface):
         for line in sout.splitlines():
             dat = de.match(line)
             branch_list.append([dat.group(1), int(dat.group(2))])
-        cstr = 'log --template "{tags}:{date|age}:{author|person}:{desc|firstline}" --rev '
-        cmd = _hg_cmd_str(cstr, rootdir)
+        cmd = 'hg log --template "{tags}:{date|age}:{author|person}:{desc|firstline}" --rev '
         for branch in branch_list:
             res, sout, serr = utils.run_cmd(cmd + str(branch[1]))
             branch += sout.split(':', 3)
         return (res, branch_list, serr)
-    def get_branches_list_for_table(self, rootdir=None):
-        cmd = _hg_cmd_str('branches', rootdir)
+    def get_branches_list_for_table(self):
+        cmd = 'hg branches'
         res, sout, serr = utils.run_cmd(cmd)
         if res:
             return (res, sout, serr)
@@ -619,8 +596,8 @@ class SCMInterface(BaseInterface):
         result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.REPO_MOD|ws_event.CHECKOUT)
         return result
-    def do_commit_change(self, msg, file_list=[], rootdir=None):
-        cmd = _hg_cmd_str('commit', rootdir, '-v')
+    def do_commit_change(self, msg, file_list=[]):
+        cmd = 'hg -v commit'
         if msg:
             cmd += ' -m "%s"' % msg.replace('"', '\\"')
         if file_list:
@@ -628,19 +605,19 @@ class SCMInterface(BaseInterface):
         res, sout, serr = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.REPO_MOD|ws_event.CHECKOUT, file_list)
         return (res, sout, serr)
-    def do_remove_files(self, file_list, force=False, rootdir=None):
+    def do_remove_files(self, file_list, force=False):
         if force:
-            cmd = _hg_cmd_str('remove -f', rootdir)
+            cmd = 'hg remove -f'
         else:
-            cmd = _hg_cmd_str('remove', rootdir)
+            cmd = 'hg remove'
         result = self._run_cmd_on_console(cmd + utils.file_list_to_string(file_list))
         ws_event.notify_events(ws_event.FILE_DEL)
         return result
-    def get_diff_for_files(self, file_list, fromrev, torev=None, rootdir=None):
+    def get_diff_for_files(self, file_list, fromrev, torev=None):
         # because of the likelihood of a multiple parents we'll never use the
         # zero rev option so fromrev is compulsory (except when there are no
         # revisions yet e.g. in a brand new repository)
-        cmd = _hg_cmd_str('diff', rootdir)
+        cmd = 'hg diff'
         if fromrev:
             cmd += ' --rev %s' % fromrev
         else:
@@ -653,8 +630,8 @@ class SCMInterface(BaseInterface):
         if res != 0:
             res = cmd_result.ERROR
         return (res, sout, serr)
-    def do_update_workspace(self, rev=None, discard=False, rootdir=None):
-        cmd = _hg_cmd_str('update', rootdir)
+    def do_update_workspace(self, rev=None, discard=False):
+        cmd = 'hg update'
         if discard:
             cmd += ' -C'
         if rev is not None:
@@ -662,8 +639,8 @@ class SCMInterface(BaseInterface):
         result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.CHECKOUT)
         return result
-    def do_merge_workspace(self, rev=None, force=False, rootdir=None):
-        cmd = _hg_cmd_str('merge', rootdir)
+    def do_merge_workspace(self, rev=None, force=False):
+        cmd = 'hg merge'
         if force:
             cmd += ' -f'
         if rev is not None:
@@ -671,8 +648,8 @@ class SCMInterface(BaseInterface):
         result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.CHECKOUT)
         return result
-    def do_push_to(self, rev=None, force=False, path=None, rootdir=None):
-        cmd = cmd = _hg_cmd_str('push', rootdir)
+    def do_push_to(self, rev=None, force=False, path=None):
+        cmd = cmd = 'hg push'
         if force:
             cmd += ' -f'
         if rev is not None:
@@ -680,16 +657,16 @@ class SCMInterface(BaseInterface):
         if path:
             cmd += ' "%s"' % path
         return self._run_cmd_on_console(cmd)
-    def do_verify_repo(self, rootdir=None):
-        return self._run_cmd_on_console(_hg_cmd_str('verify', rootdir))
-    def do_rollback_repo(self, rootdir=None):
-        result = self._run_cmd_on_console(_hg_cmd_str('rollback', rootdir))
+    def do_verify_repo(self):
+        return self._run_cmd_on_console('hg verify')
+    def do_rollback_repo(self):
+        result = self._run_cmd_on_console('hg rollback')
         ws_event.notify_events(ws_event.REPO_MOD|ws_event.CHECKOUT)
         return result
-    def do_set_tag(self, tag, rev=None, local=False, force=False, msg=None, rootdir=None):
+    def do_set_tag(self, tag, rev=None, local=False, force=False, msg=None):
         if not tag:
             return (cmd_result.OK, "", "")
-        cmd = _hg_cmd_str('tag', rootdir)
+        cmd = 'hg tag'
         if force:
             cmd += ' -f'
         if local:
@@ -703,8 +680,8 @@ class SCMInterface(BaseInterface):
         if cmd_result.is_less_than_error(result[0]):
             ws_event.notify_events(ws_event.REPO_MOD)
         return result
-    def do_remove_tag(self, tag, local=False, msg=None, rootdir=None):
-        cmd = _hg_cmd_str('tag --remove', rootdir)
+    def do_remove_tag(self, tag, local=False, msg=None):
+        cmd = 'hg tag --remove'
         if local:
             cmd += ' -l'
         if msg:
@@ -714,8 +691,8 @@ class SCMInterface(BaseInterface):
         if cmd_result.is_less_than_error(result[0]):
             ws_event.notify_events(ws_event.REPO_MOD)
         return result
-    def do_move_tag(self, tag, rev, msg=None, rootdir=None):
-        cmd = _hg_cmd_str('tag -f -r %s' % rev, rootdir)
+    def do_move_tag(self, tag, rev, msg=None):
+        cmd = 'hg tag -f -r %s' % rev
         if msg:
             cmd += ' -m "%s"' % msg.replace('"', '\\"')
         cmd += " %s" % tag
@@ -723,23 +700,23 @@ class SCMInterface(BaseInterface):
         if cmd_result.is_less_than_error(result[0]):
             ws_event.notify_events(ws_event.REPO_MOD)
         return result        
-    def do_set_branch(self, branch, force=False, rootdir=None):
-        cmd = _hg_cmd_str('branch', rootdir)
+    def do_set_branch(self, branch, force=False):
+        cmd = 'hg branch'
         if force:
             cmd += ' -f'
         cmd += ' %s' % branch
         result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.REPO_MOD)
         return result
-    def do_clone_as(self, path, target=None, rootdir=None):
-        cmd = _hg_cmd_str('clone "%s"' % path, rootdir)
+    def do_clone_as(self, path, target=None):
+        cmd = 'hg clone "%s"' % path
         if target:
             cmd += ' "%s"' % target
         result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.REPO_MOD)
         return result
-    def do_backout(self, rev, msg, merge=False, parent=None, rootdir=None):
-        cmd = _hg_cmd_str('backout', rootdir)
+    def do_backout(self, rev, msg, merge=False, parent=None):
+        cmd = 'hg backout'
         if msg:
             cmd += ' -m "%s"' % msg.replace('"', '\\"')
         if merge:
@@ -754,9 +731,9 @@ class SCMInterface(BaseInterface):
         else:
             ws_event.notify_events(ws_event.REPO_MOD)
         return result
-    def get_pbranch_table_data(self, rootdir=None):
-        if not self.get_root(rootdir=rootdir): return (cmd_result.OK, [], '')
-        cmd = _hg_cmd_str('pgraph --title --with-name', rootdir)
+    def get_pbranch_table_data(self):
+        if not self.get_root(): return (cmd_result.OK, [], '')
+        cmd = 'hg pgraph --title --with-name'
         res, sout, serr = utils.run_cmd(cmd)
         if res:
             return (res, sout, serr)
@@ -766,44 +743,43 @@ class SCMInterface(BaseInterface):
             dat = de.match(line)
             if dat:
                 branch_list.append([dat.group(2), dat.group(3), dat.group(1).find('@') >= 0])
-        cmd = _hg_cmd_str('pstatus %s', rootdir)
+        cmd = 'hg pstatus %s'
         for branch in branch_list:
             res, sout, serr = utils.run_cmd(cmd % branch[0])
             branch.append(sout.strip() == '')
         return (res, branch_list, serr)
-    def get_pbranch_description(self, pbranch, rootdir=None):
+    def get_pbranch_description(self, pbranch):
         if pbranch:
-            cmd = _hg_cmd_str('pmessage %s' % pbranch, rootdir)
+            cmd = 'hg pmessage %s' % pbranch
         else:
-            cmd = _hg_cmd_str('pmessage', rootdir)
+            cmd = 'hg pmessage'
         res, sout, serr = utils.run_cmd(cmd)
         descr_lines = sout.splitlines()[1:]
         return (res, '\n'.join(descr_lines), serr)
-    def get_pdiff_for_files(self, file_list=[], pbranch=None, rootdir=None):
-        cmd = _hg_cmd_str('pdiff', rootdir)
+    def get_pdiff_for_files(self, file_list=[], pbranch=None):
+        cmd = 'hg pdiff'
         if pbranch:
             cmd += ' %s' % pbranch
         if file_list:
             cmd += ' %s' % utils.file_list_to_string(file_list)
         return utils.run_cmd(cmd)
-    def get_pstatus(self, pbranch=None, rootdir=None):
-        cmd = _hg_cmd_str('pstatus', rootdir)
+    def get_pstatus(self, pbranch=None):
+        cmd = 'hg pstatus'
         if pbranch:
             cmd += ' %s' % pbranch
         return utils.run_cmd(cmd)
-    def get_pgraph(self, rootdir=None):
-        cmd = _hg_cmd_str('pgraph --title --with-name', rootdir)
+    def get_pgraph(self):
+        cmd = 'hg pgraph --title --with-name'
         return utils.run_cmd(cmd)
-    def do_set_pbranch_description(self, pbranch, descr, rootdir=None):
-        cstr = 'peditmessage -t "%s"' % descr.replace('"', '\\"')
-        cmd = _hg_cmd_str(cstr, rootdir)
+    def do_set_pbranch_description(self, pbranch, descr):
+        cmd = 'hg peditmessage -t "%s"' % descr.replace('"', '\\"')
         if pbranch:
             cmd += ' %s' % pbranch
         result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.REPO_MOD)
         return result
-    def do_new_pbranch(self, name, msg, preserve=False, rootdir=None):
-        cmd = _hg_cmd_str('pnew', rootdir)
+    def do_new_pbranch(self, name, msg, preserve=False):
+        cmd = 'hg pnew'
         if msg:
             cmd += ' -t "%s"' % msg.replace('"', '\\"')
         if preserve:
@@ -815,15 +791,15 @@ class SCMInterface(BaseInterface):
             events |= ws_event.FILE_CHANGES
         ws_event.notify_events(events)
         return result
-    def do_pmerge(self, pbranches=[], rootdir=None):
-        cmd = _hg_cmd_str('pmerge', rootdir)
+    def do_pmerge(self, pbranches=[]):
+        cmd = 'hg pmerge'
         if pbranches:
             cmd += ' %s' % ' '.join(pbranches)
         result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.REPO_MOD|ws_event.CHECKOUT|ws_event.FILE_CHANGES)
         return result
-    def do_pbackout(self, files=[], rootdir=None):
-        cmd = _hg_cmd_str('pbackout', rootdir)
+    def do_pbackout(self, files=[]):
+        cmd = 'hg pbackout'
         if files:
             cmd += ' %s' % utils.file_list_to_string(files)
         result = self._run_cmd_on_console(cmd)
@@ -846,60 +822,32 @@ class _WsUpdateStateMgr:
         text = file.read()
         file.close()
         return text.strip()
-    def start(self, serr, state, rootdir=None):
+    def start(self, serr, state):
         match = self._get_copy_re.match(serr)
-        if rootdir:
-            copy_file = os.path.join(rootdir, self._copy_file)
-        else:
-            copy_file = self._copy_file
         if match:
-            self._write_to_named_file(copy_file, os.path.basename(match.group(1)))
+            self._write_to_named_file(self._copy_file, os.path.basename(match.group(1)))
         self.set_state(state)
-    def is_in_progress(self, rootdir=None):
-        if rootdir:
-            state_file = os.path.join(rootdir, self._state_file)
-        else:
-            state_file = self._state_file
-        return os.path.exists(state_file)
-    def tip_is_patches_saved_state(self, rootdir=None):
-        cstr = 'log --template "{desc|firstline}" --rev tip'
-        cmd = _hg_cmd_str(cstr, rootdir)
+    def is_in_progress(self):
+        return os.path.exists(self._state_file)
+    def tip_is_patches_saved_state(self):
+        cmd = 'hg log --template "{desc|firstline}" --rev tip'
         res, sout, serr = utils.run_cmd(cmd)
         return sout == self._saved_state_msg
-    def parent_is_patches_saved_state(self, rootdir=None):
-        cstr = 'parent --template "{desc|firstline}"'
-        cmd = _hg_cmd_str(cstr, rootdir)
+    def parent_is_patches_saved_state(self):
+        cmd = 'hg parent --template "{desc|firstline}"'
         res, sout, serr = utils.run_cmd(cmd)
         return sout == self._saved_state_msg
-    def set_state(self, state, rootdir=None):
-        if rootdir:
-            state_file = os.path.join(rootdir, self._state_file)
-        else:
-            state_file = self._state_file
-        self._write_to_named_file(state_file, state)
-    def get_state_is_in(self, state_list, rootdir=None):
-        if rootdir:
-            state_file = os.path.join(rootdir, self._state_file)
-        else:
-            state_file = self._state_file
-        if not os.path.exists(state_file):
+    def set_state(self, state):
+        self._write_to_named_file(self._state_file, state)
+    def get_state_is_in(self, state_list):
+        if not os.path.exists(self._state_file):
             return False
-        state = self._read_from_named_file(state_file)
+        state = self._read_from_named_file(self._state_file)
         return state in state_list
-    def get_patches_copy_dir(self, rootdir=None):
-        if rootdir:
-            copy_file = os.path.join(rootdir, self._copy_file)
-        else:
-            copy_file = self._copy_file
-        return self._read_from_named_file(copy_file)
-    def finish(self, rootdir=None):
-        if rootdir:
-            copy_file = os.path.join(rootdir, self._copy_file)
-            state_file = os.path.join(rootdir, self._state_file)
-        else:
-            copy_file = self._copy_file
-            state_file = self._state_file
-        for path in copy_file, state_file:
+    def get_patches_copy_dir(self):
+        return self._read_from_named_file(self._copy_file)
+    def finish(self):
+        for path in self._copy_file, self._state_file:
             if os.path.exists(path):
                 os.remove(path)
 
@@ -942,34 +890,34 @@ class PMInterface(BaseInterface):
         return self._map_cmd_result(result, ignore_err_re=ignore_err_re)
     def get_enabled(self):
         return self.get_extension_enabled('mq')
-    def get_parent(self, patch, rootdir=None):
+    def get_parent(self, patch):
         parent = 'qparent'
-        for applied_patch in self.get_applied_patches(rootdir=rootdir):
+        for applied_patch in self.get_applied_patches():
             if patch == applied_patch:
                 return parent
             else:
                 parent = applied_patch
         return None
-    def get_file_status_list(self, patch=None, rootdir=None):
+    def get_file_status_list(self, patch=None):
         if not self.get_enabled():
             return (cmd_result.OK, [], "")
-        if patch and not self.get_patch_is_applied(patch, rootdir=rootdir):
-            pfn = self.get_patch_file_name(patch, rootdir=rootdir)
+        if patch and not self.get_patch_is_applied(patch):
+            pfn = self.get_patch_file_name(patch)
             result, file_list = putils.get_patch_files(pfn, status=True)
             if result:
                 return (cmd_result.OK, file_list, "")
             else:
                 return (cmd_result.WARNING, "", file_list)
-        top = self.get_top_patch(rootdir=rootdir)
+        top = self.get_top_patch()
         if not top:
             # either we're not in an mq playground or no patches are applied
             return (cmd_result.OK, [], "")
-        cmd = _hg_cmd_str('status -mardC', rootdir)
+        cmd = 'hg status -mardC'
         if patch:
             parent = self.get_parent(patch)
             cmd += ' --rev %s --rev %s' % (parent, patch)
         else:
-            parent = self.get_parent(top, rootdir=rootdir)
+            parent = self.get_parent(top)
             cmd += ' --rev %s' % parent
         res, sout, serr = utils.run_cmd(cmd)
         if res != 0:
@@ -989,63 +937,63 @@ class PMInterface(BaseInterface):
             file_list.append((name, status, extra_info))
             index += 1
         return (res, file_list, serr)
-    def get_in_progress(self, rootdir=None):
+    def get_in_progress(self):
         if not self.get_enabled():
             return False
-        return (self.get_top_patch(rootdir=rootdir) is not None) or \
-            self._ws_update_mgr.is_in_progress(rootdir=rootdir)
-    def get_applied_patches(self, rootdir=None):
+        return (self.get_top_patch() is not None) or \
+            self._ws_update_mgr.is_in_progress()
+    def get_applied_patches(self):
         if not self.get_enabled():
             return []
-        res, op, err = utils.run_cmd(_hg_cmd_str('qapplied', rootdir))
+        res, op, err = utils.run_cmd('hg qapplied')
         if res != 0:
                 return []
         return op.splitlines()
-    def get_unapplied_patches(self, rootdir=None):
+    def get_unapplied_patches(self):
         if not self.get_enabled():
             return []
-        res, op, err = utils.run_cmd(_hg_cmd_str('qunapplied', rootdir))
+        res, op, err = utils.run_cmd('hg qunapplied')
         if res != 0:
                 return []
         return op.splitlines()
-    def get_patch_is_applied(self, patch, rootdir=None):
-        return patch in self.get_applied_patches(rootdir=rootdir)
-    def get_top_patch(self, rootdir=None):
-        res, sout, serr = utils.run_cmd(_hg_cmd_str('qtop', rootdir))
+    def get_patch_is_applied(self, patch):
+        return patch in self.get_applied_patches()
+    def get_top_patch(self):
+        res, sout, serr = utils.run_cmd('hg qtop')
         if res:
             return None
         else:
             return sout.strip()
-    def get_base_patch(self, rootdir=None):
-        res, sout, serr = utils.run_cmd(_hg_cmd_str('qapplied', rootdir))
+    def get_base_patch(self):
+        res, sout, serr = utils.run_cmd('hg qapplied')
         if res or not sout:
             return None
         else:
             return sout.splitlines()[0]
-    def get_next_patch(self, rootdir=None):
-        res, sout, serr = utils.run_cmd(_hg_cmd_str('qnext', rootdir))
+    def get_next_patch(self):
+        res, sout, serr = utils.run_cmd('hg qnext')
         if res or not sout:
             return None
         else:
             return sout.strip()
-    def get_diff_for_files(self, file_list=[], patch=None, rootdir=None):
+    def get_diff_for_files(self, file_list=[], patch=None):
         if patch:
             parent = self.get_parent(patch)
             if not parent:
                 # the patch is not applied
-                pfn = self.get_patch_file_name(patch, rootdir=rootdir)
+                pfn = self.get_patch_file_name(patch)
                 result, diff = putils.get_patch_diff(pfn, file_list)
                 if result:
                     return (cmd_result.OK, diff, '')
                 else:
                     return (cmd_result.WARNING, '', diff)
         else:
-            top = self.get_top_patch(rootdir=rootdir)
+            top = self.get_top_patch()
             if top:
-                parent = self.get_parent(top, rootdir=rootdir)
+                parent = self.get_parent(top)
             else:
                 return (cmd_result.OK, '', '')
-        cmd = _hg_cmd_str('diff --rev %s' % parent, rootdir)
+        cmd = 'hg diff --rev %s' % parent
         if patch:
             cmd += ' --rev %s' % patch
         if file_list:
@@ -1054,39 +1002,39 @@ class PMInterface(BaseInterface):
         if res != 0:
             res = cmd_result.ERROR
         return (res, sout, serr)
-    def do_refresh(self, rootdir=None):
-        result = self._run_cmd_on_console(_hg_cmd_str('qrefresh', rootdir))
+    def do_refresh(self):
+        result = self._run_cmd_on_console('hg qrefresh')
         if not result[0]:
             ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD)
         return result
-    def do_pop_to(self, patch=None, force=False, rootdir=None):
+    def do_pop_to(self, patch=None, force=False):
         if patch is None:
             if force:
-                cmd = _hg_cmd_str('qpop -f', rootdir)
+                cmd = 'hg qpop -f'
             else:
-                cmd = _hg_cmd_str('qpop', rootdir)
+                cmd = 'hg qpop'
         elif patch is '':
             if force:
-                cmd = _hg_cmd_str('qpop -f -a', rootdir)
+                cmd = 'hg qpop -f -a'
             else:
-                cmd = _hg_cmd_str('qpop -a', rootdir)
+                cmd = 'hg qpop -a'
         else:
             if force:
-                cmd = _hg_cmd_str('qpop -f %s' % patch, rootdir)
+                cmd = 'hg qpop -f %s' % patch
             else:
-                cmd = _hg_cmd_str('qpop %s' % patch, rootdir)
+                cmd = 'hg qpop %s' % patch
         result = self._run_cmd_on_console(cmd)
         if not self.get_in_progress():
             ws_event.notify_events(ws_event.PMIC_CHANGE, False)
         events = ws_event.CHECKOUT|ws_event.REPO_MOD|ws_event.FILE_CHANGES
         ws_event.notify_events(events)
         return result
-    def do_push_to(self, patch=None, force=False, merge=False, rootdir=None):
-        in_charge = self.get_in_progress(rootdir=rootdir)
+    def do_push_to(self, patch=None, force=False, merge=False):
+        in_charge = self.get_in_progress()
         if merge:
-            cmd = _hg_cmd_str('-y qpush -m', rootdir)
+            cmd = 'hg -y qpush -m'
         else:
-            cmd = _hg_cmd_str('qpush', rootdir)
+            cmd = 'hg qpush'
         if patch is None:
             if force:
                 result = self._run_cmd_on_console('%s -f' % cmd, ignore_err_re=self._qpush_re)
@@ -1107,23 +1055,20 @@ class PMInterface(BaseInterface):
         events = ws_event.CHECKOUT|ws_event.REPO_MOD|ws_event.FILE_CHANGES
         ws_event.notify_events(events)
         if not result[0] and merge and len(self.get_unapplied_patches()) == 0:
-            self._ws_update_mgr.set_state('merged', rootdir=rootdir)
+            self._ws_update_mgr.set_state('merged')
         return result
-    def get_patch_file_name(self, patch, rootdir=None):
-        if rootdir:
-            return os.path.join(os.path.abspath(rootdir), '.hg', 'patches', patch)
-        else:
-            return os.path.join(os.getcwd(), '.hg', 'patches', patch)
-    def get_patch_description(self, patch, rootdir=None):
-        pfn = self.get_patch_file_name(patch, rootdir=rootdir)
+    def get_patch_file_name(self, patch):
+        return os.path.join(os.getcwd(), '.hg', 'patches', patch)
+    def get_patch_description(self, patch):
+        pfn = self.get_patch_file_name(patch)
         res, descr_lines = putils.get_patch_descr_lines(pfn)
         descr = '\n'.join(descr_lines) + '\n'
         if res:
             return (cmd_result.OK, descr, "")
         else:
             return (cmd_result.ERROR, descr, "Error reading description to \"%s\" patch file" % patch)
-    def do_set_patch_description(self, patch, descr, rootdir=None):
-        pfn = self.get_patch_file_name(patch, rootdir=rootdir)
+    def do_set_patch_description(self, patch, descr):
+        pfn = self.get_patch_file_name(patch)
         ifce.log.start_cmd("set description for: %s" %patch)
         res = putils.set_patch_descr_lines(pfn, descr.splitlines())
         if res:
@@ -1136,47 +1081,47 @@ class PMInterface(BaseInterface):
             res = cmd_result.ERROR
         ifce.log.end_cmd()
         return (res, "", serr)
-    def get_description_is_finish_ready(self, patch, rootdir=None):
-        pfn = self.get_patch_file_name(patch, rootdir=rootdir)
+    def get_description_is_finish_ready(self, patch):
+        pfn = self.get_patch_file_name(patch)
         res, pf_descr_lines = putils.get_patch_descr_lines(pfn)
         pf_descr = '\n'.join(pf_descr_lines).strip()
         if not pf_descr:
             return False
-        cmd = _hg_cmd_str('log --template "{desc}" --rev %s' % patch, rootdir)
+        cmd = 'hg log --template "{desc}" --rev %s' % patch
         res, rep_descr, sout = utils.run_cmd(cmd)
         if pf_descr != rep_descr.strip():
             top = self.get_top_patch()
             if top == patch:
-                utils.run_cmd(_hg_cmd_str('qrefresh', rootdir))
+                utils.run_cmd('hg qrefresh')
             else:
                 # let's hope the user doesn't mind having the top patch refreshed
-                utils.run_cmd(_hg_cmd_str('qrefresh', rootdir))
-                utils.run_cmd(_hg_cmd_str('qgoto %s' % patch, rootdir))
-                utils.run_cmd(_hg_cmd_str('qrefresh', rootdir))
-                utils.run_cmd(_hg_cmd_str('qgoto %s' % top, rootdir))
+                utils.run_cmd('hg qrefresh')
+                utils.run_cmd('hg qgoto %s' % patch)
+                utils.run_cmd('hg qrefresh')
+                utils.run_cmd('hg qgoto %s' % top)
         return True
-    def do_finish_patch(self, patch, rootdir=None):
-        result = self._run_cmd_on_console(_hg_cmd_str('qfinish %s' % patch, rootdir))
-        if not self.get_in_progress(rootdir=rootdir):
+    def do_finish_patch(self, patch):
+        result = self._run_cmd_on_console('hg qfinish %s' % patch)
+        if not self.get_in_progress():
             ws_event.notify_events(ws_event.PMIC_CHANGE, False)
         events = ws_event.CHECKOUT|ws_event.REPO_MOD|ws_event.FILE_CHANGES
         ws_event.notify_events(events)
         return result
-    def do_rename_patch(self, old_name, new_name, rootdir=None):
-        cmd = _hg_cmd_str('qrename %s %s' % (old_name, new_name), rootdir)
+    def do_rename_patch(self, old_name, new_name):
+        cmd = 'hg qrename %s %s' % (old_name, new_name)
         result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.REPO_MOD)
         return result
-    def do_delete_patch(self, patch, rootdir=None):
-        result = self._run_cmd_on_console(_hg_cmd_str('qdelete %s' % patch, rootdir))
+    def do_delete_patch(self, patch):
+        result = self._run_cmd_on_console('hg qdelete %s' % patch)
         ws_event.notify_events(ws_event.UNAPPLIED_PATCH_MOD)
         return result
-    def do_fold_patch(self, patch, rootdir=None):
-        result = self._run_cmd_on_console(_hg_cmd_str('qfold %s' % patch, rootdir))
+    def do_fold_patch(self, patch):
+        result = self._run_cmd_on_console('hg qfold %s' % patch)
         ws_event.notify_events(ws_event.FILES_CHANGE)
         return result
-    def do_import_patch(self, patch_file_name, as_patch_name=None, force=False, rootdir=None):
-        cmd = _hg_cmd_str('qimport', rootdir)
+    def do_import_patch(self, patch_file_name, as_patch_name=None, force=False):
+        cmd = 'hg qimport'
         if as_patch_name:
             cmd += ' -n "%s"' % as_patch_name
         if force:
@@ -1187,13 +1132,13 @@ class PMInterface(BaseInterface):
             res |= cmd_result.SUGGEST_FORCE_OR_RENAME
         ws_event.notify_events(ws_event.UNAPPLIED_PATCH_MOD)
         return (res, sout, serr)
-    def do_new_patch(self, patch_name_raw, force=False, rootdir=None):
-        in_charge = self.get_in_progress(rootdir=rootdir)
+    def do_new_patch(self, patch_name_raw, force=False):
+        in_charge = self.get_in_progress()
         patch_name = re.sub('\s', '_', patch_name_raw)
         if force:
-            cmd = _hg_cmd_str('qnew -f %s' % patch_name, rootdir)
+            cmd = 'hg qnew -f %s' % patch_name
         else:
-            cmd = _hg_cmd_str('qnew %s' % patch_name, rootdir)
+            cmd = 'hg qnew %s' % patch_name
         res, sout, serr = self._run_cmd_on_console(cmd)
         if not in_charge:
             ws_event.notify_events(ws_event.PMIC_CHANGE, True)
@@ -1202,35 +1147,35 @@ class PMInterface(BaseInterface):
         if res & cmd_result.SUGGEST_REFRESH:
             res |= cmd_result.SUGGEST_FORCE
         return (res, sout, serr)
-    def do_remove_files(self, file_list, force=False, rootdir=None):
-        applied_count = len(self.get_applied_patches(rootdir=rootdir))
+    def do_remove_files(self, file_list, force=False):
+        applied_count = len(self.get_applied_patches())
         if not file_list or applied_count == 0:
             return (cmd_result.OK, '', '')
         elif applied_count == 1:
             parent = 'qparent'
         else:
-            res, sout, serr = utils.run_cmd(_hg_cmd_str('qprev', rootdir))
+            res, sout, serr = utils.run_cmd('hg qprev')
             parent = sout.strip()
-        cmd = _hg_cmd_str('revert --rev %s' % parent, rootdir)
+        cmd = 'hg revert --rev %s' % parent
         if force:
             cmd += ' -f'
         cmd += utils.file_list_to_string(file_list)
         result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.FILE_DEL)
         return result
-    def do_save_queue_state_for_update(self, rootdir=None):
-        cmd = _hg_cmd_str('qsave -e -c', rootdir)
+    def do_save_queue_state_for_update(self):
+        cmd = 'hg qsave -e -c'
         result = self._run_cmd_on_console(cmd)
-        self._ws_update_mgr.start(result[2], 'qsaved', rootdir=rootdir)
+        self._ws_update_mgr.start(result[2], 'qsaved')
         ws_event.notify_events(ws_event.CHECKOUT|ws_event.FILE_CHANGES|ws_event.REPO_MOD)
         return result
-    def do_pull_from(self, rev=None, source=None, rootdir=None):
-        result = BaseInterface.do_pull_from(self, rev=rev, source=source, rootdir=rootdir)
+    def do_pull_from(self, rev=None, source=None):
+        result = BaseInterface.do_pull_from(self, rev=rev, source=source)
         if cmd_result.is_less_than_error(result[0]):
-            self._ws_update_mgr.set_state('pulled', rootdir=rootdir)
+            self._ws_update_mgr.set_state('pulled')
         return result
-    def do_update_workspace(self, rev=None, rootdir=None):
-        cmd = _hg_cmd_str('update -C', rootdir)
+    def do_update_workspace(self, rev=None):
+        cmd = 'hg update -C'
         if rev is not None:
             cmd += ' -r %s' %rev
         result = self._run_cmd_on_console(cmd)
@@ -1238,16 +1183,16 @@ class PMInterface(BaseInterface):
             ws_event.notify_events(ws_event.CHECKOUT)
             self._ws_update_mgr.set_state('updated')
         return result
-    def do_clean_up_after_update(self, rootdir=None):
-        pcd = self._ws_update_mgr.get_patches_copy_dir(rootdir=rootdir)
+    def do_clean_up_after_update(self):
+        pcd = self._ws_update_mgr.get_patches_copy_dir()
         if pcd:
-            top_patch = self.get_top_patch(rootdir=rootdir)
+            top_patch = self.get_top_patch()
             if top_patch:
-                utils.run_cmd(_hg_cmd_str('qpop -a', rootdir))
+                utils.run_cmd('hg qpop -a')
             self._ws_update_mgr.finish()
-            result = self._run_cmd_on_console(_hg_cmd_str('qpop -a -n %s' % pcd, rootdir))
+            result = self._run_cmd_on_console('hg qpop -a -n %s' % pcd)
             if top_patch:
-                utils.run_cmd(_hg_cmd_str('qgoto %s' % top_patch, rootdir))
+                utils.run_cmd('hg qgoto %s' % top_patch)
                 ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD)
             else:
                 ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD)
@@ -1255,31 +1200,31 @@ class PMInterface(BaseInterface):
             return result
         else:
             return (cmd_result.INFO, 'Saved patch directory not found.', '')
-    def get_ws_update_qsave_ready(self, unapplied_count=None, applied_count=None, rootdir=None):
+    def get_ws_update_qsave_ready(self, unapplied_count=None, applied_count=None):
         if unapplied_count is None:
             unapplied_count = len(self.get_unapplied_patches())
         if applied_count is None:
             applied_count = len(self.get_applied_patches())
         return applied_count and not unapplied_count and not self._ws_update_mgr.is_in_progress()
-    def get_ws_update_ready(self, applied_count=None, rootdir=None):
+    def get_ws_update_ready(self, applied_count=None):
         if applied_count is None:
-            applied_count = len(self.get_applied_patches(rootdir=rootdir))
-        if self._ws_update_mgr.tip_is_patches_saved_state(rootdir=rootdir):
+            applied_count = len(self.get_applied_patches())
+        if self._ws_update_mgr.tip_is_patches_saved_state():
             return False
         return not applied_count and self._ws_update_mgr.get_state_is_in(["pulled"])
-    def get_ws_update_merge_ready(self, unapplied_count=None, rootdir=None):
+    def get_ws_update_merge_ready(self, unapplied_count=None):
         if unapplied_count is None:
-            unapplied_count = len(self.get_unapplied_patches(rootdir=rootdir))
-        if self._ws_update_mgr.parent_is_patches_saved_state(rootdir=rootdir):
+            unapplied_count = len(self.get_unapplied_patches())
+        if self._ws_update_mgr.parent_is_patches_saved_state():
             return False
-        return unapplied_count and self._ws_update_mgr.get_state_is_in(["updated"], rootdir=rootdir)
-    def get_ws_update_clean_up_ready(self, applied_count=None, rootdir=None):
-        return self._ws_update_mgr.get_state_is_in(["merged"], rootdir=rootdir)
-    def get_ws_update_pull_ready(self, applied_count=None, rootdir=None):
+        return unapplied_count and self._ws_update_mgr.get_state_is_in(["updated"])
+    def get_ws_update_clean_up_ready(self, applied_count=None):
+        return self._ws_update_mgr.get_state_is_in(["merged"])
+    def get_ws_update_pull_ready(self, applied_count=None):
         if applied_count is None:
-            applied_count = len(self.get_applied_patches(rootdir=rootdir))
-        return not applied_count and self._ws_update_mgr.get_state_is_in(["qsaved"], rootdir=rootdir)
-    def get_ws_update_to_ready(self, applied_count=None, rootdir=None):
+            applied_count = len(self.get_applied_patches())
+        return not applied_count and self._ws_update_mgr.get_state_is_in(["qsaved"])
+    def get_ws_update_to_ready(self, applied_count=None):
         if applied_count is None:
-            applied_count = len(self.get_applied_patches(rootdir=rootdir))
-        return not applied_count and self._ws_update_mgr.get_state_is_in(["qsaved", "pulled"], rootdir=rootdir)
+            applied_count = len(self.get_applied_patches())
+        return not applied_count and self._ws_update_mgr.get_state_is_in(["qsaved", "pulled"])
