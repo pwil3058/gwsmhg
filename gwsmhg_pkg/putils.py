@@ -283,28 +283,36 @@ ADDED = "A"
 EXTANT = "M"
 DELETED = "R"
 
-def get_patch_files(path, status=True):
+def get_patch_files(path, status=True, decorated=False):
     if not utils.which("lsdiff"):
         return (False, "This functionality requires \"lsdiff\" from \"patchutils\"")
     cmd = "lsdiff --strip=1"
-    if not status:
+    if status or decorated:
+        res, so, se = utils.run_cmd("%s -s %s" % (cmd, path))
+        if res == 0:
+            filelist = []
+            if decorated:
+                for line in so.splitlines():
+                    if line[0] == "+":
+                        filelist.append(ADDED + line[1:])
+                    elif line[0] == "-":
+                        filelist.append(DELETED + line[1:])
+                    else:
+                        filelist.append(EXTANT + line[1:])
+            else:
+                for line in so.splitlines():
+                    if line[0] == "+":
+                        filelist.append((line[2:], ADDED, None))
+                    elif line[0] == "-":
+                        filelist.append((line[2:], DELETED, None))
+                    else:
+                        filelist.append((line[2:], EXTANT, None))
+            return (True, filelist)
+        else:
+            return (False, so + se)
+    else:
         res, so, se = utils.run_cmd("%s %s" % (cmd, path))
         if res == 0:
             return (True, so.splitlines())
         else:
             return (False, so + se)
-    else:
-        res, so, se = utils.run_cmd("%s -s %s" % (cmd, path))
-        if res == 0:
-            filelist = []
-            for line in so.splitlines():
-                if line[0] == "+":
-                    filelist.append((line[2:], ADDED, None))
-                elif line[0] == "-":
-                    filelist.append((line[2:], DELETED, None))
-                else:
-                    filelist.append((line[2:], EXTANT, None))
-            return (True, filelist)
-        else:
-            return (False, so + se)
-

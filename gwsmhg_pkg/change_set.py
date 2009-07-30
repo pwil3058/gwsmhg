@@ -771,10 +771,9 @@ class ChangeSetSelectDialog(dialogue.Dialog):
 class FileTreeStore(file_tree.FileTreeStore):
     def __init__(self, rev):
         self._rev = rev
-        row_data = apply(file_tree.FileTreeRowData, ifce.SCM.get_status_row_data())
-        file_tree.FileTreeStore.__init__(self, show_hidden=True, row_data=row_data)
+        file_tree.FileTreeStore.__init__(self, show_hidden=True, populate_all=True)
         self.repopulate()
-    def update(self, fsobj_iter=None):
+    def update(self):
         res, files, dummy = ifce.SCM.get_change_set_files(self._rev)
         if res == 0:
             for file_name, status, extra_info in files:

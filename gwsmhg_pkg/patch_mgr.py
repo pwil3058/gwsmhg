@@ -21,29 +21,19 @@ from gwsmhg_pkg import actions
 class PatchFileTreeStore(file_tree.FileTreeStore):
     def __init__(self, patch=None, view=None):
         self._patch = patch
-        row_data = apply(file_tree.FileTreeRowData, ifce.PM.get_status_row_data())
-        file_tree.FileTreeStore.__init__(self, show_hidden=True, row_data=row_data)
-        # if this is set to the associated view then the view will expand
-        # to show new files without disturbing other expansion states
-        self._view = view
+        file_tree.FileTreeStore.__init__(self, show_hidden=True, populate_all=True)
+        self.view = view
+        self._null_file_db = file_tree.NullFileDb()
     def set_view(self, view):
-        self._view = view
-    def update(self, fsobj_iter=None):
-        res, dflist, dummy = ifce.PM.get_file_status_list(self._patch)
-        if res == 0:
-            files = [tmpx[0] for tmpx in dflist] 
-            for f in self.get_file_paths():
-                try:
-                    i = files.index(f)
-                except:
-                    self.delete_file(f)
-            for dfile, status, extra_info in dflist:
-                found, file_iter = self.find_or_insert_file(dfile, file_status=status, extra_info=extra_info)
-                if not found and self._view:
-                    self._view.expand_to_path(self.get_path(file_iter))
+        self.view = view
+    def _get_file_db(self):
+        if ifce.in_valid_repo:
+            return ifce.PM.get_patch_file_db(self._patch)
+        else:
+            return self._null_file_db
     def repopulate(self):
-        self.clear()
-        self.update()
+        file_tree.FileTreeStore.repopulate(self)
+        self.view.expand_all()
 
 PATCH_FILES_UI_DESCR = \
 '''

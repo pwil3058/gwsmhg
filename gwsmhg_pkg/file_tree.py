@@ -21,9 +21,6 @@ IGNORED = 0
 OTHER = 1
 MODIFIED = 2
 
-def _is_hidden_file(filename):
-    return filename[0] == '.'
-
 def _path_relative_to_dir(dirpath, askpath, validate_dir=True):
     if validate_dir and not os.path.isdir(dirpath):
         return None
@@ -33,23 +30,6 @@ def _path_relative_to_dir(dirpath, askpath, validate_dir=True):
     if len(askpath) <= lcwd + 1 or dirpath != askpath[0:lcwd] or askpath[lcwd] != os.sep:
         return None
     return askpath[lcwd + 1:]
-
-def os_dir_contents(dirpath):
-    hfiles = []
-    files = []
-    hdirs = []
-    dirs = []
-    for element in os.listdir(dirpath):
-        if os.path.isdir(os.path.join(dirpath, element)):
-            if _is_hidden_file(element):
-                hdirs.append(element)
-            else:
-                dirs.append(element)
-        elif _is_hidden_file(element):
-            hfiles.append(element)
-        else:
-            files.append(element)
-    return (hdirs, dirs, hfiles, files)
 
 import gobject, gtk, pango
 
@@ -63,65 +43,49 @@ COLUMNS = (gobject.TYPE_STRING,
 
 NAME, IS_DIR, STYLE, FOREGROUND, ICON, STATUS, EXTRA_INFO = range(len(COLUMNS))
 
-DEFAULT_STATUS_DECO_MAP = {
-    None: (pango.STYLE_NORMAL, "black"),
-    "-": (pango.STYLE_ITALIC, "red"),
-    "?": (pango.STYLE_ITALIC, "grey"),
-    "!": (pango.STYLE_NORMAL, "blue"),
-}
-
-DEFAULT_EXTRA_INFO_SEP = " <- "
-DEFAULT_MODIFIED_DIR_STATUS = "!"
-DEFAULT_NONEXISTANT_STATUS = "-"
-
-class FileTreeRowData:
-    def __init__(self, status_deco_map=DEFAULT_STATUS_DECO_MAP,
-                 extra_info_sep=DEFAULT_EXTRA_INFO_SEP,
-                 modified_dir_status=DEFAULT_MODIFIED_DIR_STATUS,
-                 default_nonexistant_status=DEFAULT_NONEXISTANT_STATUS):
-        self._status_deco_map = status_deco_map
-        self._extra_info_sep = extra_info_sep
-        self._default_nonexistant_status = default_nonexistant_status
-        self.modified_dir_status = modified_dir_status
-    def get_status_deco(self, status=None):
+class FileTreeStore(gtk.TreeStore):
+    def __init__(self, show_hidden=False, populate_all=False):
+        apply(gtk.TreeStore.__init__, (self,) + COLUMNS)
+        self._status_deco_map, self._extra_info_sep, \
+        self.modified_dir_status, self._default_nonexistant_status = ifce.SCM.get_status_row_data()
+        self._file_db = None
+        self.view = None
+        self._populate_all = populate_all
+        self.show_hidden_action = gtk.ToggleAction('show_hidden_files', 'Show Hidden Files',
+                                                   'Show/hide ignored files and those beginning with "."', None)
+        self.show_hidden_action.set_active(show_hidden)
+        self.show_hidden_action.connect('toggled', self._toggle_show_hidden_cb)
+        self.show_hidden_action.set_menu_item_type(gtk.CheckMenuItem)
+        self.show_hidden_action.set_tool_item_type(gtk.ToggleToolButton)
+    def _row_expanded(self, dir_iter):
+        # if view isn't set then assume that we aren't connexted to a view
+        # so the row can't be expanded
+        if self.view is None:
+            return False
+        else:
+            return self.view.row_expanded(self.get_path(dir_iter))
+    def _get_status_deco(self, status=None):
         if self._status_deco_map.has_key(status):
             return self._status_deco_map[status]
         else:
             return self._status_deco_map[None]
-    def set_status_deco_map_entry(self, status, style=pango.STYLE_NORMAL, foreground="black"):
-        self._status_deco_map[status] = (style, foreground)
-    def del_status_deco_map_entry(self, status):
-        if status is not None and self._status_deco_map.has_key(status):
-            del self._status_deco_map[status]
-    def set_status_deco_map(self, status_deco_map):
-        if not status_deco_map.has_key(None):
-            status_deco_map[None] = self._status_deco_map[None]
-        self._status_deco_map = status_deco_map
-    def generate_row_tuple(self, dirpath, name, isdir=None, status=None, extra_info=None):
-        pathname = os.path.join(dirpath, name)
-        exists = os.path.exists(pathname)
+    def _generate_row_tuple(self, name, isdir=None, status=None, extra_info=None):
         row = range(len(COLUMNS))
         row[NAME] = name
-        if isdir is None:
-            if not exists:
-                raise
-            row[IS_DIR] = os.path.isdir(pathname)
-        else:
-            row[IS_DIR] = isdir
-        if row[IS_DIR]:
+        row[IS_DIR] = isdir
+        if isdir:
             row[ICON] = gtk.STOCK_DIRECTORY
         else:
             # TODO: do file type icon
             row[ICON] = gtk.STOCK_FILE
-        if not exists and not status:
-            row[STATUS] = self._default_nonexistant_status
-        else:
-            row[STATUS] = status
-        row[STYLE], row[FOREGROUND] = self.get_status_deco(row[STATUS])
+        row[STATUS] = status
+        row[STYLE], row[FOREGROUND] = self._get_status_deco(status)
         row[EXTRA_INFO] = extra_info
-        return (exists, tuple(row))
-    def formatted_file_name(self, store, tree_iter):
-        assert store.iter_is_valid(tree_iter)
+        return tuple(row)
+    def _update_iter_row_tuple(self, fsobj_iter, to_tuple):
+        for index in [STYLE, FOREGROUND, STATUS, EXTRA_INFO]:
+            self.set_value(fsobj_iter, index, to_tuple[index])
+    def _formatted_file_name(self, store, tree_iter):
         name = store.get_value(tree_iter, NAME)
         xinfo = store.get_value(tree_iter, EXTRA_INFO)
         if xinfo:
@@ -129,158 +93,61 @@ class FileTreeRowData:
         else:
             return name
     def format_file_name_crcb(self, column, cell_renderer, store, tree_iter):
-        assert store.iter_is_valid(tree_iter)
-        cell_renderer.set_property("text", self.formatted_file_name(store, tree_iter))
-
-DEFAULT_ROW_DATA = FileTreeRowData(DEFAULT_STATUS_DECO_MAP, DEFAULT_EXTRA_INFO_SEP,
-                                   DEFAULT_MODIFIED_DIR_STATUS, DEFAULT_NONEXISTANT_STATUS)
-
-class RowDataUser:
-    def __init__(self, row_data=DEFAULT_ROW_DATA):
-        self._row_data = row_data
-    def get_status_deco(self, status=None):
-        if self._row_data._status_deco_map.has_key(status):
-            return self._row_data._status_deco_map[status]
-        else:
-            return self._row_data._status_deco_map[None]
-    def generate_row_tuple(self, dirpath, name, isdir=None, status=None, extra_info=None):
-        pathname = os.path.join(dirpath, name)
-        exists = os.path.exists(pathname)
-        row = range(len(COLUMNS))
-        row[NAME] = name
-        if isdir is None:
-            if not exists:
-                raise
-            row[IS_DIR] = os.path.isdir(pathname)
-        else:
-            row[IS_DIR] = isdir
-        if row[IS_DIR]:
-            row[ICON] = gtk.STOCK_DIRECTORY
-        else:
-            # TODO: do file type icon
-            row[ICON] = gtk.STOCK_FILE
-        if not exists and not status:
-            row[STATUS] = self._row_data._default_nonexistant_status
-        else:
-            row[STATUS] = status
-        row[STYLE], row[FOREGROUND] = self.get_status_deco(row[STATUS])
-        row[EXTRA_INFO] = extra_info
-        return (exists, tuple(row))
-    def formatted_file_name(self, store, tree_iter):
-        assert store.iter_is_valid(tree_iter)
-        name = store.get_value(tree_iter, NAME)
-        xinfo = store.get_value(tree_iter, EXTRA_INFO)
-        if xinfo:
-            return self._row_data._extra_info_sep.join([name, xinfo])
-        else:
-            return name
-    def format_file_name_crcb(self, column, cell_renderer, store, tree_iter):
-        assert store.iter_is_valid(tree_iter)
-        cell_renderer.set_property("text", self.formatted_file_name(store, tree_iter))
-
-class FileTreeStore(gtk.TreeStore, RowDataUser):
-    def __init__(self, show_hidden=False, row_data=DEFAULT_ROW_DATA):
-        apply(gtk.TreeStore.__init__, (self,) + COLUMNS)
-        RowDataUser.__init__(self, row_data)
-        self.show_hidden_action = gtk.ToggleAction("show_hidden_files", "Show Hidden Files",
-                                                   "Show/hide files beginning with \".\"", None)
-        self.show_hidden_action.set_active(show_hidden)
-        self.show_hidden_action.connect("toggled", self._toggle_show_hidden_cb)
-        self.show_hidden_action.set_menu_item_type(gtk.CheckMenuItem)
-        self.show_hidden_action.set_tool_item_type(gtk.ToggleToolButton)
-        # Keep track of nonexistant displayable files so that the "expanded" state set by the
-        # user isn't disrupted during multi stage updates
-        self._displayable_nonexistants = []
-    def _get_data_for_status(self, status):
-        return self.get_status_deco(status)
-    def _display_this_nonexistant(self, fsobj_iter):
-        assert self.iter_is_valid(fsobj_iter)
-        return self.fs_path(fsobj_iter) in self._displayable_nonexistants
-    def _add_displayable_nonexistant(self, fsobj_iter):
-        assert self.iter_is_valid(fsobj_iter)
-        fsobj_fspath = self.fs_path(fsobj_iter)
-        if fsobj_fspath not in self._displayable_nonexistants:
-            self._displayable_nonexistants.append(fsobj_fspath)
-    def _del_displayable_nonexistant(self, fsobj_iter):
-        assert self.iter_is_valid(fsobj_iter)
-        fsobj_fspath = self.get_path(fsobj_iter)
-        if fsobj_fspath in self._displayable_nonexistants:
-            del self._displayable_nonexistants[self._displayable_nonexistants.index(fsobj_fspath)]
-    def del_files_from_displayable_nonexistants(self, file_list=[]):
-        if file_list:
-            for file_x in file_list:
-                if file_x in self._displayable_nonexistants:
-                    del self._displayable_nonexistants[self._displayable_nonexistants.index(file_x)]
-        else:
-            self._displayable_nonexistants = []
-    def _generate_row_tuple(self, dirpath, name, isdir=None, status=None, extra_info=None):
-        return self.generate_row_tuple(dirpath, name, isdir, status, extra_info)
-    def _update_iter_row_tuple(self, fsobj_iter, to_tuple):
-        assert self.iter_is_valid(fsobj_iter)
-        for index in [STYLE, FOREGROUND, STATUS, EXTRA_INFO]:
-            self.set_value(fsobj_iter, index, to_tuple[index])
+        cell_renderer.set_property('text', self._formatted_file_name(store, tree_iter))
     def _toggle_show_hidden_cb(self, toggleaction):
-        self.update()
+        self._update_dir('', None)
     def fs_path(self, fsobj_iter):
         if fsobj_iter is None:
             return None
-        assert self.iter_is_valid(fsobj_iter)
         parent_iter = self.iter_parent(fsobj_iter)
         name = self.get_value(fsobj_iter, NAME)
         if parent_iter is None:
             return name
         else:
             if name is None:
-                return "name was none"
-            assert self.iter_is_valid(parent_iter)
+                return os.path.join(self.fs_path(parent_iter), '')
             return os.path.join(self.fs_path(parent_iter), name)
     def fs_path_list(self, iter_list):
         return [self.fs_path(fsobj_iter) for fsobj_iter in iter_list]
-    def _find_dir(self, ldirpath, dir_iter):
+    def _find_dir(self, dirpath_parts, dir_iter):
         while dir_iter != None:
-            assert self.iter_is_valid(dir_iter)
             if not self.get_value(dir_iter, IS_DIR):
                 return None
-            if self.get_value(dir_iter, NAME) == ldirpath[0]:
-                if len(ldirpath) == 1:
+            if self.get_value(dir_iter, NAME) == dirpath_parts[0]:
+                if len(dirpath_parts) == 1:
                     return dir_iter
-                return self._find_dir(ldirpath[1:], self.iter_children(dir_iter))
+                return self._find_dir(dirpath_parts[1:], self.iter_children(dir_iter))
             dir_iter = self.iter_next(dir_iter)
         return dir_iter
     def find_dir(self, dirpath):
         dir_iter = self.get_iter_first()
-        ldirpath = dirpath.split(os.sep)
-        return self._find_dir(ldirpath, dir_iter)
+        dirpath_parts = dirpath.split(os.sep)
+        return self._find_dir(dirpath_parts, dir_iter)
     def _find_file_in_dir(self, fname, dir_iter):
         if dir_iter is None:
             file_iter = self.get_iter_first()
         else:
-            assert self.iter_is_valid(dir_iter)
             file_iter = self.iter_children(dir_iter)
-        while file_iter != None:
-            assert self.iter_is_valid(file_iter)
-            if not self.get_value(file_iter, IS_DIR) and self.get_value(file_iter, NAME) == fname:
-                break
+        while file_iter is not None and self.get_value(file_iter, IS_DIR):
+            file_iter = self.iter_next(file_iter)
+        while file_iter is not None and self.get_value(file_iter, NAME) != fname:
             file_iter = self.iter_next(file_iter)
         return file_iter
     def find_file(self, filepath):
         dirpath, fname = os.path.split(filepath)
-        if dirpath == "":
+        if dirpath == '':
             return self._find_file_in_dir(fname, None)
         dir_iter = self.find_dir(dirpath)
         if dir_iter is None:
             return None
-        assert self.iter_is_valid(dir_iter)
         return self._find_file_in_dir(fname, dir_iter)
     def _get_file_paths(self, fsobj_iter, path_list):
         while fsobj_iter != None:
-            assert self.iter_is_valid(fsobj_iter)
             if not self.get_value(fsobj_iter, IS_DIR):
                 path_list.append(self.fs_path(fsobj_iter))
             else:
                 child_iter = self.iter_children(fsobj_iter)
                 if child_iter != None:
-                    assert self.iter_is_valid(child_iter)
                     self._get_file_paths(child_iter, path_list)
             fsobj_iter = self.iter_next(fsobj_iter)
     def get_file_paths(self):
@@ -288,275 +155,217 @@ class FileTreeStore(gtk.TreeStore, RowDataUser):
         self._get_file_paths(self.get_iter_first(), path_list)
         return path_list
     def _recursive_remove(self, fsobj_iter):
-        assert self.iter_is_valid(fsobj_iter)
         child_iter = self.iter_children(fsobj_iter)
         if child_iter != None:
-            assert self.iter_is_valid(child_iter)
-            self._del_displayable_nonexistant(child_iter)
             while self._recursive_remove(child_iter):
-                self._del_displayable_nonexistant(child_iter)
-        self._del_displayable_nonexistant(fsobj_iter)
+                pass
         return self.remove(fsobj_iter)
     def _remove_place_holder(self, dir_iter):
-        assert self.iter_is_valid(dir_iter)
         child_iter = self.iter_children(dir_iter)
         if child_iter and self.get_value(child_iter, NAME) is None:
             self.remove(child_iter)
     def _insert_place_holder(self, dir_iter):
-        assert self.iter_is_valid(dir_iter)
         self.append(dir_iter)
     def _insert_place_holder_if_needed(self, dir_iter):
-        assert self.iter_is_valid(dir_iter)
         if self.iter_n_children(dir_iter) == 0:
             self._insert_place_holder(dir_iter)
     def _find_or_insert_dir(self, parent_iter, row_tuple):
         if parent_iter is None:
             dir_iter = self.get_iter_first()
         else:
-            assert self.iter_is_valid(parent_iter)
             self._remove_place_holder(parent_iter)
             dir_iter = self.iter_children(parent_iter)
         if dir_iter is None:
             return (False, self.append(parent_iter, row_tuple))
-        assert self.iter_is_valid(dir_iter)
         while self.get_value(dir_iter, IS_DIR) and self.get_value(dir_iter, NAME) < row_tuple[NAME]:
             next = self.iter_next(dir_iter)
             if next is None or not self.get_value(next, IS_DIR):
                 return (False, self.insert_after(parent_iter, dir_iter, row_tuple))
             dir_iter = next
-            assert self.iter_is_valid(dir_iter)
-        assert self.iter_is_valid(dir_iter)
         if self.get_value(dir_iter, NAME) == row_tuple[NAME]:
             self._update_iter_row_tuple(dir_iter, row_tuple)
             return (True, dir_iter)
         return (False, self.insert_before(parent_iter, dir_iter, row_tuple))
     def find_or_insert_dir(self, dirpath, status=None, extra_info=None):
-        if dirpath == "":
+        if dirpath == '':
             return (False, None)
         dir_iter = None
-        parent_dir_path = ""
         for name in dirpath.split(os.sep):
-            exists, row_tuple = self._generate_row_tuple(parent_dir_path, name, isdir=True, status=status, extra_info=extra_info)
+            row_tuple = self._generate_row_tuple(name, isdir=True, status=status, extra_info=extra_info)
             found, dir_iter = self._find_or_insert_dir(dir_iter, row_tuple)
-            assert self.iter_is_valid(dir_iter)
-            if not exists:
-                self._add_displayable_nonexistant(dir_iter)
-            parent_dir_path = os.path.join(parent_dir_path, name)
-        assert self.iter_is_valid(dir_iter)
         self._insert_place_holder_if_needed(dir_iter)
         return (found, dir_iter)
     def _find_or_insert_file(self, parent_iter, row_tuple):
         if parent_iter is None:
             file_iter = self.get_iter_first()
         else:
-            assert self.iter_is_valid(parent_iter)
             self._remove_place_holder(parent_iter)
             file_iter = self.iter_children(parent_iter)
         if file_iter is None:
             return (False, self.append(parent_iter, row_tuple))
-        assert self.iter_is_valid(file_iter)
         while self.get_value(file_iter, IS_DIR):
             next = self.iter_next(file_iter)
             if next is None:
                 return (False, self.insert_after(parent_iter, file_iter, row_tuple))
             file_iter = next
-            assert self.iter_is_valid(file_iter)
-        assert self.iter_is_valid(file_iter)
         while self.get_value(file_iter, NAME) < row_tuple[NAME]:
             next = self.iter_next(file_iter)
             if next is None:
                 return (False, self.insert_after(parent_iter, file_iter, row_tuple))
             file_iter = next
-            assert self.iter_is_valid(file_iter)
-        assert self.iter_is_valid(file_iter)
         if self.get_value(file_iter, NAME) == row_tuple[NAME]:
             self._update_iter_row_tuple(file_iter, row_tuple)
             return (True, file_iter)
         return (False, self.insert_before(parent_iter, file_iter, row_tuple))
     def find_or_insert_file(self, filepath, file_status=None, dir_status=None, extra_info=None):
         dirpath, name = os.path.split(filepath)
-        exists, row_tuple = self._generate_row_tuple(dirpath, name, isdir=False, status=file_status, extra_info=extra_info)
+        row_tuple = self._generate_row_tuple(name, isdir=False, status=file_status, extra_info=extra_info)
         dummy, dir_iter = self.find_or_insert_dir(dirpath, status=dir_status)
-        #assert self.iter_is_valid(dir_iter), "fts:find_or_insert_file: iter is INVALID"
         found, file_iter = self._find_or_insert_file(dir_iter, row_tuple)
-        assert self.iter_is_valid(file_iter)
-        if not exists:
-            self._add_displayable_nonexistant(file_iter)
         return (found, file_iter)
     def delete_file(self, filepath, leave_extant_dir_parts=True):
         file_iter = self.find_file(filepath)
         if file_iter is None:
             return
-        assert self.iter_is_valid(file_iter)
         parent_iter = self.iter_parent(file_iter)
         self._recursive_remove(file_iter)
-        while parent_iter is not None:
-            assert self.iter_is_valid(parent_iter)
-            parent_iter = self.iter_parent(parent_iter)
-            if parent_iter:
-                assert self.iter_is_valid(parent_iter)
-            child_iter = self.iter_children(parent_iter)
-            if child_iter is None:
+        if parent_iter is not None:
+            while True:
+                parent_iter = self.iter_parent(parent_iter)
+                if parent_iter is None:
+                    break
+                child_iter = self.iter_children(parent_iter)
+                if child_iter is not None:
+                    break
                 if leave_extant_dir_parts and os.path.exists(self.fs_path(parent_iter)):
                     self._insert_place_holder(parent_iter)
                     break
                 else:
-                    self._del_displayable_nonexistant(parent_iter)
                     parent_iter_copy = parent_iter
                     parent_iter = self.iter_parent(parent_iter_copy)
                     self.remove(parent_iter_copy)
-            else:
-                assert self.iter_is_valid(child_iter)
-                break
-    def repopulate(self):
-        assert 0, "repopulate() must be defined in descendants"
-    def update(self, fsobj_iter=None):
-        assert 0, "repopulate() must be defined in descendants"
-    def on_row_expanded_cb(self, view, dir_iter, dummy):
-        assert self.iter_is_valid(dir_iter)
-        if self.iter_n_children(dir_iter) > 1:
-            self._remove_place_holder(dir_iter)
-    def on_row_collapsed_cb(self, view, dir_iter, dummy):
-        assert self.iter_is_valid(dir_iter)
-        self._insert_place_holder_if_needed(dir_iter)
-
-class CwdFileTreeStore(FileTreeStore):
-    def __init__(self, show_hidden=False, row_data=DEFAULT_ROW_DATA):
-        FileTreeStore.__init__(self, show_hidden=show_hidden, row_data=row_data)
-        # This will be automatically set when the first row is expanded
-        self.view = None
-        self.repopulate()
-    def _row_expanded(self, dir_iter):
-        assert self.iter_is_valid(dir_iter)
-        # if view isn't set then assume that we aren't connexted to a view
-        # so the row can't be expanded
-        return self.view and self.view.row_expanded(self.get_path(dir_iter))
-    def _dir_contents(self, dirpath):
-        hdirs, dirs, hfiles, files = os_dir_contents(dirpath)
-        if self.show_hidden_action.get_active():
-            return (hdirs + dirs, hfiles + files)
-        else:
-            return (dirs, files)
     def _populate(self, dirpath, parent_iter):
-        dirs, files = self._dir_contents(dirpath)
-        dirs.sort()
-        for dirname in dirs:
-            dummy, row_tuple = self._generate_row_tuple(dirpath, dirname, isdir=True)
+        dirs, files = self._file_db.dir_contents(dirpath, self.show_hidden_action.get_active())
+        for dirname, status, extra_info in dirs:
+            row_tuple = self._generate_row_tuple(dirname, True, status, extra_info)
             dir_iter = self.append(parent_iter, row_tuple)
-            assert self.iter_is_valid(dir_iter)
-            self._insert_place_holder(dir_iter)
-        files.sort()
-        for filename in files:
-            dummy, row_tuple = self._generate_row_tuple(dirpath, filename, isdir=False)
+            if self._populate_all:
+                self._populate(os.path.join(dirpath, dirname), dir_iter)
+            else:
+                self._insert_place_holder(dir_iter)
+        for filename, status, extra_info in files:
+            row_tuple = self._generate_row_tuple(filename, False, status, extra_info)
             dummy = self.append(parent_iter, row_tuple)
         if parent_iter is not None:
-            assert self.iter_is_valid(parent_iter)
             self._insert_place_holder_if_needed(parent_iter)
     def _update_dir(self, dirpath, parent_iter=None):
-        if not os.path.exists(dirpath):
-            return
         if parent_iter is None:
             child_iter = self.get_iter_first()
         else:
-            assert self.iter_is_valid(parent_iter)
             child_iter = self.iter_children(parent_iter)
             if child_iter:
-                assert self.iter_is_valid(child_iter)
                 if self.get_value(child_iter, NAME) is None:
                     child_iter = self.iter_next(child_iter)
-        if child_iter is None:
-            self._populate(dirpath, parent_iter)
-            return
-        assert self.iter_is_valid(child_iter)
-        dirs, files = self._dir_contents(dirpath)
-        dirs.sort()
-        files.sort()
+        dirs, files = self._file_db.dir_contents(dirpath, self.show_hidden_action.get_active())
         dead_entries = []
-        for dirx in dirs:
-            dummy, row_tuple = self._generate_row_tuple(dirpath, dirx, isdir=True)
-            while (child_iter is not None) and self.get_value(child_iter, IS_DIR) and (self.get_value(child_iter, NAME) < dirx):
-                if not self._display_this_nonexistant(child_iter):
-                    dead_entries.append(child_iter)
+        for dirname, status, extra_info in dirs:
+            row_tuple = self._generate_row_tuple(dirname, True, status, extra_info)
+            while (child_iter is not None) and self.get_value(child_iter, IS_DIR) and (self.get_value(child_iter, NAME) < dirname):
+                dead_entries.append(child_iter)
                 child_iter = self.iter_next(child_iter)
-                if child_iter:
-                    assert self.iter_is_valid(child_iter)
             if child_iter is None:
                 dir_iter = self.append(parent_iter, row_tuple)
-                assert self.iter_is_valid(dir_iter)
-                self._insert_place_holder(dir_iter)
+                if self._populate_all:
+                    self._update_dir(os.path.join(dirpath, dirname), dir_iter)
+                else:
+                    self._insert_place_holder(dir_iter)
                 continue
             name = self.get_value(child_iter, NAME)
-            assert self.iter_is_valid(child_iter)
-            if (not self.get_value(child_iter, IS_DIR)) or (name > dirx):
+            if (not self.get_value(child_iter, IS_DIR)) or (name > dirname):
                 dir_iter = self.insert_before(parent_iter, child_iter, row_tuple)
-                assert self.iter_is_valid(dir_iter)
-                self._insert_place_holder(dir_iter)
+                if self._populate_all:
+                    self._update_dir(os.path.join(dirpath, dirname), dir_iter)
+                else:
+                    self._insert_place_holder(dir_iter)
                 continue
             self._update_iter_row_tuple(child_iter, row_tuple)
-            if self._row_expanded(child_iter):
+            if self._populate_all or self._row_expanded(child_iter):
                 self._update_dir(os.path.join(dirpath, name), child_iter)
             child_iter = self.iter_next(child_iter)
-            if child_iter:
-                assert self.iter_is_valid(child_iter)
-        if child_iter:
-            assert self.iter_is_valid(child_iter)
         while (child_iter is not None) and self.get_value(child_iter, IS_DIR):
-            if not self._display_this_nonexistant(child_iter):
-                dead_entries.append(child_iter)
+            dead_entries.append(child_iter)
             child_iter = self.iter_next(child_iter)
-            if child_iter:
-                assert self.iter_is_valid(child_iter)
-        for filex in files:
-            dummy, row_tuple = self._generate_row_tuple(dirpath, filex, isdir=False)
-            while (child_iter is not None) and (self.get_value(child_iter, NAME) < filex):
-                if not self._display_this_nonexistant(child_iter):
-                    dead_entries.append(child_iter)
+        for filename, status, extra_info in files:
+            row_tuple = self._generate_row_tuple(filename, False, status, extra_info)
+            while (child_iter is not None) and (self.get_value(child_iter, NAME) < filename):
+                dead_entries.append(child_iter)
                 child_iter = self.iter_next(child_iter)
-                if child_iter:
-                    assert self.iter_is_valid(child_iter)
             if child_iter is None:
                 dummy = self.append(parent_iter, row_tuple)
                 continue
-            assert self.iter_is_valid(child_iter)
-            if self.get_value(child_iter, NAME) > filex:
+            if self.get_value(child_iter, NAME) > filename:
                 dummy = self.insert_before(parent_iter, child_iter, row_tuple)
                 continue
             self._update_iter_row_tuple(child_iter, row_tuple)
             child_iter = self.iter_next(child_iter)
-            if child_iter:
-                assert self.iter_is_valid(child_iter)
         while child_iter is not None:
-            if not self._display_this_nonexistant(child_iter):
-                dead_entries.append(child_iter)
+            dead_entries.append(child_iter)
             child_iter = self.iter_next(child_iter)
-            if child_iter:
-                assert self.iter_is_valid(child_iter)
         for dead_entry in dead_entries:
             self._recursive_remove(dead_entry)
         if parent_iter is not None:
-            assert self.iter_is_valid(parent_iter)
             self._insert_place_holder_if_needed(parent_iter)
+    def _get_file_db(self):
+        assert 0, '_get_file_db() must be defined in descendants'
     def repopulate(self):
+        self._file_db = self._get_file_db()
         self.clear()
-        self._populate(os.curdir, self.get_iter_first())
-    def update(self, fsobj_iter=None):
-        if fsobj_iter is None:
-            self._update_dir(os.curdir, None)
-        else:
-            assert self.iter_is_valid(fsobj_iter)
-            filepath = self.fs_path(fsobj_iter)
-            if not os.path.exists(filepath):
-                if not self._display_this_nonexistant(fsobj_iter):
-                    self._recursive_remove(fsobj_iter)
-            elif os.path.isdir(filepath):
-                self._update_dir(filepath, fsobj_iter)
-                if self.iter_n_children(fsobj_iter) > 1:
-                    self._remove_place_holder(fsobj_iter)
+        self._populate('', self.get_iter_first())
+    def update(self):
+        self._file_db = self._get_file_db()
+        self._update_dir('', None)
     def on_row_expanded_cb(self, view, dir_iter, dummy):
-        assert self.iter_is_valid(dir_iter)
         self.view = view
-        self._update_dir(self.fs_path(dir_iter), dir_iter)
-        FileTreeStore.on_row_expanded_cb(self, view, dir_iter, dummy)
+        if not self._populate_all:
+            self._update_dir(self.fs_path(dir_iter), dir_iter)
+            if self.iter_n_children(dir_iter) > 1:
+                self._remove_place_holder(dir_iter)
+    def on_row_collapsed_cb(self, view, dir_iter, dummy):
+        self._insert_place_holder_if_needed(dir_iter)
+
+class OsFileDb:
+    def __init__(self):
+        pass
+    def _is_not_hidden_file(self, filename):
+        return filename[0] != '.'
+    def dir_contents(self, dirpath, show_hidden=False):
+        files = []
+        dirs = []
+        if not dirpath:
+            dirpath = os.curdir
+        elements = os.listdir(dirpath)
+        for element in elements:
+            if os.path.isdir(os.path.join(dirpath, element)):
+                if self._is_not_hidden_file(element) or show_hidden:
+                    dirs.append((element, None, None))
+            elif self._is_not_hidden_file(element) or show_hidden:
+                files.append((element, None, None))
+        dirs.sort()
+        files.sort()
+        return (dirs, files)
+
+class NullFileDb:
+    def __init__(self):
+        pass
+    def dir_contents(self, dirpath, show_hidden=False):
+        return ([], [])
+
+class CwdFileTreeStore(FileTreeStore):
+    def __init__(self, show_hidden=False):
+        FileTreeStore.__init__(self, show_hidden=show_hidden)
+        self._os_file_db = OsFileDb()
+    def _get_file_db(self):
+        return self._os_file_db
 
 from gwsmhg_pkg import actions
 
@@ -658,7 +467,7 @@ class FileTreeView(_ViewWithActionGroups):
         text_cell = gtk.CellRendererText()
         tvcolumn.pack_start(text_cell, expand=False)
         tvcolumn.set_attributes(text_cell, style=STYLE, foreground=FOREGROUND)
-        tvcolumn.set_cell_data_func(text_cell, self.get_model()._row_data.format_file_name_crcb)
+        tvcolumn.set_cell_data_func(text_cell, self.get_model().format_file_name_crcb)
         oldcol = self.get_column(0)
         if oldcol:
             self.remove_column(oldcol)
@@ -808,30 +617,12 @@ class CwdFileTreeView(FileTreeView):
 
 class ScmCwdFileTreeStore(CwdFileTreeStore):
     def __init__(self, show_hidden=False):
-        row_data = apply(FileTreeRowData, ifce.SCM.get_status_row_data())
-        CwdFileTreeStore.__init__(self, show_hidden=show_hidden, row_data=row_data)
-        self._update_statuses()
-    def _update_statuses(self, fspath_list=[]):
-        res, dflists, dummy = ifce.SCM.get_file_status_lists(fspath_list)
-        if res == 0:
-            if self.show_hidden_action.get_active():
-                for dfile, status, dummy in dflists[IGNORED]:
-                    self.find_or_insert_file(dfile, file_status=status)
-            for dfile, status, dummy in dflists[OTHER]:
-                self.find_or_insert_file(dfile, file_status=status, dir_status=status)
-            for dfile, status, extra_info in dflists[MODIFIED]:
-                self.find_or_insert_file(dfile, file_status=status,
-                                         dir_status=self._row_data.modified_dir_status,
-                                         extra_info=extra_info)
-            if not self.show_hidden_action.get_active():
-                for dfile, status, dummy in dflists[IGNORED]:
-                    self.delete_file(dfile)
-    def _update_dir(self, dirpath, parent_iter=None):
-        CwdFileTreeStore._update_dir(self, dirpath, parent_iter)
-        self._update_statuses([dirpath])
-    def repopulate(self):
-        CwdFileTreeStore.repopulate(self)
-        self._update_statuses()
+        CwdFileTreeStore.__init__(self, show_hidden=show_hidden)
+    def _get_file_db(self):
+        if ifce.in_valid_repo:
+            return ifce.SCM.get_ws_file_db()
+        else:
+            return self._os_file_db
 
 SCM_CWD_UI_DESCR = \
 '''
@@ -934,6 +725,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                 self.add_conditional_actions(condition, action_list)
             self.ui_manager.add_ui_from_string(tortoise.FILES_UI_DESCR)
         self._event_cond_change_cb()
+        model.repopulate()
     def update_for_chdir(self):
         self.show_busy()
         self.repopulate_tree()

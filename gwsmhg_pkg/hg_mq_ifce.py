@@ -19,18 +19,116 @@ from gwsmhg_pkg import ifce, text_edit, utils, cmd_result, putils, ws_event
 DEFAULT_NAME_EVARS = ["GIT_AUTHOR_NAME", "GECOS"]
 DEFAULT_EMAIL_VARS = ["GIT_AUTHOR_EMAIL", "EMAIL_ADDRESS"]
 
+FSTATUS_MODIFIED = 'M'
+FSTATUS_ADDED = 'A'
+FSTATUS_REMOVED = 'R'
+FSTATUS_CLEAN = 'C'
+FSTATUS_MISSING = '!'
+FSTATUS_NOT_TRACKED = '?'
+FSTATUS_IGNORED = 'I'
+FSTATUS_ORIGIN = ' '
+FSTATUS_UNRESOLVED = 'U'
+
+FSTATUS_MODIFIED_SET = set([FSTATUS_MODIFIED, FSTATUS_ADDED, FSTATUS_REMOVED,
+                           FSTATUS_MISSING, FSTATUS_UNRESOLVED])
+
+class ScmDir:
+    def __init__(self):
+        self.status = None
+        self.status_set = set()
+        self.subdirs = {}
+        self.files = {}
+    def add_file(self, path_parts, status, origin=None):
+        self.status_set.add(status)
+        if len(path_parts) == 1:
+            self.files[path_parts[0]] = (status, origin)
+        else:
+            if not self.subdirs.has_key(path_parts[0]):
+                self.subdirs[path_parts[0]] = ScmDir()
+            self.subdirs[path_parts[0]].add_file(path_parts[1:], status, origin)
+    def update_status(self):
+        if FSTATUS_UNRESOLVED in self.status_set:
+            self.status = FSTATUS_UNRESOLVED
+        elif self.status_set & FSTATUS_MODIFIED_SET:
+            self.status = FSTATUS_MODIFIED
+        elif self.status_set == set([FSTATUS_IGNORED]):
+            self.status = FSTATUS_IGNORED
+        elif self.status_set in [set([FSTATUS_NOT_TRACKED]), set([FSTATUS_NOT_TRACKED, FSTATUS_IGNORED])]:
+            self.status = FSTATUS_NOT_TRACKED
+        for key in self.subdirs.keys():
+            self.subdirs[key].update_status()
+    def _find_dir(self, dirpath_parts):
+        if not dirpath_parts:
+            return self
+        elif self.subdirs.has_key(dirpath_parts[0]):
+            return self.subdirs[dirpath_parts[0]]._find_dir(dirpath_parts[1:])
+        else:
+            return None
+    def find_dir(self, dirpath):
+        if not dirpath:
+            return self
+        return self._find_dir(dirpath.split(os.sep))
+    def dirs_and_files(self, show_hidden=False):
+        dkeys = self.subdirs.keys()
+        dkeys.sort()
+        dirs = []
+        for dkey in dkeys:
+            status = self.subdirs[dkey].status
+            if not show_hidden and not status in [FSTATUS_UNRESOLVED, FSTATUS_MODIFIED]:
+                if dkey[0] == '.' or status == FSTATUS_IGNORED:
+                    continue
+            dirs.append((dkey, status, None))
+        files = []
+        fkeys = self.files.keys()
+        fkeys.sort()
+        for fkey in fkeys:
+            status = self.files[fkey][0]
+            if not show_hidden and not status in FSTATUS_MODIFIED_SET:
+                if fkey[0] == '.' or status == FSTATUS_IGNORED:
+                    continue
+            files.append((fkey, status, self.files[fkey][1]))
+        return (dirs, files)
+
+class ScmFileDb:
+    def __init__(self, file_list, unresolved_file_list=[]):
+        self.base_dir = ScmDir()
+        lfile_list = len(file_list)
+        index = 0
+        while index < lfile_list:
+            item = file_list[index]
+            index += 1
+            filename = item[2:]
+            status = item[0]
+            origin = None
+            if status == FSTATUS_ADDED and index < lfile_list:
+                if file_list[index][0] == FSTATUS_ORIGIN:
+                    origin = file_list[index][2:]
+                    index += 1
+            elif filename in unresolved_file_list:
+                status = FSTATUS_UNRESOLVED
+            parts = filename.split(os.sep)
+            self.base_dir.add_file(parts, status, origin)
+    def decorate_dirs(self):
+        self.base_dir.update_status()
+    def dir_contents(self, dirpath='', show_hidden=False):
+        tdir = self.base_dir.find_dir(dirpath)
+        if not tdir:
+            return ([], [])
+        return tdir.dirs_and_files(show_hidden)
+
 class BaseInterface:
     def __init__(self, name):
         self.name = name
         self.status_deco_map = {
             None: (pango.STYLE_NORMAL, "black"),
-            "M": (pango.STYLE_NORMAL, "blue"),
-            "A": (pango.STYLE_NORMAL, "darkgreen"),
-            "R": (pango.STYLE_NORMAL, "red"),
-            "C": (pango.STYLE_NORMAL, "black"),
-            "!": (pango.STYLE_ITALIC, "pink"),
-            "?": (pango.STYLE_ITALIC, "cyan"),
-            "I": (pango.STYLE_ITALIC, "grey"),
+            FSTATUS_CLEAN: (pango.STYLE_NORMAL, "black"),
+            FSTATUS_MODIFIED: (pango.STYLE_NORMAL, "blue"),
+            FSTATUS_ADDED: (pango.STYLE_NORMAL, "darkgreen"),
+            FSTATUS_REMOVED: (pango.STYLE_NORMAL, "red"),
+            FSTATUS_UNRESOLVED: (pango.STYLE_NORMAL, "magenta"),
+            FSTATUS_MISSING: (pango.STYLE_ITALIC, "pink"),
+            FSTATUS_NOT_TRACKED: (pango.STYLE_ITALIC, "cyan"),
+            FSTATUS_IGNORED: (pango.STYLE_ITALIC, "grey"),
         }
         self.extra_info_sep = " <- "
         self.modified_dir_status = "M"
@@ -224,6 +322,12 @@ class SCMInterface(BaseInterface):
         if not res:
             return rev
         return None
+    def _get_qparent(self):
+        cmd = 'hg log --template "{rev}" -r qparent'
+        res, rev, serr = utils.run_cmd(cmd)
+        if not res:
+            return rev
+        return None
     def get_parents(self, rev=None):
         cmd = 'hg parents --template "{rev}\\n"'
         if rev is None:
@@ -247,6 +351,22 @@ class SCMInterface(BaseInterface):
             return []
         else:
             return parents
+    def _unresolved_file_list(self):
+        res, sout, serr = utils.run_cmd('hg resolve --list')
+        files = []
+        for line in sout.splitlines():
+            if line[0] == FSTATUS_UNRESOLVED:
+                files.append(line[2:])
+        return files
+    def get_ws_file_db(self):
+        cmd = 'hg status -AC'
+        qprev = self._get_qparent()
+        if qprev is not None:
+            cmd += ' --rev %s' % qprev
+        res, sout, serr = utils.run_cmd(cmd)
+        scm_file_db = ScmFileDb(sout.splitlines(), self._unresolved_file_list())
+        scm_file_db.decorate_dirs()
+        return scm_file_db
     def get_file_status_lists(self, fspath_list=[], revs=[]):
         cmd = 'hg status -marduiC'
         if not revs:
@@ -452,7 +572,7 @@ class SCMInterface(BaseInterface):
         if res != 0:
             return (res, parents, serr)
         plist = []
-        cmd = 'hg -q incoming --template "%s" -nl 1' % self.cs_table_template
+        base_cmd = 'hg -q incoming --template "%s" -nl 1' % self.cs_table_template
         for parent in parents:
             if not self.get_is_incoming(parent, path):
                 # the parent is local
@@ -898,6 +1018,30 @@ class PMInterface(BaseInterface):
             else:
                 parent = applied_patch
         return None
+    def get_patch_file_db(self, patch=None):
+        if not self.get_enabled():
+            return ScmFileDb([])
+        if patch and not self.get_patch_is_applied(patch):
+            pfn = self.get_patch_file_name(patch)
+            result, file_list = putils.get_patch_files(pfn, status=True, decorated=True)
+            if result:
+                return ScmFileDb(file_list)
+            else:
+                return ScmFileDb([])
+        top = self.get_top_patch()
+        if not top:
+            # either we're not in an mq playground or no patches are applied
+            return ScmFileDb([])
+        cmd = 'hg status -mardC'
+        cmd = 'hg status -mardC'
+        if patch:
+            parent = self.get_parent(patch)
+            cmd += ' --rev %s --rev %s' % (parent, patch)
+        else:
+            parent = self.get_parent(top)
+            cmd += ' --rev %s' % parent
+        res, sout, serr = utils.run_cmd(cmd)
+        return ScmFileDb(sout.splitlines())
     def get_file_status_list(self, patch=None):
         if not self.get_enabled():
             return (cmd_result.OK, [], "")
