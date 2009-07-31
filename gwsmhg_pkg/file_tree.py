@@ -915,7 +915,7 @@ class ScmCwdFilesWidget(gtk.VBox):
         self.pack_start(hbox, expand=False)
         self.show_all()
 
-class ScmChangeFileTreeStore(FileTreeStore):
+class ScmCommitFileTreeStore(FileTreeStore):
     def __init__(self, show_hidden=True, view=None, file_mask=[]):
         self._file_mask = file_mask
         FileTreeStore.__init__(self, show_hidden=show_hidden, populate_all=True)
@@ -955,10 +955,10 @@ SCM_CHANGE_UI_DESCR = \
 </ui>
 '''
 
-class ScmChangeFileTreeView(FileTreeView):
+class ScmCommitFileTreeView(FileTreeView):
     def __init__(self, busy_indicator, auto_refresh=False, show_hidden=True, file_mask=[]):
         self.removeds = []
-        self.model = ScmChangeFileTreeStore(show_hidden=show_hidden, file_mask=file_mask)
+        self.model = ScmCommitFileTreeStore(show_hidden=show_hidden, file_mask=file_mask)
         self.model.set_view(self)
         FileTreeView.__init__(self, model=self.model, busy_indicator=busy_indicator,
                               auto_refresh=auto_refresh, show_status=True)
@@ -1038,7 +1038,7 @@ class ScmCommitWidget(gtk.VPaned, ws_event.Listener):
         vbox.pack_start(gutils.wrap_in_scrolled_window(self.view))
         self.add1(vbox)
         # TreeView of files in change set
-        self.files = ScmChangeFileTreeView(busy_indicator=busy_indicator,
+        self.files = ScmCommitFileTreeView(busy_indicator=busy_indicator,
                                            auto_refresh=False,
                                            show_hidden=True,
                                            file_mask=file_mask)
