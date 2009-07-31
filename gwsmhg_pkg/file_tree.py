@@ -918,8 +918,7 @@ class ScmCwdFilesWidget(gtk.VBox):
 class ScmChangeFileTreeStore(FileTreeStore):
     def __init__(self, show_hidden=True, view=None, file_mask=[]):
         self._file_mask = file_mask
-        row_data = apply(FileTreeRowData, ifce.SCM.get_status_row_data())
-        FileTreeStore.__init__(self, show_hidden=show_hidden, row_data=row_data)
+        FileTreeStore.__init__(self, show_hidden=show_hidden, populate_all=True)
         # if this is set to the associated view then the view will expand
         # to show new files without disturbing other expansion states
         self._view = view
@@ -931,23 +930,8 @@ class ScmChangeFileTreeStore(FileTreeStore):
         self.update()
     def get_file_mask(self):
         return self._file_mask
-    def update(self, fsobj_iter=None):
-        res, dflists, dummy = ifce.SCM.get_file_status_lists(self._file_mask)
-        if res == 0:
-            files = [tmpx[0] for tmpx in dflists[MODIFIED]] 
-            for f in self.get_file_paths():
-                try:
-                    i = files.index(f)
-                except:
-                    self.delete_file(f)
-            for dfile, status, extra_info in dflists[MODIFIED]:
-                found, file_iter = self.find_or_insert_file(dfile, file_status=status, extra_info=extra_info)
-                assert self.iter_is_valid(file_iter)
-                if not found and self._view:
-                    self._view.expand_to_path(self.get_path(file_iter))
-    def repopulate(self):
-        self.clear()
-        self.update()
+    def _get_file_db(self):
+        return ifce.SCM.get_commit_file_db()
 
 SCM_CHANGE_UI_DESCR = \
 '''

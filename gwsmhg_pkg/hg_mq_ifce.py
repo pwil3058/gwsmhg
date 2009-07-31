@@ -367,6 +367,13 @@ class SCMInterface(BaseInterface):
         scm_file_db = ScmFileDb(sout.splitlines(), self._unresolved_file_list())
         scm_file_db.decorate_dirs()
         return scm_file_db
+    def get_commit_file_db(self, fspath_list=[]):
+        cmd = 'hg status -mardC'
+        if fspath_list:
+            cmd += utils.file_list_to_string(fspath_list)
+        res, sout, serr = utils.run_cmd(cmd)
+        scm_file_db = ScmFileDb(sout.splitlines(), self._unresolved_file_list())
+        return scm_file_db
     def get_file_status_lists(self, fspath_list=[], revs=[]):
         cmd = 'hg status -marduiC'
         if not revs:
