@@ -931,7 +931,7 @@ class ScmCommitFileTreeStore(FileTreeStore):
     def get_file_mask(self):
         return self._file_mask
     def _get_file_db(self):
-        return ifce.SCM.get_commit_file_db()
+        return ifce.SCM.get_commit_file_db(self._file_mask)
 
 SCM_CHANGE_UI_DESCR = \
 '''

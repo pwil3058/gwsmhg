@@ -351,8 +351,11 @@ class SCMInterface(BaseInterface):
             return []
         else:
             return parents
-    def _unresolved_file_list(self):
-        res, sout, serr = utils.run_cmd('hg resolve --list')
+    def _unresolved_file_list(self,  fspath_list=[]):
+        cmd = 'hg resolve --list'
+        if fspath_list:
+            cmd += utils.file_list_to_string(fspath_list)
+        res, sout, serr = utils.run_cmd(cmd)
         files = []
         for line in sout.splitlines():
             if line[0] == FSTATUS_UNRESOLVED:
