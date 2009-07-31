@@ -108,6 +108,8 @@ class ScmFileDb:
                 status = FSTATUS_UNRESOLVED
             parts = filename.split(os.sep)
             self.base_dir.add_file(parts, status, origin)
+    def add_file(self, filepath, status, origin=None):
+        self.base_dir.add_file(filepath.split(os.sep), status, origin)
     def decorate_dirs(self):
         self.base_dir.update_status()
     def dir_contents(self, dirpath='', show_hidden=False):
@@ -394,18 +396,18 @@ class SCMInterface(BaseInterface):
         if res:
             return (res, sout, serr)
         return self._process_change_set_summary(res, sout, serr)
-    def get_change_set_files(self, rev):
+    def get_change_set_files_db(self, rev):
         res, parents, serr = self.get_parents(rev)
         template = '{files}\\n{file_adds}\\n{file_dels}\\n'
         cmd = 'hg log --template "%s" --rev %s' % (template, rev)
+        cs_file_db = ScmFileDb([])
         res, sout, serr = utils.run_cmd(cmd)
         if res:
-            return (res, sout, serr)
+            return cs_file_db
         lines = sout.splitlines()
         file_names = utils.string_to_file_list(lines[0])
         added_files = utils.string_to_file_list(lines[1])
         deleted_files = utils.string_to_file_list(lines[2])
-        files = []
         for name in file_names:
             if name in added_files:
                 extra_info = None
@@ -416,12 +418,12 @@ class SCMInterface(BaseInterface):
                     if len(lines) > 1 and lines[1][0] == ' ':
                         extra_info = lines[1].strip()
                         break
-                files.append((name, 'A', extra_info))
+                cs_file_db.add_file(name, FSTATUS_ADDED, extra_info)
             elif name in deleted_files:
-                files.append((name, 'R', None))
+                cs_file_db.add_file(name, FSTATUS_REMOVED, None)
             else:
-                files.append((name, 'M', None))
-        return (cmd_result.OK, files, '')
+                cs_file_db.add_file(name, FSTATUS_MODIFIED, None)
+        return cs_file_db
     def get_parents_data(self, rev=None):
         cmd = 'hg parents --template "%s"' % self.cs_table_template
         if rev is None:
@@ -501,14 +503,15 @@ class SCMInterface(BaseInterface):
         if res:
             return (res, sout, serr)
         return self._process_change_set_summary(res, sout, serr)
-    def get_incoming_change_set_files(self, rev, path=None):
+    def get_incoming_change_set_files_db(self, rev, path=None):
         template = '{files}\\n{file_adds}\\n{file_dels}\\n'
         cmd = 'hg -q incoming --template "%s" -nl 1 --rev %s' % (template, rev)
         if path:
             cmd += ' "%s"' % path
+        cs_file_db = ScmFileDb([])
         res, sout, serr = utils.run_cmd(cmd)
         if res:
-            return (res, sout, serr)
+            return cs_file_db
         lines = sout.splitlines()
         file_names = utils.string_to_file_list(lines[0])
         added_files = utils.string_to_file_list(lines[1])
@@ -516,12 +519,12 @@ class SCMInterface(BaseInterface):
         files = []
         for name in file_names:
             if name in added_files:
-                files.append((name, 'A', None))
+                cs_file_db.add_file(name, FSTATUS_ADDED, None)
             elif name in deleted_files:
-                files.append((name, 'R', None))
+                cs_file_db.add_file(name, FSTATUS_REMOVED, None)
             else:
-                files.append((name, 'M', None))
-        return (cmd_result.OK, files, "")
+                cs_file_db.add_file(name, FSTATUS_MODIFIED, None)
+        return cs_file_db
     def get_incoming_parents(self, rev, path=None):
         cmd = 'hg -q incoming --template "{parents}" -nl 1 --rev %s' % rev
         if path:

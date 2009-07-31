@@ -773,14 +773,8 @@ class FileTreeStore(file_tree.FileTreeStore):
         self._rev = rev
         file_tree.FileTreeStore.__init__(self, show_hidden=True, populate_all=True)
         self.repopulate()
-    def update(self):
-        res, files, dummy = ifce.SCM.get_change_set_files(self._rev)
-        if res == 0:
-            for file_name, status, extra_info in files:
-                self.find_or_insert_file(file_name, file_status=status, extra_info=extra_info)
-    def repopulate(self):
-        self.clear()
-        self.update()
+    def _get_file_db(self):
+        return ifce.SCM.get_change_set_files_db(self._rev)
 
 CHANGE_SET_FILES_UI_DESCR = \
 '''

@@ -94,38 +94,6 @@ class FileTreeStore(gtk.TreeStore):
             return os.path.join(self.fs_path(parent_iter), name)
     def fs_path_list(self, iter_list):
         return [self.fs_path(fsobj_iter) for fsobj_iter in iter_list]
-    def _find_dir(self, dirpath_parts, dir_iter):
-        while dir_iter != None:
-            if not self.get_value(dir_iter, IS_DIR):
-                return None
-            if self.get_value(dir_iter, NAME) == dirpath_parts[0]:
-                if len(dirpath_parts) == 1:
-                    return dir_iter
-                return self._find_dir(dirpath_parts[1:], self.iter_children(dir_iter))
-            dir_iter = self.iter_next(dir_iter)
-        return dir_iter
-    def find_dir(self, dirpath):
-        dir_iter = self.get_iter_first()
-        dirpath_parts = dirpath.split(os.sep)
-        return self._find_dir(dirpath_parts, dir_iter)
-    def _find_file_in_dir(self, fname, dir_iter):
-        if dir_iter is None:
-            file_iter = self.get_iter_first()
-        else:
-            file_iter = self.iter_children(dir_iter)
-        while file_iter is not None and self.get_value(file_iter, IS_DIR):
-            file_iter = self.iter_next(file_iter)
-        while file_iter is not None and self.get_value(file_iter, NAME) != fname:
-            file_iter = self.iter_next(file_iter)
-        return file_iter
-    def find_file(self, filepath):
-        dirpath, fname = os.path.split(filepath)
-        if dirpath == '':
-            return self._find_file_in_dir(fname, None)
-        dir_iter = self.find_dir(dirpath)
-        if dir_iter is None:
-            return None
-        return self._find_file_in_dir(fname, dir_iter)
     def _get_file_paths(self, fsobj_iter, path_list):
         while fsobj_iter != None:
             if not self.get_value(fsobj_iter, IS_DIR):
@@ -154,81 +122,6 @@ class FileTreeStore(gtk.TreeStore):
     def _insert_place_holder_if_needed(self, dir_iter):
         if self.iter_n_children(dir_iter) == 0:
             self._insert_place_holder(dir_iter)
-    def _find_or_insert_dir(self, parent_iter, row_tuple):
-        if parent_iter is None:
-            dir_iter = self.get_iter_first()
-        else:
-            self._remove_place_holder(parent_iter)
-            dir_iter = self.iter_children(parent_iter)
-        if dir_iter is None:
-            return (False, self.append(parent_iter, row_tuple))
-        while self.get_value(dir_iter, IS_DIR) and self.get_value(dir_iter, NAME) < row_tuple[NAME]:
-            next = self.iter_next(dir_iter)
-            if next is None or not self.get_value(next, IS_DIR):
-                return (False, self.insert_after(parent_iter, dir_iter, row_tuple))
-            dir_iter = next
-        if self.get_value(dir_iter, NAME) == row_tuple[NAME]:
-            self._update_iter_row_tuple(dir_iter, row_tuple)
-            return (True, dir_iter)
-        return (False, self.insert_before(parent_iter, dir_iter, row_tuple))
-    def find_or_insert_dir(self, dirpath, status=None, extra_info=None):
-        if dirpath == '':
-            return (False, None)
-        dir_iter = None
-        for name in dirpath.split(os.sep):
-            row_tuple = self._generate_row_tuple(name, isdir=True, status=status, extra_info=extra_info)
-            found, dir_iter = self._find_or_insert_dir(dir_iter, row_tuple)
-        self._insert_place_holder_if_needed(dir_iter)
-        return (found, dir_iter)
-    def _find_or_insert_file(self, parent_iter, row_tuple):
-        if parent_iter is None:
-            file_iter = self.get_iter_first()
-        else:
-            self._remove_place_holder(parent_iter)
-            file_iter = self.iter_children(parent_iter)
-        if file_iter is None:
-            return (False, self.append(parent_iter, row_tuple))
-        while self.get_value(file_iter, IS_DIR):
-            next = self.iter_next(file_iter)
-            if next is None:
-                return (False, self.insert_after(parent_iter, file_iter, row_tuple))
-            file_iter = next
-        while self.get_value(file_iter, NAME) < row_tuple[NAME]:
-            next = self.iter_next(file_iter)
-            if next is None:
-                return (False, self.insert_after(parent_iter, file_iter, row_tuple))
-            file_iter = next
-        if self.get_value(file_iter, NAME) == row_tuple[NAME]:
-            self._update_iter_row_tuple(file_iter, row_tuple)
-            return (True, file_iter)
-        return (False, self.insert_before(parent_iter, file_iter, row_tuple))
-    def find_or_insert_file(self, filepath, file_status=None, dir_status=None, extra_info=None):
-        dirpath, name = os.path.split(filepath)
-        row_tuple = self._generate_row_tuple(name, isdir=False, status=file_status, extra_info=extra_info)
-        dummy, dir_iter = self.find_or_insert_dir(dirpath, status=dir_status)
-        found, file_iter = self._find_or_insert_file(dir_iter, row_tuple)
-        return (found, file_iter)
-    def delete_file(self, filepath, leave_extant_dir_parts=True):
-        file_iter = self.find_file(filepath)
-        if file_iter is None:
-            return
-        parent_iter = self.iter_parent(file_iter)
-        self._recursive_remove(file_iter)
-        if parent_iter is not None:
-            while True:
-                parent_iter = self.iter_parent(parent_iter)
-                if parent_iter is None:
-                    break
-                child_iter = self.iter_children(parent_iter)
-                if child_iter is not None:
-                    break
-                if leave_extant_dir_parts and os.path.exists(self.fs_path(parent_iter)):
-                    self._insert_place_holder(parent_iter)
-                    break
-                else:
-                    parent_iter_copy = parent_iter
-                    parent_iter = self.iter_parent(parent_iter_copy)
-                    self.remove(parent_iter_copy)
     def _populate(self, dirpath, parent_iter):
         dirs, files = self._file_db.dir_contents(dirpath, self.show_hidden_action.get_active())
         for dirname, status, extra_info in dirs:

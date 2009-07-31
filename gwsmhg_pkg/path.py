@@ -165,14 +165,8 @@ class IncomingFileTreeStore(file_tree.FileTreeStore):
         self._path = path
         file_tree.FileTreeStore.__init__(self, show_hidden=True, populate_all=True)
         self.repopulate()
-    def update(self):
-        res, files, dummy = ifce.SCM.get_incoming_change_set_files(self._rev, self._path)
-        if res == 0:
-            for file_name, status, extra_info in files:
-                self.find_or_insert_file(file_name, file_status=status, extra_info=extra_info)
-    def repopulate(self):
-        self.clear()
-        self.update()
+    def _get_file_db(self):
+        return ifce.SCM.get_incoming_change_set_files_db(self._rev)
 
 INCOMING_CS_FILES_UI_DESCR = \
 '''
