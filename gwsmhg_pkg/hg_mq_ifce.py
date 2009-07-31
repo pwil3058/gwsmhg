@@ -131,10 +131,6 @@ class BaseInterface:
             FSTATUS_IGNORED: (pango.STYLE_ITALIC, "grey"),
         }
         self.extra_info_sep = " <- "
-        self.modified_dir_status = "M"
-        self.default_nonexistant_status = "!"
-        self.ignored_statuses = ("I",)
-        self.modification_statuses = ("M", "A", "R", "!")
         self._name_envars = DEFAULT_NAME_EVARS
         self._email_envars = DEFAULT_EMAIL_VARS
     def _inotify_warning(self, serr):
@@ -162,7 +158,7 @@ class BaseInterface:
             email = "UNKNOWN"
         return "%s <%s>" % (name, email)
     def get_status_row_data(self):
-        return (self.status_deco_map, self.extra_info_sep, self.modified_dir_status, self.default_nonexistant_status)
+        return (self.status_deco_map, self.extra_info_sep)
     def _map_result(self, result, ignore_err_re=None):
         outres, sout, serr = cmd_result.map_cmd_result(result, ignore_err_re)
         if outres != cmd_result.OK:
@@ -263,7 +259,6 @@ class BaseInterface:
 class SCMInterface(BaseInterface):
     def __init__(self):
         BaseInterface.__init__(self, "hg")
-        self.tracked_statuses = (None, "C") + self.modification_statuses
         self.cs_summary_template_lines = \
             [
                 '{desc|firstline}',
@@ -377,40 +372,6 @@ class SCMInterface(BaseInterface):
         res, sout, serr = utils.run_cmd(cmd)
         scm_file_db = ScmFileDb(sout.splitlines(), self._unresolved_file_list())
         return scm_file_db
-    def get_file_status_lists(self, fspath_list=[], revs=[]):
-        cmd = 'hg status -marduiC'
-        if not revs:
-            revs = self._get_qbase_parents()
-        if revs:
-            for rev in revs:
-                cmd += ' --rev %s' % rev
-        if fspath_list:
-            cmd += utils.file_list_to_string(fspath_list)
-        res, sout, serr = utils.run_cmd(cmd)
-        if res != 0:
-            return (res, [], sout + serr)
-        modified = []
-        ignored = []
-        others = []
-        lines = sout.splitlines()
-        numlines = len(lines)
-        index = 0
-        while index < numlines:
-            status = lines[index][0]
-            name = lines[index][2:]
-            if status in self.modification_statuses:
-                if (index + 1) < numlines and lines[index + 1][0] == ' ':
-                    index += 1
-                    extra_info = lines[index][2:]
-                else:
-                    extra_info = None
-                modified.append((name, status, extra_info))
-            elif status in self.ignored_statuses:
-                ignored.append((name, status, None))
-            else:
-                others.append((name, status, None))
-            index += 1
-        return (res, (ignored, others, modified), serr)
     def _css_line_index(self, tempfrag):
         return self.cs_summary_template_lines.index(tempfrag)
     def _process_change_set_summary(self, res, sout, serr):
@@ -733,7 +694,7 @@ class SCMInterface(BaseInterface):
         if file_list:
             cmd += self._file_list_to_I_string(file_list)
         res, sout, serr = self._run_cmd_on_console(cmd)
-        ws_event.notify_events(ws_event.REPO_MOD|ws_event.CHECKOUT, file_list)
+        ws_event.notify_events(ws_event.REPO_MOD|ws_event.CHECKOUT)
         return (res, sout, serr)
     def do_remove_files(self, file_list, force=False):
         if force:
@@ -1043,7 +1004,6 @@ class PMInterface(BaseInterface):
             # either we're not in an mq playground or no patches are applied
             return ScmFileDb([])
         cmd = 'hg status -mardC'
-        cmd = 'hg status -mardC'
         if patch:
             parent = self.get_parent(patch)
             cmd += ' --rev %s --rev %s' % (parent, patch)
@@ -1052,45 +1012,6 @@ class PMInterface(BaseInterface):
             cmd += ' --rev %s' % parent
         res, sout, serr = utils.run_cmd(cmd)
         return ScmFileDb(sout.splitlines())
-    def get_file_status_list(self, patch=None):
-        if not self.get_enabled():
-            return (cmd_result.OK, [], "")
-        if patch and not self.get_patch_is_applied(patch):
-            pfn = self.get_patch_file_name(patch)
-            result, file_list = putils.get_patch_files(pfn, status=True)
-            if result:
-                return (cmd_result.OK, file_list, "")
-            else:
-                return (cmd_result.WARNING, "", file_list)
-        top = self.get_top_patch()
-        if not top:
-            # either we're not in an mq playground or no patches are applied
-            return (cmd_result.OK, [], "")
-        cmd = 'hg status -mardC'
-        if patch:
-            parent = self.get_parent(patch)
-            cmd += ' --rev %s --rev %s' % (parent, patch)
-        else:
-            parent = self.get_parent(top)
-            cmd += ' --rev %s' % parent
-        res, sout, serr = utils.run_cmd(cmd)
-        if res != 0:
-            return (res, [], sout + serr)
-        file_list = []
-        lines = sout.splitlines()
-        numlines = len(lines)
-        index = 0
-        while index < numlines:
-            status = lines[index][0]
-            name = lines[index][2:]
-            if (index + 1) < numlines and lines[index + 1][0] == ' ':
-                index += 1
-                extra_info = lines[index][2:]
-            else:
-                extra_info = None
-            file_list.append((name, status, extra_info))
-            index += 1
-        return (res, file_list, serr)
     def get_in_progress(self):
         if not self.get_enabled():
             return False

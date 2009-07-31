@@ -303,7 +303,6 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
         if ok:
             self.show_busy()
             result = ifce.PM.do_revert_files(file_list)
-            self.get_model().del_files_from_displayable_nonexistants(file_list)
             self.show_busy()
             dialogue.report_any_problems(result)
     def revert_selected_files_acb(self, action=None):

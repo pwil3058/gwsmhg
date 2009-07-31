@@ -17,20 +17,6 @@ import os, os.path, tempfile, gtk, gtk.gdk
 from gwsmhg_pkg import ifce, utils, text_edit, cmd_result, diff, gutils, \
     tortoise, icons, ws_event, dialogue
 
-IGNORED = 0
-OTHER = 1
-MODIFIED = 2
-
-def _path_relative_to_dir(dirpath, askpath, validate_dir=True):
-    if validate_dir and not os.path.isdir(dirpath):
-        return None
-    if dirpath == askpath:
-        return os.curdir
-    lcwd = len(dirpath)
-    if len(askpath) <= lcwd + 1 or dirpath != askpath[0:lcwd] or askpath[lcwd] != os.sep:
-        return None
-    return askpath[lcwd + 1:]
-
 import gobject, gtk, pango
 
 COLUMNS = (gobject.TYPE_STRING,
@@ -46,8 +32,7 @@ NAME, IS_DIR, STYLE, FOREGROUND, ICON, STATUS, EXTRA_INFO = range(len(COLUMNS))
 class FileTreeStore(gtk.TreeStore):
     def __init__(self, show_hidden=False, populate_all=False):
         apply(gtk.TreeStore.__init__, (self,) + COLUMNS)
-        self._status_deco_map, self._extra_info_sep, \
-        self.modified_dir_status, self._default_nonexistant_status = ifce.SCM.get_status_row_data()
+        self._status_deco_map, self._extra_info_sep = ifce.SCM.get_status_row_data()
         self._file_db = None
         self.view = None
         self._populate_all = populate_all
@@ -670,7 +655,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         model = ScmCwdFileTreeStore(show_hidden=show_hidden)
         CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
             auto_refresh=auto_refresh, show_status=True)
-        self.add_notification_cb(ws_event.CHECKOUT|ws_event.FILE_CHANGES, self.update_after_commit),
+        self.add_notification_cb(ws_event.CHECKOUT|ws_event.FILE_CHANGES, self.update_tree),
         self.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir),
         self.add_conditional_actions(actions.ON_IN_REPO_SELN,
             [
@@ -782,9 +767,6 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         self.add_files_to_repo(self.get_selected_files())
     def add_all_files_to_repo_acb(self, menu_item):
         self.add_all_files_to_repo()
-    def update_after_commit(self, files_in_commit=[]):
-        self.get_model().del_files_from_displayable_nonexistants(files_in_commit)
-        self.update_tree()
     def commit_changes(self, file_list):
         dialog = ScmCommitDialog(parent=dialogue.main_window, filelist=file_list)
         dialog.show()
@@ -880,7 +862,6 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         if ok:
             self.show_busy()
             result = ifce.SCM.do_revert_files(file_list)
-            self.get_model().del_files_from_displayable_nonexistants(file_list)
             self.unshow_busy()
             dialogue.report_any_problems(result)
     def revert_selected_files_acb(self, action=None):
