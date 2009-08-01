@@ -47,6 +47,11 @@ GWSM_UI_DESCR = \
       <menuitem action="gwsm_clone_repo_in_wd"/>
       <menuitem action="gwsm_quit"/>
     </menu>
+    <menu name='gwsm_repo_menu' action='gwsm_repo_menu'>
+      <menuitem action='gwsm_verify_repo'/>
+      <menuitem action='gwsm_rollback_repo'/>
+      <menuitem action='gwsm_edit_repo_config'/>
+    </menu>
   </menubar>
   <menubar name="gwsm_right_side_menubar">
     <menu name="gwsm_config" action="gwsm_configuration">
@@ -101,6 +106,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
             ])
         actions.add_class_indep_actions(actions.ON_IN_REPO,
             [
+                ('gwsm_repo_menu', None, "_Repository"),
                 ("gwsm_diff_ws", icons.STOCK_DIFF, "Diff", "",
                  "View diff(s) for the current working directory",
                  self._diff_ws_acb),
@@ -110,6 +116,9 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
                 ("gwsm_verify_repo", icons.STOCK_VERIFY, "Verify", "",
                  "Verify the integrity of the repository",
                  self._verify_repo_acb),
+                ('gwsm_edit_repo_config', icons.STOCK_EDIT, 'Edit _Configuration', '',
+                 'Edit the repository configuration file',
+                 self._edit_repo_config_acb),
             ])
         actions.add_class_indep_actions(actions.ON_IN_REPO_NOT_PMIC,
             [
@@ -337,6 +346,9 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
         result = ifce.SCM.do_verify_repo()
         self.unshow_busy()
         dialogue.report_any_problems(result)
+    def _edit_repo_config_acb(self, action=None):
+        from gwsmhg_pkg import text_edit
+        text_edit.edit_files_extern(['.hg/hgrc'])
     def _rollback_repo_acb(self, action=None):
         question = os.linesep.join(['About to roll back last transaction',
                                     'This action is irreversible! Continue?'])
