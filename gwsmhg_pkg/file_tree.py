@@ -30,18 +30,27 @@ COLUMNS = (gobject.TYPE_STRING,
 NAME, IS_DIR, STYLE, FOREGROUND, ICON, STATUS, EXTRA_INFO = range(len(COLUMNS))
 
 class FileTreeStore(gtk.TreeStore):
-    def __init__(self, show_hidden=False, populate_all=False):
+    def __init__(self, show_hidden=False, populate_all=False, auto_expand=False, view=None):
         apply(gtk.TreeStore.__init__, (self,) + COLUMNS)
         self._status_deco_map, self._extra_info_sep = ifce.SCM.get_status_row_data()
         self._file_db = None
-        self.view = None
+        # If 'view' this isn't set explicitly it will be set automatically
+        # when any row is expanded
+        self.view = view
         self._populate_all = populate_all
+        self._auto_expand = auto_expand
         self.show_hidden_action = gtk.ToggleAction('show_hidden_files', 'Show Hidden Files',
                                                    'Show/hide ignored files and those beginning with "."', None)
         self.show_hidden_action.set_active(show_hidden)
         self.show_hidden_action.connect('toggled', self._toggle_show_hidden_cb)
         self.show_hidden_action.set_menu_item_type(gtk.CheckMenuItem)
         self.show_hidden_action.set_tool_item_type(gtk.ToggleToolButton)
+    def set_view(self, view):
+        self.view = view
+        if self._expand_new_rows():
+            self.view.expand_all()
+    def _expand_new_rows(self):
+        return self._auto_expand and self.view is not None
     def _row_expanded(self, dir_iter):
         # if view isn't set then assume that we aren't connexted to a view
         # so the row can't be expanded
@@ -129,6 +138,8 @@ class FileTreeStore(gtk.TreeStore):
             dir_iter = self.append(parent_iter, row_tuple)
             if self._populate_all:
                 self._populate(os.path.join(dirpath, dirname), dir_iter)
+                if self._expand_new_rows():
+                    self.view.expand_row(self.get_path(dir_iter), True)
             else:
                 self._insert_place_holder(dir_iter)
         for filename, status, extra_info in files:
@@ -155,6 +166,8 @@ class FileTreeStore(gtk.TreeStore):
                 dir_iter = self.append(parent_iter, row_tuple)
                 if self._populate_all:
                     self._update_dir(os.path.join(dirpath, dirname), dir_iter)
+                    if self._expand_new_rows():
+                        self.view.expand_row(self.get_path(dir_iter), True)
                 else:
                     self._insert_place_holder(dir_iter)
                 continue
@@ -163,6 +176,8 @@ class FileTreeStore(gtk.TreeStore):
                 dir_iter = self.insert_before(parent_iter, child_iter, row_tuple)
                 if self._populate_all:
                     self._update_dir(os.path.join(dirpath, dirname), dir_iter)
+                    if self._expand_new_rows():
+                        self.view.expand_row(self.get_path(dir_iter), True)
                 else:
                     self._insert_place_holder(dir_iter)
                 continue
@@ -304,6 +319,7 @@ class FileTreeView(_ViewWithActionGroups):
         if model is None:
             model = FileTreeStore(show_hidden=show_hidden)
         _ViewWithActionGroups.__init__(self, busy_indicator, model=model)
+        model.set_view(self)
         self._refresh_interval = 60000 # milliseconds
         self._create_column(show_status)
         self.connect("row-expanded", model.on_row_expanded_cb)
@@ -498,8 +514,10 @@ class ScmCwdFileTreeStore(CwdFileTreeStore):
         CwdFileTreeStore.__init__(self, show_hidden=show_hidden)
     def _get_file_db(self):
         if ifce.in_valid_repo:
+            self._populate_all = True
             return ifce.SCM.get_ws_file_db()
         else:
+            self._populate_all = False
             return self._os_file_db
 
 SCM_CWD_UI_DESCR = \
@@ -792,13 +810,9 @@ class ScmCwdFilesWidget(gtk.VBox):
 class ScmCommitFileTreeStore(FileTreeStore):
     def __init__(self, show_hidden=True, view=None, file_mask=[]):
         self._file_mask = file_mask
-        FileTreeStore.__init__(self, show_hidden=show_hidden, populate_all=True)
-        # if this is set to the associated view then the view will expand
-        # to show new files without disturbing other expansion states
-        self._view = view
+        FileTreeStore.__init__(self, show_hidden=show_hidden, populate_all=True,
+                               auto_expand=True, view=view)
         self.repopulate()
-    def set_view(self, view):
-        self._view = view
     def set_file_mask(self, file_mask):
         self._file_mask = file_mask
         self.update()
@@ -833,7 +847,6 @@ class ScmCommitFileTreeView(FileTreeView):
     def __init__(self, busy_indicator, auto_refresh=False, show_hidden=True, file_mask=[]):
         self.removeds = []
         self.model = ScmCommitFileTreeStore(show_hidden=show_hidden, file_mask=file_mask)
-        self.model.set_view(self)
         FileTreeView.__init__(self, model=self.model, busy_indicator=busy_indicator,
                               auto_refresh=auto_refresh, show_status=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
@@ -926,7 +939,6 @@ class ScmCommitWidget(gtk.VPaned, ws_event.Listener):
         vbox.pack_start(hbox, expand=False)
         x, y = self.files.tree_to_widget_coords(480, 240)
         self.files.set_size_request(x, y)
-        self.files.expand_all()
         vbox.pack_start(gutils.wrap_in_scrolled_window(self.files))
         vbox.show_all()
         self.add2(vbox)

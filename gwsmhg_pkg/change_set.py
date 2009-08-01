@@ -771,7 +771,7 @@ class ChangeSetSelectDialog(dialogue.Dialog):
 class FileTreeStore(file_tree.FileTreeStore):
     def __init__(self, rev):
         self._rev = rev
-        file_tree.FileTreeStore.__init__(self, show_hidden=True, populate_all=True)
+        file_tree.FileTreeStore.__init__(self, show_hidden=True, populate_all=True, auto_expand=True)
         self.repopulate()
     def _get_file_db(self):
         return ifce.SCM.get_change_set_files_db(self._rev)
@@ -794,8 +794,8 @@ CHANGE_SET_FILES_UI_DESCR = \
 class FileTreeView(file_tree.FileTreeView):
     def __init__(self, rev, busy_indicator):
         self._rev = rev
-        self.model = FileTreeStore(rev)
-        file_tree.FileTreeView.__init__(self, model=self.model,
+        model = FileTreeStore(rev)
+        file_tree.FileTreeView.__init__(self, model=model,
                                         busy_indicator=busy_indicator,
                                         auto_refresh=False, show_status=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
@@ -812,7 +812,6 @@ class FileTreeView(file_tree.FileTreeView):
             ])
         self._action_groups[actions.ON_REPO_INDEP_SELN_INDEP].set_visible(False)
         self.scm_change_merge_id = self.ui_manager.add_ui_from_string(CHANGE_SET_FILES_UI_DESCR)
-        self.expand_all()
     def _diff_selected_files_acb(self, action=None):
         parent = dialogue.main_window
         self.show_busy()

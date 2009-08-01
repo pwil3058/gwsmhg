@@ -21,11 +21,10 @@ from gwsmhg_pkg import actions
 class PatchFileTreeStore(file_tree.FileTreeStore):
     def __init__(self, patch=None, view=None):
         self._patch = patch
-        file_tree.FileTreeStore.__init__(self, show_hidden=True, populate_all=True)
+        file_tree.FileTreeStore.__init__(self, show_hidden=True, populate_all=True,
+                                         auto_expand=True, view=view)
         self.view = view
         self._null_file_db = file_tree.NullFileDb()
-    def set_view(self, view):
-        self.view = view
     def _get_file_db(self):
         if ifce.in_valid_repo:
             return ifce.PM.get_patch_file_db(self._patch)
@@ -33,7 +32,6 @@ class PatchFileTreeStore(file_tree.FileTreeStore):
             return self._null_file_db
     def repopulate(self):
         file_tree.FileTreeStore.repopulate(self)
-        self.view.expand_all()
 
 PATCH_FILES_UI_DESCR = \
 '''
@@ -61,7 +59,6 @@ class PatchFileTreeView(file_tree.CwdFileTreeView):
         model = PatchFileTreeStore(patch=patch)
         file_tree.CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
              auto_refresh=False, show_status=True)
-        model.set_view(self)
         self.add_conditional_actions(actions.ON_IN_REPO_SELN,
             [
                 ("pm_diff_files_selection", icons.STOCK_DIFF, "_Diff", None,
@@ -147,7 +144,6 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
         model = PatchFileTreeStore()
         file_tree.CwdFileTreeView.__init__(self, busy_indicator=busy_indicator,
             model=model, auto_refresh=auto_refresh, show_status=True)
-        model.set_view(self)
         self.move_conditional_action('new_file', actions.ON_IN_REPO_PMIC_SELN_INDEP)
         self.add_conditional_actions(actions.ON_IN_REPO_PMIC_SELN,
             [

@@ -163,7 +163,7 @@ class IncomingFileTreeStore(file_tree.FileTreeStore):
     def __init__(self, rev, path):
         self._rev = rev
         self._path = path
-        file_tree.FileTreeStore.__init__(self, show_hidden=True, populate_all=True)
+        file_tree.FileTreeStore.__init__(self, show_hidden=True, populate_all=True, auto_expand=True)
         self.repopulate()
     def _get_file_db(self):
         return ifce.SCM.get_incoming_change_set_files_db(self._rev)
@@ -185,8 +185,8 @@ class IncomingFileTreeView(file_tree.FileTreeView):
     def __init__(self, rev, path, busy_indicator):
         self._rev = rev
         self._path = path
-        self.model = IncomingFileTreeStore(rev, path)
-        file_tree.FileTreeView.__init__(self, model=self.model, busy_indicator=busy_indicator,
+        model = IncomingFileTreeStore(rev, path)
+        file_tree.FileTreeView.__init__(self, model=model, busy_indicator=busy_indicator,
             auto_refresh=False, show_status=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.set_headers_visible(False)
@@ -197,7 +197,6 @@ class IncomingFileTreeView(file_tree.FileTreeView):
             ])
         self._action_groups[actions.ON_REPO_INDEP_SELN_INDEP].set_visible(False)
         self.scm_change_merge_id = self.ui_manager.add_ui_from_string(INCOMING_CS_FILES_UI_DESCR)
-        self.expand_all()
     def _diff_all_files_acb(self, action=None):
         parent = dialogue.main_window
         self.show_busy()
