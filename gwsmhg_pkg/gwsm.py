@@ -362,6 +362,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
         self.show_busy()
         result = ifce.SCM.do_resolve_workspace()
         self.unshow_busy()
+        dialogue.report_any_problems(result)
     def _push_repo_acb(self, action=None):
         self.show_busy()
         result = ifce.SCM.do_push_to()

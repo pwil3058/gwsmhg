@@ -354,9 +354,10 @@ class SCMInterface(BaseInterface):
             cmd += utils.file_list_to_string(fspath_list)
         res, sout, serr = utils.run_cmd(cmd)
         files = []
-        for line in sout.splitlines():
-            if line[0] == FSTATUS_UNRESOLVED:
-                files.append(line[2:])
+        if not res:
+            for line in sout.splitlines():
+                if line[0] == FSTATUS_UNRESOLVED:
+                    files.append(line[2:])
         return files
     def get_ws_file_db(self):
         cmd = 'hg status -AC'
