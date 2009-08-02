@@ -542,6 +542,9 @@ SCM_CWD_UI_DESCR = \
       <menuitem action="scm_move_files_selection"/>
     </placeholder>
     <placeholder name="selection_not_patched">
+      <menuitem action="scm_resolve_files_selection"/>
+      <menuitem action="scm_mark_resolved_files_selection"/>
+      <menuitem action="scm_mark_unresolved_files_selection"/>
       <menuitem action="scm_revert_files_selection"/>
       <menuitem action="scm_commit_files_selection"/>
     </placeholder>
@@ -583,6 +586,12 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             ])
         self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_SELN,
             [
+                ("scm_resolve_files_selection", icons.STOCK_RESOLVE, "Re_solve", None,
+                 "Resolve merge conflicts in the selected file(s)", self.resolve_selected_files_acb),
+               ("scm_mark_resolved_files_selection", icons.STOCK_MARK_RESOLVE, "_Mark Resolved", None,
+                 "Mark the selected file(s) as having had merge conflict resolved", self.mark_resolved_selected_files_acb),
+                ("scm_mark_unresolved_files_selection", icons.STOCK_MARK_UNRESOLVE, "Mark _Unresolved", None,
+                 "Mark the selected file(s) as having unresolved merge conflicts", self.mark_unresolved_selected_files_acb),
                 ("scm_revert_files_selection", icons.STOCK_REVERT, "Rever_t", None,
                  "Revert changes in the selected file(s)", self.revert_selected_files_acb),
                 ("scm_commit_files_selection", icons.STOCK_COMMIT, "_Commit", None,
@@ -754,6 +763,21 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         dialog = diff.ScmDiffTextDialog(parent=dialogue.main_window,
                                      file_list=self.get_selected_files())
         dialog.show()
+    def resolve_selected_files_acb(self, action=None):
+        self.show_busy()
+        result = ifce.SCM.do_resolve_workspace(self.get_selected_files())
+        self.unshow_busy()
+        dialogue.report_any_problems(result)
+    def mark_resolved_selected_files_acb(self, action=None):
+        self.show_busy()
+        result = ifce.SCM.do_mark_files_resolved(self.get_selected_files())
+        self.unshow_busy()
+        dialogue.report_any_problems(result)
+    def mark_unresolved_selected_files_acb(self, action=None):
+        self.show_busy()
+        result = ifce.SCM.do_mark_files_unresolved(self.get_selected_files())
+        self.unshow_busy()
+        dialogue.report_any_problems(result)
     def revert_named_files(self, file_list, ask=True):
         if ask:
             self.show_busy()

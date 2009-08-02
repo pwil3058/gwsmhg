@@ -28,6 +28,8 @@ GWSM_UI_DESCR = \
       <toolitem name="Commit" action="gwsm_commit_ws"/>
       <toolitem name="Tag" action="gwsm_tag_ws"/>
       <toolitem name="Branch" action="gwsm_branch_ws"/>
+      <toolitem name='Merge' action='gwsm_merge_ws'/>
+      <toolitem name='Resolve' action='gwsm_resolve_ws'/>
       <toolitem name="Checkout" action="gwsm_checkout_ws"/>
       <toolitem name="Update" action="gwsm_update_ws"/>
     </placeholder>
@@ -134,6 +136,12 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
                 ("gwsm_branch_ws", icons.STOCK_BRANCH, "Branch", "",
                  "Set the branch for the current working directory",
                  self._branch_ws_acb),
+                ('gwsm_merge_ws', icons.STOCK_MERGE, 'Merge', '',
+                 'Merge the current working directory with default alternative head',
+                 self._merge_ws_acb),
+                ('gwsm_resolve_ws', icons.STOCK_RESOLVE, 'Resolve', '',
+                 'Resolve any unresolve merge conflicts in the current working directory',
+                 self._resolve_ws_acb),
                 ("gwsm_checkout_ws", icons.STOCK_CHECKOUT, "Checkout", "",
                  "Check out a different revision in the current working directory",
                  self._checkout_ws_acb),
@@ -336,6 +344,24 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
         result = ifce.SCM.do_pull_from()
         self.unshow_busy()
         dialogue.report_any_problems(result)
+    def _merge_ws_acb(self, action=None):
+        self.show_busy()
+        result = ifce.SCM.do_merge_workspace()
+        self.unshow_busy()
+        if result[0] & cmd_result.SUGGEST_FORCE:
+            question = os.linesep.join(result[1:])
+            ans = dialogue.ask_force_or_cancel(question)
+            if ans == dialogue.RESPONSE_FORCE:
+                self.show_busy()
+                result = ifce.SCM.do_merge_workspace(force=True)
+                self.unshow_busy()
+                dialogue.report_any_problems(result)
+        else:
+            dialogue.report_any_problems(result)
+    def _resolve_ws_acb(self, action=None):
+        self.show_busy()
+        result = ifce.SCM.do_resolve_workspace()
+        self.unshow_busy()
     def _push_repo_acb(self, action=None):
         self.show_busy()
         result = ifce.SCM.do_push_to()

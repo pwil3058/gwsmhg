@@ -742,6 +742,25 @@ class SCMInterface(BaseInterface):
         result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.CHECKOUT)
         return result
+    def do_resolve_workspace(self, file_list=[]):
+        cmd = 'hg resolve'
+        if file_list:
+            cmd += utils.file_list_to_string(file_list)
+        else:
+            cmd += ' --all'
+        result = self._run_cmd_on_console(cmd)
+        ws_event.notify_events(ws_event.FILE_CHANGES)
+        return result
+    def do_mark_files_resolved(self, file_list):
+        cmd = 'hg resolve --mark' + utils.file_list_to_string(file_list)
+        result = self._run_cmd_on_console(cmd)
+        ws_event.notify_events(ws_event.FILE_CHANGES)
+        return result
+    def do_mark_files_unresolved(self, file_list):
+        cmd = 'hg resolve --unmark' + utils.file_list_to_string(file_list)
+        result = self._run_cmd_on_console(cmd)
+        ws_event.notify_events(ws_event.FILE_CHANGES)
+        return result
     def do_push_to(self, rev=None, force=False, path=None):
         cmd = cmd = 'hg push'
         if force:
