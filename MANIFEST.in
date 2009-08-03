@@ -5,5 +5,5 @@ include gwsmhg gwsmhg.desktop gwsmhg.png gwsmhg.ico
 include *.py
 include gwsmhg_pkg/*.py
 include pixmaps/*.png
-include debian/* create_deb_spec
+include debian/copyright create_deb_spec
 include innosetup.iss
