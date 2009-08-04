@@ -322,7 +322,7 @@ class SCMInterface(BaseInterface):
     def _get_qparent(self):
         cmd = 'hg log --template "{rev}" -r qparent'
         res, rev, serr = utils.run_cmd(cmd)
-        if not res:
+        if not res and rev:
             return rev
         return None
     def get_parents(self, rev=None):
