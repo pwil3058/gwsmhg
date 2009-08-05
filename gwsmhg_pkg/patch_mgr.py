@@ -579,7 +579,8 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
             self._action_group[APPLIED_INDIFFERENT].set_sensitive(True)
             self._action_group[APPLIED].set_sensitive(applied)
             self._action_group[UNAPPLIED].set_sensitive(not applied)
-            self._action_group[UNAPPLIED_AND_INTERDIFF].set_sensitive(utils.which("interdiff") and not applied)
+            interdiff_avail = utils.which("interdiff") is not None
+            self._action_group[UNAPPLIED_AND_INTERDIFF].set_sensitive(interdiff_avail and not applied)
     def _handle_button_press_cb(self, widget, event):
         if event.type == gtk.gdk.BUTTON_PRESS:
             if event.button == 3:
