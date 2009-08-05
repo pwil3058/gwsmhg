@@ -269,7 +269,7 @@ class PBranchTable(table.MapManagedTable):
         else:
             dialogue.inform_user(os.linesep.join([sout,serr]))
     def _refresh_acb(self, action=None):
-        self.update_contents()
+        self.refresh_contents()
 
 class NewPatchBranchDialog(patch_mgr.NewPatchDialog):
     def __init__(self, parent):
