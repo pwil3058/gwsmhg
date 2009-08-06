@@ -67,7 +67,7 @@ def create_file(name, console=None):
     if not os.path.exists(name):
         try:
             if console:
-                console.start_cmd('create %s' % name)
+                console.start_cmd('create "%s"' % name)
             open(name, 'w').close()
             if console:
                 console.end_cmd()
