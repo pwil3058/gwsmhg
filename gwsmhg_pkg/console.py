@@ -26,6 +26,7 @@ class ConsoleLogBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
         self.cmd_tag = self.create_tag("CMD", foreground="black", family="monospace")
         self.stdout_tag = self.create_tag("STDOUT", foreground="black", family="monospace")
         self.stderr_tag = self.create_tag("STDERR", foreground="#AA0000", family="monospace")
+        self.stdin_tag = self.create_tag("STDIN", foreground="#00AA00", family="monospace")
         self._eobuf = self.create_mark("eobuf", self.get_end_iter(), False)
         self.begin_not_undoable_action()
         self.set_text("")
@@ -43,6 +44,8 @@ class ConsoleLogBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
     def start_cmd(self, cmd):
         self._append_tagged_text("%s: " % time.strftime("%Y-%m-%d %H:%M:%S"), self.bold_tag)
         self._append_tagged_text(cmd + os.linesep, self.cmd_tag)
+    def append_stdin(self, msg):
+        self._append_tagged_text(msg, self.stdin_tag)
     def append_stdout(self, msg):
         self._append_tagged_text(msg, self.stdout_tag)
     def append_stderr(self, msg):
@@ -117,6 +120,9 @@ class ConsoleLog(gtk.VBox, dialogue.BusyIndicatorUser):
         self._buffer.clear()
     def start_cmd(self, cmd):
         self._buffer.start_cmd(cmd)
+        while gtk.events_pending(): gtk.main_iteration()
+    def append_stdin(self, msg):
+        self._buffer.append_stdin(msg)
         while gtk.events_pending(): gtk.main_iteration()
     def append_stdout(self, msg):
         self._buffer.append_stdout(msg)

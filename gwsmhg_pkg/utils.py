@@ -70,7 +70,7 @@ def create_file(name, console=None):
     else:
         return (cmd_result.WARNING, '', '"%s": file already exists' % name)
 
-def run_cmd(cmd):
+def run_cmd(cmd, input_text=None):
     if not cmd:
         return [ 0, None, None ]
     try:
@@ -84,16 +84,16 @@ def run_cmd(cmd):
         signal.signal(signal.SIGPIPE, signal.SIG_DFL)
     sub = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
           stderr=subprocess.PIPE, shell=True, close_fds=is_posix, bufsize=-1)
-    outd, errd = sub.communicate()
+    outd, errd = sub.communicate(input_text)
     if is_posix:
         signal.signal(signal.SIGPIPE, savedsh)
     if oldterm:
         os.environ['TERM'] = oldterm
     return [ sub.returncode, outd, errd ]
 
-def run_cmd_in_console(cmd, console):
+def run_cmd_in_console(cmd, console, input_text=None):
     if os.name == 'nt' or os.name == 'dos':
-        return run_cmd_in_console_nt(cmd, console)
+        return run_cmd_in_console_nt(cmd, console, input_text=input_text)
     if not cmd:
         return [ 0, None, None ]
     try:
@@ -110,6 +110,9 @@ def run_cmd_in_console(cmd, console):
         gtk.main_iteration()
     sub = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
           stderr=subprocess.PIPE, shell=True, close_fds=is_posix, bufsize=-1)
+    if input_text is not None:
+        sub.stdin.write(input_text)
+        console.append_stdin(input_text)
     sub.stdin.close()
     stdout_eof = stderr_eof = False
     outd = errd = ""
@@ -164,9 +167,11 @@ def run_cmd_in_bgnd(cmd):
 
 
 if os.name == 'nt' or os.name == 'dos':
-    def run_cmd_in_console_nt(cmd, console):
+    def run_cmd_in_console_nt(cmd, console, input_text=None):
         console.start_cmd(cmd)
-        res, sout, serr = run_cmd(cmd)
+        if input_text is not None:
+            console.append_stdin(input_text)
+        res, sout, serr = run_cmd(cmd, input_text=input_text)
         console.append_stdout(sout)
         console.append_stderr(serr)
         console.end_cmd()

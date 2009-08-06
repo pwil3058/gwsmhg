@@ -16,6 +16,8 @@
 import os, os.path, tempfile, pango, re
 from gwsmhg_pkg import ifce, text_edit, utils, cmd_result, putils, ws_event
 
+newlines_not_allowed_in_cmd = os.name == 'nt' or os.name == 'dos'
+
 DEFAULT_NAME_EVARS = ["GIT_AUTHOR_NAME", "GECOS"]
 DEFAULT_EMAIL_VARS = ["GIT_AUTHOR_EMAIL", "EMAIL_ADDRESS"]
 
@@ -170,6 +172,11 @@ class BaseInterface:
         return (outres, sout, serr)
     def _file_list_to_I_string(self, file_list):
         return ' -I "%s"' % '" -I "'.join(file_list)
+    def _create_temp_file_for_msg(self, msg):
+        msg_fd, msg_file_name = tempfile.mkstemp()
+        os.write(msg_fd, msg)
+        os.close(msg_fd)
+        return msg_file_name
     def do_add_files(self, file_list, dry_run=False):
         cmd = 'hg add'
         if dry_run:
@@ -293,8 +300,8 @@ class SCMInterface(BaseInterface):
             elif result[2].find('use \'hg update -C\'') != -1:
                 flags |= cmd_result.SUGGEST_DISCARD
             return (flags, result[1], result[2])
-    def _run_cmd_on_console(self, cmd):
-        result = utils.run_cmd_in_console(cmd, ifce.log)
+    def _run_cmd_on_console(self, cmd, input_text=None):
+        result = utils.run_cmd_in_console(cmd, ifce.log, input_text)
         return self._map_cmd_result(result)
     def get_default_commit_save_file(self):
         return os.path.join('.hg', 'gwsmhg.saved.commit')
@@ -693,11 +700,18 @@ class SCMInterface(BaseInterface):
         return result
     def do_commit_change(self, msg, file_list=[]):
         cmd = 'hg -v commit'
+        msg_file_name = None
         if msg:
-            cmd += ' -m "%s"' % msg.replace('"', '\\"')
+            if newlines_not_allowed_in_cmd:
+                msg_file_name = self._create_temp_file_for_msg(msg)
+                cmd += ' --logfile "%s"' % msg_file_name
+            else:
+                cmd += ' -m "%s"' % msg.replace('"', '\\"')
         if file_list:
             cmd += self._file_list_to_I_string(file_list)
         res, sout, serr = self._run_cmd_on_console(cmd)
+        if msg_file_name is not None:
+            os.remove(msg_file_name)
         ws_event.notify_events(ws_event.REPO_MOD|ws_event.CHECKOUT)
         return (res, sout, serr)
     def do_remove_files(self, file_list, force=False):
@@ -788,6 +802,11 @@ class SCMInterface(BaseInterface):
         if rev is not None:
             cmd += ' -r %s' % rev
         if msg:
+            if newlines_not_allowed_in_cmd:
+                # no alternatives to -m available so just replace the new lines
+                lines = msg.splitlines()
+                if len(lines) > 1:
+                    msg = ' '.join(lines)
             cmd += ' -m "%s"' % msg.replace('"', '\\"')
         cmd += ' %s' % tag
         result = self._run_cmd_on_console(cmd)
@@ -799,6 +818,11 @@ class SCMInterface(BaseInterface):
         if local:
             cmd += ' -l'
         if msg:
+            if newlines_not_allowed_in_cmd:
+                # no alternatives to -m available so just replace the new lines
+                lines = msg.splitlines()
+                if len(lines) > 1:
+                    msg = ' '.join(lines)
             cmd += ' -m "%s"' % msg.replace('"', '\\"')
         cmd += ' %s' % tag
         result = self._run_cmd_on_console(cmd)
@@ -808,6 +832,11 @@ class SCMInterface(BaseInterface):
     def do_move_tag(self, tag, rev, msg=None):
         cmd = 'hg tag -f -r %s' % rev
         if msg:
+            if newlines_not_allowed_in_cmd:
+                # no alternatives to -m available so just replace the new lines
+                lines = msg.splitlines()
+                if len(lines) > 1:
+                    msg = ' '.join(lines)
             cmd += ' -m "%s"' % msg.replace('"', '\\"')
         cmd += " %s" % tag
         result = self._run_cmd_on_console(cmd)
@@ -831,8 +860,13 @@ class SCMInterface(BaseInterface):
         return result
     def do_backout(self, rev, msg, merge=False, parent=None):
         cmd = 'hg backout'
+        msg_file_name = None
         if msg:
-            cmd += ' -m "%s"' % msg.replace('"', '\\"')
+            if newlines_not_allowed_in_cmd:
+                msg_file_name = self._create_temp_file_for_msg(msg)
+                cmd += ' --logfile "%s"' % msg_file_name
+            else:
+                cmd += ' -m "%s"' % msg.replace('"', '\\"')
         if merge:
             cmd += ' --merge'
         if parent:
@@ -840,6 +874,8 @@ class SCMInterface(BaseInterface):
         if rev is not None:
             cmd += ' %s' % rev
         result = self._run_cmd_on_console(cmd)
+        if msg_file_name is not None:
+            os.remove(msg_file_name)
         if merge:
             ws_event.notify_events(ws_event.REPO_MOD|ws_event.FILE_CHANGES)
         else:
@@ -886,20 +922,32 @@ class SCMInterface(BaseInterface):
         cmd = 'hg pgraph --title --with-name'
         return utils.run_cmd(cmd)
     def do_set_pbranch_description(self, pbranch, descr):
-        cmd = 'hg peditmessage -t "%s"' % descr.replace('"', '\\"')
+        if newlines_not_allowed_in_cmd:
+            cmd = 'hg peditmessage --stdin'
+        else:
+            cmd = 'hg peditmessage -t "%s"' % descr.replace('"', '\\"')
         if pbranch:
             cmd += ' %s' % pbranch
-        result = self._run_cmd_on_console(cmd)
+        if newlines_not_allowed_in_cmd:
+            result = self._run_cmd_on_console(cmd, input_text=descr)
+        else:
+            result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.REPO_MOD)
         return result
     def do_new_pbranch(self, name, msg, preserve=False):
         cmd = 'hg pnew'
         if msg:
-            cmd += ' -t "%s"' % msg.replace('"', '\\"')
+            if newlines_not_allowed_in_cmd:
+                cmd += ' --stdin'
+            else:
+                cmd += ' -t "%s"' % msg.replace('"', '\\"')
         if preserve:
             cmd += ' --preserve'
         cmd += ' %s' % name
-        result = self._run_cmd_on_console(cmd)
+        if msg and newlines_not_allowed_in_cmd:
+            result = self._run_cmd_on_console(cmd, msg)
+        else:
+            result = self._run_cmd_on_console(cmd)
         events = ws_event.REPO_MOD|ws_event.CHECKOUT
         if not preserve:
             events |= ws_event.FILE_CHANGES
@@ -999,8 +1047,8 @@ class PMInterface(BaseInterface):
             if result[2].find('(revert --all, qpush to recover)') != -1:
                 flags |= cmd_result.SUGGEST_RECOVER
             return (flags, result[1], result[2])
-    def _run_cmd_on_console(self, cmd, ignore_err_re=None):
-        result = utils.run_cmd_in_console(cmd, ifce.log)
+    def _run_cmd_on_console(self, cmd, input_text=None, ignore_err_re=None):
+        result = utils.run_cmd_in_console(cmd, ifce.log, input_text)
         return self._map_cmd_result(result, ignore_err_re=ignore_err_re)
     def get_enabled(self):
         return self.get_extension_enabled('mq')
