@@ -182,7 +182,7 @@ class BaseInterface:
         if dry_run:
             cmd += ' -n --verbose'
         if file_list:
-            cmd += utils.file_list_to_string(file_list)
+            cmd += ' %s' % utils.file_list_to_string(file_list)
         if dry_run:
             return self._map_result(utils.run_cmd(cmd))
         else:
@@ -195,7 +195,7 @@ class BaseInterface:
             cmd += ' -n --verbose'
         if force:
             cmd += ' -f'
-        cmd += utils.file_list_to_string(file_list + [target])
+        cmd += ' %s' % utils.file_list_to_string(file_list + [target])
         if dry_run:
             return self._map_result(utils.run_cmd(cmd))
         else:
@@ -208,7 +208,7 @@ class BaseInterface:
             cmd += ' -n --verbose'
         if force:
             cmd += ' -f'
-        cmd += utils.file_list_to_string(file_list + [target])
+        cmd += ' %s' % utils.file_list_to_string(file_list + [target])
         if dry_run:
             return self._map_result(utils.run_cmd(cmd))
         else:
@@ -220,7 +220,7 @@ class BaseInterface:
         if dry_run:
             cmd += ' -n --verbose'
         if file_list:
-            cmd += utils.file_list_to_string(file_list)
+            cmd += ' %s' % utils.file_list_to_string(file_list)
         else:
             cmd += ' --all'
         if dry_run:
@@ -231,7 +231,7 @@ class BaseInterface:
             return result
     def do_delete_files(self, file_list):
         if ifce.log:
-            ifce.log.start_cmd("Deleting: %s" % " ".join(file_list))
+            ifce.log.start_cmd('Deleting: %s' % utils.file_list_to_string(file_list))
         serr = ""
         for filename in file_list:
             try:
@@ -358,7 +358,7 @@ class SCMInterface(BaseInterface):
     def _unresolved_file_list(self,  fspath_list=[]):
         cmd = 'hg resolve --list'
         if fspath_list:
-            cmd += utils.file_list_to_string(fspath_list)
+            cmd += ' %s' % utils.file_list_to_string(fspath_list)
         res, sout, serr = utils.run_cmd(cmd)
         files = []
         if not res:
@@ -378,7 +378,7 @@ class SCMInterface(BaseInterface):
     def get_commit_file_db(self, fspath_list=[]):
         cmd = 'hg status -mardC'
         if fspath_list:
-            cmd += utils.file_list_to_string(fspath_list)
+            cmd += ' %s' % utils.file_list_to_string(fspath_list)
         res, sout, serr = utils.run_cmd(cmd)
         scm_file_db = ScmFileDb(sout.splitlines(), self._unresolved_file_list())
         return scm_file_db
@@ -719,7 +719,7 @@ class SCMInterface(BaseInterface):
             cmd = 'hg remove -f'
         else:
             cmd = 'hg remove'
-        result = self._run_cmd_on_console(cmd + utils.file_list_to_string(file_list))
+        result = self._run_cmd_on_console(cmd + ' %s' % utils.file_list_to_string(file_list))
         ws_event.notify_events(ws_event.FILE_DEL)
         return result
     def get_diff_for_files(self, file_list, fromrev, torev=None):
@@ -734,7 +734,7 @@ class SCMInterface(BaseInterface):
         if torev:
             cmd += ' --rev %s' % torev
         if file_list:
-            cmd += utils.file_list_to_string(file_list)
+            cmd += ' %s' % utils.file_list_to_string(file_list)
         res, sout, serr = utils.run_cmd(cmd)
         if res != 0:
             res = cmd_result.ERROR
@@ -760,19 +760,19 @@ class SCMInterface(BaseInterface):
     def do_resolve_workspace(self, file_list=[]):
         cmd = 'hg resolve'
         if file_list:
-            cmd += utils.file_list_to_string(file_list)
+            cmd += ' %s' % utils.file_list_to_string(file_list)
         else:
             cmd += ' --all'
         result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.FILE_CHANGES)
         return result
     def do_mark_files_resolved(self, file_list):
-        cmd = 'hg resolve --mark' + utils.file_list_to_string(file_list)
+        cmd = 'hg resolve --mark %s' % utils.file_list_to_string(file_list)
         result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.FILE_CHANGES)
         return result
     def do_mark_files_unresolved(self, file_list):
-        cmd = 'hg resolve --unmark' + utils.file_list_to_string(file_list)
+        cmd = 'hg resolve --unmark %s' % utils.file_list_to_string(file_list)
         result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.FILE_CHANGES)
         return result
@@ -1143,7 +1143,7 @@ class PMInterface(BaseInterface):
         if patch:
             cmd += ' --rev %s' % patch
         if file_list:
-            cmd += utils.file_list_to_string(file_list)
+            cmd += ' %s' % utils.file_list_to_string(file_list)
         res, sout, serr = utils.run_cmd(cmd)
         if res != 0:
             res = cmd_result.ERROR
@@ -1305,7 +1305,7 @@ class PMInterface(BaseInterface):
         cmd = 'hg revert --rev %s' % parent
         if force:
             cmd += ' -f'
-        cmd += utils.file_list_to_string(file_list)
+        cmd += ' %s' % utils.file_list_to_string(file_list)
         result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.FILE_DEL)
         return result

@@ -33,7 +33,13 @@ def cwd_rel_home():
     return path_rel_home(os.getcwd())
 
 def file_list_to_string(file_list):
-    return ' "%s"' % '" "'.join(file_list)
+    mod_file_list = []
+    for fl in file_list:
+        if fl.count(' ') == 0:
+            mod_file_list.append(fl)
+        else:
+            mod_file_list.append('"%s"' % fl)
+    return ' '.join(mod_file_list)
 
 def string_to_file_list(string):
     if string.count('"') == 0:
@@ -45,7 +51,9 @@ def string_to_file_list(string):
         qib = string.find('"', index)
         file_list += string[index:qib].split()
         index = string.find('"', qib + 1) + 1
-        file_list.append(string[qib:index])
+        file_list.append(string[qib+1:index-1])
+    if index < len(string):
+        file_list += string[index:].split()
     return file_list
 
 # handle the fact os.path.samefile is not available on all operating systems
@@ -159,12 +167,11 @@ def _wait_for_bgnd_cmd_timeout(pid):
 def run_cmd_in_bgnd(cmd):
     if not cmd:
         return False
-    pid = subprocess.Popen(cmd.split()).pid
+    pid = subprocess.Popen(string_to_file_list(cmd)).pid
     if not pid:
         return False
     gobject.timeout_add(2000, _wait_for_bgnd_cmd_timeout, pid)
     return True
-
 
 if os.name == 'nt' or os.name == 'dos':
     def run_cmd_in_console_nt(cmd, console, input_text=None):

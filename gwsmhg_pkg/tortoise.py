@@ -172,7 +172,7 @@ file_group_partial_actions[actions.ON_IN_REPO_NOT_PMIC_SELN] = \
 
 def run_tool_for_files(action, file_list):
     name = action_tool_name(action)
-    cmd = 'hgtk %s %s' % (name, " ".join(file_list))
+    cmd = 'hgtk %s %s' % (name, utils.file_list_to_string(file_list))
     result = utils.run_cmd(cmd)
     dialogue.report_any_problems(result)
     _notify_event_by_name(name)

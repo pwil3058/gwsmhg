@@ -378,7 +378,7 @@ class FileTreeView(_ViewWithActionGroups):
     def add_selected_files_to_clipboard(self, clipboard=None):
         if not clipboard:
             clipboard = gtk.clipboard_get(gtk.gdk.SELECTION_CLIPBOARD)
-        sel = utils.file_list_to_string(self.get_selected_files()).strip()
+        sel = utils.file_list_to_string(self.get_selected_files())
         clipboard.set_text(sel)
     def _key_press_cb(self, widget, event):
         if event.state == gtk.gdk.CONTROL_MASK:
@@ -481,7 +481,7 @@ class CwdFileTreeView(FileTreeView):
             dialog.destroy()
     def delete_files(self, file_list):
         if ifce.log:
-            ifce.log.start_cmd("Deleting: %s" % " ".join(file_list))
+            ifce.log.start_cmd('Deleting: %s' % utils.file_list_to_string(file_list))
         serr = ""
         for filename in file_list:
             try:

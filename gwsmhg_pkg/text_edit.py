@@ -18,13 +18,13 @@ from gwsmhg_pkg import dialogue, ifce, utils, cmd_result, gutils, config
 
 def _edit_files_extern(filelist, edstr=config.DEFAULT_EDITOR):
     if not edstr.split()[0] in config.EDITORS_THAT_NEED_A_TERMINAL:
-        cmd = '%s %s' % (edstr, " ".join(filelist))
+        cmd = '%s %s' % (edstr, utils.file_list_to_string(filelist))
     else:
         if config.DEFAULT_TERMINAL == "gnome-terminal":
             flag = '-x'
         else:
             flag = '-e'
-        cmd = '%s %s %s %s' % (config.DEFAULT_TERMINAL, flag, edstr, " ".join(filelist))
+        cmd = '%s %s %s %s' % (config.DEFAULT_TERMINAL, flag, edstr, utils.file_list_to_string(filelist))
     return utils.run_cmd_in_bgnd(cmd)
 
 def edit_files_extern(file_list):
