@@ -450,7 +450,7 @@ class SCMInterface(BaseInterface):
             plist.append(pdata)
         return (res, plist, serr)
     def get_path_table_data(self):
-        path_re = re.compile('^(\S*)\s+=\s+(\S*)\s*$')
+        path_re = re.compile('^(\S*)\s+=\s+(\S*.*)\s*$')
         cmd = 'hg paths'
         res, sout, serr = utils.run_cmd(cmd)
         paths = []
