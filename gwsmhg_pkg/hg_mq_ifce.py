@@ -171,7 +171,13 @@ class BaseInterface:
                     outres += cmd_result.SUGGEST_FORCE
         return (outres, sout, serr)
     def _file_list_to_I_string(self, file_list):
-        return ' -I "%s"' % '" -I "'.join(file_list)
+        mod_file_list = []
+        for fl in file_list:
+            if fl.count(' ') == 0:
+                mod_file_list.append('-I %s' % fl)
+            else:
+                mod_file_list.append('-I "%s"' % fl)
+        return ' '.join(mod_file_list)
     def _create_temp_file_for_msg(self, msg):
         msg_fd, msg_file_name = tempfile.mkstemp()
         os.write(msg_fd, msg)
@@ -708,7 +714,7 @@ class SCMInterface(BaseInterface):
             else:
                 cmd += ' -m "%s"' % msg.replace('"', '\\"')
         if file_list:
-            cmd += self._file_list_to_I_string(file_list)
+            cmd += ' %s' % self._file_list_to_I_string(file_list)
         res, sout, serr = self._run_cmd_on_console(cmd)
         if msg_file_name is not None:
             os.remove(msg_file_name)
