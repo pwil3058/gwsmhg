@@ -1212,13 +1212,11 @@ class PMInterface(BaseInterface):
     def get_patch_file_name(self, patch):
         return os.path.join(os.getcwd(), '.hg', 'patches', patch)
     def get_patch_description(self, patch):
-        pfn = self.get_patch_file_name(patch)
-        res, descr_lines = putils.get_patch_descr_lines(pfn)
-        descr = '\n'.join(descr_lines) + '\n'
-        if res:
-            return (cmd_result.OK, descr, "")
+        if patch:
+            cmd = 'hg qheader %s' % patch
         else:
-            return (cmd_result.ERROR, descr, "Error reading description to \"%s\" patch file" % patch)
+            cmd = 'hg qheader'
+        return utils.run_cmd(cmd)
     def do_set_patch_description(self, patch, descr):
         pfn = self.get_patch_file_name(patch)
         ifce.log.start_cmd("set description for: %s" %patch)
@@ -1234,10 +1232,8 @@ class PMInterface(BaseInterface):
         ifce.log.end_cmd()
         return (res, "", serr)
     def get_description_is_finish_ready(self, patch):
-        pfn = self.get_patch_file_name(patch)
-        res, pf_descr_lines = putils.get_patch_descr_lines(pfn)
-        pf_descr = '\n'.join(pf_descr_lines).strip()
-        if not pf_descr:
+        res, pf_descr, serr = self.get_patch_description(patch)
+        if res or not pf_descr:
             return False
         cmd = 'hg log --template "{desc}" --rev %s' % patch
         res, rep_descr, sout = utils.run_cmd(cmd)

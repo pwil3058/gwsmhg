@@ -278,7 +278,8 @@ def set_patch_descr_lines(path, lines):
             return False
     else:
         parts = ([], [], [])
-    tmpf_name = _lines_to_temp_file(lines + parts[1] + parts[2])
+    comments = [line for line in parts[0] if line.startswith('#')]
+    tmpf_name = _lines_to_temp_file(comments + lines + parts[1] + parts[2])
     if not tmpf_name:
         return False
     try:
