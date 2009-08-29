@@ -49,7 +49,11 @@ ifce.init(hg_mq_ifce)
 import gtk
 from gwsmhg_pkg import gwsm
 
-app = gwsm.gwsm(dir_specified)
-app.show()
-gtk.main()
-
+try:
+    app = gwsm.gwsm(dir_specified)
+    app.show()
+    gtk.main()
+except:
+    from gwsmhg_pkg import dialogue
+    dialogue.report_exception(sys.exc_info())
+    sys.exit(3)

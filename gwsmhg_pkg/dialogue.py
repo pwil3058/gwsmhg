@@ -278,6 +278,29 @@ def report_any_problems(result, parent=None):
         problem_type = gtk.MESSAGE_WARNING
     inform_user(os.linesep.join(result[1:]), parent, problem_type)
 
+report_request_msg = \
+'''
+Please report this problem by either:
+  submitting a bug report at <https://sourceforge.net/tracker/?group_id=258223&atid=1127211>
+or:
+  e-mailing <gwsmhg-discussion@lists.sourceforge.net>
+and including a copy of the details below this message.
+
+Thank you.
+'''
+
+def report_exception(exc_data, parent=None):
+    import traceback
+    msg = ''.join(traceback.format_exception(exc_data[0], exc_data[1], exc_data[2]))
+    dialog = MessageDialog(parent=parent,
+                           flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
+                           type=gtk.MESSAGE_ERROR, buttons=gtk.BUTTONS_CLOSE,
+                           message_format=report_request_msg)
+    dialog.set_title('gqwmhg: Unexpected Exception')
+    dialog.format_secondary_text(msg)
+    dialog.run()
+    dialog.destroy()
+
 class CancelOKDialog(Dialog):
     def __init__(self, title=None, parent=None):
         flags = gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT
