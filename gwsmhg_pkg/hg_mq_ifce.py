@@ -1176,10 +1176,11 @@ class PMInterface(BaseInterface):
             else:
                 cmd = 'hg qpop %s' % patch
         result = self._run_cmd_on_console(cmd)
-        if not self.get_in_progress():
-            ws_event.notify_events(ws_event.PMIC_CHANGE, False)
-        events = ws_event.CHECKOUT|ws_event.REPO_MOD|ws_event.FILE_CHANGES
-        ws_event.notify_events(events)
+        if cmd_result.is_less_than_error(result[0]):
+            if not self.get_in_progress():
+                ws_event.notify_events(ws_event.PMIC_CHANGE, False)
+            events = ws_event.CHECKOUT|ws_event.REPO_MOD|ws_event.FILE_CHANGES
+            ws_event.notify_events(events)
         return result
     def do_push_to(self, patch=None, force=False, merge=False):
         in_charge = self.get_in_progress()
@@ -1202,12 +1203,13 @@ class PMInterface(BaseInterface):
                 result = self._run_cmd_on_console('%s -f %s' % (cmd, patch), ignore_err_re=self._qpush_re)
             else:
                 result = self._run_cmd_on_console('%s %s' % (cmd, patch), ignore_err_re=self._qpush_re)
-        if not in_charge:
-            ws_event.notify_events(ws_event.PMIC_CHANGE, True)
-        events = ws_event.CHECKOUT|ws_event.REPO_MOD|ws_event.FILE_CHANGES
-        ws_event.notify_events(events)
-        if not result[0] and merge and len(self.get_unapplied_patches()) == 0:
-            self._ws_update_mgr.set_state('merged')
+        if cmd_result.is_less_than_error(result[0]):
+            if not in_charge:
+                ws_event.notify_events(ws_event.PMIC_CHANGE, True)
+            events = ws_event.CHECKOUT|ws_event.REPO_MOD|ws_event.FILE_CHANGES
+            ws_event.notify_events(events)
+            if merge and len(self.get_unapplied_patches()) == 0:
+                self._ws_update_mgr.set_state('merged')
         return result
     def get_patch_file_name(self, patch):
         return os.path.join(os.getcwd(), '.hg', 'patches', patch)
