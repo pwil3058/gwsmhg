@@ -1154,9 +1154,9 @@ class PMInterface(BaseInterface):
         if res != 0:
             res = cmd_result.ERROR
         return (res, sout, serr)
-    def do_refresh(self):
+    def do_refresh(self, notify=True):
         result = self._run_cmd_on_console('hg qrefresh')
-        if not result[0]:
+        if notify and not cmd_result.is_error(result[0]):
             ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD)
         return result
     def do_pop_to(self, patch=None, force=False):
