@@ -171,7 +171,13 @@ class BaseInterface:
                     outres += cmd_result.SUGGEST_FORCE
         return (outres, sout, serr)
     def _file_list_to_I_string(self, file_list):
-        return ' -I "%s"' % '" -I "'.join(file_list)
+        mod_file_list = []
+        for fl in file_list:
+            if fl.count(' ') == 0:
+                mod_file_list.append('-I %s' % fl)
+            else:
+                mod_file_list.append('-I "%s"' % fl)
+        return ' '.join(mod_file_list)
     def _create_temp_file_for_msg(self, msg):
         msg_fd, msg_file_name = tempfile.mkstemp()
         os.write(msg_fd, msg)
@@ -708,7 +714,7 @@ class SCMInterface(BaseInterface):
             else:
                 cmd += ' -m "%s"' % msg.replace('"', '\\"')
         if file_list:
-            cmd += self._file_list_to_I_string(file_list)
+            cmd += ' %s' % self._file_list_to_I_string(file_list)
         res, sout, serr = self._run_cmd_on_console(cmd)
         if msg_file_name is not None:
             os.remove(msg_file_name)
@@ -1148,9 +1154,9 @@ class PMInterface(BaseInterface):
         if res != 0:
             res = cmd_result.ERROR
         return (res, sout, serr)
-    def do_refresh(self):
+    def do_refresh(self, notify=True):
         result = self._run_cmd_on_console('hg qrefresh')
-        if not result[0]:
+        if notify and not cmd_result.is_error(result[0]):
             ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD)
         return result
     def do_pop_to(self, patch=None, force=False):
@@ -1170,10 +1176,11 @@ class PMInterface(BaseInterface):
             else:
                 cmd = 'hg qpop %s' % patch
         result = self._run_cmd_on_console(cmd)
-        if not self.get_in_progress():
-            ws_event.notify_events(ws_event.PMIC_CHANGE, False)
-        events = ws_event.CHECKOUT|ws_event.REPO_MOD|ws_event.FILE_CHANGES
-        ws_event.notify_events(events)
+        if cmd_result.is_less_than_error(result[0]):
+            if not self.get_in_progress():
+                ws_event.notify_events(ws_event.PMIC_CHANGE, False)
+            events = ws_event.CHECKOUT|ws_event.REPO_MOD|ws_event.FILE_CHANGES
+            ws_event.notify_events(events)
         return result
     def do_push_to(self, patch=None, force=False, merge=False):
         in_charge = self.get_in_progress()
@@ -1196,23 +1203,22 @@ class PMInterface(BaseInterface):
                 result = self._run_cmd_on_console('%s -f %s' % (cmd, patch), ignore_err_re=self._qpush_re)
             else:
                 result = self._run_cmd_on_console('%s %s' % (cmd, patch), ignore_err_re=self._qpush_re)
-        if not in_charge:
-            ws_event.notify_events(ws_event.PMIC_CHANGE, True)
-        events = ws_event.CHECKOUT|ws_event.REPO_MOD|ws_event.FILE_CHANGES
-        ws_event.notify_events(events)
-        if not result[0] and merge and len(self.get_unapplied_patches()) == 0:
-            self._ws_update_mgr.set_state('merged')
+        if cmd_result.is_less_than_error(result[0]):
+            if not in_charge:
+                ws_event.notify_events(ws_event.PMIC_CHANGE, True)
+            events = ws_event.CHECKOUT|ws_event.REPO_MOD|ws_event.FILE_CHANGES
+            ws_event.notify_events(events)
+            if merge and len(self.get_unapplied_patches()) == 0:
+                self._ws_update_mgr.set_state('merged')
         return result
     def get_patch_file_name(self, patch):
         return os.path.join(os.getcwd(), '.hg', 'patches', patch)
     def get_patch_description(self, patch):
-        pfn = self.get_patch_file_name(patch)
-        res, descr_lines = putils.get_patch_descr_lines(pfn)
-        descr = '\n'.join(descr_lines) + '\n'
-        if res:
-            return (cmd_result.OK, descr, "")
+        if patch:
+            cmd = 'hg qheader %s' % patch
         else:
-            return (cmd_result.ERROR, descr, "Error reading description to \"%s\" patch file" % patch)
+            cmd = 'hg qheader'
+        return utils.run_cmd(cmd)
     def do_set_patch_description(self, patch, descr):
         pfn = self.get_patch_file_name(patch)
         ifce.log.start_cmd("set description for: %s" %patch)
@@ -1228,10 +1234,8 @@ class PMInterface(BaseInterface):
         ifce.log.end_cmd()
         return (res, "", serr)
     def get_description_is_finish_ready(self, patch):
-        pfn = self.get_patch_file_name(patch)
-        res, pf_descr_lines = putils.get_patch_descr_lines(pfn)
-        pf_descr = '\n'.join(pf_descr_lines).strip()
-        if not pf_descr:
+        res, pf_descr, serr = self.get_patch_description(patch)
+        if res or not pf_descr:
             return False
         cmd = 'hg log --template "{desc}" --rev %s' % patch
         res, rep_descr, sout = utils.run_cmd(cmd)

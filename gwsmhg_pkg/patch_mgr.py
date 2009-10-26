@@ -642,9 +642,9 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
         self._set_ws_update_menu_sensitivity()
         self.get_selection().unselect_all()
         self.unshow_busy()
-    def do_refresh(self, action=None):
+    def do_refresh(self, action=None, notify=True):
         self.show_busy()
-        res, sout, serr = ifce.PM.do_refresh()
+        res, sout, serr = ifce.PM.do_refresh(notify=notify)
         self.unshow_busy()
         if res != cmd_result.OK:
             if res & cmd_result.SUGGEST_RECOVER:
@@ -652,7 +652,7 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
                     self.show_busy()
                     res, sout, serr = ifce.PM.do_recover_interrupted_refresh()
                     if res == cmd_result.OK:
-                        res, sout, serr = ifce.PM.do_refresh()
+                        res, sout, serr = ifce.PM.do_refresh(notify=notify)
                     self.unshow_busy()
             if res != cmd_result.OK: # There're may still be problems
                 dialogue.report_any_problems((res, sout, serr))
@@ -669,7 +669,7 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
                     if ans == gtk.RESPONSE_CANCEL:
                         return False
                     elif ans == dialogue.RESPONSE_REFRESH:
-                        self.do_refresh()
+                        self.do_refresh(notify=False)
                         continue
                     elif ans == dialogue.RESPONSE_FORCE:
                         self.show_busy()
@@ -700,7 +700,7 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
                     if ans == gtk.RESPONSE_CANCEL:
                         return False
                     if ans == dialogue.RESPONSE_REFRESH:
-                        self.do_refresh()
+                        self.do_refresh(notify=False)
                         continue
                     elif ans == dialogue.RESPONSE_FORCE:
                         self.unshow_busy()
@@ -966,7 +966,7 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
                 if ans == gtk.RESPONSE_CANCEL:
                     return
                 if ans == dialogue.RESPONSE_REFRESH:
-                    self.do_refresh()
+                    self.do_refresh(notify=False)
                 elif ans == dialogue.RESPONSE_FORCE:
                     force = True
             else:

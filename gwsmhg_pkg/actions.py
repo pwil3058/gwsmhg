@@ -70,7 +70,7 @@ import gtk
 for cond in CLASS_INDEP_CONDS:
     class_indep_ags[cond] = gtk.ActionGroup(cond)
 
-from gwsmhg_pkg import ifce, ws_event
+from gwsmhg_pkg import ifce, ws_event, gutils
 
 def update_class_indep_sensitivities(arg=None):
     in_repo = ifce.in_valid_repo
@@ -211,7 +211,7 @@ class AGandUIManager(ws_event.Listener):
                 image = gtk.Image()
                 image.set_from_stock(stock_id, gtk.ICON_SIZE_BUTTON)
                 button.set_image(image)
-        button.set_tooltip_text(action.get_property("tooltip"))
+        gutils.set_widget_tooltip_text(button, action.get_property("tooltip"))
         action.connect_proxy(button)
         return button
     def create_action_button_box(self, action_name_list, use_underline=True,

@@ -16,6 +16,24 @@
 import gtk, os.path, gobject
 from gwsmhg_pkg import cmd_result, dialogue
 
+def pygtk_version_ge(version):
+    for index in range(len(version)):
+        if gtk.pygtk_version[index] >  version[index]:
+            return True
+        elif gtk.pygtk_version[index] <  version[index]:
+            return False
+    return True
+
+if pygtk_version_ge((2, 12)):
+    def set_widget_tooltip_text(widget, text):
+        widget.set_tooltip_text(text)
+else:
+    tooltips = gtk.Tooltips()
+    tooltips.enable()
+
+    def set_widget_tooltip_text(widget, text):
+        tooltips.set_tip(widget, text)
+
 def wrap_in_scrolled_window(widget, policy=(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC), with_frame=True, label=None):
     scrw = gtk.ScrolledWindow()
     scrw.set_policy(policy[0], policy[1])
@@ -141,7 +159,7 @@ class ActionButton(gtk.Button):
             gtk.Button.__init__(self, stock=stock_id, use_underline=use_underline)
         else:
             gtk.Button.__init__(self, use_underline=use_underline)
-        self.set_tooltip_text(action.get_property("tooltip"))
+        set_widget_tooltip_text(self, action.get_property("tooltip"))
         action.connect_proxy(self)
 
 class ActionButtonList:
