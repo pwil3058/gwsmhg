@@ -34,17 +34,17 @@ setup(
     author_email = setup_generic.AUTHOR_EMAIL,
     url = setup_generic.URL,
     windows = [
-    	{
-	    'script': setup_generic.SCRIPTS[0],
-	    'icon_resources': [(1, 'gwsmhg.ico')],
-	}
-   ],
+        {
+            'script': setup_generic.SCRIPTS[0],
+            'icon_resources': [(1, 'gwsmhg.ico')],
+        }
+    ],
     packages = setup_generic.PACKAGES,
     data_files = DATA_FILES,
     options = {
         'py2exe': {
             'packages':'encodings',
-	    'includes': 'cairo, pango, pangocairo, atk, gobject',
+            'includes': 'cairo, pango, pangocairo, atk, gobject',
         }
     },
 )
