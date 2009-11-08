@@ -29,7 +29,8 @@ all_dist: $(SRCDIST)  $(WINDIST) $(RPMDIST)
 gwsmhg.spec: setup.py setup_generic.py Makefile
 	python setup.py bdist_rpm --build-requires python --spec-only \
 		--group "Development/Tools" --release $(RELEASE) \
-		--requires "$(RPMREQS)" --dist-dir .
+		--requires "$(RPMREQS)" --dist-dir . \
+		--doc-files=COPYING,copyright
 	echo "%{_prefix}" >> gwsmhg.spec
 	sed -i 's/-f INSTALLED_FILES//' gwsmhg.spec
 
