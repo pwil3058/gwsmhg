@@ -1,9 +1,9 @@
 [Desktop Entry]
 Encoding=UTF-8
-Name=gwsmhg -- Work Space Management with hg and mq
+Name=gwsmhg -- Mercurial GUI
 GenericName=GUI Wrapper for Work Space Management with hg and mq
 Exec=gwsmhg
 Terminal=false
 Type=Application
-Icon=gwsmhg.png
-Categories=GNOME;Application;Development;X-Fedora;
+Icon=gwsmhg
+Categories=GNOME;Development;
