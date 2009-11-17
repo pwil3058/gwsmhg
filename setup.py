@@ -17,8 +17,7 @@
 from distutils.core import setup
 import os, setup_generic
 
-DATA_FILES = setup_generic.PIXMAPS + \
-             [('share/applications', ['gwsmhg.desktop'])]
+DATA_FILES = setup_generic.PIXMAPS
 
 setup(
     name = setup_generic.NAME,
