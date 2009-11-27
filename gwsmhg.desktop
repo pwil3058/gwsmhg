@@ -1,6 +1,6 @@
 [Desktop Entry]
 Encoding=UTF-8
-Name=gwsmhg -- Mercurial GUI
+Name=Gwsmhg Mercurial GUI
 GenericName=GUI Wrapper for Work Space Management with hg and mq
 Exec=gwsmhg
 Terminal=false
