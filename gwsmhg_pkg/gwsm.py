@@ -161,6 +161,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
         self._menubar = self.ui_manager.get_widget("/gwsm_menubar")
         self._rhs_menubar = self.ui_manager.get_widget("/gwsm_right_side_menubar")
         self._toolbar = self.ui_manager.get_widget("/gwsm_toolbar")
+        self._toolbar.set_style(gtk.TOOLBAR_BOTH)
         self._parent_table = change_set.ParentsTable()
         self._file_tree_widget = file_tree.ScmCwdFilesWidget()
         self._notebook = gtk.Notebook()

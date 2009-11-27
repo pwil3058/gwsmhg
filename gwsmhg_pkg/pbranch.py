@@ -172,6 +172,7 @@ class PBranchTable(table.MapManagedTable):
             ])
         self.cwd_merge_id = self.ui_manager.add_ui_from_string(PBRANCH_UI_DESCR)
         self._tool_bar = self.ui_manager.get_widget("/pbranch_toolbar")
+        self._tool_bar.set_style(gtk.TOOLBAR_BOTH)
         self.add_notification_cb(ws_event.REPO_MOD|ws_event.FILE_CHANGES|ws_event.CHECKOUT,
                                  self.refresh_contents_if_mapped)
         self.pack_start(self._tool_bar, expand=False)

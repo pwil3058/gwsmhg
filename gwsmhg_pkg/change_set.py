@@ -568,7 +568,7 @@ class TagMessageWidget(gtk.VBox):
         hbox = gtk.HBox()
         hbox.pack_start(gtk.Label(label), expand=False, fill=False)
         toolbar = self.view.ui_manager.get_widget("/tag_message_toolbar")
-        toolbar.set_style(gtk.TOOLBAR_ICONS)
+        toolbar.set_style(gtk.TOOLBAR_BOTH)
         toolbar.set_orientation(gtk.ORIENTATION_HORIZONTAL)
         hbox.pack_end(toolbar, fill=False, expand=False)
         self.pack_start(hbox, expand=False)
