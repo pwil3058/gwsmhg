@@ -826,7 +826,7 @@ class ScmCwdFilesWidget(gtk.VBox):
             button = gtk.CheckButton()
             action = self.file_tree.get_conditional_action(action_name)
             action.connect_proxy(button)
-            dialogue.tooltips.set_tip(button, action.get_property("tooltip"))
+            gutils.set_widget_tooltip_text(button, action.get_property("tooltip"))
             hbox.pack_start(button)
         self.pack_start(hbox, expand=False)
         self.show_all()

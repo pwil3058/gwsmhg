@@ -19,8 +19,6 @@ import gtk, os
 from gwsmhg_pkg import cmd_result, icons, ws_event
 
 main_window = None
-tooltips = gtk.Tooltips()
-tooltips.enable()
 
 def init(window):
     global main_window
