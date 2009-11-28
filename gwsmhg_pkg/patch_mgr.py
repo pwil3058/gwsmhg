@@ -299,7 +299,7 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
         if ok:
             self.show_busy()
             result = ifce.PM.do_revert_files(file_list)
-            self.show_busy()
+            self.unshow_busy()
             dialogue.report_any_problems(result)
     def revert_selected_files_acb(self, action=None):
         self.revert_named_files(self.get_selected_files())
@@ -703,7 +703,7 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
                         self.do_refresh(notify=False)
                         continue
                     elif ans == dialogue.RESPONSE_FORCE:
-                        self.unshow_busy()
+                        self.show_busy()
                         res, sout, serr = ifce.PM.do_push_to(force=True, merge=merge)
                         self.unshow_busy()
                 if res != cmd_result.OK: # there're are still problems
