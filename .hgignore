@@ -1,0 +1,10 @@
+syntax: glob
+*~
+*.pyc
+*.pyo
+*.orig
+*.rej
+deb_bld
+build
+syntax: regexp
+.*\#.*\#$
