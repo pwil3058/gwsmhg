@@ -171,7 +171,7 @@ class AGandUIManager(ws_event.Listener):
     def add_conditional_actions(self, cond, actions):
         self._action_groups[cond].add_actions(actions)
     def get_conditional_action(self, action_name):
-        conditions = CLASS_DEP_SELN_INDEP_CONDS
+        conditions = CLASS_DEP_SELN_INDEP_CONDS[:]
         if self.seln:
             conditions += CLASS_DEP_SELN_DEP_CONDS
         for cond in conditions:
@@ -179,18 +179,18 @@ class AGandUIManager(ws_event.Listener):
             if action:
                 return action
     def copy_conditional_action(self, action_name, new_cond):
-        conditions = CLASS_DEP_SELN_INDEP_CONDS
+        conditions = CLASS_DEP_SELN_INDEP_CONDS[:]
         if self.seln:
-            conditions += CLASS_DEP_SELN_INDEP_CONDS
+            conditions += CLASS_DEP_SELN_DEP_CONDS
         for cond in conditions:
             action = self._action_groups[cond].get_action(action_name)
             if action:
                self._action_groups[new_cond].add_action(action)
                return
     def move_conditional_action(self, action_name, new_cond):
-        conditions = CLASS_DEP_SELN_INDEP_CONDS
+        conditions = CLASS_DEP_SELN_INDEP_CONDS[:]
         if self.seln:
-            conditions += CLASS_DEP_SELN_INDEP_CONDS
+            conditions += CLASS_DEP_SELN_DEP_CONDS
         for cond in conditions:
             action = self._action_groups[cond].get_action(action_name)
             if action:
