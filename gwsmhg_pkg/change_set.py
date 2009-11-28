@@ -247,7 +247,6 @@ class HeadsTable(ChangeSetTable):
         ChangeSetTable.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR))
-        self.set_contents()
     def _fetch_contents(self):
         res, heads, serr = ifce.SCM.get_heads_data()
         dialogue.report_any_problems((res, heads, serr))
@@ -296,7 +295,6 @@ class HistoryTable(SearchableChangeSetTable):
                                                          expand=False)
         self.header.rhs.pack_start(gtk.VSeparator(), expand=True)
         self.header.rhs.pack_end(self._button_box, expand=False)
-        self.set_contents()
     def _oldest_loaded_rev(self):
         if len(self.model) == 0:
             return 0
@@ -358,7 +356,6 @@ class ParentsTable(ChangeSetTable):
         self._rev = rev
         if rev is None:
             self.add_notification_cb(ws_event.CHECKOUT, self._checkout_cb)
-        self.set_contents()
     def _checkout_cb(self, arg=None):
         self.set_contents()
     def _fetch_contents(self):
@@ -451,7 +448,6 @@ class TagsTable(ChangeSetTable):
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(TAG_TABLE_UI_DESCR))
-        self.set_contents()
     def _remove_tag_cs_acb(self, action=None):
         tag = self.get_selected_key()
         local = self.get_selected_key_by_label('Scope')
@@ -504,7 +500,6 @@ class BranchesTable(ChangeSetTable):
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_TAG_UI_DESCR))
-        self.set_contents()
     def _fetch_contents(self):
         res, branches, serr = ifce.SCM.get_branches_data()
         dialogue.report_any_problems((res, branches, serr))

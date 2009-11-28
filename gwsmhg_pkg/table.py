@@ -239,7 +239,6 @@ class Table(gtk.VBox):
         self.model.connect('row-inserted', self._row_inserted_cb)
         self.seln.connect('changed', self._selection_changed_cb)
         self.view.register_modification_callback(self._set_modified, True)
-        self.set_contents()
         self.seln.unselect_all()
         self._selection_changed_cb(self.seln)
     def _set_modified(self, val):
@@ -427,7 +426,8 @@ class MapManagedTable(TableWithAGandUI, gutils.MappedManager):
         self.unshow_busy()
     def update_for_chdir(self, arg=None):
         self.show_busy()
-        self.refresh_contents()
+        self.model.set_contents([])
+        self.refresh_contents_if_mapped()
         self.unshow_busy()
 
 #class AutoRefreshTableView(MapManagedTableView):
