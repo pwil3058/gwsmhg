@@ -352,6 +352,7 @@ class EditorAllocationTable(table.Table):
     def __init__(self):
         table.Table.__init__(self, EDITOR_GLOB_MODEL_DESCR,
                              EDITOR_GLOB_TABLE_DESCR, (320, 160))
+        self.set_contents()
     def _fetch_contents(self):
         return editor_defs
     def apply_changes(self):
