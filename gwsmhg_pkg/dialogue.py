@@ -294,7 +294,7 @@ def report_exception(exc_data, parent=None):
                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                            type=gtk.MESSAGE_ERROR, buttons=gtk.BUTTONS_CLOSE,
                            message_format=report_request_msg)
-    dialog.set_title('gqwmhg: Unexpected Exception')
+    dialog.set_title('gwsmhg: Unexpected Exception')
     dialog.format_secondary_text(msg)
     dialog.run()
     dialog.destroy()
