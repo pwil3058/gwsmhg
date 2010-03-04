@@ -162,6 +162,7 @@ class PathSelectDialog(dialogue.Dialog):
         self.vbox.pack_start(hbox, expand=False, fill=False)
         self.show_all()
         self.ap_table.seln.unselect_all()
+        self._selection_cb(self.ap_table.seln)
     def _selection_cb(self, selection=None):
         self._select_button.set_sensitive(selection.count_selected_rows())
     def _select_cb(self, button=None):
