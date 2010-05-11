@@ -455,10 +455,11 @@ REMOTE_MGMT_UI_DESCR = \
 </ui>
 '''
 
-class RemoteRepoManagementWidget(gtk.VBox, actions.AGandUIManager):
+class RemoteRepoManagementWidget(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorUser):
     def __init__(self, path, alias, busy_indicator=None):
         gtk.VBox.__init__(self)
         actions.AGandUIManager.__init__(self)
+        dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
         self._path = path
         hbox = gtk.HBox()
         hbox.pack_start(gutils.LabelledText(label="Path:", text=path, min=52))
@@ -494,11 +495,13 @@ class RemoteRepoManagementWidget(gtk.VBox, actions.AGandUIManager):
     def _pull_repo_acb(self, action=None):
         self.show_busy()
         result = ifce.SCM.do_pull_from(source=self._path)
+        self._refresh_data_acb()
         self.unshow_busy()
         dialogue.report_any_problems(result)
     def _push_repo_acb(self, action=None):
         self.show_busy()
         result = ifce.SCM.do_push_to(path=self._path)
+        self._refresh_data_acb()
         self.unshow_busy()
         dialogue.report_any_problems(result)
 
