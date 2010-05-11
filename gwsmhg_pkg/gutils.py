@@ -254,6 +254,17 @@ class LabelledEntry(gtk.HBox):
         self.pack_start(self.entry, expand=True, fill=True)
         self.entry.set_text(text)
 
+class LabelledText(gtk.HBox):
+    def __init__(self, label="", text="", min=0):
+        gtk.HBox.__init__(self)
+        self.label = gtk.Label(label)
+        self.pack_start(self.label, expand=False)
+        self.entry = gtk.Entry()
+        self.entry.set_width_chars(min)
+        self.pack_start(self.entry, expand=True, fill=True)
+        self.entry.set_text(text)
+        self.entry.set_editable(False)
+
 class SplitBar(gtk.HBox):
     def __init__(self, expand_lhs=True, expand_rhs=False):
         gtk.HBox.__init__(self)

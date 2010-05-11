@@ -60,6 +60,8 @@ PATH_TABLE_UI_DESCR = \
 '''
 <ui>
   <popup name="table_popup">
+  	<menuitem action="remote_repo_mgmt"/>
+    <separator/>
     <placeholder name="top">
       <menuitem action="view_incoming_from_path"/>
       <menuitem action="pull_from_path"/>
@@ -83,6 +85,9 @@ class PathTable(table.MapManagedTable):
                                        popup='/table_popup')
         self.add_conditional_actions(actions.ON_IN_REPO_UNIQUE_SELN,
             [
+                ("remote_repo_mgmt", gtk.STOCK_EXECUTE, "Manage", None,
+                 "Open remote management for selected repository",
+                 self._manage_repo_acb),
                 ("view_incoming_from_path", gtk.STOCK_INFO, "Incoming", None,
                  "View the incoming change sets available to pull from the selected path",
                  self._view_incoming_acb),
@@ -113,6 +118,12 @@ class PathTable(table.MapManagedTable):
         return self.get_selected_key_by_label('Alias')
     def get_selected_path(self):
         return self.get_selected_key_by_label('Path')
+    def _manage_repo_acb(self, action):
+        alias, path = self.get_selected_data()[0]
+        self.show_busy()
+        dialog = RemoteRepoManagementDialog(path, alias)
+        self.unshow_busy()
+        dialog.show()
     def _view_incoming_acb(self, action):
         path = self.get_selected_path()
         self.show_busy()
@@ -237,7 +248,8 @@ class IncomingTable(change_set.SearchableChangeSetTable):
     def __init__(self, path=None, busy_indicator=None):
         self._path = path
         change_set.SearchableChangeSetTable.__init__(self, busy_indicator=busy_indicator,
-                                                     size_req = (640, 240))
+                                                     size_req = (640, 120),
+                                                     prefix = "Incoming", rev=False)
         self.add_conditional_actions(actions.ON_IN_REPO_UNIQUE_SELN,
            [
                 ("cs_pull_to", gtk.STOCK_EXECUTE, "Pull To", None,
@@ -283,7 +295,8 @@ class OutgoingTable(change_set.SearchableChangeSetTable):
     def __init__(self, path=None, busy_indicator=None):
         self._path = path
         change_set.SearchableChangeSetTable.__init__(self, busy_indicator=busy_indicator,
-                                                     size_req = (640, 240))
+                                                     size_req = (640, 120),
+                                                     prefix = "Outgoing")
         self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_UNIQUE_SELN,
             [
                 ("cs_push_to", gtk.STOCK_EXECUTE, "Push To", None,
@@ -428,4 +441,78 @@ class PullDialog(dialogue.Dialog):
             return revision
         else:
             return None
+
+REMOTE_MGMT_UI_DESCR = \
+'''
+<ui>
+  <menubar name="remote_menubar">
+  </menubar>
+  <toolbar name="remote_toolbar">
+    <toolitem name="Refresh" action="path_refresh_remote"/>
+    <toolitem name="Push" action="path_remote_push"/>
+    <toolitem name="Pull" action="path_remote_pull"/>
+  </toolbar>
+</ui>
+'''
+
+class RemoteRepoManagementWidget(gtk.VBox, actions.AGandUIManager):
+    def __init__(self, path, alias, busy_indicator=None):
+        gtk.VBox.__init__(self)
+        actions.AGandUIManager.__init__(self)
+        self._path = path
+        hbox = gtk.HBox()
+        hbox.pack_start(gutils.LabelledText(label="Path:", text=path, min=52))
+        hbox.pack_start(gutils.LabelledText(label="Alias:", text=alias, min=12))
+        self.pack_start(hbox, expand=False)
+        self.ui_manager.add_ui_from_string(REMOTE_MGMT_UI_DESCR)
+        self.add_conditional_actions(actions.ON_IN_REPO_SELN_INDEP,
+            [
+                ("path_refresh_remote", gtk.STOCK_REFRESH, "_Refresh", None,
+                 "Refresh remote repository date", self._refresh_data_acb),
+                ("path_remote_pull", icons.STOCK_PULL, "Pull", "",
+                 "Pull all available changes from  remote repository",
+                 self._pull_repo_acb),
+            ])
+        self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_SELN_INDEP,
+            [
+                ("path_remote_push", icons.STOCK_PUSH, "Push", "",
+                 "Push all available changes to remote repository",
+                 self._push_repo_acb),
+            ])
+        self._tool_bar = self.ui_manager.get_widget("/remote_toolbar")
+        self._tool_bar.set_style(gtk.TOOLBAR_BOTH)
+        self.pack_start(self._tool_bar, expand=False)
+        self._incoming = IncomingTable(path=path, busy_indicator=busy_indicator)
+        self._outgoing = OutgoingTable(path=path, busy_indicator=busy_indicator)
+        vpane = gtk.VPaned()
+        vpane.add1(self._incoming)
+        vpane.add2(self._outgoing)
+        self.pack_start(vpane)
+    def _refresh_data_acb(self, action=None):
+    	self._incoming.refresh_contents()
+    	self._outgoing.refresh_contents()
+    def _pull_repo_acb(self, action=None):
+        self.show_busy()
+        result = ifce.SCM.do_pull_from(source=self._path)
+        self.unshow_busy()
+        dialogue.report_any_problems(result)
+    def _push_repo_acb(self, action=None):
+        self.show_busy()
+        result = ifce.SCM.do_push_to(path=self._path)
+        self.unshow_busy()
+        dialogue.report_any_problems(result)
+
+class RemoteRepoManagementDialog(dialogue.AmodalDialog):
+    def __init__(self, path, alias, parent=None):
+        dialogue.AmodalDialog.__init__(self, parent=parent,
+                                       flags=gtk.DIALOG_DESTROY_WITH_PARENT,
+                                       buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE))
+        self._path = path
+        self.set_title('gwsmg: Remote(%s): %s (%s)' % (utils.cwd_rel_home(), utils.path_rel_home(path), alias))
+        self._manager = RemoteRepoManagementWidget(path=path, alias=alias, busy_indicator=self)
+        self.vbox.pack_start(self._manager)
+        self.show_all()
+        self.connect("response", self._close_cb)
+    def _close_cb(self, dialog, response_id):
+        self.destroy()
 

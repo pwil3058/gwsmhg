@@ -256,9 +256,18 @@ class HeadsTable(ChangeSetTable):
             return []
 
 class SearchableChangeSetTable(ChangeSetTable):
-    def __init__(self, busy_indicator=None, size_req=None):
+    def __init__(self, busy_indicator=None, size_req=None, prefix=None, rev=True):
         ChangeSetTable.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
-        self._search = gutils.LabelledEntry('Rev/Tag/Node Id:')
+        if rev:
+            if prefix:
+                self._search = gutils.LabelledEntry(prefix + ': Find Rev/Tag/Node Id:')
+            else:
+                self._search = gutils.LabelledEntry('Find Rev/Tag/Node Id:')
+        else:
+            if prefix:
+                self._search = gutils.LabelledEntry(prefix + ': Find Tag/Node Id:')
+            else:
+                self._search = gutils.LabelledEntry('Find Tag/Node Id:')
         self._search.entry.connect('activate', self._search_entry_cb)
         self.header.lhs.pack_start(self._search, expand=True, fill=True)
     def _search_entry_cb(self, entry):
