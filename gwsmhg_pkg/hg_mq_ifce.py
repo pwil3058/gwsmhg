@@ -1039,6 +1039,7 @@ class PMInterface(BaseInterface):
         self.not_enabled_response = (cmd_result.ERROR, ENABLE_MQ_MSG, "")
         self._adding_re = re.compile("^adding\s.*$")
         self._qpush_re = re.compile("^(merging|applying)\s.*$", re.M)
+        self._qguard_re = re.compile("^[^:]*:\s*([+-].*)\s*$")
     def _map_cmd_result(self, result, ignore_err_re=None):
         if not result[0]:
             if self._inotify_warning(result[1]):
@@ -1108,8 +1109,30 @@ class PMInterface(BaseInterface):
         if res != 0:
                 return []
         return op.splitlines()
+    def get_all_patches(self):
+        if not self.get_enabled():
+            return []
+        res, op, err = utils.run_cmd('hg qseries')
+        if res != 0:
+                return []
+        return op.splitlines()
     def get_patch_is_applied(self, patch):
         return patch in self.get_applied_patches()
+    def get_patch_guards(self, patch):
+        if not self.get_enabled():
+            return ''
+        res, op, err = utils.run_cmd('hg qguard ' + patch)
+        if res != 0:
+                return []
+        match = self._qguard_re.match(op.strip())
+        if match:
+            return match.group(1).split()
+        return ''
+    def get_selected_guards(self):
+        res, op, err = utils.run_cmd('hg qselect')
+        if res != 0 or op.strip() == "no active guards":
+                return []
+        return op.split()
     def get_top_patch(self):
         res, sout, serr = utils.run_cmd('hg qtop')
         if res:
@@ -1154,6 +1177,21 @@ class PMInterface(BaseInterface):
         if res != 0:
             res = cmd_result.ERROR
         return (res, sout, serr)
+    def do_select_guards(self, guards):
+        if not guards:
+            guards = "--none"
+        result = self._run_cmd_on_console('hg qselect %s' % guards)
+        ws_event.notify_events(ws_event.REPO_MOD)
+        return result
+    def do_set_patch_guards(self, patch_name, guards):
+        cmd = 'hg qguard '
+        if not guards:
+            cmd += "--none %s" % patch_name
+        else:
+            cmd += "-- %s %s" % (patch_name, guards)
+        result = self._run_cmd_on_console(cmd)
+        ws_event.notify_events(ws_event.REPO_MOD)
+        return result
     def do_refresh(self, notify=True):
         result = self._run_cmd_on_console('hg qrefresh')
         if notify and not cmd_result.is_error(result[0]):
@@ -1268,7 +1306,7 @@ class PMInterface(BaseInterface):
         return result
     def do_fold_patch(self, patch):
         result = self._run_cmd_on_console('hg qfold %s' % patch)
-        ws_event.notify_events(ws_event.FILES_CHANGE)
+        ws_event.notify_events(ws_event.FILES_CHANGE|ws_event.REPO_MOD)
         return result
     def do_import_patch(self, patch_file_name, as_patch_name=None, force=False):
         cmd = 'hg qimport'

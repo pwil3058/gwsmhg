@@ -350,6 +350,7 @@ PM_PATCHES_UI_DESCR = \
     <toolitem name="PushMerge" action="pm_push_merge"/>
     <separator/>
     <toolitem name="New" action="pm_new"/>
+    <toolitem name="Select Guards" action="pm_select_guards"/>
     <toolitem name="Import" action="pm_import_external_patch"/>
   </toolbar>
   <menubar name="patch_list_menubar">
@@ -370,6 +371,7 @@ PM_PATCHES_UI_DESCR = \
       <menuitem action="pm_view_patch_files"/>
       <menuitem action="pm_view_patch_diff"/>
       <menuitem action="pm_rename_patch"/>
+      <menuitem action="pm_set_patch_guards"/>
     </placeholder>
     <separator/>
     <placeholder name="unapplied">
@@ -428,8 +430,8 @@ WS_UPDATE_CONDITIONS = [
 
 class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener):
     def __init__(self, busy_indicator):
-        self.store = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_INT,
-                                   gobject.TYPE_STRING, gobject.TYPE_STRING)
+        self.store = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING,
+                                   gobject.TYPE_STRING)
         gtk.TreeView.__init__(self, self.store)
         ws_event.Listener.__init__(self)
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
@@ -438,8 +440,8 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
         tvcolumn = gtk.TreeViewColumn("patch_list")
         tvcolumn.pack_start(icon_cell, False)
         tvcolumn.pack_start(text_cell)
-        tvcolumn.set_attributes(text_cell, text=0, style=1, foreground=2)
-        tvcolumn.set_attributes(icon_cell, stock_id=3)
+        tvcolumn.set_attributes(text_cell, markup=2)
+        tvcolumn.set_attributes(icon_cell, stock_id=1)
         self.append_column(tvcolumn)
         self.set_headers_visible(False)
         self.get_selection().set_mode(gtk.SELECTION_SINGLE)
@@ -465,6 +467,8 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
                  "Show diff for the selected patch", self.show_diff_acb),
                 ("pm_rename_patch", None, "QRename", None,
                  "Rename the selected patch", self.do_rename),
+                ("pm_set_patch_guards", None, "QGuard", None,
+                 "Set guards on the selected patch", self.do_set_guards),
             ])
         self._action_group[UNAPPLIED].add_actions(
             [
@@ -540,6 +544,8 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
                  "Import an external patch", self.do_import_external_patch),
                 ("pm_import_patch_series", icons.STOCK_IMPORT_PATCH, "QImport Patch Series", None,
                  "Import an external patch (mq/quilt style) series", self.do_import_external_patch_series),
+                ("pm_select_guards", icons.STOCK_SELECT_GUARD, "QSelect", None,
+                 "Select which guards are in force", self.do_select_guards),
             ])
         self._action_group[WS_UPDATE_CLEAN_UP_READY].add_actions(
             [
@@ -575,7 +581,7 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
                 self._action_group[index].set_sensitive(False)
         else:
             model, iter = self.get_selection().get_selected()
-            applied = model.get_value(iter, 3) != None
+            applied = model.get_value(iter, 1) != None
             self._action_group[APPLIED_INDIFFERENT].set_sensitive(True)
             self._action_group[APPLIED].set_sensitive(applied)
             self._action_group[UNAPPLIED].set_sensitive(not applied)
@@ -624,19 +630,39 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
         else:
             for condition in APPLIED_CONDITIONS + PUSH_POP_CONDITIONS + WS_UPDATE_CONDITIONS:
                 self._action_group[condition].set_sensitive(False)
+    def _markup_applied_patch(self, patch_name, guards, selected):
+        markup = patch_name
+        if guards:
+            markup += " <b>:</b>"
+            for guard in guards:
+                if guard[1:] in selected:
+                    markup += " <b>%s</b>" % guard
+                else:
+                    markup += " %s" % guard
+        return markup
+    def _markup_unapplied_patch(self, patch_name, guards, selected):
+        return '<span foreground="dark grey" style="italic">' + \
+               self._markup_applied_patch(patch_name, guards, selected) + \
+               '</span>'
     def set_contents(self, action=None):
         self.show_busy()
+        patch_list = ifce.PM.get_all_patches()
         applied_patch_list = ifce.PM.get_applied_patches()
-        unapplied_patch_list = ifce.PM.get_unapplied_patches()
+        selected = ifce.PM.get_selected_guards()
+        self.unapplied_count = 0
         self.store.clear()
-        for patch_name in applied_patch_list:
-            self.store.append([patch_name, pango.STYLE_NORMAL, "black", icons.STOCK_APPLIED])
+        for patch_name in patch_list:
+            guards = ifce.PM.get_patch_guards(patch_name)
+            if patch_name in applied_patch_list:
+                markup = self._markup_applied_patch(patch_name, guards, selected)
+                self.store.append([patch_name, icons.STOCK_APPLIED, markup])
+            else:
+                markup = self._markup_unapplied_patch(patch_name, guards, selected)
+                self.store.append([patch_name, None, markup])
+                self.unapplied_count += 1
         self.applied_count = len(applied_patch_list)
         self._action_group[POP_POSSIBLE].set_sensitive(self.applied_count > 0)
         self._action_group[POP_NOT_POSSIBLE].set_sensitive(self.applied_count == 0)
-        for patch_name in unapplied_patch_list:
-            self.store.append([patch_name, pango.STYLE_ITALIC, "dark grey", None])
-        self.unapplied_count = len(unapplied_patch_list)
         self._action_group[PUSH_POSSIBLE].set_sensitive(self.unapplied_count > 0)
         self._action_group[PUSH_NOT_POSSIBLE].set_sensitive(self.unapplied_count == 0)
         self._set_ws_update_menu_sensitivity()
@@ -782,6 +808,31 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
             if patch == new_name:
                 return
             res, sout, serr = ifce.PM.do_rename_patch(patch, new_name)
+            dialogue.report_any_problems((res, sout, serr))
+            self.set_contents()
+        else:
+            dialog.destroy()
+    def do_set_guards(self, action=None):
+        patch = self.get_selected_patch()
+        cguards = ' '.join(ifce.PM.get_patch_guards(patch))
+        dialog = dialogue.ReadTextDialog("Set Guards: %s" % patch, "Guards:", cguards)
+        response = dialog.run()
+        if response == gtk.RESPONSE_OK:
+            guards = dialog.entry.get_text()
+            dialog.destroy()
+            res, sout, serr = ifce.PM.do_set_patch_guards(patch, guards)
+            dialogue.report_any_problems((res, sout, serr))
+            self.set_contents()
+        else:
+            dialog.destroy()
+    def do_select_guards(self, action=None):
+        cselected_guards = ' '.join(ifce.PM.get_selected_guards())
+        dialog = dialogue.ReadTextDialog("Select Guards: %s" % os.getcwd(), "Guards:", cselected_guards)
+        response = dialog.run()
+        if response == gtk.RESPONSE_OK:
+            selected_guards = dialog.entry.get_text()
+            dialog.destroy()
+            res, sout, serr = ifce.PM.do_select_guards(selected_guards)
             dialogue.report_any_problems((res, sout, serr))
             self.set_contents()
         else:
