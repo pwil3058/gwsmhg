@@ -1388,11 +1388,7 @@ class PMInterface(BaseInterface):
             return result
         else:
             return (cmd_result.INFO, 'Saved patch directory not found.', '')
-    def get_ws_update_qsave_ready(self, unapplied_count=None, applied_count=None):
-        if unapplied_count is None:
-            unapplied_count = len(self.get_unapplied_patches())
-        if applied_count is None:
-            applied_count = len(self.get_applied_patches())
+    def get_ws_update_qsave_ready(self, unapplied_count, applied_count):
         return applied_count and not unapplied_count and not self._ws_update_mgr.is_in_progress()
     def get_ws_update_ready(self, applied_count=None):
         if applied_count is None:

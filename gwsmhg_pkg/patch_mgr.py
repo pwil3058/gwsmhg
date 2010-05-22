@@ -632,18 +632,26 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
                 self._action_group[condition].set_sensitive(False)
     def _markup_applied_patch(self, patch_name, guards, selected):
         markup = patch_name
+        appliable = True
         if guards:
+            pluses = False
+            minuses = False
             markup += " <b>:</b>"
             for guard in guards:
                 if guard[1:] in selected:
                     markup += " <b>%s</b>" % guard
+                    if guard[0] == "-":
+                        minuses = True
+                    else:
+                        pluses = True
                 else:
                     markup += " %s" % guard
-        return markup
+            appliable = pluses and not minuses
+        return (markup, appliable)
     def _markup_unapplied_patch(self, patch_name, guards, selected):
-        return '<span foreground="dark grey" style="italic">' + \
-               self._markup_applied_patch(patch_name, guards, selected) + \
-               '</span>'
+        amarkup, appliable = self._markup_applied_patch(patch_name, guards, selected)
+        markup = '<span foreground="darkgrey" style="italic">' + amarkup + '</span>'
+        return (markup, appliable)
     def set_contents(self, action=None):
         self.show_busy()
         patch_list = ifce.PM.get_all_patches()
@@ -654,12 +662,13 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
         for patch_name in patch_list:
             guards = ifce.PM.get_patch_guards(patch_name)
             if patch_name in applied_patch_list:
-                markup = self._markup_applied_patch(patch_name, guards, selected)
+                markup, dummy = self._markup_applied_patch(patch_name, guards, selected)
                 self.store.append([patch_name, icons.STOCK_APPLIED, markup])
             else:
-                markup = self._markup_unapplied_patch(patch_name, guards, selected)
+                markup, appliable = self._markup_unapplied_patch(patch_name, guards, selected)
                 self.store.append([patch_name, None, markup])
-                self.unapplied_count += 1
+                if appliable:
+                    self.unapplied_count += 1
         self.applied_count = len(applied_patch_list)
         self._action_group[POP_POSSIBLE].set_sensitive(self.applied_count > 0)
         self._action_group[POP_NOT_POSSIBLE].set_sensitive(self.applied_count == 0)
