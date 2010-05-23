@@ -634,19 +634,26 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
         markup = patch_name
         appliable = True
         if guards:
-            pluses = False
-            minuses = False
+            unselected_pluses = False
+            selected_pluses = False
+            selected_minuses = False
             markup += " <b>:</b>"
             for guard in guards:
                 if guard[1:] in selected:
                     markup += " <b>%s</b>" % guard
                     if guard[0] == "-":
-                        minuses = True
+                        selected_minuses = True
                     else:
-                        pluses = True
+                        selected_pluses = True
                 else:
                     markup += " %s" % guard
-            appliable = pluses and not minuses
+                    unselected_pluses = unselected_pluses or guard[0] == "+"
+            if selected_minuses:
+                appliable = False
+            elif selected_pluses:
+                appliable = True
+            else:
+                appliable = not unselected_pluses
         return (markup, appliable)
     def _markup_unapplied_patch(self, patch_name, guards, selected):
         amarkup, appliable = self._markup_applied_patch(patch_name, guards, selected)
