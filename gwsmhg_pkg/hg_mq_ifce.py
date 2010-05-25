@@ -745,6 +745,19 @@ class SCMInterface(BaseInterface):
         if res != 0:
             res = cmd_result.ERROR
         return (res, sout, serr)
+    def launch_extdiff_for_ws(self, file_list=None):
+        cmd = 'hg extdiff'
+        rev = self._get_qparent()
+        if rev:
+            cmd += ' --rev %s' % rev
+        if file_list:
+           cmd += ' %s' % utils.file_list_to_string(file_list)
+        return utils.run_cmd_in_bgnd(cmd)
+    def launch_extdiff_for_changeset(self, rev, file_list=None):
+        cmd = 'hg extdiff --change %s' % rev
+        if file_list:
+           cmd += ' %s' % utils.file_list_to_string(file_list)
+        return utils.run_cmd_in_bgnd(cmd)
     def do_update_workspace(self, rev=None, discard=False):
         cmd = 'hg update'
         if discard:
@@ -1177,6 +1190,16 @@ class PMInterface(BaseInterface):
         if res != 0:
             res = cmd_result.ERROR
         return (res, sout, serr)
+    def launch_extdiff_for_ws(self, file_list=None):
+        cmd = 'hg extdiff --rev %s' % self.get_parent(self.get_top_patch())
+        if file_list:
+           cmd += ' %s' % utils.file_list_to_string(file_list)
+        return utils.run_cmd_in_bgnd(cmd)
+    def launch_extdiff_for_patch(self, patch, file_list=None):
+        cmd = 'hg extdiff --change %s' % patch
+        if file_list:
+           cmd += ' %s' % utils.file_list_to_string(file_list)
+        return utils.run_cmd_in_bgnd(cmd)
     def do_select_guards(self, guards):
         if not guards:
             guards = "--none"

@@ -539,6 +539,7 @@ SCM_CWD_UI_DESCR = \
       <menuitem action="scm_remove_files"/>
       <menuitem action="scm_copy_files_selection"/>
       <menuitem action="scm_diff_files_selection"/>
+      <menuitem action="scm_extdiff_files_selection"/>
       <menuitem action="scm_move_files_selection"/>
     </placeholder>
     <placeholder name="selection_not_patched">
@@ -553,6 +554,7 @@ SCM_CWD_UI_DESCR = \
     </placeholder>
     <placeholder name="no_selection">
       <menuitem action="scm_diff_files_all"/>
+      <menuitem action="scm_extdiff_files_all"/>
     </placeholder>
     <placeholder name="no_selection_not_patched">
       <menuitem action="scm_revert_files_all"/>
@@ -581,6 +583,8 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                  "Copy the selected file(s)", self.copy_selected_files_acb),
                 ("scm_diff_files_selection", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for selected file(s)", self.diff_selected_files_acb),
+                ("scm_extdiff_files_selection", icons.STOCK_DIFF, "E_xtdiff", None,
+                 "Launch extdiff for selected file(s)", self.extdiff_selected_files_acb),
                 ("scm_move_files_selection", icons.STOCK_RENAME, "_Move/Rename", None,
                  "Move the selected file(s)", self.move_selected_files_acb),
             ])
@@ -608,6 +612,8 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                  "Add all files to the repository", self.add_all_files_to_repo_acb),
                 ("scm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for all changes", self.diff_selected_files_acb),
+                ("scm_extdiff_files_all", icons.STOCK_DIFF, "E_xtdiff", None,
+                 "Launch extdiff for all changes", self.extdiff_selected_files_acb),
             ])
         self.add_conditional_actions(actions.ON_IN_REPO_NOT_PMIC_NO_SELN,
             [
@@ -621,6 +627,9 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                 ("menu_files", None, "_Files"),
             ])
         self.cwd_merge_id = self.ui_manager.add_ui_from_string(SCM_CWD_UI_DESCR)
+        if not ifce.SCM.get_extension_enabled("extdiff"):
+            self.get_conditional_action("scm_extdiff_files_selection").set_visible(False)
+            self.get_conditional_action("scm_extdiff_files_all").set_visible(False)
         if tortoise.is_available:
             self.add_conditional_action(actions.ON_REPO_INDEP_SELN_INDEP, tortoise.file_menu)
             for condition in tortoise.SELN_CONDITIONS:
@@ -763,6 +772,8 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         dialog = diff.ScmDiffTextDialog(parent=dialogue.main_window,
                                      file_list=self.get_selected_files())
         dialog.show()
+    def extdiff_selected_files_acb(self, action=None):
+        ifce.SCM.launch_extdiff_for_ws(self.get_selected_files())
     def resolve_selected_files_acb(self, action=None):
         self.show_busy()
         result = ifce.SCM.do_resolve_workspace(self.get_selected_files())

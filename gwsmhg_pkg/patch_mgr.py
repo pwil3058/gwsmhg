@@ -43,11 +43,13 @@ PATCH_FILES_UI_DESCR = \
     </placeholder>
     <placeholder name="selection">
       <menuitem action="pm_diff_files_selection"/>
+      <menuitem action="pm_extdiff_files_selection"/>
     </placeholder>
     <placeholder name="unique_selection">
     </placeholder>
     <placeholder name="no_selection">
       <menuitem action="pm_diff_files_all"/>
+      <menuitem action="pm_extdiff_files_all"/>
     </placeholder>
   </popup>
 </ui>
@@ -63,16 +65,23 @@ class PatchFileTreeView(file_tree.CwdFileTreeView):
             [
                 ("pm_diff_files_selection", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for selected file(s)", self.diff_selected_files_acb),
+                ("pm_extdiff_files_selection", icons.STOCK_DIFF, "E_xtdiff", None,
+                 "Launch extdiff for selected file(s)", self.extdiff_selected_files_acb),
             ])
         self.add_conditional_actions(actions.ON_IN_REPO_NO_SELN,
             [
                 ("pm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for all changes", self.diff_all_files_acb),
+                ("pm_extdiff_files_all", icons.STOCK_DIFF, "E_xtdiff", None,
+                 "Launch extdiff for all changes", self.extdiff_all_files_acb),
             ])
         self.add_conditional_actions(actions.ON_IN_REPO_SELN_INDEP,
             [
                 ("menu_files", None, "_Files"),
             ])
+        if not ifce.SCM.get_extension_enabled("extdiff") or not ifce.PM.get_patch_is_applied(self._patch):
+            self.get_conditional_action("pm_extdiff_files_selection").set_visible(False)
+            self.get_conditional_action("pm_extdiff_files_all").set_visible(False)
         model.show_hidden_action.set_visible(False)
         model.show_hidden_action.set_sensitive(False)
         self.get_conditional_action("new_file").set_visible(False)
@@ -88,6 +97,10 @@ class PatchFileTreeView(file_tree.CwdFileTreeView):
     def diff_all_files_acb(self, action=None):
         dialog = diff.PmDiffTextDialog(parent=dialogue.main_window, patch=self._patch)
         dialog.show()
+    def extdiff_selected_files_acb(self, action=None):
+        ifce.PM.launch_extdiff_for_patch(self._patch, self.get_selected_files())
+    def extdiff_all_files_acb(self, action=None):
+        ifce.PM.launch_extdiff_for_patch(self._patch)
 
 class PatchFilesDialog(dialogue.AmodalDialog):
     def __init__(self, patch):
@@ -125,6 +138,7 @@ PM_FILES_UI_DESCR = \
       <menuitem action="pm_remove_files"/>
       <menuitem action="pm_copy_files_selection"/>
       <menuitem action="pm_diff_files_selection"/>
+      <menuitem action="pm_extdiff_files_selection"/>
       <menuitem action="pm_move_files_selection"/>
       <menuitem action="pm_revert_files_selection"/>
     </placeholder>
@@ -133,6 +147,7 @@ PM_FILES_UI_DESCR = \
     </placeholder>
     <placeholder name="no_selection">
       <menuitem action="pm_diff_files_all"/>
+      <menuitem action="pm_extdiff_files_all"/>
       <menuitem action="pm_revert_files_all"/>
     </placeholder>
   </popup>
@@ -153,6 +168,8 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
                  "Copy the selected file(s)", self.copy_selected_files_acb),
                 ("pm_diff_files_selection", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for selected file(s)", self.diff_selected_files_acb),
+                ("pm_extdiff_files_selection", icons.STOCK_DIFF, "E_xtdiff", None,
+                 "Launch extdiff for selected file(s)", self.extdiff_selected_files_acb),
                 ("pm_move_files_selection", gtk.STOCK_PASTE, "_Move/Rename", None,
                  "Move the selected file(s)", self.move_selected_files_acb),
                 ("pm_revert_files_selection", gtk.STOCK_UNDO, "Rever_t", None,
@@ -167,6 +184,8 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
             [
                 ("pm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for all changes", self.diff_all_files_acb),
+                ("pm_extdiff_files_all", icons.STOCK_DIFF, "E_xtdiff", None,
+                 "Launch extdiff for all changes", self.extdiff_all_files_acb),
                 ("pm_revert_files_all", gtk.STOCK_UNDO, "Rever_t", None,
                  "Revert all changes in working directory", self.revert_all_files_acb),
             ])
@@ -176,6 +195,9 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
             ])
         model.show_hidden_action.set_visible(False)
         model.show_hidden_action.set_sensitive(False)
+        if not ifce.SCM.get_extension_enabled("extdiff"):
+            self.get_conditional_action("pm_extdiff_files_selection").set_visible(False)
+            self.get_conditional_action("pm_extdiff_files_all").set_visible(False)
         model.repopulate()
         self.cwd_merge_id = self.ui_manager.add_ui_from_string(PM_FILES_UI_DESCR)
         self.add_notification_cb(ws_event.CHECKOUT|ws_event.CHANGE_WD, self.repopulate_tree)
@@ -280,6 +302,10 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
     def diff_all_files_acb(self, action=None):
         dialog = diff.PmDiffTextDialog(parent=dialogue.main_window)
         dialog.show()
+    def extdiff_selected_files_acb(self, action=None):
+        ifce.SCM.launch_extdiff_for_ws(self.get_selected_files())
+    def extdiff_all_files_acb(self, action=None):
+        ifce.SCM.launch_extdiff_for_ws()
     def revert_named_files(self, file_list, ask=True):
         if ask:
             self.show_busy()

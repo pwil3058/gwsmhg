@@ -786,10 +786,12 @@ CHANGE_SET_FILES_UI_DESCR = \
   <popup name="files_popup">
     <placeholder name="selection">
       <menuitem action="scm_diff_files_selection"/>
+      <menuitem action="scm_extdiff_files_selection"/>
     </placeholder>
     <separator/>
     <placeholder name="no_selection"/>
       <menuitem action="scm_diff_files_all"/>
+      <menuitem action="scm_extdiff_files_all"/>
     <separator/>
   </popup>
 </ui>
@@ -808,13 +810,20 @@ class FileTreeView(file_tree.FileTreeView):
             [
                 ("scm_diff_files_selection", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for selected file(s)", self._diff_selected_files_acb),
+                ("scm_extdiff_files_selection", icons.STOCK_DIFF, "E_xtdiff", None,
+                 "Launch extdiff for selected file(s)", self._extdiff_selected_files_acb),
             ])
         self.add_conditional_actions(actions.ON_IN_REPO_NO_SELN,
             [
                 ("scm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for all changes", self._diff_all_files_acb),
+                ("scm_extdiff_files_all", icons.STOCK_DIFF, "E_xtdiff", None,
+                 "Launch extdiff for all changes", self._extdiff_all_files_acb),
             ])
         self._action_groups[actions.ON_REPO_INDEP_SELN_INDEP].set_visible(False)
+        if not ifce.SCM.get_extension_enabled("extdiff"):
+            self.get_conditional_action("scm_extdiff_files_selection").set_visible(False)
+            self.get_conditional_action("scm_extdiff_files_all").set_visible(False)
         self.scm_change_merge_id = self.ui_manager.add_ui_from_string(CHANGE_SET_FILES_UI_DESCR)
     def _diff_selected_files_acb(self, action=None):
         parent = dialogue.main_window
@@ -830,6 +839,10 @@ class FileTreeView(file_tree.FileTreeView):
         dialog = diff.ScmDiffTextDialog(parent=parent, torev=self._rev)
         self.unshow_busy()
         dialog.show()
+    def _extdiff_selected_files_acb(self, action=None):
+        ifce.SCM.launch_extdiff_for_changeset(self._rev, self.get_selected_files())
+    def _extdiff_all_files_acb(self, action=None):
+        ifce.SCM.launch_extdiff_for_changeset(self._rev)
 
 class ChangeSetSummaryDialog(dialogue.AmodalDialog):
     def __init__(self, rev, parent=None):
