@@ -19,7 +19,7 @@ in_valid_repo = False
 
 import os
 
-from gwsmhg_pkg import console, ws_event, cmd_result
+from gwsmhg_pkg import console, ws_event, cmd_result, terminal
 
 log = None
 
@@ -36,8 +36,13 @@ def init(ifce_module):
 
 def create_log(busy_indicator):
     global log
-    log = console.ConsoleLog(busy_indicator)
+    log = console.ConsoleLog(busy_indicator=busy_indicator, runentry=not terminal.available)
     return log
+
+if terminal.available:
+    term = terminal.Terminal()
+else:
+    term = None
 
 def chdir(newdir=None):
     global in_valid_repo
@@ -59,5 +64,8 @@ def chdir(newdir=None):
     else:
         in_valid_repo = False
     ws_event.notify_events(ws_event.CHANGE_WD)
-    log.append_entry("New Working Directory: %s" % os.getcwd())
+    new_wd = os.getcwd()
+    if term:
+        term.set_cwd(new_wd)
+    log.append_entry("New Working Directory: %s" % new_wd)
     return (cmd_result.OK, "", "")

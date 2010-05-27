@@ -85,29 +85,30 @@ CONSOLE_LOG_UI_DESCR = \
 '''
 
 class ConsoleLog(gtk.VBox, dialogue.BusyIndicatorUser):
-    def __init__(self, busy_indicator=None, table=None):
+    def __init__(self, busy_indicator=None, runentry=False, table=None):
         gtk.VBox.__init__(self)
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
         self._buffer = ConsoleLogBuffer()
         self._view = ConsoleLogView(buffer=self._buffer)
-        self._action_group = gtk.ActionGroup("console_log")
-        self.ui_manager = gtk.UIManager()
-        self.ui_manager.insert_action_group(self._action_group, -1)
-        self._action_group.add_actions(
-            [
-                ("console_log_clear", gtk.STOCK_CLEAR, "_Clear", None,
-                 "Clear the console log", self._clear_acb),
-                ("menu_console", None, "_Console"),
-            ])
-        self.change_summary_merge_id = self.ui_manager.add_ui_from_string(CONSOLE_LOG_UI_DESCR)
-        self._menubar = self.ui_manager.get_widget("/console_log_menubar")
-        hbox = gtk.HBox()
-        hbox.pack_start(self._menubar, expand=False)
-        hbox.pack_start(gtk.Label("Run: "), expand=False)
-        cmd_entry = gutils.EntryWithHistory()
-        cmd_entry.connect("activate", self._cmd_entry_cb)
-        hbox.pack_start(cmd_entry, expand=True, fill=True)
-        self.pack_start(hbox, expand=False)
+        if runentry:
+            self._action_group = gtk.ActionGroup("console_log")
+            self.ui_manager = gtk.UIManager()
+            self.ui_manager.insert_action_group(self._action_group, -1)
+            self._action_group.add_actions(
+                [
+                    ("console_log_clear", gtk.STOCK_CLEAR, "_Clear", None,
+                     "Clear the console log", self._clear_acb),
+                    ("menu_console", None, "_Console"),
+                ])
+            self.change_summary_merge_id = self.ui_manager.add_ui_from_string(CONSOLE_LOG_UI_DESCR)
+            self._menubar = self.ui_manager.get_widget("/console_log_menubar")
+            hbox = gtk.HBox()
+            hbox.pack_start(self._menubar, expand=False)
+            hbox.pack_start(gtk.Label("Run: "), expand=False)
+            cmd_entry = gutils.EntryWithHistory()
+            cmd_entry.connect("activate", self._cmd_entry_cb)
+            hbox.pack_start(cmd_entry, expand=True, fill=True)
+            self.pack_start(hbox, expand=False)
         self.pack_start(gutils.wrap_in_scrolled_window(self._view), expand=True, fill=True)
         self.show_all()
     def get_action(self, action_name):
