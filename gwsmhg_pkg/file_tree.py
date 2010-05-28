@@ -866,6 +866,7 @@ SCM_CHANGE_UI_DESCR = \
     <separator/>
     <placeholder name="selection">
       <menuitem action="scm_diff_files_selection"/>
+      <menuitem action="scm_extdiff_files_selection"/>
       <menuitem action="scmch_remove_files"/>
     </placeholder>
     <separator/>
@@ -873,6 +874,7 @@ SCM_CHANGE_UI_DESCR = \
     <separator/>
     <placeholder name="no_selection"/>
       <menuitem action="scm_diff_files_all"/>
+      <menuitem action="scm_extdiff_files_all"/>
     <separator/>
   </popup>
 </ui>
@@ -892,6 +894,8 @@ class ScmCommitFileTreeView(FileTreeView):
                  "Remove the selected files from the change set", self._remove_selected_files_acb),
                 ("scm_diff_files_selection", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for selected file(s)", self._diff_selected_files_acb),
+                ("scm_extdiff_files_selection", icons.STOCK_DIFF, "E_xtdiff", None,
+                 "Launch extdiff for the selected file(s)", self._extdiff_selected_files_acb),
             ])
         self.add_conditional_actions(actions.ON_IN_REPO_SELN_INDEP,
             [
@@ -902,6 +906,8 @@ class ScmCommitFileTreeView(FileTreeView):
             [
                 ("scm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for all changes", self._diff_all_files_acb),
+                ("scm_extdiff_files_all", icons.STOCK_DIFF, "E_xtdiff", None,
+                 "Launch etxdiff for all changes", self._extdiff_all_files_acb),
             ])
         self.scm_change_merge_id = self.ui_manager.add_ui_from_string(SCM_CHANGE_UI_DESCR)
         self.get_conditional_action("scmch_undo_remove_files").set_sensitive(False)
@@ -941,6 +947,10 @@ class ScmCommitFileTreeView(FileTreeView):
         parent = dialogue.main_window
         dialog = diff.ScmDiffTextDialog(parent=parent, file_list=self.get_file_mask())
         dialog.show()
+    def _extdiff_selected_files_acb(self, action=None):
+        ifce.SCM.launch_extdiff_for_ws(file_list=self.get_selected_files())
+    def _extdiff_all_files_acb(self, action=None):
+        ifce.SCM.launch_extdiff_for_ws(file_list=self.get_file_mask())
 
 class ScmCommitWidget(gtk.VPaned, ws_event.Listener):
     def __init__(self, busy_indicator, file_mask=[]):
