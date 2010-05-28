@@ -32,6 +32,8 @@ GWSM_UI_DESCR = \
       <toolitem name='Resolve' action='gwsm_resolve_ws'/>
       <toolitem name="Checkout" action="gwsm_checkout_ws"/>
       <toolitem name="Update" action="gwsm_update_ws"/>
+      <separator/>
+      <toolitem name="Refresh" action="gwsm_refresh_ws"/>
     </placeholder>
     <separator/>
     <placeholder name="gwsm_repo_tools">
@@ -121,6 +123,9 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
                 ('gwsm_edit_repo_config', icons.STOCK_EDIT, 'Edit _Configuration', '',
                  'Edit the repository configuration file',
                  self._edit_repo_config_acb),
+                ("gwsm_refresh_ws", icons.STOCK_SYNCH, "Refresh", "",
+                 "Refresh the displayed data. Useful after external actions change workspace/repository state.",
+                 self._refresh_displayed_data_acb),
             ])
         actions.add_class_indep_actions(actions.ON_IN_REPO_NOT_PMIC,
             [
@@ -380,6 +385,8 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
         result = ifce.SCM.do_verify_repo()
         self.unshow_busy()
         dialogue.report_any_problems(result)
+    def _refresh_displayed_data_acb(self, action=None):
+        ws_event.notify_events(ws_event.ALL_BUT_CHANGE_WD)
     def _edit_repo_config_acb(self, action=None):
         from gwsmhg_pkg import text_edit
         text_edit.edit_files_extern(['.hg/hgrc'])
