@@ -911,6 +911,9 @@ class ScmCommitFileTreeView(FileTreeView):
             ])
         self.scm_change_merge_id = self.ui_manager.add_ui_from_string(SCM_CHANGE_UI_DESCR)
         self.get_conditional_action("scmch_undo_remove_files").set_sensitive(False)
+        if not ifce.SCM.get_extension_enabled("extdiff"):
+            self.get_conditional_action("scm_extdiff_files_selection").set_visible(False)
+            self.get_conditional_action("scm_extdiff_files_all").set_visible(False)
     def set_file_mask(self, file_mask):
         self.model.set_file_mask(file_mask)
     def get_file_mask(self):
