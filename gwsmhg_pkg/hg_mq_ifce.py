@@ -1066,6 +1066,8 @@ class PMInterface(BaseInterface):
                 flags |= cmd_result.SUGGEST_REFRESH
             if result[2].find('(revert --all, qpush to recover)') != -1:
                 flags |= cmd_result.SUGGEST_RECOVER
+            if result[1].find('errors during apply, please fix and refresh') != -1:
+                flags = cmd_result.WARNING
             return (flags, result[1], result[2])
     def _run_cmd_on_console(self, cmd, input_text=None, ignore_err_re=None):
         result = utils.run_cmd_in_console(cmd, ifce.log, input_text)
