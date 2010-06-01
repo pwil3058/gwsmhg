@@ -303,9 +303,9 @@ class TopPatchFileTreeView(file_tree.CwdFileTreeView):
         dialog = diff.PmDiffTextDialog(parent=dialogue.main_window)
         dialog.show()
     def extdiff_selected_files_acb(self, action=None):
-        ifce.SCM.launch_extdiff_for_ws(self.get_selected_files())
+        ifce.PM.launch_extdiff_for_ws(self.get_selected_files())
     def extdiff_all_files_acb(self, action=None):
-        ifce.SCM.launch_extdiff_for_ws()
+        ifce.PM.launch_extdiff_for_ws()
     def revert_named_files(self, file_list, ask=True):
         if ask:
             self.show_busy()
