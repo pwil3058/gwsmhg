@@ -29,6 +29,7 @@ try:
             self._vte = vte.Terminal()
             self._vte.set_size(self._vte.get_column_count(), 10)
             self._vte.set_size_request(200, 50)
+            self._vte.set_scrollback_lines(-1)
             self._vte.show()
             sb = gtk.VScrollbar(self._vte.get_adjustment())
             sb.show()
