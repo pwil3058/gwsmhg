@@ -1331,7 +1331,7 @@ class PMInterface(BaseInterface):
         return result
     def do_fold_patch(self, patch):
         result = self._run_cmd_on_console('hg qfold %s' % patch)
-        ws_event.notify_events(ws_event.FILES_CHANGE|ws_event.REPO_MOD)
+        ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD)
         return result
     def do_import_patch(self, patch_file_name, as_patch_name=None, force=False):
         cmd = 'hg qimport'
