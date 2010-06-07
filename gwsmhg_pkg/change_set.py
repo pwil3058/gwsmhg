@@ -363,6 +363,7 @@ class ParentsTable(ChangeSetTable):
         ChangeSetTable.__init__(self, busy_indicator=busy_indicator,
                                 size_req=size_req, scroll_bar=False)
         self._rev = rev
+        self.add_notification_cb(ws_event.CHANGE_WD, self._checkout_cb)
         if rev is None:
             self.add_notification_cb(ws_event.CHECKOUT, self._checkout_cb)
     def _checkout_cb(self, arg=None):
