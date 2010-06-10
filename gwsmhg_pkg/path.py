@@ -260,7 +260,7 @@ class IncomingTable(change_set.SearchableChangeSetTable):
     def _fetch_rev(self, revarg):
         return ifce.SCM.get_incoming_rev(revarg)
     def _pull_to_cs_acb(self, action):
-        rev = self.get_selected_change_set()
+        rev = self.get_selected_key_by_label("Node")
         self.show_busy()
         ifce.SCM.do_pull_from(rev=rev, source=self._path)
         self._refresh_contents()

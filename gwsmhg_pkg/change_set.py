@@ -20,6 +20,7 @@ from gwsmhg_pkg import text_edit, tortoise, ws_event, dialogue, table, actions
 
 LOG_MODEL_DESCR = [
     ['Rev', gobject.TYPE_INT],
+    ['Node', gobject.TYPE_STRING],
     ['Age', gobject.TYPE_STRING],
     ['Tags', gobject.TYPE_STRING],
     ['Branches', gobject.TYPE_STRING],

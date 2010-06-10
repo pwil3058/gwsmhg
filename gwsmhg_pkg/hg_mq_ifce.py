@@ -289,7 +289,7 @@ class SCMInterface(BaseInterface):
                 '',
             ]
         self.cs_summary_template = '\\n'.join(self.cs_summary_template_lines)
-        self.cs_table_template = '{rev}:{date|age}:{tags}:{branches}:{author|person}:{desc|firstline}\\n'
+        self.cs_table_template = '{rev}:{node}:{date|age}:{tags}:{branches}:{author|person}:{desc|firstline}\\n'
     def _map_cmd_result(self, result, ignore_err_re=None):
         if not result[0]:
             if self._inotify_warning(result[2]):
@@ -451,7 +451,7 @@ class SCMInterface(BaseInterface):
             return (res, sout, serr)
         plist = []
         for line in sout.splitlines():
-            pdata = line.split(':', 5)
+            pdata = line.split(':', 6)
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return (res, plist, serr)
@@ -477,7 +477,7 @@ class SCMInterface(BaseInterface):
                 return (res, sout, serr)
         plist = []
         for line in sout.splitlines():
-            pdata = line.split(':', 5)
+            pdata = line.split(':', 6)
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return (res, plist, serr)
@@ -496,7 +496,7 @@ class SCMInterface(BaseInterface):
                 return (res, sout, serr)
         plist = []
         for line in sout.splitlines():
-            pdata = line.split(":", 5)
+            pdata = line.split(":", 6)
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return (res, plist, serr)
@@ -574,7 +574,7 @@ class SCMInterface(BaseInterface):
             res, sout, serr = utils.run_cmd(cmd)
             if res != 0:
                 return (res, sout, serr)
-            pdata = sout.strip().split(':', 5)
+            pdata = sout.strip().split(':', 6)
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return (res, plist, serr)
@@ -600,7 +600,7 @@ class SCMInterface(BaseInterface):
             return (res, sout, serr)
         plist = []
         for line in sout.splitlines():
-            pdata = line.split(':', 5)
+            pdata = line.split(':', 6)
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return (res, plist, serr)
@@ -620,7 +620,7 @@ class SCMInterface(BaseInterface):
             return (res, sout, serr)
         plist = []
         for line in sout.splitlines():
-            pdata = line.split(':', 5)
+            pdata = line.split(':', 6)
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return (res, plist, serr)
