@@ -386,7 +386,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
         self.unshow_busy()
         dialogue.report_any_problems(result)
     def _refresh_displayed_data_acb(self, action=None):
-        ws_event.notify_events(ws_event.ALL_BUT_CHANGE_WD)
+        ws_event.notify_events(ws_event.CHANGE_WD)
     def _edit_repo_config_acb(self, action=None):
         from gwsmhg_pkg import text_edit
         text_edit.edit_files_extern(['.hg/hgrc'])
