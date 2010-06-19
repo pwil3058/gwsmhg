@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import os, gtk, gwsmhg_pkg.sourceview, pango, time
-from gwsmhg_pkg import dialogue, utils, cmd_result, gutils
+from gwsmhg_pkg import dialogue, utils, cmd_result, gutils, ws_event
 
 class ConsoleLogBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
     def __init__(self, view=None, table=None):
@@ -90,25 +90,28 @@ class ConsoleLog(gtk.VBox, dialogue.BusyIndicatorUser):
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
         self._buffer = ConsoleLogBuffer()
         self._view = ConsoleLogView(buffer=self._buffer)
+        self._action_group = gtk.ActionGroup("console_log")
+        self.ui_manager = gtk.UIManager()
+        self.ui_manager.insert_action_group(self._action_group, -1)
+        self._action_group.add_actions(
+            [
+                ("console_log_clear", gtk.STOCK_CLEAR, "_Clear", None,
+                 "Clear the console log", self._clear_acb),
+                ("menu_console", None, "_Console"),
+            ])
+        self.change_summary_merge_id = self.ui_manager.add_ui_from_string(CONSOLE_LOG_UI_DESCR)
+        self._menubar = self.ui_manager.get_widget("/console_log_menubar")
+        hbox = gtk.HBox()
+        hbox.pack_start(self._menubar, expand=False)
+        cmd_entry = gutils.EntryWithHistory()
         if runentry:
-            self._action_group = gtk.ActionGroup("console_log")
-            self.ui_manager = gtk.UIManager()
-            self.ui_manager.insert_action_group(self._action_group, -1)
-            self._action_group.add_actions(
-                [
-                    ("console_log_clear", gtk.STOCK_CLEAR, "_Clear", None,
-                     "Clear the console log", self._clear_acb),
-                    ("menu_console", None, "_Console"),
-                ])
-            self.change_summary_merge_id = self.ui_manager.add_ui_from_string(CONSOLE_LOG_UI_DESCR)
-            self._menubar = self.ui_manager.get_widget("/console_log_menubar")
-            hbox = gtk.HBox()
-            hbox.pack_start(self._menubar, expand=False)
             hbox.pack_start(gtk.Label("Run: "), expand=False)
-            cmd_entry = gutils.EntryWithHistory()
             cmd_entry.connect("activate", self._cmd_entry_cb)
-            hbox.pack_start(cmd_entry, expand=True, fill=True)
-            self.pack_start(hbox, expand=False)
+        else:
+            hbox.pack_start(gtk.Label(": hg "), expand=False)
+            cmd_entry.connect("activate", self._hg_cmd_entry_cb)
+        hbox.pack_start(cmd_entry, expand=True, fill=True)
+        self.pack_start(hbox, expand=False)
         self.pack_start(gutils.wrap_in_scrolled_window(self._view), expand=True, fill=True)
         self.show_all()
     def get_action(self, action_name):
@@ -147,8 +150,16 @@ class ConsoleLog(gtk.VBox, dialogue.BusyIndicatorUser):
         self.unshow_busy()
         dialogue.report_any_problems(result)
         if pre_dir == os.getcwd():
-            from gwsmhg_pkg import ws_event
             ws_event.notify_events(ws_event.ALL_BUT_CHANGE_WD)
         else:
             from gwsmhg_pkg import ifce
             ifce.chdir()
+    def _hg_cmd_entry_cb(self, entry):
+        text = entry.get_text_and_clear_to_history()
+        if not text:
+            return (cmd_result.OK, "", "")
+        self.show_busy()
+        result = utils.run_cmd_in_console("hg " + text, self)
+        self.unshow_busy()
+        dialogue.report_any_problems(result)
+        ws_event.notify_events(ws_event.ALL_BUT_CHANGE_WD)

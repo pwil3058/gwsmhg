@@ -203,7 +203,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
         vpane.add1(self._notebook)
         if ifce.term:
             self._tl_notebook = gtk.Notebook()
-            self._tl_notebook.append_page(ifce.log, gtk.Label("Transaction Log"))
+            self._tl_notebook.append_page(ifce.log, gtk.Label("Transactions"))
             self._tl_notebook.append_page(ifce.term, gtk.Label("Terminal"))
             vpane.add2(self._tl_notebook)
         else:
