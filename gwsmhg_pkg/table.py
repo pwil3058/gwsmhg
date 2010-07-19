@@ -306,6 +306,7 @@ class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorU
         self.pack_start(self.header, expand=False)
         self.model = Model(model_descr)
         self.view = View(table_descr, self.model)
+        self.seln = self.view.get_selection()
         actions.AGandUIManager.__init__(self, self.view.get_selection())
         if size_req:
             self.view.set_size_request(size_req[0], size_req[1])
