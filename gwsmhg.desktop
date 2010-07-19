@@ -6,4 +6,4 @@ Exec=gwsmhg
 Terminal=false
 Type=Application
 Icon=gwsmhg
-Categories=GNOME;Development;
+Categories=GNOME;GTK;Development;
