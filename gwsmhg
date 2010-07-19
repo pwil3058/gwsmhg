@@ -55,6 +55,8 @@ try:
     gtk.main()
 except SystemExit:
     pass
+except KeyboardInterrupt:
+    pass
 except:
     from gwsmhg_pkg import dialogue
     dialogue.report_exception(sys.exc_info())
