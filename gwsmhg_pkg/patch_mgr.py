@@ -653,6 +653,7 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
             self._selection_changed_cb(self.get_selection())
             self._set_ws_update_menu_sensitivity()
             self._action_group[PUSH_POP_INDIFFERENT].set_sensitive(True)
+            self._action_group[PUSH_POP_INDIFFERENT].get_action("pm_select_guards").set_sensitive(ifce.PM.get_enabled())
         else:
             for condition in APPLIED_CONDITIONS + PUSH_POP_CONDITIONS + WS_UPDATE_CONDITIONS:
                 self._action_group[condition].set_sensitive(False)
