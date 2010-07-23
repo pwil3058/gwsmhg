@@ -14,50 +14,51 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import sys, os, getopt
+"""Launch a GUI wrapper for Mercurial (hg)"""
 
-# read required directory from the command line
+import sys
+import os
+import getopt
+
+import gtk
+
+from gwsmhg_pkg import ifce, hg_mq_ifce, gwsm, dialogue
 
 def usage():
+    """Print the program's usage message"""
     print "Usage: gwsmhg [dir]"
 
+# read required directory from the command line
 try:
-    option_list, arg_list = getopt.getopt(sys.argv[1:], "")
+    OPTION_LIST, ARG_LIST = getopt.getopt(sys.argv[1:], "")
 except getopt.GetoptError, err:
     sys.stderr.write(str(err) + os.linesep)
     usage()
     sys.exit(1)
 
-if len(arg_list) > 1:
+if len(ARG_LIST) > 1:
     usage()
     sys.exit(1)
 
-dir_specified = False
+DIR_SPECIFIED = len(ARG_LIST) == 1
 
-if len(arg_list) == 1:
+if DIR_SPECIFIED:
     try:
         os.chdir(sys.argv[1])
-        dir_specified = True
     except OSError, msg:
         sys.stderr.write(str(msg) + os.linesep)
         sys.exit(2)
 
-from gwsmhg_pkg import ifce, hg_mq_ifce
-
 ifce.init(hg_mq_ifce)
 
-import gtk
-from gwsmhg_pkg import gwsm
-
 try:
-    app = gwsm.gwsm(dir_specified)
-    app.show()
+    gwsm.gwsm(DIR_SPECIFIED).show()
     gtk.main()
 except SystemExit:
     pass
 except KeyboardInterrupt:
     pass
 except:
-    from gwsmhg_pkg import dialogue
     dialogue.report_exception(sys.exc_info())
     sys.exit(3)
+
