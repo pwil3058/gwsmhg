@@ -13,7 +13,7 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, os.path, tempfile, pango, re
+import os, os.path, tempfile, pango, re, time
 from gwsmhg_pkg import ifce, text_edit, utils, cmd_result, putils, ws_event
 
 newlines_not_allowed_in_cmd = os.name == 'nt' or os.name == 'dos'
@@ -1050,6 +1050,7 @@ class PMInterface(BaseInterface):
         BaseInterface.__init__(self, "MQ")
         self._ws_update_mgr = _WsUpdateStateMgr()
         self.not_enabled_response = (cmd_result.ERROR, ENABLE_MQ_MSG, "")
+        self.update_is_enabled()
         self._adding_re = re.compile("^adding\s.*$")
         self._qpush_re = re.compile("^(merging|applying)\s.*$", re.M)
         self._qguard_re = re.compile("^[^:]*:\s*([+-].*)\s*$")
@@ -1072,8 +1073,13 @@ class PMInterface(BaseInterface):
     def _run_cmd_on_console(self, cmd, input_text=None, ignore_err_re=None):
         result = utils.run_cmd_in_console(cmd, ifce.log, input_text)
         return self._map_cmd_result(result, ignore_err_re=ignore_err_re)
+    def update_is_enabled(self):
+        self._is_enabled = self.get_extension_enabled('mq')
+        self._enabled_checked_at = time.time()
     def get_enabled(self):
-        return self.get_extension_enabled('mq')
+        if (time.time() - self._enabled_checked_at) > 20.0:
+            self.update_is_enabled()
+        return self._is_enabled
     def get_parent(self, patch):
         parent = 'qparent'
         for applied_patch in self.get_applied_patches():

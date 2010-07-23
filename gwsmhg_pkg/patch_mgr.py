@@ -598,6 +598,7 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
         self.update_in_repo_sensitivity()
     def update_for_chdir(self):
         self.show_busy()
+        ifce.PM.update_is_enabled()
         self.update_in_repo_sensitivity()
         self.set_contents()
         self.unshow_busy()
