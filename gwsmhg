@@ -49,16 +49,13 @@ if DIR_SPECIFIED:
         sys.stderr.write(str(msg) + os.linesep)
         sys.exit(2)
 
-ifce.init(hg_mq_ifce)
-
 try:
+    ifce.init(hg_mq_ifce)
     gwsm.gwsm(DIR_SPECIFIED).show()
     gtk.main()
-except SystemExit:
+except (SystemExit, KeyboardInterrupt):
     pass
-except KeyboardInterrupt:
-    pass
-except:
+except StandardError:
     dialogue.report_exception(sys.exc_info())
     sys.exit(3)
 
