@@ -15,6 +15,12 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
+"""Provide mechanism for notifying components of events that require them
+to update their displayed/cached data
+"""
+
+import gobject
+
 FILE_MOD = 1
 FILE_ADD = 2
 FILE_DEL = 4
@@ -32,49 +38,68 @@ ALL_BUT_CHANGE_WD = ALL_EVENTS &  ~CHANGE_WD
 
 FILE_CHANGES = FILE_MOD | FILE_ADD | FILE_DEL | FILE_HGIGNORE
 
-class notification_cb:
-    def __init__(self, events, cb):
-        self._events = events
-        self._cb = cb
 
 _notification_cbs = []
 
-def add_notification_cb(events, cb):
-    ncb = notification_cb(events, cb)
+
+def add_notification_cb(events, callback):
+    """Add the given events and callback as tuple to the notification database.
+    Return the tuple to the caller to facilitate deletion at a later time.
+    """
+    global _notification_cbs
+    ncb = (events, callback)
     _notification_cbs.append(ncb)
     return ncb
 
+
 def del_notification_cb(ncb):
+    """Remove the given (events, callback) pair notification database."""
+    global _notification_cbs
     index = _notification_cbs.index(ncb)
     if index >= 0:
         del _notification_cbs[index]
 
+
 def del_notification_cbs(ncb_list):
+    """Remove the (events, callback) pairs in the given list from the
+    notification database.
+    """
     for ncb in ncb_list:
         del_notification_cb(ncb)
 
+
 def notify_events(events, data=None):
+    """Notify interested objects of events that have occured."""
     invalid_cbs = []
-    for ncb in _notification_cbs:
-        if ncb._events & events:
+    for registered_events, callback in _notification_cbs:
+        if registered_events & events:
             try:
                 if data:
-                    ncb._cb(data)
+                    callback(data)
                 else:
-                    ncb._cb()
-            except:
-                invalid_cbs.append(ncb)
+                    callback()
+            except StandardError:
+                invalid_cbs.append((registered_events, callback))
     del_notification_cbs(invalid_cbs)
 
-class Listener:
+
+class Listener(gobject.GObject):
+    """A base class for transient GTK object classes that wish to register
+    event callbacks so that their callbacks are deleted when they are
+    destroyed.
+    """
     def __init__(self):
-        try:
-            len(self._listener_cbs)
-            print "already inited", self
-        except:
-            self._listener_cbs = []
+        gobject.GObject.__init__(self)
+        self._listener_cbs = []
         self.connect('destroy', self._listener_destroy_cb)
-    def add_notification_cb(self, events, cb):
-        self._listener_cbs.append(add_notification_cb(events, cb))
+
+    def add_notification_cb(self, events, callback):
+        """Add the given events and callback as tuple to the notification
+        database and record the tuple to facilitate deletion at a later time.
+        """
+        self._listener_cbs.append(add_notification_cb(events, callback))
+
     def _listener_destroy_cb(self, widget):
+        """Remove all of my callbacks from the notification database"""
         del_notification_cbs(self._listener_cbs)
+
