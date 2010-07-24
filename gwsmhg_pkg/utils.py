@@ -40,11 +40,13 @@ def path_rel_home(path):
         path = "~" + path[len_home:]
     return path
 
+
 def cwd_rel_home():
     """Return path of current working directory relative to user's home
     directory.
     """
     return path_rel_home(os.getcwd())
+
 
 def file_list_to_string(file_list):
     """Return the given list of file names as a single string:
@@ -58,6 +60,7 @@ def file_list_to_string(file_list):
         else:
             mod_file_list.append('"%s"' % fname)
     return ' '.join(mod_file_list)
+
 
 def string_to_file_list(string):
     """Return a list of the file names in the given string:
@@ -78,13 +81,15 @@ def string_to_file_list(string):
         file_list += string[index:].split()
     return file_list
 
+
 # handle the fact os.path.samefile is not available on all operating systems
 def samefile(filename1, filename2):
     """Return whether the given paths refer to the same file or not."""
     try:
         return os.path.samefile(filename1, filename2)
-    except:
+    except AttributeError:
         return os.path.abspath(filename1) == os.path.abspath(filename2)
+
 
 def create_file(name, console=None):
     """Attempt to create a file with the given name and report the outcome as
@@ -107,6 +112,7 @@ def create_file(name, console=None):
     else:
         return (cmd_result.WARNING, '', '"%s": file already exists' % name)
 
+
 def run_cmd(cmd, input_text=None):
     """Run the given command and report the outcome as a cmd_result tuple.
     If input_text is not None pas it to the command as standard input.
@@ -116,7 +122,7 @@ def run_cmd(cmd, input_text=None):
     try:
         oldterm = os.environ['TERM']
         os.environ['TERM'] = "dumb"
-    except:
+    except LookupError:
         oldterm = None
     is_posix = os.name == 'posix'
     if is_posix:
@@ -131,6 +137,7 @@ def run_cmd(cmd, input_text=None):
         os.environ['TERM'] = oldterm
     return [ sub.returncode, outd, errd ]
 
+
 def run_cmd_in_console(cmd, console, input_text=None):
     """Run the given command in the given console and report the outcome as a
     cmd_result tuple.
@@ -143,7 +150,7 @@ def run_cmd_in_console(cmd, console, input_text=None):
     try:
         oldterm = os.environ['TERM']
         os.environ['TERM'] = "dumb"
-    except:
+    except LookupError:
         oldterm = None
     is_posix = os.name == 'posix'
     if is_posix:
@@ -190,6 +197,7 @@ def run_cmd_in_console(cmd, console, input_text=None):
         os.environ['TERM'] = oldterm
     return [ sub.returncode, outd, errd ]
 
+
 def _wait_for_bgnd_cmd_timeout(pid):
     """Callback to clean up after background tasks complete"""
     try:
@@ -200,6 +208,7 @@ def _wait_for_bgnd_cmd_timeout(pid):
         return rpid != pid
     except OSError:
         return False
+
 
 def run_cmd_in_bgnd(cmd):
     """Run the given command in the background and poll for its exit using
@@ -212,6 +221,7 @@ def run_cmd_in_bgnd(cmd):
         return False
     gobject.timeout_add(2000, _wait_for_bgnd_cmd_timeout, pid)
     return True
+
 
 if os.name == 'nt' or os.name == 'dos':
     def run_cmd_in_console_nt(cmd, console, input_text=None):
@@ -227,6 +237,8 @@ if os.name == 'nt' or os.name == 'dos':
         console.append_stderr(serr)
         console.end_cmd()
         return (res, sout, serr)
+
+
     def _which(cmd):
         """Return the path of the executable for the given command"""
         for dirpath in os.environ['PATH'].split(os.pathsep):
@@ -235,7 +247,11 @@ if os.name == 'nt' or os.name == 'dos':
                os.access(potential_path, os.X_OK):
                 return potential_path
         return None
+
+
     NT_EXTS = ['.bat', '.bin', '.exe']
+
+
     def which(cmd):
         """Return the path of the executable for the given command"""
         path = _which(cmd)
