@@ -14,13 +14,24 @@
 ### You should have received a copy of the GNU General Public License
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+"""Provide general utility functions."""
 
-import subprocess, os, signal, errno, gtk, select, urlparse, gobject, os.path
+import subprocess
+import os
+import urlparse
+import os.path
+import signal
+import select
+
+import gtk
+import gobject
+
 from gwsmhg_pkg import cmd_result, ws_event
 
 HOME = os.path.expanduser("~")
 
 def path_rel_home(path):
+    """Return the given path as a path relative to user's home directory."""
     if urlparse.urlparse(path).scheme:
         return path
     path = os.path.abspath(path)
@@ -30,18 +41,29 @@ def path_rel_home(path):
     return path
 
 def cwd_rel_home():
+    """Return path of current working directory relative to user's home
+    directory.
+    """
     return path_rel_home(os.getcwd())
 
 def file_list_to_string(file_list):
+    """Return the given list of file names as a single string:
+    - using a single space as a separator, and
+    - placing double quotes around file names that contain spaces.
+    """
     mod_file_list = []
-    for fl in file_list:
-        if fl.count(' ') == 0:
-            mod_file_list.append(fl)
+    for fname in file_list:
+        if fname.count(' ') == 0:
+            mod_file_list.append(fname)
         else:
-            mod_file_list.append('"%s"' % fl)
+            mod_file_list.append('"%s"' % fname)
     return ' '.join(mod_file_list)
 
 def string_to_file_list(string):
+    """Return a list of the file names in the given string:
+    - assuming names are separated by spaces, and
+    - file names that contain spaces are inside double quotes.
+    """
     if string.count('"') == 0:
         return string.split()
     file_list = []
@@ -58,12 +80,19 @@ def string_to_file_list(string):
 
 # handle the fact os.path.samefile is not available on all operating systems
 def samefile(filename1, filename2):
+    """Return whether the given paths refer to the same file or not."""
     try:
         return os.path.samefile(filename1, filename2)
     except:
         return os.path.abspath(filename1) == os.path.abspath(filename2)
 
 def create_file(name, console=None):
+    """Attempt to create a file with the given name and report the outcome as
+    a cmd_result tuple.
+    1. If console is not None print report of successful creation on it.
+    2. If a file with same name already exists fail and report a warning.
+    3. If file creation fails for other reasons report an error.
+    """
     if not os.path.exists(name):
         try:
             if console:
@@ -74,11 +103,14 @@ def create_file(name, console=None):
             ws_event.notify_events(ws_event.FILE_ADD)
             return (cmd_result.OK, '', '')
         except (IOError, OSError), msg:
-            return (cmd_result.ERROR, '', '"%": %s' (name, msg))
+            return (cmd_result.ERROR, '', '"%s": %s' % (name, msg))
     else:
         return (cmd_result.WARNING, '', '"%s": file already exists' % name)
 
 def run_cmd(cmd, input_text=None):
+    """Run the given command and report the outcome as a cmd_result tuple.
+    If input_text is not None pas it to the command as standard input.
+    """
     if not cmd:
         return [ 0, None, None ]
     try:
@@ -100,6 +132,10 @@ def run_cmd(cmd, input_text=None):
     return [ sub.returncode, outd, errd ]
 
 def run_cmd_in_console(cmd, console, input_text=None):
+    """Run the given command in the given console and report the outcome as a
+    cmd_result tuple.
+    If input_text is not None pas it to the command as standard input.
+    """
     if os.name == 'nt' or os.name == 'dos':
         return run_cmd_in_console_nt(cmd, console, input_text=input_text)
     if not cmd:
@@ -155,16 +191,20 @@ def run_cmd_in_console(cmd, console, input_text=None):
     return [ sub.returncode, outd, errd ]
 
 def _wait_for_bgnd_cmd_timeout(pid):
+    """Callback to clean up after background tasks complete"""
     try:
         if os.name == 'nt' or os.name == 'dos':
-            rpid, status = os.waitpid(pid, 0)
+            rpid, _ = os.waitpid(pid, 0)
         else:
-            rpid, status = os.waitpid(pid, os.WNOHANG)
+            rpid, _ = os.waitpid(pid, os.WNOHANG)
         return rpid != pid
     except OSError:
         return False
 
 def run_cmd_in_bgnd(cmd):
+    """Run the given command in the background and poll for its exit using
+    _wait_for_bgnd_timeout() as a callback.
+    """
     if not cmd:
         return False
     pid = subprocess.Popen(string_to_file_list(cmd)).pid
@@ -175,6 +215,10 @@ def run_cmd_in_bgnd(cmd):
 
 if os.name == 'nt' or os.name == 'dos':
     def run_cmd_in_console_nt(cmd, console, input_text=None):
+        """Run the given command in the given console and report the
+        outcome as a cmd_result tuple.
+        If input_text is not None pas it to the command as standard input.
+        """
         console.start_cmd(cmd)
         if input_text is not None:
             console.append_stdin(input_text)
@@ -184,30 +228,34 @@ if os.name == 'nt' or os.name == 'dos':
         console.end_cmd()
         return (res, sout, serr)
     def _which(cmd):
-        main, ext = os.path.splitext(cmd)
-        for d in os.environ['PATH'].split(os.pathsep):
-            potential_path = os.path.join(d, cmd)
-            if os.path.isfile(potential_path) and os.access(potential_path, os.X_OK):
+        """Return the path of the executable for the given command"""
+        for dirpath in os.environ['PATH'].split(os.pathsep):
+            potential_path = os.path.join(dirpath, cmd)
+            if os.path.isfile(potential_path) and \
+               os.access(potential_path, os.X_OK):
                 return potential_path
         return None
-    nt_exts = ['.bat', '.bin', '.exe']
+    NT_EXTS = ['.bat', '.bin', '.exe']
     def which(cmd):
+        """Return the path of the executable for the given command"""
         path = _which(cmd)
         if path:
             return path
-        main, ext = os.path.splitext(cmd)
-        if ext in nt_exts:
+        _, ext = os.path.splitext(cmd)
+        if ext in NT_EXTS:
             return None
-        for ext in nt_exts:
+        for ext in NT_EXTS:
             path = _which(cmd + ext)
             if path is not None:
                 return path
         return None
 else:
     def which(cmd):
-        for d in os.environ['PATH'].split(os.pathsep):
-            potential_path = os.path.join(d, cmd)
-            if os.path.isfile(potential_path) and os.access(potential_path, os.X_OK):
+        """Return the path of the executable for the given command"""
+        for dirpath in os.environ['PATH'].split(os.pathsep):
+            potential_path = os.path.join(dirpath, cmd)
+            if os.path.isfile(potential_path) and \
+               os.access(potential_path, os.X_OK):
                 return potential_path
         return None
 
