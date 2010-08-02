@@ -220,23 +220,22 @@ def get_patch_descr_lines(path):
         res = lines[0:diffstat_si]
     return ( True,  res)
 
-def get_patch_diff_lines(path):
-    try:
-        f = open(path, 'r')
-    except:
-        return (False, None)
-    buf = f.read()
-    lines = buf.splitlines()
-    f.close()
-    diffstat_si, patch = trisect_patch_lines(lines)
+def get_patch_diff_fm_text(textbuf):
+    lines = textbuf.splitlines()
+    _, patch = trisect_patch_lines(lines)
     if patch is None:
-        return (False, [])
-    return (True,  lines[patch[0]:])
+        return (False, '')
+    return (True, os.linesep.join(lines[patch[0]:]) + os.linesep)
 
 def get_patch_diff(path, file_list=[]):
     if not file_list:
-        res, diff_lines = get_patch_diff_lines(path)
-        return (res, os.linesep.join(diff_lines) + os.linesep)
+        try:
+            f = open(path, 'r')
+        except:
+            return (False, None)
+        buf = f.read()
+        f.close()
+        return get_patch_diff_fm_text(buf)
     if not utils.which("filterdiff"):
         return (False, "This functionality requires \"filterdiff\" from \"patchutils\"")
     cmd = "filterdiff -p 1"

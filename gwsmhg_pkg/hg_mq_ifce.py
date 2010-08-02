@@ -585,13 +585,11 @@ class SCMInterface(BaseInterface):
         res, sout, serr = utils.run_cmd(cmd)
         if res:
             return (res, sout, serr)
-        lines = sout.splitlines()
-        diffstat_si, patch_data = putils.trisect_patch_lines(lines)
-        if not patch_data:
-            return (res, '', serr)
+        ok, diff = putils.get_patch_diff_fm_text(sout)
+        if ok:
+            return (res, diff, serr)
         else:
-            patch = '\n'.join(lines[patch_data[0]:])
-            return (res, patch, serr)
+            return (res, '', serr)
     def get_heads_data(self):
         if not self.get_root(): return (cmd_result.OK, [], '')
         cmd = 'hg heads --template "%s"' % self.cs_table_template
