@@ -15,7 +15,8 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-"""Provide mechanism for notifying components of events that require them
+"""
+Provide mechanism for notifying components of events that require them
 to update their displayed/cached data
 """
 
@@ -43,33 +44,42 @@ _notification_cbs = []
 
 
 def add_notification_cb(events, callback):
-    """Add the given events and callback as tuple to the notification database.
-    Return the tuple to the caller to facilitate deletion at a later time.
     """
-    global _notification_cbs
-    ncb = (events, callback)
-    _notification_cbs.append(ncb)
-    return ncb
+    Register a callback for notification of the specified events.
+
+    Arguments:
+    events   -- the set of events for which the callback should be callded.
+    callback -- the procedure to be called.
+
+    Return a token that identifies the callback to facilitate deletion.
+    """
+    cb_token = (events, callback)
+    _notification_cbs.append(cb_token)
+    return cb_token
 
 
-def del_notification_cb(ncb):
-    """Remove the given (events, callback) pair notification database."""
-    global _notification_cbs
-    index = _notification_cbs.index(ncb)
+def del_notification_cb(cb_token):
+    """
+    Cancel the registration of a notification callback.
+
+    Argument:
+    cb_token -- the token that specifies the callback to be cancelled.
+    """
+    index = _notification_cbs.index(cb_token)
     if index >= 0:
         del _notification_cbs[index]
 
 
-def del_notification_cbs(ncb_list):
-    """Remove the (events, callback) pairs in the given list from the
-    notification database.
-    """
-    for ncb in ncb_list:
-        del_notification_cb(ncb)
-
-
 def notify_events(events, data=None):
-    """Notify interested objects of events that have occured."""
+    """
+    Notify interested parties of events that have occured.
+
+    Argument:
+    events -- a set of events that have just occured.
+
+    Keyword Argument:
+    data -- extra data the notifier thinks may be of use to the callback.
+    """
     invalid_cbs = []
     for registered_events, callback in _notification_cbs:
         if registered_events & events:
@@ -80,7 +90,8 @@ def notify_events(events, data=None):
                     callback()
             except StandardError:
                 invalid_cbs.append((registered_events, callback))
-    del_notification_cbs(invalid_cbs)
+    for cb_token in invalid_cbs:
+        del_notification_cb(cb_token)
 
 
 class Listener(gobject.GObject):
@@ -94,12 +105,20 @@ class Listener(gobject.GObject):
         self.connect('destroy', self._listener_destroy_cb)
 
     def add_notification_cb(self, events, callback):
-        """Add the given events and callback as tuple to the notification
-        database and record the tuple to facilitate deletion at a later time.
+        """
+        Register a callback for notification of the specified events.
+        Record a token to facilitate deletion at a later time.
+
+        Arguments:
+        events   -- the set of events for which the callback should be callded.
+        callback -- the procedure to be called.
+
+        Return a token that identifies the callback to facilitate deletion.
         """
         self._listener_cbs.append(add_notification_cb(events, callback))
 
     def _listener_destroy_cb(self, widget):
         """Remove all of my callbacks from the notification database"""
-        del_notification_cbs(self._listener_cbs)
+        for cb_token in self._listener_cbs:
+            del_notification_cb(cb_token)
 
