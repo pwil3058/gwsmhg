@@ -588,7 +588,7 @@ class SCMInterface(BaseInterface):
         lines = sout.splitlines()
         diffstat_si, patch_data = putils.trisect_patch_lines(lines)
         if not patch_data:
-            return (res, '', err)
+            return (res, '', serr)
         else:
             patch = '\n'.join(lines[patch_data[0]:])
             return (res, patch, serr)
