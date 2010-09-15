@@ -15,147 +15,191 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-# This file provides functions for manipulating patch files
+'''Provide functions for manipulating patch files and/or text buffers'''
 
-import re, os.path, shutil, tempfile, utils
+import re
+import os.path
+import shutil
+import tempfile
 
-diffstat_empty = re.compile("^#? 0 files changed$")
-diffstat_end = re.compile("^#? (\d+) files? changed(, (\d+) insertions?\(\+\))?(, (\d+) deletions?\(-\))?(, (\d+) modifications?\(\!\))?$")
-diffstat_fstats = re.compile("^#? (\S+)\s*\|((binary)|(\s*(\d+)(\s+\+*-*\!*)?))$")
+from gwsmhg_pkg import utils
 
-timestamp_re_str = '(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{9} [-+]{1}\d{4})'
-alt_timestamp_re_str = '([A-Z][a-z]{2} [A-Z][a-z]{2} \d{2} \d{2}:\d{2}:\d{2} \d{4} [-+]{1}\d{4})'
-either_ts_re = '(%s|%s)' % (timestamp_re_str, alt_timestamp_re_str)
-udiff_h1 = re.compile('^--- (.*?)(\s+%s)?$' % either_ts_re)
-udiff_h2 = re.compile('^\+\+\+ (.*?)(\s+%s)?$' % either_ts_re)
-udiff_pd = re.compile("^@@\s+-(\d+),(\d+)\s+\+(\d+),(\d+)\s+@@\s*(.*)$")
+_DIFFSTAT_EMPTY = re.compile("^#? 0 files changed$")
+_DIFFSTAT_END = re.compile("^#? (\d+) files? changed(, (\d+) insertions?\(\+\))?(, (\d+) deletions?\(-\))?(, (\d+) modifications?\(\!\))?$")
+_DIFFSTAT_FSTATS = re.compile("^#? (\S+)\s*\|((binary)|(\s*(\d+)(\s+\+*-*\!*)?))$")
 
-git_hdr_diff = re.compile("^diff --git (.*)$")
-git_old_mode = re.compile('^old mode (\d*)$')
-git_new_mode = re.compile('^new mode (\d*)$')
-git_deleted_file_mode = re.compile('^deleted file mode (\d*)$')
-git_new_file_mode = re.compile('^new file mode (\d*)$')
-git_copy_from = re.compile('^copy from (.*)$')
-git_copy_to = re.compile('^copy to (.*)$')
-git_rename_from = re.compile('^rename from (.*)$')
-git_rename_to = re.compile('^rename to (.*)$')
-git_similarity_index = re.compile('^similarity index (\d*)%$')
-git_dissimilarity_index = re.compile('^dissimilarity index (\d*)%$')
-git_index = re.compile('^index ([a-fA-F0-9]+)..([a-fA-F0-9]+) (\d*)%$')
+_TIMESTAMP_RE_STR = '(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{9} [-+]{1}\d{4})'
+_ALT_TIMESTAMP_RE_STR = '([A-Z][a-z]{2} [A-Z][a-z]{2} \d{2} \d{2}:\d{2}:\d{2} \d{4} [-+]{1}\d{4})'
+_EITHER_TS_RE = '(%s|%s)' % (_TIMESTAMP_RE_STR, _ALT_TIMESTAMP_RE_STR)
+_UDIFF_H1 = re.compile('^--- (.*?)(\s+%s)?$' % _EITHER_TS_RE)
+_UDIFF_H2 = re.compile('^\+\+\+ (.*?)(\s+%s)?$' % _EITHER_TS_RE)
+_UDIFF_PD = re.compile("^@@\s+-(\d+),(\d+)\s+\+(\d+),(\d+)\s+@@\s*(.*)$")
 
-git_extras = \
+_GIT_HDR_DIFF = re.compile("^diff --git (.*)$")
+_GIT_OLD_MODE = re.compile('^old mode (\d*)$')
+_GIT_NEW_MODE = re.compile('^new mode (\d*)$')
+_GIT_DELETED_FILE_MODE = re.compile('^deleted file mode (\d*)$')
+_GIT_NEW_FILE_MODE = re.compile('^new file mode (\d*)$')
+_GIT_COPY_FROM = re.compile('^copy from (.*)$')
+_GIT_COPY_TO = re.compile('^copy to (.*)$')
+_GIT_RENAME_FROM = re.compile('^rename from (.*)$')
+_GIT_RENAME_TO = re.compile('^rename to (.*)$')
+_GIT_SIMILARITY_INDEX = re.compile('^similarity index (\d*)%$')
+_GIT_DISSIMILARITY_INDEX = re.compile('^dissimilarity index (\d*)%$')
+_GIT_INDEX = re.compile('^index ([a-fA-F0-9]+)..([a-fA-F0-9]+) (\d*)%$')
+
+_GIT_EXTRAS = \
 [
-    git_old_mode, git_new_mode, git_deleted_file_mode, git_new_file_mode,
-    git_copy_from, git_copy_to, git_rename_from, git_rename_to,
-    git_similarity_index, git_dissimilarity_index, git_index
+    _GIT_OLD_MODE, _GIT_NEW_MODE, _GIT_DELETED_FILE_MODE, _GIT_NEW_FILE_MODE,
+    _GIT_COPY_FROM, _GIT_COPY_TO, _GIT_RENAME_FROM, _GIT_RENAME_TO,
+    _GIT_SIMILARITY_INDEX, _GIT_DISSIMILARITY_INDEX, _GIT_INDEX
 ]
 
-cdiff_h1 = re.compile("^\*\*\* (\S+)\s*(.*)$")
-cdiff_h2 = re.compile("^--- (\S+)\s*(.*)$")
-cdiff_h3 = re.compile("^\*+$")
-cdiff_chg = re.compile("^\*+\s+(\d+),(\d+)\s+\*+\s*(.*)$")
-cdiff_del = re.compile("^-+\s+(\d+),(\d+)\s+-+\s*(.*)$")
+_CDIFF_H1 = re.compile("^\*\*\* (\S+)\s*(.*)$")
+_CDIFF_H2 = re.compile("^--- (\S+)\s*(.*)$")
+_CDIFF_H3 = re.compile("^\*+$")
+_CDIFF_CHG = re.compile("^\*+\s+(\d+),(\d+)\s+\*+\s*(.*)$")
+_CDIFF_DEL = re.compile("^-+\s+(\d+),(\d+)\s+-+\s*(.*)$")
 
-hdr_index = re.compile("^Index:\s+(.*)$")
-hdr_diff = re.compile("^diff\s+(.*)$")
-hdr_sep = re.compile("^==*$")
-hdr_rcs1 = re.compile("^RCS file:\s+(.*)$")
-hdr_rcs2 = re.compile("^retrieving revision\s+(\d+(\.\d+)*)$")
+_HDR_INDEX = re.compile("^Index:\s+(.*)$")
+_HDR_DIFF = re.compile("^diff\s+(.*)$")
+_HDR_SEP = re.compile("^==*$")
+_HDR_RCS1 = re.compile("^RCS file:\s+(.*)$")
+_HDR_RCS2 = re.compile("^retrieving revision\s+(\d+(\.\d+)*)$")
 
-blank_line = re.compile("^\s*$")
-divider_line = re.compile("^---$")
+_BLANK_LINE = re.compile("^\s*$")
+_DIVIDER_LINE = re.compile("^---$")
 
-def udiff_starts_at(lines, i):
+def _udiff_starts_at(lines, i):
+    """
+    Return whether the ith line in lines is the start of a unified diff
+
+    Arguments:
+    lines -- the list of lines to be examined
+    i     -- the line number to be examined
+    """
     if (i + 2) >= len(lines):
         return False
-    if not udiff_h1.match(lines[i]):
+    if not _UDIFF_H1.match(lines[i]):
         return False
-    if not udiff_h2.match(lines[i + 1]):
+    if not _UDIFF_H2.match(lines[i + 1]):
         return False
-    return udiff_pd.match(lines[i + 2])
+    return _UDIFF_PD.match(lines[i + 2])
 
-def is_git_extra_line(line):
-    for regex in git_extras:
+def _is_git_extra_line(line):
+    """
+    Return whether the line is a git diff "extra" line
+
+    Argument:
+    line -- theline to be examined
+    """
+    for regex in _GIT_EXTRAS:
         match = regex.match(line)
         if match:
             return (regex, match)
     return False
 
-def git_diff_starts_at(lines, i):
-    if i < len(lines) and git_hdr_diff.match(lines[i]):
+def _git_diff_starts_at(lines, i):
+    """
+    Return whether the ith line in lines is the start of a git diff
+
+    Arguments:
+    lines -- the list of lines to be examined
+    i     -- the line number to be examined
+    """
+    if i < len(lines) and _GIT_HDR_DIFF.match(lines[i]):
         i += 1
     else:
         return False
     extra_count = 0
-    while i < len(lines) and is_git_extra_line(lines[i]):
+    while i < len(lines) and _is_git_extra_line(lines[i]):
         i += 1
         extra_count += 1
     if extra_count == 0:
-        return udiff_starts_at(lines, i)
+        return _udiff_starts_at(lines, i)
     elif i < len(lines):
-        return git_hdr_diff.match(lines[i]) or udiff_starts_at(lines, i)
+        return _GIT_HDR_DIFF.match(lines[i]) or _udiff_starts_at(lines, i)
     else:
         return True
 
-def cdiff_starts_at(lines, i):
+def _cdiff_starts_at(lines, i):
+    """
+    Return whether the ith line in lines is the start of a combined diff
+
+    Arguments:
+    lines -- the list of lines to be examined
+    i     -- the line number to be examined
+    """
     if (i + 3) >= len(lines):
         return False
-    if not cdiff_h1.match(lines[i]):
+    if not _CDIFF_H1.match(lines[i]):
         return False
-    if not cdiff_h2.match(lines[i + 1]):
+    if not _CDIFF_H2.match(lines[i + 1]):
         return False
-    if not cdiff_h3.match(lines[i + 2]):
+    if not _CDIFF_H3.match(lines[i + 2]):
         return False
-    return cdiff_chg.match(lines[i + 3]) or  cdiff_del.match(lines[i + 3])
+    return _CDIFF_CHG.match(lines[i + 3]) or  _CDIFF_DEL.match(lines[i + 3])
 
-def trisect_patch_lines(lines):
+def _trisect_patch_lines(lines):
+    """
+    Return indices splitting lines into comments, stats and diff parts
+
+    Arguments:
+    lines -- the list of lines to be trisected
+
+    Return a two tuple indicating start of stats and diff parts.
+    For stats part provide integer index of first stats line or None if
+    the stats part is not present.
+    For diff part provide a two tuple (index of first diff line, diff type)
+    or None if the diff part is not present.
+    """
     n = len(lines)
     patch_type = None
     patch_si = None
     diffstat_si = None
     i = 0
     while i < n:
-        if diffstat_empty.match(lines[i]): 
+        if _DIFFSTAT_EMPTY.match(lines[i]):
             diffstat_si = i
-        elif diffstat_fstats.match(lines[i]):
+        elif _DIFFSTAT_FSTATS.match(lines[i]):
             k = 1
-            while (i + k) < n and diffstat_fstats.match(lines[i + k]):
+            while (i + k) < n and _DIFFSTAT_FSTATS.match(lines[i + k]):
                 k += 1
-            if (i + k) < n and diffstat_end.match(lines[i + k]):
+            if (i + k) < n and _DIFFSTAT_END.match(lines[i + k]):
                 diffstat_si = i
                 i += k
             else:
                 diffstat_si = None
                 i += k - 1
-        elif git_diff_starts_at(lines, i):
+        elif _git_diff_starts_at(lines, i):
             patch_si = i
             patch_type = 'git'
             break
-        elif hdr_index.match(lines[i]) or hdr_diff.match(lines[i]):
+        elif _HDR_INDEX.match(lines[i]) or _HDR_DIFF.match(lines[i]):
             k = i + 1
-            if k < n and hdr_sep.match(lines[k]):
+            if k < n and _HDR_SEP.match(lines[k]):
                 k += 1
-            if udiff_starts_at(lines, k):
+            if _udiff_starts_at(lines, k):
                 patch_si = i
                 patch_type = "u"
                 break
-            elif cdiff_starts_at(lines, k):
+            elif _cdiff_starts_at(lines, k):
                 patch_si = i
                 patch_type = "c"
                 break
             else:
                 i = k
                 diffstat_si = None
-        elif hdr_rcs1.match(lines[i]):
-            if (i + 1) < n and hdr_rcs2.match(lines[i]):
+        elif _HDR_RCS1.match(lines[i]):
+            if (i + 1) < n and _HDR_RCS2.match(lines[i]):
                 k = i + 1
-                if k < n and hdr_sep.match(lines[k]):
+                if k < n and _HDR_SEP.match(lines[k]):
                     k += 1
-                if udiff_starts_at(lines, k):
+                if _udiff_starts_at(lines, k):
                     patch_si = i
                     patch_type = "u"
                     break
-                elif cdiff_starts_at(lines, k):
+                elif _cdiff_starts_at(lines, k):
                     patch_si = i
                     patch_type = "c"
                     break
@@ -164,15 +208,15 @@ def trisect_patch_lines(lines):
                     diffstat_si = None
             else:
                 diffstat_si = None
-        elif udiff_starts_at(lines, i):
+        elif _udiff_starts_at(lines, i):
             patch_si = i
             patch_type = "u"
             break
-        elif cdiff_starts_at(lines, i):
+        elif _cdiff_starts_at(lines, i):
             patch_si = i
             patch_type = "c"
             break
-        elif not (blank_line.match(lines[i]) or divider_line.match(lines[i])):
+        elif not (_BLANK_LINE.match(lines[i]) or _DIVIDER_LINE.match(lines[i])):
             diffstat_si = None
         i += 1
     if patch_si is None:
@@ -180,15 +224,15 @@ def trisect_patch_lines(lines):
     else:
         return (diffstat_si, (patch_si, patch_type))
 
-def trisect_patch_file(path):
+def _trisect_patch_file(path):
     try:
         f = open(path, 'r')
-    except:
+    except IOError:
         return (False, (None, None, None))
     buf = f.read()
     f.close()
     lines = buf.splitlines()
-    diffstat_si, patch = trisect_patch_lines(lines)
+    diffstat_si, patch = _trisect_patch_lines(lines)
     if patch is None:
         if diffstat_si is None:
             res = (lines, [], [])
@@ -200,17 +244,17 @@ def trisect_patch_file(path):
             res = (lines[:patch[0]], [], plines)
         else:
             res = (lines[0:diffstat_si], lines[diffstat_si:patch[0]], plines)
-    return ( True,  res)
+    return (True,  res)
 
 def get_patch_descr_lines(path):
     try:
         f = open(path, 'r')
-    except:
+    except IOError:
         return (False, None)
     buf = f.read()
     lines = buf.splitlines()
     f.close()
-    diffstat_si, patch = trisect_patch_lines(lines)
+    diffstat_si, patch = _trisect_patch_lines(lines)
     if diffstat_si is None:
         if patch is None:
             res = lines
@@ -222,16 +266,16 @@ def get_patch_descr_lines(path):
 
 def get_patch_diff_fm_text(textbuf):
     lines = textbuf.splitlines()
-    _, patch = trisect_patch_lines(lines)
+    _, patch = _trisect_patch_lines(lines)
     if patch is None:
         return (False, '')
     return (True, os.linesep.join(lines[patch[0]:]) + os.linesep)
 
-def get_patch_diff(path, file_list=[]):
+def get_patch_diff(path, file_list=None):
     if not file_list:
         try:
             f = open(path, 'r')
-        except:
+        except IOError:
             return (False, None)
         buf = f.read()
         f.close()
@@ -239,19 +283,19 @@ def get_patch_diff(path, file_list=[]):
     if not utils.which("filterdiff"):
         return (False, "This functionality requires \"filterdiff\" from \"patchutils\"")
     cmd = "filterdiff -p 1"
-    for file in file_list:
-        cmd += " -i %s" % file
-    res, so, se = utils.run_cmd("%s %s" % (cmd, path))
+    for filename in file_list:
+        cmd += " -i %s" % filename
+    res, sout, serr = utils.run_cmd("%s %s" % (cmd, path))
     if res == 0:
-        return (True, so)
+        return (True, sout)
     else:
-        return (False, so + se)
+        return (False, sout + serr)
 
-def append_lines_to_file(file, lines):
+def _append_lines_to_file(f, lines):
     for line in lines:
-        file.write(line + os.linesep)
+        f.write(line + os.linesep)
 
-def strip_trailing_ws(lines):
+def _strip_trailing_ws(lines):
     n = len(lines)
     i = 0
     while i < n:
@@ -262,9 +306,9 @@ def _lines_to_temp_file(lines):
     try:
         tmpf_name = tempfile.mktemp()
         tmpf = open(tmpf_name, 'w')
-        append_lines_to_file(tmpf, lines)
+        _append_lines_to_file(tmpf, lines)
         tmpf.close()
-    except:
+    except IOError:
         if tmpf_name is not None and os.path.exists(tmpf_name):
             os.remove(tmpf_name)
         return ""
@@ -272,7 +316,7 @@ def _lines_to_temp_file(lines):
 
 def set_patch_descr_lines(path, lines):
     if os.path.exists(path):
-        res, parts = trisect_patch_file(path)
+        res, parts = _trisect_patch_file(path)
         if not res:
             return False
     else:
@@ -284,47 +328,47 @@ def set_patch_descr_lines(path, lines):
     try:
         shutil.copyfile(tmpf_name, path)
         ret = True
-    except:
+    except IOError:
         ret = False
     os.remove(tmpf_name)
     return ret
 
-def rediff_lines(lines, orig_lines=[]):
+def _rediff_lines(lines, orig_lines=None):
     if not utils.which("rediff"):
         return lines
     lines_tf = _lines_to_temp_file(lines)
     if not lines_tf:
         return lines
-    if len(orig_lines):
+    if orig_lines and len(orig_lines):
         orig_lines_tf = _lines_to_temp_file(orig_lines)
     else:
         orig_lines_tf = None
     if not orig_lines_tf:
-        res, so, se = utils.run_cmd("rediff %s" % lines_tf)
+        res, sout, _ = utils.run_cmd("rediff %s" % lines_tf)
     else:
-        res, so, se = utils.run_cmd("rediff %s %s" % (orig_lines_tf, lines_tf))
+        res, sout, _ = utils.run_cmd("rediff %s %s" % (orig_lines_tf, lines_tf))
         os.remove(orig_lines_tf)
     os.remove(lines_tf)
     if res == 0:
-        return so.splitlines()
+        return sout.splitlines()
     else:
         return lines
 
 def set_patch_diff_lines(path, lines):
     if os.path.exists(path):
-        res, parts = trisect_patch_file(path)
+        res, parts = _trisect_patch_file(path)
         if not res:
             return False
     else:
         parts = ([], [], [])
-    lines = rediff_lines(lines, orig_lines=parts[2])
+    lines = _rediff_lines(lines, orig_lines=parts[2])
     tmpf_name = _lines_to_temp_file(parts[0] + parts[1] + lines)
     if not tmpf_name:
         return False
     try:
         shutil.copyfile(tmpf_name, path)
         ret = True
-    except:
+    except IOError:
         ret = False
     os.remove(tmpf_name)
     return ret
@@ -341,7 +385,7 @@ def _file_name_in_diffline(diffline):
         return None
 
 def _get_git_diff_file_data(lines, i):
-    assert git_hdr_diff.match(lines[i])
+    assert _GIT_HDR_DIFF.match(lines[i])
     diffline = lines[i]
     i += 1
     new_file = False
@@ -351,23 +395,23 @@ def _get_git_diff_file_data(lines, i):
     rename_from = None
     rename_to = None
     while i < len(lines):
-        match_data = is_git_extra_line(lines[i])
+        match_data = _is_git_extra_line(lines[i])
         if not match_data:
             break
         else:
             i += 1
             regex, match = match_data
-        if regex is git_copy_from:
+        if regex is _GIT_COPY_FROM:
             copy_from = match.group(1)
-        elif regex is git_copy_to:
+        elif regex is _GIT_COPY_TO:
             copy_to = match.group(1)
-        elif regex is git_rename_from:
+        elif regex is _GIT_RENAME_FROM:
             rename_from = match.group(1)
-        elif regex is git_rename_to:
+        elif regex is _GIT_RENAME_TO:
             rename_from = match.group(1)
-        elif regex is git_new_file_mode:
+        elif regex is _GIT_NEW_FILE_MODE:
             new_file = True
-        elif regex is git_deleted_file_mode:
+        elif regex is _GIT_DELETED_FILE_MODE:
             deleted_file = True
     if copy_to:
         return [i, [(copy_to, ADDED, copy_from)]]
@@ -375,13 +419,13 @@ def _get_git_diff_file_data(lines, i):
         return [i, [(rename_to, ADDED, rename_from), (rename_from, DELETED, None)]]
     if deleted_file:
         while i < len(lines):
-            match = udiff_h1.match(lines[i])
+            match = _UDIFF_H1.match(lines[i])
             i += 1
             if match:
                 filename = match.group(1)[2:]
                 return [i, [(filename, DELETED, None)]]
-    while i < len(lines) and not git_hdr_diff.match(lines[i]):
-        match = udiff_h2.match(lines[i])
+    while i < len(lines) and not _GIT_HDR_DIFF.match(lines[i]):
+        match = _UDIFF_H2.match(lines[i])
         i += 1
         if match:
             filename = match.group(1)[2:]
@@ -395,22 +439,22 @@ def _get_git_diff_file_data(lines, i):
     else:
         return (i, [[filename, EXTANT, None]])
 
-def get_git_diff_files(lines, i):
+def _get_git_diff_files(lines, i):
     files = []
     while i < len(lines):
         i, files_data = _get_git_diff_file_data(lines, i)
         files += files_data
-        while i < len(lines) and not git_diff_starts_at(lines, i):
+        while i < len(lines) and not _git_diff_starts_at(lines, i):
             i += 1
     return files
 
-def get_unified_diff_files(lines, i):
+def _get_unified_diff_files(lines, i):
     files = []
     while i < len(lines):
-        match1 = udiff_h1.match(lines[i])
+        match1 = _UDIFF_H1.match(lines[i])
         i += 1
         if match1:
-            match2 = udiff_h2.match(lines[i])
+            match2 = _UDIFF_H2.match(lines[i])
             i += 1
             file1 = match1.group(1)
             if file1 == '/dev/null':
@@ -423,27 +467,29 @@ def get_unified_diff_files(lines, i):
                     files.append((file2.split('/', 1)[1], EXTANT, None))
     return files
 
-def get_combined_diff_files(lines, i):
+def _get_combined_diff_files(lines, i):
     files = []
+    while i < len(lines):
+        pass
     return files
 
 def get_patch_files(path, status=True, decorated=False):
     try:
         f = open(path, 'r')
-    except:
+    except IOError:
         return (False, 'Problem(s) open file "%s" not found' % path)
     buf = f.read()
     f.close()
     lines = buf.splitlines()
-    diffstat_si, patch = trisect_patch_lines(lines)
+    _, patch = _trisect_patch_lines(lines)
     if patch is None:
         return (True, [])
     if patch[1] == 'git':
-        files = get_git_diff_files(lines, patch[0])
+        files = _get_git_diff_files(lines, patch[0])
     elif patch[1] == 'u':
-        files = get_unified_diff_files(lines, patch[0])
+        files = _get_unified_diff_files(lines, patch[0])
     else:
-        files = get_combined_diff_files(lines, patch[0])
+        files = _get_combined_diff_files(lines, patch[0])
     if decorated:
         filelist = []
         for file_data in files:
