@@ -16,7 +16,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import os, gobject, gtk, urlparse, fnmatch, os.path
-from gwsmhg_pkg import dialogue, gutils, utils, icons, table
+from gwsmhg_pkg import dialogue, gutils, utils, table
 
 REPO_PRECIS_MODEL_DESCR = \
 [
@@ -62,13 +62,13 @@ if not os.path.exists(GSWMHG_D_NAME):
     os.mkdir(GSWMHG_D_NAME, 0775)
 
 def append_saved_ws(path, alias=None):
-    file = open(SAVED_WS_FILE_NAME, 'a')
+    fobj = open(SAVED_WS_FILE_NAME, 'a')
     abbr_path = utils.path_rel_home(path)
     if not alias:
         alias = os.path.basename(path)
-    file.write(os.pathsep.join([alias, abbr_path]))
-    file.write(os.linesep)
-    file.close()
+    fobj.write(os.pathsep.join([alias, abbr_path]))
+    fobj.write(os.linesep)
+    fobj.close()
 
 class AliasPathTable(table.Table):
     def __init__(self, saved_file):
@@ -84,9 +84,9 @@ class AliasPathTable(table.Table):
         extant_ap_list = []
         if not os.path.exists(self._saved_file):
             return []
-        file = open(self._saved_file, 'r')
-        lines = file.readlines()
-        file.close()
+        fobj = open(self._saved_file, 'r')
+        lines = fobj.readlines()
+        fobj.close()
         for line in lines:
             data = line.strip().split(os.pathsep, 1)
             if data in extant_ap_list:
@@ -96,12 +96,12 @@ class AliasPathTable(table.Table):
         extant_ap_list.sort()
         self._write_list_to_file(extant_ap_list)
         return extant_ap_list
-    def _write_list_to_file(self, list):
-        file = open(self._saved_file, 'w')
-        for ap in list:
-            file.write(os.pathsep.join(ap))
-            file.write(os.linesep)
-        file.close()
+    def _write_list_to_file(self, ap_list):
+        fobj = open(self._saved_file, 'w')
+        for alpth in ap_list:
+            fobj.write(os.pathsep.join(alpth))
+            fobj.write(os.linesep)
+        fobj.close()
     def _same_paths(self, path1, path2):
         return utils.samefile(os.path.expanduser(path1), path2)
     def _default_alias(self, path):
@@ -110,23 +110,23 @@ class AliasPathTable(table.Table):
         return utils.path_rel_home(path)
     def add_ap(self, path, alias=""):
         if self._extant_path(path):
-            iter = self.model.get_iter_first()
-            while iter:
-                if self._same_paths(self.model.get_value(iter, REPO_PATH), path):
+            model_iter = self.model.get_iter_first()
+            while model_iter:
+                if self._same_paths(self.model.get_value(model_iter, REPO_PATH), path):
                     if alias:
-                        self.model.set_value(iter, REPO_ALIAS, alias)
+                        self.model.set_value(model_iter, REPO_ALIAS, alias)
                     return
-                iter = self.model.iter_next(iter)
+                model_iter = self.model.iter_next(model_iter)
             if not alias:
                 alias = self._default_alias(path)
-            data = ["",""]
+            data = ["", ""]
             data[REPO_PATH] = self._abbrev_path(path)
             data[REPO_ALIAS] = alias
             self.model.append(data)
             self.save_to_file()
-    def save_to_file(self, arg=None):
-        list = self.get_contents()
-        self._write_list_to_file(list)
+    def save_to_file(self, _arg=None):
+        ap_list = self.get_contents()
+        self._write_list_to_file(ap_list)
     def get_selected_ap(self):
         data = self.get_selected_data([REPO_PATH, REPO_ALIAS])
         return data[0]
@@ -166,8 +166,8 @@ class PathSelectDialog(dialogue.Dialog):
     def _selection_cb(self, selection=None):
         self._select_button.set_sensitive(selection.count_selected_rows())
     def _select_cb(self, button=None):
-        ap = self.ap_table.get_selected_ap()
-        self._path.set_text(ap[0])
+        alpth = self.ap_table.get_selected_ap()
+        self._path.set_text(alpth[0])
     def _path_cb(self, entry=None):
         self.response(gtk.RESPONSE_OK)
     def _browse_cb(self, button=None):
@@ -204,11 +204,11 @@ class RepoPathTable(AliasPathTable):
         else:
             return AliasPathTable._same_paths(self, path1, path2)
     def _default_alias(self, path):
-        up = urlparse.urlparse(path)
-        if not up.scheme:
+        urlp = urlparse.urlparse(path)
+        if not urlp.scheme:
             return AliasPathTable._default_alias(self, path)
         else:
-            return os.path.basename(up.path)
+            return os.path.basename(urlp.path)
 
 class RepoSelectDialog(PathSelectDialog):
     def __init__(self, parent=None):
@@ -236,8 +236,8 @@ class RepoSelectDialog(PathSelectDialog):
             path = rawpath
         return os.path.basename(path)
     def _default_cb(self, button=None):
-        dt = self._get_default_target()
-        self._target.set_text(dt)
+        dflt = self._get_default_target()
+        self._target.set_text(dflt)
     def get_target(self):
         target = self._target.get_text()
         if not target:
@@ -277,22 +277,24 @@ editor_defs = []
 def _read_editor_defs():
     global editor_defs
     editor_defs = []
-    file = open(EDITOR_GLOB_FILE_NAME, 'r')
-    for line in file.readlines():
+    fobj = open(EDITOR_GLOB_FILE_NAME, 'r')
+    for line in fobj.readlines():
         eqi = line.find('=')
         if eqi < 0:
             continue
         glob = line[:eqi].strip()
-        edstr= line[eqi+1:].strip()
+        edstr = line[eqi+1:].strip()
         editor_defs.append([glob, edstr])
-    file.close()
+    fobj.close()
 
-def _write_editor_defs(edefs=editor_defs):
-    file = open(EDITOR_GLOB_FILE_NAME, 'w')
+def _write_editor_defs(edefs=None):
+    if edefs is None:
+        edefs = editor_defs
+    fobj = open(EDITOR_GLOB_FILE_NAME, 'w')
     for edef in edefs:
-        file.write('='.join(edef))
-        file.write(os.linesep)
-    file.close()
+        fobj.write('='.join(edef))
+        fobj.write(os.linesep)
+    fobj.close()
 
 if os.path.exists(EDITOR_GLOB_FILE_NAME):
     _read_editor_defs()
@@ -301,24 +303,24 @@ else:
 
 def assign_extern_editors(file_list):
     ed_assignments = {}
-    for file in file_list:
+    for fobj in file_list:
         assigned = False
         for globs, edstr in editor_defs:
             for glob in globs.split(os.pathsep):
-                if fnmatch.fnmatch(file, glob):
+                if fnmatch.fnmatch(fobj, glob):
                     if ed_assignments.has_key(edstr):
-                        ed_assignments[edstr].append(file)
+                        ed_assignments[edstr].append(fobj)
                     else:
-                        ed_assignments[edstr] = [file]
+                        ed_assignments[edstr] = [fobj]
                     assigned = True
                     break
             if assigned:
                 break
         if not assigned:
             if ed_assignments.has_key(DEFAULT_EDITOR):
-                ed_assignments[DEFAULT_EDITOR].append(file)
+                ed_assignments[DEFAULT_EDITOR].append(fobj)
             else:
-                ed_assignments[DEFAULT_EDITOR] = [file]
+                ed_assignments[DEFAULT_EDITOR] = [fobj]
     return ed_assignments
 
 EDITOR_GLOB_MODEL_DESCR = \

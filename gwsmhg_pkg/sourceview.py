@@ -26,7 +26,7 @@ try:
         def __init__(self, table=None):
             gtksourceview.SourceBuffer.__init__(self, table=table)
 
-except:
+except ImportError:
     import gtk
     
     class SourceView(gtk.TextView):

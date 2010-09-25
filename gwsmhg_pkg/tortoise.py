@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import gtk
-from gwsmhg_pkg import utils, dialogue, icons, const, ws_event, actions
+from gwsmhg_pkg import utils, dialogue, icons, ws_event, actions, cmd_result
 
 TORTOISE_HGTK_UI = \
 '''
@@ -42,13 +42,9 @@ TORTOISE_HGTK_UI = \
 </ui>
 '''
 
-tool_list = ['rename', 'clone', 'commit', 'datamine', 'guess', 'init',
-             'log', 'merge', 'recovery', 'repoconfig', 'serve', 'shelve',
-             'status', 'synch', 'update', 'userconfig', ]
+IS_AVAILABLE = utils.which('hgtk') is not None
 
-is_available = utils.which('hgtk') is not None
-
-def action_tool_name(action):
+def _action_tool_name(action):
     dummy, name = action.get_name().split('_')
     return name
 
@@ -67,22 +63,17 @@ def _notify_event_by_name(name):
         ws_event.notify_events(ws_event.CHANGE_WD)
 
 def _tortoise_tool_modal_acb(action):
-    name = action_tool_name(action)
+    name = _action_tool_name(action)
     cmd = 'hgtk %s' % name
     result = utils.run_cmd(cmd)
     dialogue.report_any_problems(result)
     _notify_event_by_name(name)
 
 def _tortoise_tool_bgnd_acb(action):
-    name = action_tool_name(action)
+    name = _action_tool_name(action)
     cmd = 'hgtk %s' % name
     if not utils.run_cmd_in_bgnd(cmd):
         dialogue.report_any_problems((cmd_result.ERROR, '"%s" failed' % cmd, ''))
-
-main_group_actions = {}
-
-for condition in const.GWSM_CONDITIONS:
-    main_group_actions[condition] = []
 
 actions.class_indep_ags[actions.ON_REPO_INDEP].add_actions([
         ('gwsm_tortoise', None, '_Tortoise Tools'),
@@ -140,11 +131,7 @@ FILES_UI_DESCR = \
 </ui>
 '''
 
-from gwsmhg_pkg.const import NO_SELECTION, UNIQUE_SELECTION, SELECTION, \
-    SELECTION_INDIFFERENT, NO_SELECTION_NOT_PMIC, SELECTION_NOT_PMIC, \
-    FILE_CONDITIONS
-
-file_group_partial_actions = {}
+FILE_GROUP_PARTIAL_ACTIONS = {}
 
 SELN_CONDITIONS = [
     actions.ON_IN_REPO_UNIQUE_SELN,
@@ -152,17 +139,17 @@ SELN_CONDITIONS = [
     ]
 
 for condition in SELN_CONDITIONS:
-    file_group_partial_actions[condition] = []
+    FILE_GROUP_PARTIAL_ACTIONS[condition] = []
     
-file_menu = gtk.Action("tortoise_files_menu", "_Tortoise", None, None)
+FILE_MENU = gtk.Action("tortoise_files_menu", "_Tortoise", None, None)
 
-file_group_partial_actions[actions.ON_IN_REPO_UNIQUE_SELN] = \
+FILE_GROUP_PARTIAL_ACTIONS[actions.ON_IN_REPO_UNIQUE_SELN] = \
     [
         ('tortoise_rename', icons.STOCK_RENAME, 'Rename', '',
          'Launch tortoise "rename" tool'),
     ]
 
-file_group_partial_actions[actions.ON_IN_REPO_NOT_PMIC_SELN] = \
+FILE_GROUP_PARTIAL_ACTIONS[actions.ON_IN_REPO_NOT_PMIC_SELN] = \
     [
         ('tortoise_commit', icons.STOCK_COMMIT, 'Commit', '',
          'Launch tortoise "commit" tool'),
@@ -171,7 +158,7 @@ file_group_partial_actions[actions.ON_IN_REPO_NOT_PMIC_SELN] = \
     ]
 
 def run_tool_for_files(action, file_list):
-    name = action_tool_name(action)
+    name = _action_tool_name(action)
     cmd = 'hgtk %s %s' % (name, utils.file_list_to_string(file_list))
     result = utils.run_cmd(cmd)
     dialogue.report_any_problems(result)

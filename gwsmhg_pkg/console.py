@@ -13,15 +13,16 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, gtk, gwsmhg_pkg.sourceview, pango, time
+import os, gtk, pango, time
 from gwsmhg_pkg import dialogue, utils, cmd_result, gutils, ws_event
+from gwsmhg_pkg import sourceview
 
-class ConsoleLogBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
+class ConsoleLogBuffer(sourceview.SourceBuffer):
     def __init__(self, view=None, table=None):
-        self._view = view
         if not table:
-            table = gwsmhg_pkg.sourceview.SourceTagTable()
-        gwsmhg_pkg.sourceview.SourceBuffer.__init__(self, table=table)
+            table = sourceview.SourceTagTable()
+        sourceview.SourceBuffer.__init__(self, table=table)
+        self._view = view
         self.bold_tag = self.create_tag("BOLD", weight=pango.WEIGHT_BOLD, foreground="black", family="monospace")
         self.cmd_tag = self.create_tag("CMD", foreground="black", family="monospace")
         self.stdout_tag = self.create_tag("STDOUT", foreground="black", family="monospace")
@@ -37,9 +38,9 @@ class ConsoleLogBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
         self._append_tagged_text("% ", self.bold_tag)
         self.begin_not_undoable_action()
     def _append_tagged_text(self, text, tag):
-        iter = self.get_end_iter()
-        assert iter is not None, "ConsoleLogBuffer"
-        self.insert_with_tags(iter, text, tag)
+        model_iter = self.get_end_iter()
+        assert model_iter is not None, "ConsoleLogBuffer"
+        self.insert_with_tags(model_iter, text, tag)
         self._view and self._view.scroll_to_mark(self._eobuf, 0.001)
     def start_cmd(self, cmd):
         self._append_tagged_text("%s: " % time.strftime("%Y-%m-%d %H:%M:%S"), self.bold_tag)
@@ -57,10 +58,10 @@ class ConsoleLogBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
         self._append_tagged_text(msg, self.cmd_tag)
         self._append_tagged_text(os.linesep + "% ", self.bold_tag)
 
-class ConsoleLogView(gwsmhg_pkg.sourceview.SourceView):
-    def __init__(self, buffer, table=None):
-        gwsmhg_pkg.sourceview.SourceView.__init__(self, buffer)
-        buffer._view = self
+class ConsoleLogView(sourceview.SourceView):
+    def __init__(self, text_buffer, _table=None):
+        sourceview.SourceView.__init__(self, text_buffer)
+        text_buffer._view = self
         fdesc = pango.FontDescription("mono, 10")
         self.modify_font(fdesc)
         self.set_margin(80)
@@ -85,11 +86,11 @@ CONSOLE_LOG_UI_DESCR = \
 '''
 
 class ConsoleLog(gtk.VBox, dialogue.BusyIndicatorUser):
-    def __init__(self, busy_indicator=None, runentry=False, table=None):
+    def __init__(self, busy_indicator=None, runentry=False, _table=None):
         gtk.VBox.__init__(self)
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
         self._buffer = ConsoleLogBuffer()
-        self._view = ConsoleLogView(buffer=self._buffer)
+        self._view = ConsoleLogView(text_buffer=self._buffer)
         self._action_group = gtk.ActionGroup("console_log")
         self.ui_manager = gtk.UIManager()
         self.ui_manager.insert_action_group(self._action_group, -1)
@@ -120,7 +121,7 @@ class ConsoleLog(gtk.VBox, dialogue.BusyIndicatorUser):
             if action:
                 return action
         return None
-    def _clear_acb(self, action):
+    def _clear_acb(self, _action):
         self._buffer.clear()
     def start_cmd(self, cmd):
         self._buffer.start_cmd(cmd)

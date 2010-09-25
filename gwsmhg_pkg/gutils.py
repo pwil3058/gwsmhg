@@ -13,8 +13,7 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import gtk, os.path, gobject
-from gwsmhg_pkg import cmd_result, dialogue
+import gtk, gobject
 
 def pygtk_version_ge(version):
     for index in range(len(version)):
@@ -58,7 +57,7 @@ class RadioButtonFramedVBox(gtk.Frame):
             self.vbox.pack_start(button, fill=False)
         self.buttons[0].set_active(True)
         self.add(self.vbox)
-        self.show_all
+        self.show_all()
     def get_selected_index(self):
         for index in range(len(self.buttons)):
             if self.buttons[index].get_active():
@@ -72,13 +71,13 @@ class PopupUser:
         if not self._gtk_window:
             try:
                 temp = self.get_parent()
-            except:
+            except AttributeError:
                 return None
             while temp:
                 self._gtk_window = temp
                 try:
                     temp = temp.get_parent()
-                except:
+                except AttributeError:
                     return None
         return self._gtk_window
 
@@ -102,8 +101,8 @@ _KEYVAL_UP_ARROW = gtk.gdk.keyval_from_name('Up')
 _KEYVAL_DOWN_ARROW = gtk.gdk.keyval_from_name('Down')
 
 class EntryWithHistory(gtk.Entry):
-    def __init__(self, max=0):
-        gtk.Entry.__init__(self, max)
+    def __init__(self, max_chars=0):
+        gtk.Entry.__init__(self, max_chars)
         self._history_list = []
         self._history_index = 0
         self._history_len = 0
@@ -204,7 +203,7 @@ class TimeOutController():
         self.toggle_action.connect("toggled", self._toggle_acb)
         self.toggle_action.set_active(is_on)
         self._toggle_acb()
-    def _toggle_acb(self, action=None):
+    def _toggle_acb(self, _action=None):
         if self.toggle_action.get_active():
             self._timeout_id = gobject.timeout_add(self._interval, self._timeout_cb)
     def _timeout_cb(self):
@@ -236,31 +235,35 @@ class TimeOutController():
 TOC_DEFAULT_REFRESH_TD = ["auto_refresh_toggle", "Auto _Refresh", "Turn data auto refresh on/off", gtk.STOCK_REFRESH]
 
 class RefreshController(TimeOutController):
-    def __init__(self, toggle_data=TOC_DEFAULT_REFRESH_TD, function=None, is_on=True, interval=10000):
+    def __init__(self, toggle_data=None, function=None, is_on=True, interval=10000):
+        if toggle_data is None:
+            toggle_data = TOC_DEFAULT_REFRESH_TD
         TimeOutController.__init__(self, toggle_data, function=function, is_on=is_on, interval=interval)
 
 TOC_DEFAULT_SAVE_TD = ["auto_save_toggle", "Auto _Save", "Turn data auto save on/off", gtk.STOCK_SAVE]
 
 class SaveController(TimeOutController):
-    def __init__(self, toggle_data=TOC_DEFAULT_SAVE_TD, function=None, is_on=True, interval=10000):
+    def __init__(self, toggle_data=None, function=None, is_on=True, interval=10000):
+        if toggle_data is None:
+            toggle_data = TOC_DEFAULT_SAVE_TD
         TimeOutController.__init__(self, toggle_data, function=function, is_on=is_on, interval=interval)
 
 class LabelledEntry(gtk.HBox):
-    def __init__(self, label="", max=0, text=""):
+    def __init__(self, label="", max_chars=0, text=""):
         gtk.HBox.__init__(self)
         self.label = gtk.Label(label)
         self.pack_start(self.label, expand=False)
-        self.entry = EntryWithHistory(max)
+        self.entry = EntryWithHistory(max_chars)
         self.pack_start(self.entry, expand=True, fill=True)
         self.entry.set_text(text)
 
 class LabelledText(gtk.HBox):
-    def __init__(self, label="", text="", min=0):
+    def __init__(self, label="", text="", min_chars=0):
         gtk.HBox.__init__(self)
         self.label = gtk.Label(label)
         self.pack_start(self.label, expand=False)
         self.entry = gtk.Entry()
-        self.entry.set_width_chars(min)
+        self.entry.set_width_chars(min_chars)
         self.pack_start(self.entry, expand=True, fill=True)
         self.entry.set_text(text)
         self.entry.set_editable(False)

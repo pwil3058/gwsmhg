@@ -36,10 +36,10 @@ def init(ifce_module):
 
 def create_log(busy_indicator):
     global log
-    log = console.ConsoleLog(busy_indicator=busy_indicator, runentry=not terminal.available)
+    log = console.ConsoleLog(busy_indicator=busy_indicator, runentry=not terminal.AVAILABLE)
     return log
 
-if terminal.available:
+if terminal.AVAILABLE:
     term = terminal.Terminal()
 else:
     term = None
@@ -52,9 +52,9 @@ def chdir(newdir=None):
             os.chdir(newdir)
         except OSError, err:
             import errno
-            ec = errno.errorcode[err.errno]
-            em = err.strerror
-            return (cmd_result.ERROR, '', '%s: "%s" :%s' % (ec, newdir, em))
+            ecode = errno.errorcode[err.errno]
+            emsg = err.strerror
+            return (cmd_result.ERROR, '', '%s: "%s" :%s' % (ecode, newdir, emsg))
     root = SCM.get_root()
     if root:
         os.chdir(root)

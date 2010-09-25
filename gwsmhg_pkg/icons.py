@@ -60,33 +60,33 @@ STOCK_MARK_RESOLVE = gtk.STOCK_APPLY
 STOCK_MARK_UNRESOLVE = gtk.STOCK_CANCEL
 STOCK_SELECT_GUARD = STOCK_APPLIED
 
-_icon_name_list = \
+_ICON_NAME_LIST = \
     [ STOCK_COMMIT, STOCK_DIFF, STOCK_POP_PATCH, STOCK_PUSH_PATCH,
       STOCK_FOLD_PATCH, STOCK_FINISH_PATCH, STOCK_IMPORT_PATCH, STOCK_APPLIED,
       STOCK_MERGE, STOCK_TAG, STOCK_BRANCH,
     ]
 
 # first look in the source directory
-libdir = os.path.join(sys.path[0], "pixmaps")
-if not os.path.exists(libdir) or not os.path.isdir(libdir):
-    tailend = os.path.join("share", "pixmaps", "gwsmhg")
-    prefix = sys.path[0]
-    while prefix:
-        libdir = os.path.join(prefix, tailend)
-        if os.path.exists(libdir) and os.path.isdir(libdir):
+_libdir = os.path.join(sys.path[0], "pixmaps")
+if not os.path.exists(_libdir) or not os.path.isdir(_libdir):
+    _TAILEND = os.path.join("share", "pixmaps", "gwsmhg")
+    _prefix = sys.path[0]
+    while _prefix:
+        _libdir = os.path.join(_prefix, _TAILEND)
+        if os.path.exists(_libdir) and os.path.isdir(_libdir):
             break
-        prefix = os.path.dirname(prefix)
+        _prefix = os.path.dirname(_prefix)
 
-app_icon_file = os.path.join(os.path.dirname(libdir), APP_ICON + os.extsep + "png")
+APP_ICON_FILE = os.path.join(os.path.dirname(_libdir), APP_ICON + os.extsep + "png")
 
-factory = gtk.IconFactory()
+_FACTORY = gtk.IconFactory()
 
 def make_pixbuf(name):
     #pb = gtk.gdk.pixbuf_new_from_xpm_data(xpm)
-    return gtk.gdk.pixbuf_new_from_file(os.path.join(libdir, name + os.extsep + "png"))
+    return gtk.gdk.pixbuf_new_from_file(os.path.join(_libdir, name + os.extsep + "png"))
 
-for name in _icon_name_list:
-    factory.add(name, gtk.IconSet(make_pixbuf(name)))
+for _name in _ICON_NAME_LIST:
+    _FACTORY.add(_name, gtk.IconSet(make_pixbuf(_name)))
 
-factory.add_default()
+_FACTORY.add_default()
 

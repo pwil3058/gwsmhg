@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import os, gtk, gwsmhg_pkg.sourceview, pango, gobject
-from gwsmhg_pkg import dialogue, ifce, utils, cmd_result, gutils, config
+from gwsmhg_pkg import dialogue, ifce, utils, gutils, config
 
 def _edit_files_extern(filelist, edstr=config.DEFAULT_EDITOR):
     if not edstr.split()[0] in config.EDITORS_THAT_NEED_A_TERMINAL:
@@ -32,15 +32,13 @@ def edit_files_extern(file_list):
     for edstr in ed_assigns.keys():
         _edit_files_extern(ed_assigns[edstr], edstr)
 
-import time
-
 class SummaryBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
     def __init__(self, table=None):
         if not table:
             table = gwsmhg_pkg.sourceview.SourceTagTable()
         gwsmhg_pkg.sourceview.SourceBuffer.__init__(self, table=table)
-        self._action_group = gtk.ActionGroup("summary")
-        self._action_group.add_actions(
+        self.action_group = gtk.ActionGroup("summary")
+        self.action_group.add_actions(
             [
                 ("summary_ack", None, "_Ack", None,
                  "Insert Acked-by tag at cursor position", self._insert_ack_acb),
@@ -49,21 +47,21 @@ class SummaryBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
                 ("summary_author", None, "A_uthor", None,
                  "Insert Author tag at cursor position", self._insert_author_acb),
             ])
-    def _insert_sign_off_acb(self, action=None):
+    def _insert_sign_off_acb(self, _action=None):
         data = ifce.SCM.get_author_name_and_email()
         self.insert_at_cursor("Signed-off-by: %s\n" % data)
-    def _insert_ack_acb(self, action=None):
+    def _insert_ack_acb(self, _action=None):
         data = ifce.SCM.get_author_name_and_email()
         self.insert_at_cursor("Acked-by: %s\n" % data)
-    def _insert_author_acb(self, action=None):
+    def _insert_author_acb(self, _action=None):
         data = ifce.SCM.get_author_name_and_email()
         self.insert_at_cursor("Author: %s\n" % data)
 
 class SummaryView(gwsmhg_pkg.sourceview.SourceView):
-    def __init__(self, buffer=None, table=None):
-        if not buffer:
-            buffer = SummaryBuffer(table)
-        gwsmhg_pkg.sourceview.SourceView.__init__(self, buffer)
+    def __init__(self, text_buffer=None, table=None):
+        if not text_buffer:
+            text_buffer = SummaryBuffer(table)
+        gwsmhg_pkg.sourceview.SourceView.__init__(self, text_buffer)
         fdesc = pango.FontDescription("mono, 10")
         self.modify_font(fdesc)
         self.set_margin(72)
@@ -76,7 +74,7 @@ class SummaryView(gwsmhg_pkg.sourceview.SourceView):
         self.set_cursor_visible(True)
         self.set_editable(True)
         self.ui_manager = gtk.UIManager()
-        self.ui_manager.insert_action_group(buffer._action_group, -1)
+        self.ui_manager.insert_action_group(text_buffer.action_group, -1)
     def get_action(self, action_name):
         for action_group in self.ui_manager.get_action_groups():
             action = action_group.get_action(action_name)
@@ -84,8 +82,8 @@ class SummaryView(gwsmhg_pkg.sourceview.SourceView):
                 return action
         return None
     def get_msg(self):
-        buffer = self.get_buffer()
-        return buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter())
+        text_buffer = self.get_buffer()
+        return text_buffer.get_text(text_buffer.get_start_iter(), text_buffer.get_end_iter())
 
 class ChangeSummaryBuffer(SummaryBuffer):
     def __init__(self, table=None, auto_save=True):
@@ -96,7 +94,7 @@ class ChangeSummaryBuffer(SummaryBuffer):
         self._save_file_name = ifce.SCM.get_default_commit_save_file()
         if not os.path.exists(self._save_file_name):
             self.save_summary(content="")
-        self._action_group.add_actions(
+        self.action_group.add_actions(
             [
                 ("menu_summary", None, "_Summary"),
                 ("change_summary_save", gtk.STOCK_SAVE, "_Save", "",
@@ -116,7 +114,7 @@ class ChangeSummaryBuffer(SummaryBuffer):
             )
         self.save_toggle_action.connect("toggled", self._toggle_auto_save_acb)
         self.save_toggle_action.set_active(auto_save)
-        self._action_group.add_action(self.save_toggle_action)
+        self.action_group.add_action(self.save_toggle_action)
         # Load the saved content before (possibly) turning auto save on or
         # contents of saved file could be wiped out before it's loaded
         self.load_summary(already_checked=True)
@@ -133,17 +131,17 @@ class ChangeSummaryBuffer(SummaryBuffer):
             save_file.close()
             self._save_file_name = file_name
             self.set_modified(False)
-        except:
+        except IOError:
             dialogue.alert_user('Save failed!')
-    def _save_summary_acb(self, action=None):
+    def _save_summary_acb(self, _action=None):
         self.save_summary()
-    def save_summary_as(self, action=None):
-        fn = dialogue.ask_file_name("Enter file name", existing=False, suggestion=self._save_file_name)
-        if fn and os.path.exists(fn) and not utils.samefile(fn, self._save_file_name):
-            if not utils.samefile(fn, ifce.SCM.get_default_commit_save_file()):
-                if not dialogue.ask_ok_cancel(os.linesep.join([fn, "\nFile exists. Overwrite?"])):
+    def save_summary_as(self, _action=None):
+        fname = dialogue.ask_file_name("Enter file name", existing=False, suggestion=self._save_file_name)
+        if fname and os.path.exists(fname) and not utils.samefile(fname, self._save_file_name):
+            if not utils.samefile(fname, ifce.SCM.get_default_commit_save_file()):
+                if not dialogue.ask_ok_cancel(os.linesep.join([fname, "\nFile exists. Overwrite?"])):
                     return
-        self.save_summary(file_name=fn)
+        self.save_summary(file_name=fname)
     def _ok_to_overwrite_summary(self):
         if self.get_char_count():
             return dialogue.ask_ok_cancel("Buffer contents will be destroyed. Continue?")
@@ -159,23 +157,23 @@ class ChangeSummaryBuffer(SummaryBuffer):
             save_file.close()
             self._save_file_name = file_name
             self.set_modified(False)
-        except:
+        except IOError:
             dialogue.alert_user('Load from file failed!')
-    def _load_summary_acb(self, action=None):
+    def _load_summary_acb(self, _action=None):
         self.load_summary()
-    def load_summary_from(self, action=None):
+    def load_summary_from(self, _action=None):
         if not self._ok_to_overwrite_summary():
             return
-        fn = dialogue.ask_file_name("Enter file name", existing=True)
-        self.load_summary(file_name=fn, already_checked=True)
-    def insert_summary_from(self, action=None):
+        fname = dialogue.ask_file_name("Enter file name", existing=True)
+        self.load_summary(file_name=fname, already_checked=True)
+    def insert_summary_from(self, _action=None):
         file_name = dialogue.ask_file_name("Enter file name", existing=True)
         try:
             save_file = open(file_name, 'r')
             self.insert_at_cursor(save_file.read())
             save_file.close()
             self.set_modified(True)
-        except:
+        except IOError:
             dialogue.alert_user('Insert at cursor from file failed!')
     def get_auto_save(self):
         return self.save_toggle_action.get_active()
@@ -189,7 +187,7 @@ class ChangeSummaryBuffer(SummaryBuffer):
         if self.get_modified():
             self.save_summary()
         return self.get_auto_save()
-    def _toggle_auto_save_acb(self, action=None):
+    def _toggle_auto_save_acb(self, _action=None):
         if self.get_auto_save():
             gobject.timeout_add(self._save_interval, self.do_auto_save)
     def finish_up(self, clear_save=False):
@@ -222,10 +220,10 @@ CHANGE_SUMMARY_UI_DESCR = \
 '''
 
 class ChangeSummaryView(SummaryView):
-    def __init__(self, buffer=None, auto_save=True, table=None):
-        if not buffer:
-            buffer = ChangeSummaryBuffer(table, auto_save)
-        SummaryView.__init__(self, buffer, table)
+    def __init__(self, text_buffer=None, auto_save=True, table=None):
+        if not text_buffer:
+            text_buffer = ChangeSummaryBuffer(table, auto_save)
+        SummaryView.__init__(self, text_buffer, table)
         self.change_summary_merge_id = self.ui_manager.add_ui_from_string(CHANGE_SUMMARY_UI_DESCR)
 
 class NewPatchSummaryBuffer(SummaryBuffer):
@@ -233,20 +231,20 @@ class NewPatchSummaryBuffer(SummaryBuffer):
         if not table:
             table = gwsmhg_pkg.sourceview.SourceTagTable()
         SummaryBuffer.__init__(self, table=table)
-        self._action_group.add_actions(
+        self.action_group.add_actions(
             [
                 ("menu_summary", None, "_Description"),
                 ("patch_summary_insert_from", gtk.STOCK_PASTE, "_Insert from", "",
                  "Insert contents of a file at cursor position", self._insert_summary_from_acb),
             ])
-    def _insert_summary_from_acb(self, action=None):
+    def _insert_summary_from_acb(self, _action=None):
         file_name = dialogue.ask_file_name("Enter file name", existing=True)
         try:
             save_file = open(file_name, 'r')
             self.insert_at_cursor(save_file.read())
             save_file.close()
             self.set_modified(True)
-        except:
+        except IOError:
             dialogue.alert_user('Insert at cursor from file failed!')
 
 class PatchSummaryBuffer(NewPatchSummaryBuffer):
@@ -257,14 +255,14 @@ class PatchSummaryBuffer(NewPatchSummaryBuffer):
         if not table:
             table = gwsmhg_pkg.sourceview.SourceTagTable()
         NewPatchSummaryBuffer.__init__(self, table=table)
-        self._action_group.add_actions(
+        self.action_group.add_actions(
             [
                 ("patch_summary_save", gtk.STOCK_SAVE, "_Save", "",
                  "Save commit summary", self._save_summary_acb),
                 ("patch_summary_load", gtk.STOCK_REVERT_TO_SAVED, "_Reload", "",
                  "Load summary from saved file", self._load_summary_acb),
             ])
-    def _save_summary_acb(self, action=None):
+    def _save_summary_acb(self, _action=None):
         text = self.get_text(self.get_start_iter(), self.get_end_iter())
         res, sout, serr = self._set_summary(self.patch, text)
         if res:
@@ -282,7 +280,7 @@ class PatchSummaryBuffer(NewPatchSummaryBuffer):
         else:
             self.set_text(text)
             self.set_modified(False)
-    def _load_summary_acb(self, action=None):
+    def _load_summary_acb(self, _action=None):
         if self._ok_to_overwrite_summary():
             self.load_summary()
 
@@ -304,10 +302,10 @@ NEW_PATCH_SUMMARY_UI_DESCR = \
 '''
 
 class NewPatchSummaryView(SummaryView):
-    def __init__(self, buffer=None, table=None):
-        if not buffer:
-            buffer = NewPatchSummaryBuffer(table)
-        SummaryView.__init__(self, buffer, table)
+    def __init__(self, text_buffer=None, table=None):
+        if not text_buffer:
+            text_buffer = NewPatchSummaryBuffer(table)
+        SummaryView.__init__(self, text_buffer, table)
         self.patch_summary_merge_id = self.ui_manager.add_ui_from_string(NEW_PATCH_SUMMARY_UI_DESCR)
 
 PATCH_SUMMARY_UI_DESCR = \
@@ -326,10 +324,10 @@ PATCH_SUMMARY_UI_DESCR = \
 
 class PatchSummaryView(NewPatchSummaryView):
     def __init__(self, get_summary, set_summary, patch=None, table=None):
-        buffer = PatchSummaryBuffer(get_summary, set_summary, patch, table)
-        NewPatchSummaryView.__init__(self, buffer, table)
+        text_buffer = PatchSummaryBuffer(get_summary, set_summary, patch, table)
+        NewPatchSummaryView.__init__(self, text_buffer, table)
         self.patch_summary_merge_id = self.ui_manager.add_ui_from_string(PATCH_SUMMARY_UI_DESCR)
-        action = buffer._action_group.get_action("patch_summary_save")
+        action = text_buffer.action_group.get_action("patch_summary_save")
         self.save_button = gutils.ActionButton(action, use_underline=False)
     def load_summary(self):
         self.get_buffer().load_summary()

@@ -67,12 +67,12 @@ class_indep_ags = {}
 
 import gtk
 
-for cond in CLASS_INDEP_CONDS:
-    class_indep_ags[cond] = gtk.ActionGroup(cond)
+for condition in CLASS_INDEP_CONDS:
+    class_indep_ags[condition] = gtk.ActionGroup(condition)
 
 from gwsmhg_pkg import ifce, ws_event, gutils
 
-def update_class_indep_sensitivities(arg=None):
+def update_class_indep_sensitivities(_arg=None):
     in_repo = ifce.in_valid_repo
     pmic = in_repo and ifce.PM.get_in_progress()
     class_indep_ags[ON_IN_REPO].set_sensitive(in_repo)
@@ -86,7 +86,7 @@ def add_class_indep_action(cond, action):
 def add_class_indep_actions(cond, actions):
     class_indep_ags[cond].add_actions(actions)
 
-def get_class_indep_action(self, action_name):
+def get_class_indep_action(action_name):
     for cond in CLASS_INDEP_CONDS:
         action = class_indep_ags[cond].get_action(action_name)
         if action:
@@ -105,7 +105,7 @@ class AGandUIManager(ws_event.Listener):
         for cond in CLASS_INDEP_CONDS:
             self.ui_manager.insert_action_group(class_indep_ags[cond], -1)
         self.seln = selection
-        self._action_groups ={}
+        self._action_groups = {}
         for cond in CLASS_DEP_SELN_INDEP_CONDS:
             self._action_groups[cond] = gtk.ActionGroup(cond)
             self.ui_manager.insert_action_group(self._action_groups[cond], -1)
@@ -185,8 +185,8 @@ class AGandUIManager(ws_event.Listener):
         for cond in conditions:
             action = self._action_groups[cond].get_action(action_name)
             if action:
-               self._action_groups[new_cond].add_action(action)
-               return
+                self._action_groups[new_cond].add_action(action)
+                return
     def move_conditional_action(self, action_name, new_cond):
         conditions = CLASS_DEP_SELN_INDEP_CONDS[:]
         if self.seln:

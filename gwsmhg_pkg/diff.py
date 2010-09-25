@@ -40,11 +40,14 @@ class tws_line_count_display(gtk.HBox):
                 self._entry.modify_base(state, gtk.gdk.color_parse("#00FF00"))
 
 class DiffTextBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
-    def __init__(self, file_list=[], table=None):
+    def __init__(self, file_list=None, table=None):
         if not table:
             table = gwsmhg_pkg.sourceview.SourceTagTable()
         gwsmhg_pkg.sourceview.SourceBuffer.__init__(self, table)
-        self._file_list = file_list
+        if file_list is None:
+            self._file_list = []
+        else:
+            self._file_list = file_list
         self._tws_change_cbs = []
         self.tws_check = re.compile('^(\+.*\S)(\s+\n)$')
         self.tws_list = []
@@ -79,10 +82,10 @@ class DiffTextBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
     def _append_tagged_text(self, text, tag):
         self.insert_with_tags(self.get_end_iter(), text, tag)
     def _append_patch_line(self, line):
-        fc = line[0]
-        if fc == " ":
+        first_char = line[0]
+        if first_char == " ":
             self._append_tagged_text(line, self.unchanged_tag)
-        elif fc == "+":
+        elif first_char == "+":
             match = self.tws_check.match(line)
             if match:
                 self._append_tagged_text(match.group(1), self.plus_tag)
@@ -90,25 +93,24 @@ class DiffTextBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
                 return len(match.group(1))
             else:
                 self._append_tagged_text(line, self.plus_tag)
-        elif fc == "-":
+        elif first_char == "-":
             self._append_tagged_text(line, self.minus_tag)
-        elif fc == "!":
+        elif first_char == "!":
             self._append_tagged_text(line, self.change_tag)
-        elif fc == "@":
+        elif first_char == "@":
             i = line.find("@@", 2)
             if i == -1:
                 self._append_tagged_text(line, self.stats_tag)
             else:
                 self._append_tagged_text(line[:i+2], self.stats_tag)
                 self._append_tagged_text(line[i+2:], self.func_tag)
-                pass
-        elif fc == "=":
+        elif first_char == "=":
             self._append_tagged_text(line, self.sep_tag)
-        elif fc == "*":
+        elif first_char == "*":
             self._append_tagged_text(line, self.star_tag)
-        elif fc == "<":
+        elif first_char == "<":
             self._append_tagged_text(line, self.lab_tag)
-        elif fc == ">":
+        elif first_char == ">":
             self._append_tagged_text(line, self.rab_tag)
         else:
             self._append_tagged_text(line, self.index_tag)
@@ -135,9 +137,9 @@ class DiffTextBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
                 func(new_count)
     def _tws_index_iter(self):
         pos = self.tws_list[self.tws_index]
-        iter = self.get_iter_at_line_offset(pos[0], pos[1])
-        self.place_cursor(iter)
-        return iter
+        model_iter = self.get_iter_at_line_offset(pos[0], pos[1])
+        self.place_cursor(model_iter)
+        return model_iter
     def get_tws_first_iter(self):
         self.tws_index = 0
         return self._tws_index_iter()
@@ -157,25 +159,25 @@ class DiffTextBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
         if not self._save_file:
             return
         try:
-            file = open(self._save_file, 'w')
-        except IOError, (errno, strerror):
+            fobj = open(self._save_file, 'w')
+        except IOError, (_errno, strerror):
             dialogue.report_any_problems((cmd_result.ERROR, "", strerror))
             self.check_set_save_sensitive()
             return
         text = self.get_text(self.get_start_iter(), self.get_end_iter())
-        file.write(text)
-        file.close()
+        fobj.write(text)
+        fobj.close()
         self.check_set_save_sensitive()
     def check_save_sensitive(self):
         return self._save_file is not None and os.path.exists(self._save_file)
     def check_set_save_sensitive(self):
         set_sensitive = self.check_save_sensitive()
         self._action_group.get_action("diff_save").set_sensitive(set_sensitive)
-    def _refresh_acb(self, action):
+    def _refresh_acb(self, _action):
         self.set_contents()
-    def _save_acb(self, action):
+    def _save_acb(self, _action):
         self._save_to_file()
-    def _save_as_acb(self, action):
+    def _save_as_acb(self, _action):
         if self._save_file:
             suggestion = self._save_file
         else:
@@ -195,7 +197,6 @@ class DiffTextView(gwsmhg_pkg.sourceview.SourceView):
         context = self.get_pango_context()
         metrics = context.get_metrics(fdesc)
         width = pango.PIXELS(metrics.get_approximate_char_width() * 85)
-        x, y = self.buffer_to_window_coords(gtk.TEXT_WINDOW_TEXT, width, width / 2)
         self.set_size_request(width, width / 2)
         self.set_cursor_visible(False)
         self.set_editable(False)
@@ -217,17 +218,17 @@ class DiffTextView(gwsmhg_pkg.sourceview.SourceView):
             ])
         self.tws_nav_buttonbox = gutils.ActionHButtonBox([self._action_group],
             ["tws_nav_first", "tws_nav_prev", "tws_nav_next", "tws_nav_last"])
-    def _tws_nav_first_acb(self, action):
+    def _tws_nav_first_acb(self, _action):
         self.scroll_to_iter(self.get_buffer().get_tws_first_iter(), 0.01, True)
-    def _tws_nav_prev_acb(self, action):
+    def _tws_nav_prev_acb(self, _action):
         self.scroll_to_iter(self.get_buffer().get_tws_prev_iter(), 0.01, True)
-    def _tws_nav_next_acb(self, action):
+    def _tws_nav_next_acb(self, _action):
         self.scroll_to_iter(self.get_buffer().get_tws_next_iter(), 0.01, True)
-    def _tws_nav_last_acb(self, action):
+    def _tws_nav_last_acb(self, _action):
         self.scroll_to_iter(self.get_buffer().get_tws_last_iter(), 0.01, True)
 
 class DiffTextWidget(gtk.VBox):
-    def __init__(self, parent, diff_view):
+    def __init__(self, diff_view):
         gtk.VBox.__init__(self)
         self.diff_view = diff_view
         self.pack_start(gutils.wrap_in_scrolled_window(self.diff_view))
@@ -247,7 +248,7 @@ class DiffTextWidget(gtk.VBox):
             self._tws_nav_buttons_packed = True
 
 class ScmDiffTextBuffer(DiffTextBuffer):
-    def __init__(self, file_list=[], fromrev=None, torev=None, table=None):
+    def __init__(self, file_list=None, fromrev=None, torev=None, table=None):
         DiffTextBuffer.__init__(self, file_list=file_list, table=table)
         self._fromrev = fromrev
         self._torev = torev
@@ -263,18 +264,18 @@ class ScmDiffTextBuffer(DiffTextBuffer):
         return text
 
 class ScmDiffTextView(DiffTextView):
-    def __init__(self, file_list=[], fromrev=None, torev=None):
+    def __init__(self, file_list=None, fromrev=None, torev=None):
         buffer = ScmDiffTextBuffer(file_list, fromrev=fromrev, torev=torev)
         DiffTextView.__init__(self, buffer=buffer)
 
 class ScmDiffTextWidget(DiffTextWidget):
-    def __init__(self, parent, file_list=[], fromrev=None, torev=None):
+    def __init__(self, file_list=None, fromrev=None, torev=None):
         diff_view = ScmDiffTextView(file_list=file_list, fromrev=fromrev,
                                     torev=torev)
-        DiffTextWidget.__init__(self, parent=parent, diff_view=diff_view)
+        DiffTextWidget.__init__(self, diff_view=diff_view)
 
 class ScmDiffTextDialog(dialogue.AmodalDialog):
-    def __init__(self, parent, file_list=[], fromrev=None, torev=None):
+    def __init__(self, parent, file_list=None, fromrev=None, torev=None):
         flags = gtk.DIALOG_DESTROY_WITH_PARENT
         dialogue.AmodalDialog.__init__(self, None, parent, flags, ())
         title = "diff: %s" % utils.cwd_rel_home()
@@ -285,23 +286,23 @@ class ScmDiffTextDialog(dialogue.AmodalDialog):
             else:
                 title += " REV[%s] -> []" % (str(fromrev))
         elif torev:
-            res, parents, serr = ifce.SCM.get_parents(torev)
+            _res, parents, _serr = ifce.SCM.get_parents(torev)
             if len(parents) == 1:
                 title += " REV[%s] -> REV[%s]" % (str(parents[0]), str(torev))
             else:
                 title += " * -> [%s]" % (str(torev))
         else:
-            res, parents, serr = ifce.SCM.get_parents()
+            _res, parents, _serr = ifce.SCM.get_parents()
             if len(parents) == 1:
                 title += " REV[%s] -> []" % (str(parents[0]))
             else:
                 title += " * -> []"
         self.set_title(title)
         if len(parents) > 1:
-            nb = gtk.Notebook()
+            nbk = gtk.Notebook()
             for parent in parents:
                 vbox = gtk.VBox()
-                dtw = ScmDiffTextWidget(self, file_list, fromrev=parent, torev=torev)
+                dtw = ScmDiffTextWidget(file_list, fromrev=parent, torev=torev)
                 vbox.pack_start(dtw)
                 hbox = gtk.HBox()
                 tws_display = dtw.diff_view.get_buffer().tws_display
@@ -310,14 +311,14 @@ class ScmDiffTextDialog(dialogue.AmodalDialog):
                 hbox.pack_start(abb, expand=False, fill=False)
                 vbox.pack_start(hbox, expand=False, fill=False)
                 tab_label = gtk.Label("REV[%s]" % str(parent))
-                nb.append_page(vbox,tab_label=tab_label)
-            self.vbox.add(nb)
+                nbk.append_page(vbox, tab_label=tab_label)
+            self.vbox.add(nbk)
         else:
             if len(parents) == 0:
                 frev = None
             else:
                 frev = parents[0]
-            dtw = ScmDiffTextWidget(self, file_list, fromrev=frev, torev=torev)
+            dtw = ScmDiffTextWidget(file_list, fromrev=frev, torev=torev)
             self.vbox.pack_start(dtw)
             tws_display = dtw.diff_view.get_buffer().tws_display
             self.action_area.pack_end(tws_display, expand=False, fill=False)
@@ -330,7 +331,7 @@ class ScmDiffTextDialog(dialogue.AmodalDialog):
         dialog.destroy()
 
 class PmDiffTextBuffer(DiffTextBuffer):
-    def __init__(self, file_list=[], patch=None, table=None):
+    def __init__(self, file_list=None, patch=None, table=None):
         DiffTextBuffer.__init__(self, file_list=file_list, table=table)
         self._patch = patch
         if not patch:
@@ -345,17 +346,17 @@ class PmDiffTextBuffer(DiffTextBuffer):
         return text
 
 class PmDiffTextView(DiffTextView):
-    def __init__(self, file_list=[], patch=None):
+    def __init__(self, file_list=None, patch=None):
         buffer = PmDiffTextBuffer(file_list, patch=patch)
         DiffTextView.__init__(self, buffer=buffer)
 
 class PmDiffTextWidget(DiffTextWidget):
-    def __init__(self, parent, file_list=[], patch=None):
+    def __init__(self, file_list=None, patch=None):
         diff_view = PmDiffTextView(file_list=file_list, patch=patch)
-        DiffTextWidget.__init__(self, parent=parent, diff_view=diff_view)
+        DiffTextWidget.__init__(self, diff_view=diff_view)
 
 class PmDiffTextDialog(dialogue.AmodalDialog):
-    def __init__(self, parent, file_list=[], patch=None):
+    def __init__(self, parent, file_list=None, patch=None):
         flags = gtk.DIALOG_DESTROY_WITH_PARENT
         dialogue.AmodalDialog.__init__(self, None, parent, flags, ())
         title = 'diff: %s' % utils.cwd_rel_home()
@@ -364,7 +365,7 @@ class PmDiffTextDialog(dialogue.AmodalDialog):
         else:
             title += " Patch: []"
         self.set_title(title)
-        dtw = PmDiffTextWidget(self, file_list, patch=patch)
+        dtw = PmDiffTextWidget(file_list, patch=patch)
         self.vbox.pack_start(dtw)
         tws_display = dtw.diff_view.get_buffer().tws_display
         self.action_area.pack_end(tws_display, expand=False, fill=False)
@@ -394,9 +395,9 @@ class IncomingDiffTextView(DiffTextView):
         DiffTextView.__init__(self, buffer=buffer)
 
 class IncomingDiffTextWidget(DiffTextWidget):
-    def __init__(self, parent, rev, path=None):
+    def __init__(self, rev, path=None):
         diff_view = IncomingDiffTextView(rev=rev, path=path)
-        DiffTextWidget.__init__(self, parent=parent, diff_view=diff_view)
+        DiffTextWidget.__init__(self, diff_view=diff_view)
 
 class IncomingDiffTextDialog(dialogue.AmodalDialog):
     def __init__(self, parent, rev, path=None):
@@ -407,7 +408,7 @@ class IncomingDiffTextDialog(dialogue.AmodalDialog):
         else:
             title += " Path: default"
         dialogue.AmodalDialog.__init__(self, title, parent, flags, ())
-        dtw = IncomingDiffTextWidget(self, rev=rev, path=path)
+        dtw = IncomingDiffTextWidget(rev=rev, path=path)
         self.vbox.pack_start(dtw)
         tws_display = dtw.diff_view.get_buffer().tws_display
         self.action_area.pack_end(tws_display, expand=False, fill=False)

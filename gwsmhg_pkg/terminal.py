@@ -19,9 +19,7 @@ from gwsmhg_pkg import dialogue
 try:
     import vte
 
-    available = True
-
-    v = vte.Terminal()
+    AVAILABLE = True
 
     class Terminal(gtk.HBox):
         def __init__(self):
@@ -31,13 +29,13 @@ try:
             self._vte.set_size_request(200, 50)
             self._vte.set_scrollback_lines(-1)
             self._vte.show()
-            sb = gtk.VScrollbar(self._vte.get_adjustment())
-            sb.show()
+            scrbar = gtk.VScrollbar(self._vte.get_adjustment())
+            scrbar.show()
             self.pack_start(self._vte)
-            self.pack_start(sb, False, False, 0)
+            self.pack_start(scrbar, False, False, 0)
             self.show_all()
             self._pid = self._vte.fork_command()
         def set_cwd(self, path):
             self._vte.feed_child("cd %s\n" % path)
-except:
-    available = False
+except ImportError:
+    AVAILABLE = False

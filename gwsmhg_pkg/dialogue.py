@@ -53,7 +53,7 @@ class Dialog(gtk.Dialog, BusyIndicator):
             parent = main_window
         gtk.Dialog.__init__(self, title=title, parent=parent, flags=flags, buttons=buttons)
         if not parent:
-            self.set_icon_from_file(icons.app_icon_file)
+            self.set_icon_from_file(icons.APP_ICON_FILE)
         BusyIndicator.__init__(self)
     def report_any_problems(self, result):
         report_any_problems(result, self)
@@ -109,15 +109,15 @@ class QuestionDialog(Dialog):
         self.image.set_from_stock(gtk.STOCK_DIALOG_QUESTION, gtk.ICON_SIZE_DIALOG)
         hbox.pack_start(self.image, expand=False)
         self.image.show()
-        self.tv = gtk.TextView()
-        self.tv.set_cursor_visible(False)
-        self.tv.set_editable(False)
-        self.tv.set_size_request(320, 80)
-        self.tv.show()
-        self.tv.get_buffer().set_text(question)
-        hbox.add(wrap_in_scrolled_window(self.tv))
+        self.tview = gtk.TextView()
+        self.tview.set_cursor_visible(False)
+        self.tview.set_editable(False)
+        self.tview.set_size_request(320, 80)
+        self.tview.show()
+        self.tview.get_buffer().set_text(question)
+        hbox.add(wrap_in_scrolled_window(self.tview))
     def set_question(self, question):
-        self.tv.get_buffer().set_text(question)
+        self.tview.get_buffer().set_text(question)
 
 def ask_question(question, parent=None,
                  buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
@@ -136,8 +136,8 @@ def ask_yes_no(question, parent=None):
     buttons = (gtk.STOCK_NO, gtk.RESPONSE_NO, gtk.STOCK_YES, gtk.RESPONSE_YES)
     return ask_question(question, parent, buttons) == gtk.RESPONSE_YES
 
-def confirm_list_action(list, question, parent=None):
-    return ask_ok_cancel('\n'.join(list + ['\n', question]), parent)
+def confirm_list_action(alist, question, parent=None):
+    return ask_ok_cancel('\n'.join(alist + ['\n', question]), parent)
 
 RESPONSE_SKIP = 1
 RESPONSE_SKIP_ALL = 2
@@ -276,7 +276,7 @@ def report_any_problems(result, parent=None):
         problem_type = gtk.MESSAGE_WARNING
     inform_user(os.linesep.join(result[1:]), parent, problem_type)
 
-report_request_msg = \
+_REPORT_REQUEST_MSG = \
 '''
 Please report this problem by either:
   submitting a bug report at <https://sourceforge.net/tracker/?group_id=258223&atid=1127211>
@@ -293,7 +293,7 @@ def report_exception(exc_data, parent=None):
     dialog = MessageDialog(parent=parent,
                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                            type=gtk.MESSAGE_ERROR, buttons=gtk.BUTTONS_CLOSE,
-                           message_format=report_request_msg)
+                           message_format=_REPORT_REQUEST_MSG)
     dialog.set_title('gwsmhg: Unexpected Exception')
     dialog.format_secondary_text(msg)
     dialog.run()

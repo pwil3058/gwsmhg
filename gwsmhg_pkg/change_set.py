@@ -13,9 +13,9 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import gtk, gobject, os, pango
+import gtk, gobject, os
 from gwsmhg_pkg import ifce, cmd_result, gutils, utils, icons, file_tree, diff
-from gwsmhg_pkg import text_edit, tortoise, ws_event, dialogue, table, actions
+from gwsmhg_pkg import text_edit, ws_event, dialogue, table, actions
 
 
 LOG_MODEL_DESCR = [
@@ -41,19 +41,19 @@ def cs_table_column(model_descr, name):
            ]
 
 import re
-base_entities = { '&':'amp', '<':'lt', '>':'gt' }
-base_entities_re = re.compile("([<>&])")
-def safe_escape(s):
-    return base_entities_re.sub(
-        lambda m: '&%s;' % base_entities[m.group(0)[0]], s )
+_BASE_ENTITIES = { '&':'amp', '<':'lt', '>':'gt' }
+_BASE_ENTITIES_RE = re.compile("([<>&])")
+def safe_escape(string):
+    return _BASE_ENTITIES_RE.sub(
+        lambda m: '&%s;' % _BASE_ENTITIES[m.group(0)[0]], string)
 
-def cs_description_crf(column, cell, model, iter, mcols):
-    markup = safe_escape(model.get_value(iter, mcols[0]))
+def cs_description_crf(_column, cell, model, model_iter, mcols):
+    markup = safe_escape(model.get_value(model_iter, mcols[0]))
     colours = [ 'yellow', 'cyan', ]
     extras = mcols[1:]
     for index in range(len(extras)):
         if extras[index]:
-            tags = model.get_value(iter, extras[index])
+            tags = model.get_value(model_iter, extras[index])
             for tag in tags.split():
                 markup += ' <span background="%s"><b>%s</b></span>' % (colours[index], tag)
     cell.set_property('markup', markup)
@@ -104,9 +104,13 @@ CS_TABLE_BASIC_UI_DESCR = \
 '''
 
 class ChangeSetTable(table.MapManagedTable):
-    def __init__(self, model_descr = LOG_MODEL_DESCR,
-                 table_descr = LOG_TABLE_DESCR, popup='/table_popup',
+    def __init__(self, model_descr = None,
+                 table_descr = None, popup='/table_popup',
                  scroll_bar=True, busy_indicator=None, size_req=None):
+        if model_descr is None:
+            model_descr = LOG_MODEL_DESCR
+        if table_descr is None:
+            table_descr = LOG_TABLE_DESCR
         table.MapManagedTable.__init__(self, model_descr=model_descr,
                                        table_descr=table_descr, popup=popup,
                                        busy_indicator=busy_indicator,
@@ -134,13 +138,13 @@ class ChangeSetTable(table.MapManagedTable):
             ])
         self.cwd_merge_id = [self.ui_manager.add_ui_from_string(CS_TABLE_BASIC_UI_DESCR)]
         self.add_notification_cb(ws_event.REPO_MOD, self.refresh_contents_if_mapped)
-    def _view_cs_summary_acb(self, action):
+    def _view_cs_summary_acb(self, _):
         rev = self.get_selected_key()
         self.show_busy()
         dialog = ChangeSetSummaryDialog(rev)
         self.unshow_busy()
         dialog.show()
-    def _update_ws_to_cs_acb(self, action):
+    def _update_ws_to_cs_acb(self, _action):
         rev = str(self.get_selected_key())
         self.show_busy()
         result = ifce.SCM.do_update_workspace(rev=rev)
@@ -169,7 +173,7 @@ class ChangeSetTable(table.MapManagedTable):
                     dialogue.report_any_problems(result)
         else:
             dialogue.report_any_problems(result)
-    def _merge_ws_with_cs_acb(self, action):
+    def _merge_ws_with_cs_acb(self, _action):
         rev = str(self.get_selected_key())
         self.show_busy()
         result = ifce.SCM.do_merge_workspace(rev=rev)
@@ -184,13 +188,13 @@ class ChangeSetTable(table.MapManagedTable):
                 dialogue.report_any_problems(result)
         else:
             dialogue.report_any_problems(result)
-    def _backout_cs_acb(self, action):
+    def _backout_cs_acb(self, _action):
         rev = str(self.get_selected_key())
         descr = self.get_selected_key_by_label('Description')
         self.show_busy()
         BackoutDialog(rev=rev, descr=descr)
         self.unshow_busy()
-    def _tag_cs_acb(self, action=None):
+    def _tag_cs_acb(self, _action=None):
         rev = self.get_selected_key()
         self.show_busy()
         SetTagDialog(rev=str(rev)).run()
@@ -285,6 +289,7 @@ class SearchableChangeSetTable(ChangeSetTable):
         self.select_and_scroll_to_row_with_key_value('Rev', rev)
     def _fetch_rev(self, revarg):
         assert True, 'define in child'
+        return (self, revarg)
 
 class HistoryTable(SearchableChangeSetTable):
     def __init__(self, busy_indicator=None, size_req=None):
@@ -332,7 +337,7 @@ class HistoryTable(SearchableChangeSetTable):
         else:
             count = start_rev - torev + 1
         self._current_max += count
-        res, data, serr = ifce.SCM.get_history_data(rev=start_rev,
+        _, data, _ = ifce.SCM.get_history_data(rev=start_rev,
                                                     maxitems=count)
         self.model.append_contents(data)
         self.view.columns_autosize()
@@ -342,7 +347,7 @@ class HistoryTable(SearchableChangeSetTable):
         if self._oldest_loaded_rev() == 0:
             self._button_box.hide()
             self._button_box.set_no_show_all(True)
-            self._current_max=None
+            self._current_max = None
         elif self._button_box.get_no_show_all():
             self._button_box.set_no_show_all(False)
             self._button_box.show()
@@ -354,9 +359,9 @@ class HistoryTable(SearchableChangeSetTable):
     def set_contents(self):
         SearchableChangeSetTable.set_contents(self)
         self._check_button_visibility()
-    def _cs_next_tranche_acb(self, action=None):
+    def _cs_next_tranche_acb(self, _action=None):
         self._append_contents()
-    def _cs_load_all_acb(self, action=None):
+    def _cs_load_all_acb(self, _action=None):
         self._append_contents(torev=0)
 
 class ParentsTable(ChangeSetTable):
@@ -370,7 +375,7 @@ class ParentsTable(ChangeSetTable):
     def _checkout_cb(self, arg=None):
         self.set_contents()
     def _fetch_contents(self):
-        res, parents, serr = ifce.SCM.get_parents_data(rev=self._rev)
+        res, parents, _ = ifce.SCM.get_parents_data(rev=self._rev)
         if cmd_result.is_ok(res):
             self.show()
             return parents
@@ -389,9 +394,9 @@ TAGS_MODEL_DESCR = \
     ['Description', gobject.TYPE_STRING],
 ]
 
-def cs_tag_crf(column, cell, model, iter, mcols):
-    markup = safe_escape(model.get_value(iter, mcols[0]))
-    local = model.get_value(iter, mcols[1])
+def cs_tag_crf(_column, cell, model, model_iter, mcols):
+    markup = safe_escape(model.get_value(model_iter, mcols[0]))
+    local = model.get_value(model_iter, mcols[1])
     markup += ' <span background="yellow"><b>%s</b></span>' % local
     cell.set_property('markup', markup)
 
@@ -459,13 +464,13 @@ class TagsTable(ChangeSetTable):
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(TAG_TABLE_UI_DESCR))
-    def _remove_tag_cs_acb(self, action=None):
+    def _remove_tag_cs_acb(self, _action=None):
         tag = self.get_selected_key()
         local = self.get_selected_key_by_label('Scope')
         self.show_busy()
         RemoveTagDialog(tag=tag, local=local).run()
         self.unshow_busy()
-    def _move_tag_cs_acb(self, action=None):
+    def _move_tag_cs_acb(self, _action=None):
         tag = self.get_selected_key()
         self.show_busy()
         MoveTagDialog(tag=tag).run()
@@ -520,10 +525,15 @@ class BranchesTable(ChangeSetTable):
             return []
 
 class PrecisType:
-    def __init__(self, get_data, model_descr=LOG_MODEL_DESCR,
-                 table_descr=LOG_TABLE_DESCR):
-        self.model_descr = model_descr
-        self.table_descr = table_descr
+    def __init__(self, get_data, model_descr=None, table_descr=None):
+        if model_descr is None:
+            self.model_descr = LOG_MODEL_DESCR
+        else:
+            self.model_descr = model_descr
+        if table_descr is None:
+            self.table_descr = LOG_TABLE_DESCR
+        else:
+            self.table_descr = table_descr
         self.get_data = get_data
 
 class SelectTable(table.TableWithAGandUI):
@@ -535,7 +545,7 @@ class SelectTable(table.TableWithAGandUI):
         self.set_contents()
         self.show_all()
     def _fetch_contents(self):
-        res, data, serr = self._ptype.get_data()
+        res, data, _ = self._ptype.get_data()
         if cmd_result.is_ok(res):
             return data
         else:
@@ -672,7 +682,7 @@ class MoveTagDialog(dialogue.ReadTextDialog):
             self.destroy()
 
 
-TAG_LIST_MODEL_DESCR = [['Tag', gobject.TYPE_STRING],]
+TAG_LIST_MODEL_DESCR = [['Tag', gobject.TYPE_STRING], ]
 
 TAG_LIST_TABLE_DESCR = \
 [ [ ('enable-grid-lines', False), ('reorderable', False), ('rules_hint', False),
@@ -684,7 +694,7 @@ TAG_LIST_TABLE_DESCR = \
   ]
 ]
 
-BRANCH_LIST_MODEL_DESCR = [['Branch', gobject.TYPE_STRING],]
+BRANCH_LIST_MODEL_DESCR = [['Branch', gobject.TYPE_STRING], ]
 
 BRANCH_LIST_TABLE_DESCR = \
 [ [ ('enable-grid-lines', False), ('reorderable', False), ('rules_hint', False),
@@ -827,7 +837,7 @@ class FileTreeView(file_tree.FileTreeView):
             self.get_conditional_action("scm_extdiff_files_selection").set_visible(False)
             self.get_conditional_action("scm_extdiff_files_all").set_visible(False)
         self.scm_change_merge_id = self.ui_manager.add_ui_from_string(CHANGE_SET_FILES_UI_DESCR)
-    def _diff_selected_files_acb(self, action=None):
+    def _diff_selected_files_acb(self, _action=None):
         parent = dialogue.main_window
         self.show_busy()
         dialog = diff.ScmDiffTextDialog(parent=parent,
@@ -835,15 +845,15 @@ class FileTreeView(file_tree.FileTreeView):
                                      torev=self._rev)
         self.unshow_busy()
         dialog.show()
-    def _diff_all_files_acb(self, action=None):
+    def _diff_all_files_acb(self, _action=None):
         parent = dialogue.main_window
         self.show_busy()
         dialog = diff.ScmDiffTextDialog(parent=parent, torev=self._rev)
         self.unshow_busy()
         dialog.show()
-    def _extdiff_selected_files_acb(self, action=None):
+    def _extdiff_selected_files_acb(self, _action=None):
         ifce.SCM.launch_extdiff_for_changeset(self._rev, self.get_selected_files())
-    def _extdiff_all_files_acb(self, action=None):
+    def _extdiff_all_files_acb(self, _action=None):
         ifce.SCM.launch_extdiff_for_changeset(self._rev)
 
 class ChangeSetSummaryDialog(dialogue.AmodalDialog):
@@ -853,7 +863,7 @@ class ChangeSetSummaryDialog(dialogue.AmodalDialog):
                                        buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE))
         self._rev = rev
         self.set_title('gwsmg: Change Set: %s : %s' % (rev, utils.cwd_rel_home()))
-        res, summary, serr = self.get_change_set_summary()
+        _, summary, _ = self.get_change_set_summary()
         self._add_labelled_texts([("Precis:", summary['PRECIS'])])
         self._add_labelled_texts([("Revision:", summary['REV']), ("Node:", summary['NODE'])])
         self._add_labelled_texts([("Date:", summary['DATE']), ("Age:", summary['AGE'])])
@@ -898,9 +908,9 @@ class ChangeSetSummaryDialog(dialogue.AmodalDialog):
             component.pack_start(hbox, expand=False, fill=False)
         else:
             self.vbox.pack_start(hbox, expand=False)
-    def _add_labelled_texts(self, list, component=None):
+    def _add_labelled_texts(self, labelled_text_list, component=None):
         hbox = gtk.HBox()
-        for item in list:
+        for item in labelled_text_list:
             label = item[0].strip()
             text = item[1].strip()
             hbox.pack_start(gtk.Label(label), expand=False, fill=False)
@@ -925,7 +935,7 @@ class BackoutDialog(dialogue.ReadTextAndToggleDialog):
         self.entry.set_editable(False)
         self._radio_labels = []
         self._parent_revs = []
-        res, parents_data, serr = ifce.SCM.get_parents_data(rev)
+        _, parents_data, _ = ifce.SCM.get_parents_data(rev)
         if len(parents_data) > 1:
             for data in parents_data:
                 rev = str(data[table.model_col(LOG_MODEL_DESCR, 'Rev')])

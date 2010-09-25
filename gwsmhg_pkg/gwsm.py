@@ -13,9 +13,9 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, gtk, gobject, sys
-from gwsmhg_pkg import dialogue, icons, ifce, console, actions, change_set, file_tree
-from gwsmhg_pkg import gutils, path, cmd_result, diff, config, tortoise, const
+import os, gtk, sys
+from gwsmhg_pkg import dialogue, icons, ifce, actions, change_set, file_tree
+from gwsmhg_pkg import path, cmd_result, diff, config, tortoise
 from gwsmhg_pkg import ws_event, patch_mgr, pbranch, utils
 
 GWSM_UI_DESCR = \
@@ -68,7 +68,7 @@ GWSM_UI_DESCR = \
 class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
     def __init__(self, dir_specified):
         gtk.Window.__init__(self, gtk.WINDOW_TOPLEVEL)
-        self.set_icon_from_file(icons.app_icon_file)
+        self.set_icon_from_file(icons.APP_ICON_FILE)
         dialogue.BusyIndicator.__init__(self)
         ifce.create_log(self)
         self.connect("destroy", self._quit)
@@ -161,7 +161,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
                  self._rollback_repo_acb),
             ])
         self.ui_manager.add_ui_from_string(GWSM_UI_DESCR)
-        if tortoise.is_available:
+        if tortoise.IS_AVAILABLE:
             self.ui_manager.add_ui_from_string(tortoise.TORTOISE_HGTK_UI)
         self._menubar = self.ui_manager.get_widget("/gwsm_menubar")
         self._rhs_menubar = self.ui_manager.get_widget("/gwsm_right_side_menubar")
@@ -217,15 +217,15 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
         if open_dialog:
             open_dialog.unshow_busy()
             open_dialog.destroy()
-    def _quit(self, widget):
+    def _quit(self, _widget):
         gtk.main_quit()
     def _update_title(self):
         self.set_title("gwsm%s: %s" % (ifce.SCM.name, utils.path_rel_home(os.getcwd())))
-    def _reset_after_cd(self, arg=None):
+    def _reset_after_cd(self, _arg=None):
         self.show_busy()
         self._update_title()
         self.unshow_busy()
-    def _change_wd_acb(self, action=None):
+    def _change_wd_acb(self, _action=None):
         open_dialog = config.WSOpenDialog(parent=self)
         if open_dialog.run() == gtk.RESPONSE_OK:
             wspath = open_dialog.get_path()
@@ -235,11 +235,11 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
                 open_dialog.unshow_busy()
                 dialogue.report_any_problems(result)
         open_dialog.destroy()
-    def _init_wd_acb(self, action=None):
+    def _init_wd_acb(self, _action=None):
         result = ifce.SCM.do_init()
         dialogue.report_any_problems(result)
         ifce.chdir()
-    def _clone_repo_acb(self, action=None):
+    def _clone_repo_acb(self, _action=None):
         clone_dialog = config.RepoSelectDialog(parent=self)
         if clone_dialog.run() == gtk.RESPONSE_OK:
             clone_dialog.hide()
@@ -262,24 +262,24 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
             clone_dialog.destroy()
         else:
             clone_dialog.destroy()
-    def _diff_ws_acb(self, action=None):
+    def _diff_ws_acb(self, _action=None):
         self.show_busy()
         dialog = diff.ScmDiffTextDialog(parent=self)
         self.unshow_busy()
         dialog.show()
-    def _commit_ws_acb(self, action=None):
+    def _commit_ws_acb(self, _action=None):
         self.show_busy()
         dialog = file_tree.ScmCommitDialog(parent=self)
         self.unshow_busy()
         dialog.show()
-    def _revert_ws_acb(self, action=None):
+    def _revert_ws_acb(self, _action=None):
         self.show_busy()
         res, sout, serr = ifce.SCM.do_revert_files(dry_run=True)
         self.unshow_busy()
         if cmd_result.is_less_than_error(res):
             if sout:
-                ok = dialogue.confirm_list_action(sout.splitlines(), 'About to be actioned. OK?')
-                if not ok:
+                is_ok = dialogue.confirm_list_action(sout.splitlines(), 'About to be actioned. OK?')
+                if not is_ok:
                     return
                 self.show_busy()
                 res, sout, serr = ifce.SCM.do_revert_files(dry_run=False)
@@ -288,11 +288,11 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
                 dialogue.inform_user('Nothing to revert')
                 return
         dialogue.report_any_problems((res, sout, serr))
-    def _tag_ws_acb(self, action=None):
+    def _tag_ws_acb(self, _action=None):
         self.show_busy()
         change_set.SetTagDialog(parent=self).run()
         self.unshow_busy()
-    def _branch_ws_acb(self, action=None):
+    def _branch_ws_acb(self, _action=None):
         self.show_busy()
         dialog = dialogue.ReadTextDialog(title="gwsmhg: Specify Branch",
             prompt="Branch:", parent=self)
@@ -307,7 +307,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
             result = ifce.SCM.do_set_branch(branch=branch)
             self.unshow_busy()
             dialogue.report_any_problems(result)
-    def _checkout_ws_acb(self, action=None):
+    def _checkout_ws_acb(self, _action=None):
         self.show_busy()
         dialog = change_set.ChangeSetSelectDialog(discard_toggle=True, parent=self)
         self.unshow_busy()
@@ -323,7 +323,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
                 result = ifce.SCM.do_update_workspace(rev=rev, discard=discard)
                 self.unshow_busy()
                 dialogue.report_any_problems(result)
-    def _update_ws_acb(self, action=None):
+    def _update_ws_acb(self, _action=None):
         self.show_busy()
         result = ifce.SCM.do_update_workspace(rev=None, discard=False)
         self.unshow_busy()
@@ -351,12 +351,12 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
                     dialogue.report_any_problems(result)
         else:
             dialogue.report_any_problems(result)
-    def _pull_repo_acb(self, action=None):
+    def _pull_repo_acb(self, _action=None):
         self.show_busy()
         result = ifce.SCM.do_pull_from()
         self.unshow_busy()
         dialogue.report_any_problems(result)
-    def _merge_ws_acb(self, action=None):
+    def _merge_ws_acb(self, _action=None):
         self.show_busy()
         result = ifce.SCM.do_merge_workspace()
         self.unshow_busy()
@@ -370,27 +370,27 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
                 dialogue.report_any_problems(result)
         else:
             dialogue.report_any_problems(result)
-    def _resolve_ws_acb(self, action=None):
+    def _resolve_ws_acb(self, _action=None):
         self.show_busy()
         result = ifce.SCM.do_resolve_workspace()
         self.unshow_busy()
         dialogue.report_any_problems(result)
-    def _push_repo_acb(self, action=None):
+    def _push_repo_acb(self, _action=None):
         self.show_busy()
         result = ifce.SCM.do_push_to()
         self.unshow_busy()
         dialogue.report_any_problems(result)
-    def _verify_repo_acb(self, action=None):
+    def _verify_repo_acb(self, _action=None):
         self.show_busy()
         result = ifce.SCM.do_verify_repo()
         self.unshow_busy()
         dialogue.report_any_problems(result)
-    def _refresh_displayed_data_acb(self, action=None):
+    def _refresh_displayed_data_acb(self, _action=None):
         ws_event.notify_events(ws_event.CHANGE_WD)
-    def _edit_repo_config_acb(self, action=None):
+    def _edit_repo_config_acb(self, _action=None):
         from gwsmhg_pkg import text_edit
         text_edit.edit_files_extern(['.hg/hgrc'])
-    def _rollback_repo_acb(self, action=None):
+    def _rollback_repo_acb(self, _action=None):
         question = os.linesep.join(['About to roll back last transaction',
                                     'This action is irreversible! Continue?'])
         if dialogue.ask_yes_no(question, parent=self):
@@ -398,6 +398,6 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
             result = ifce.SCM.do_rollback_repo()
             self.unshow_busy()
             dialogue.report_any_problems(result)
-    def _config_editors_acb(self, action=None):
+    def _config_editors_acb(self, _action=None):
         config.EditorAllocationDialog(self).show()
 

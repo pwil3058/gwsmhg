@@ -109,7 +109,7 @@ class PathTable(table.MapManagedTable):
         self.add_notification_cb(ws_event.REPO_HGRC, self.refresh_contents_if_mapped)
         self.show_all()
     def _fetch_contents(self):
-        res, data, serr = ifce.SCM.get_path_table_data()
+        res, data, _serr = ifce.SCM.get_path_table_data()
         if res == cmd_result.OK and data:
             return data
         else:
@@ -118,31 +118,31 @@ class PathTable(table.MapManagedTable):
         return self.get_selected_key_by_label('Alias')
     def get_selected_path(self):
         return self.get_selected_key_by_label('Path')
-    def _manage_repo_acb(self, action):
+    def _manage_repo_acb(self, _action):
         alias, path = self.get_selected_data()[0]
         self.show_busy()
         dialog = RemoteRepoManagementDialog(path, alias)
         self.unshow_busy()
         dialog.show()
-    def _view_incoming_acb(self, action):
+    def _view_incoming_acb(self, _action):
         path = self.get_selected_path()
         self.show_busy()
         dialog = IncomingCSDialog(path)
         self.unshow_busy()
         dialog.show()
-    def _view_outgoing_acb(self, action):
+    def _view_outgoing_acb(self, _action):
         path = self.get_selected_path()
         self.show_busy()
         dialog = OutgoingCSDialog(path)
         self.unshow_busy()
         dialog.show()
-    def _pull_from_acb(self, action):
+    def _pull_from_acb(self, _action):
         path = self.get_selected_path()
         self.show_busy()
         result = ifce.SCM.do_pull_from(source=path)
         self.unshow_busy()
         dialogue.report_any_problems(result)
-    def _push_to_acb(self, action):
+    def _push_to_acb(self, _action):
         path = self.get_selected_path()
         self.show_busy()
         result = ifce.SCM.do_push_to(path=path)
@@ -150,13 +150,12 @@ class PathTable(table.MapManagedTable):
         dialogue.report_any_problems(result)
 
 class IncomingParentsTable(change_set.ChangeSetTable):
-    def __init__(self, rev, path=None, sel_mode=gtk.SELECTION_SINGLE,
-                 busy_indicator=None):
+    def __init__(self, rev, path=None, busy_indicator=None):
         self._path = path
         self._rev = rev
         change_set.ChangeSetTable.__init__(self, busy_indicator=busy_indicator,
                                            scroll_bar=False)
-    def _view_cs_summary_acb(self, action):
+    def _view_cs_summary_acb(self, _action):
         rev = self.get_selected_key()
         self.show_busy()
         # a parent might be local so let's check
@@ -167,7 +166,7 @@ class IncomingParentsTable(change_set.ChangeSetTable):
         self.unshow_busy()
         dialog.show()
     def _fetch_contents(self):
-        res, parents, serr = ifce.SCM.get_incoming_parents_table_data(self._rev, self._path)
+        _res, parents, _serr = ifce.SCM.get_incoming_parents_table_data(self._rev, self._path)
         return parents
 
 class IncomingFileTreeStore(file_tree.FileTreeStore):
@@ -208,7 +207,7 @@ class IncomingFileTreeView(file_tree.FileTreeView):
             ])
         self._action_groups[actions.ON_REPO_INDEP_SELN_INDEP].set_visible(False)
         self.scm_change_merge_id = self.ui_manager.add_ui_from_string(INCOMING_CS_FILES_UI_DESCR)
-    def _diff_all_files_acb(self, action=None):
+    def _diff_all_files_acb(self, _action=None):
         parent = dialogue.main_window
         self.show_busy()
         dialog = diff.IncomingDiffTextDialog(parent=parent,
@@ -259,20 +258,20 @@ class IncomingTable(change_set.SearchableChangeSetTable):
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(change_set.CS_TABLE_REFRESH_UI_DESCR))
     def _fetch_rev(self, revarg):
         return ifce.SCM.get_incoming_rev(revarg)
-    def _pull_to_cs_acb(self, action):
+    def _pull_to_cs_acb(self, _action):
         rev = self.get_selected_key_by_label("Node")
         self.show_busy()
         ifce.SCM.do_pull_from(rev=rev, source=self._path)
         self._refresh_contents()
         self.unshow_busy()
-    def _view_cs_summary_acb(self, action):
-        rev = self.get_selected_key()
+    def _view_cs_summary_acb(self, _action):
+        rev = self.get_selected_key_by_label("Node")
         self.show_busy()
         dialog = IncomingCSSummaryDialog(rev, self._path)
         self.unshow_busy()
         dialog.show()
     def _fetch_contents(self):
-        res, outgoing, serr = ifce.SCM.get_incoming_table_data(self._path)
+        _res, outgoing, _serr = ifce.SCM.get_incoming_table_data(self._path)
         return outgoing
 
 OUTGOING_TABLE_UI_DESCR = \
@@ -306,24 +305,24 @@ class OutgoingTable(change_set.SearchableChangeSetTable):
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(change_set.CS_TABLE_REFRESH_UI_DESCR))
     def _fetch_rev(self, revarg):
         return ifce.SCM.get_outgoing_rev(revarg)
-    def _push_to_cs_acb(self, action):
+    def _push_to_cs_acb(self, _action):
         rev = self.get_selected_key()
         self.show_busy()
         ifce.SCM.do_push_to(rev=rev, path=self._path)
         self._refresh_contents()
         self.unshow_busy()
     def _fetch_contents(self):
-        res, outgoing, serr = ifce.SCM.get_outgoing_table_data(self._path)
+        _res, outgoing, _serr = ifce.SCM.get_outgoing_table_data(self._path)
         return outgoing
 
 class PathCSDialog(dialogue.AmodalDialog):
-    def __init__(self, title, path=None, table=None, parent=None):
+    def __init__(self, title, path=None, table_type=None, parent=None):
         dialogue.AmodalDialog.__init__(self, title=title, parent=parent,
                                        flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                                        buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE))
         self._path = path
         self.set_title('gwsmg: %s(%s): %s' % (title, utils.cwd_rel_home(), utils.path_rel_home(path)))
-        self._table = table( path=path, busy_indicator=self)
+        self._table = table_type( path=path, busy_indicator=self)
         self.vbox.pack_start(self._table)
         self.show_all()
         self._table.seln.unselect_all()
@@ -349,7 +348,7 @@ class PathSelectTable(table.TableWithAGandUI):
         self.set_contents()
         self.show_all()
     def _fetch_contents(self):
-        res, data, serr = ifce.SCM.get_path_table_data()
+        res, data, _serr = ifce.SCM.get_path_table_data()
         if res == cmd_result.OK and data:
             return data
         else:
@@ -462,8 +461,8 @@ class RemoteRepoManagementWidget(gtk.VBox, actions.AGandUIManager, dialogue.Busy
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
         self._path = path
         hbox = gtk.HBox()
-        hbox.pack_start(gutils.LabelledText(label="Path:", text=path, min=52))
-        hbox.pack_start(gutils.LabelledText(label="Alias:", text=alias, min=12))
+        hbox.pack_start(gutils.LabelledText(label="Path:", text=path, min_chars=52))
+        hbox.pack_start(gutils.LabelledText(label="Alias:", text=alias, min_chars=12))
         self.pack_start(hbox, expand=False)
         self.ui_manager.add_ui_from_string(REMOTE_MGMT_UI_DESCR)
         self.add_conditional_actions(actions.ON_IN_REPO_SELN_INDEP,
@@ -489,16 +488,16 @@ class RemoteRepoManagementWidget(gtk.VBox, actions.AGandUIManager, dialogue.Busy
         vpane.add1(self._incoming)
         vpane.add2(self._outgoing)
         self.pack_start(vpane)
-    def _refresh_data_acb(self, action=None):
-    	self._incoming.refresh_contents()
-    	self._outgoing.refresh_contents()
-    def _pull_repo_acb(self, action=None):
+    def _refresh_data_acb(self, _action=None):
+        self._incoming.refresh_contents()
+        self._outgoing.refresh_contents()
+    def _pull_repo_acb(self, _action=None):
         self.show_busy()
         result = ifce.SCM.do_pull_from(source=self._path)
         self._refresh_data_acb()
         self.unshow_busy()
         dialogue.report_any_problems(result)
-    def _push_repo_acb(self, action=None):
+    def _push_repo_acb(self, _action=None):
         self.show_busy()
         result = ifce.SCM.do_push_to(path=self._path)
         self._refresh_data_acb()

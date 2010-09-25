@@ -13,10 +13,10 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-ALWAYS_AVAILABLE="gwsm_always_avail"
-IN_VALID_SCM_REPO="gwsm_in_valid_repo"
-NOT_IN_VALID_SCM_REPO="gwsm_not_in_valid_repo"
-IN_VALID_SCM_REPO_NOT_PMIC="gwsm_in_valid_repo_not_pmic"
+ALWAYS_AVAILABLE = "gwsm_always_avail"
+IN_VALID_SCM_REPO = "gwsm_in_valid_repo"
+NOT_IN_VALID_SCM_REPO = "gwsm_not_in_valid_repo"
+IN_VALID_SCM_REPO_NOT_PMIC = "gwsm_in_valid_repo_not_pmic"
 
 GWSM_CONDITIONS = [ALWAYS_AVAILABLE,
                    IN_VALID_SCM_REPO,

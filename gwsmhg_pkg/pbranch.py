@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import gtk, gobject, os
-from gwsmhg_pkg import dialogue, ifce, table, icons, ws_event, cmd_result, gutils, patch_mgr
+from gwsmhg_pkg import dialogue, ifce, table, icons, ws_event, gutils, patch_mgr
 from gwsmhg_pkg import diff, utils, actions
 
 PBRANCH_UI_DESCR = \
@@ -50,15 +50,15 @@ PBRANCH_LIST_MODEL_DESCR = \
   ['status', gobject.TYPE_BOOLEAN],
 ]
 
-def set_current_pixbuf(column, cell, model, iter, data=None):
-    current = model.get_labelled_value(iter, 'current')
+def set_current_pixbuf(_column, cell, model, model_iter, _data=None):
+    current = model.get_labelled_value(model_iter, 'current')
     if current:
         cell.set_property('stock-id', gtk.STOCK_YES)
     else:
         cell.set_property('stock-id', gtk.STOCK_REMOVE)
 
-def set_status_pixbuf(column, cell, model, iter, data=None):
-    status = model.get_labelled_value(iter, 'status')
+def set_status_pixbuf(_column, cell, model, model_iter, _data=None):
+    status = model.get_labelled_value(model_iter, 'status')
     if status:
         cell.set_property('stock-id', icons.STOCK_STATUS_OK)
     else:
@@ -180,21 +180,21 @@ class PBranchTable(table.MapManagedTable):
         self.refresh_contents()
         self.seln.unselect_all()
     def _fetch_contents(self):
-        res, pbranches, serr = ifce.SCM.get_pbranch_table_data()
+        _res, pbranches, _serr = ifce.SCM.get_pbranch_table_data()
         in_pbranch_branch = False
-        for pb in pbranches:
-            if pb[table.model_col(PBRANCH_LIST_MODEL_DESCR, 'current')]:
+        for pbranch in pbranches:
+            if pbranch[table.model_col(PBRANCH_LIST_MODEL_DESCR, 'current')]:
                 in_pbranch_branch = True
                 break
         self._action_groups[ON_IN_PBRANCH].set_sensitive(in_pbranch_branch)
         return pbranches
-    def update_for_chdir(self):
+    def update_for_chdir(self, arg=None):
         self.set_contents()
     def get_selected_pbranch(self):
         return self.get_selected_key_by_label('pbranch')
     def get_selected_pbranches(self):
         return self.get_selected_keys_by_label('pbranch')
-    def _pstatus_selection_acb(self, action=None):
+    def _pstatus_selection_acb(self, _action=None):
         pbranch = self.get_selected_pbranch()
         self.show_busy()
         res, sout, serr = ifce.SCM.get_pstatus(pbranch)
@@ -202,27 +202,27 @@ class PBranchTable(table.MapManagedTable):
         if res:
             dialogue.report_any_problems((res, sout, serr))
         else:
-            dialogue.inform_user(os.linesep.join([sout,serr]))
-    def _pdiff_selection_acb(self, action=None):
+            dialogue.inform_user(os.linesep.join([sout, serr]))
+    def _pdiff_selection_acb(self, _action=None):
         pbranch = self.get_selected_pbranch()
         dialog = PbDiffTextDialog(parent=dialogue.main_window, pbranch=pbranch)
         dialog.show()
-    def _edit_msg_selection_acb(self, action=None):
+    def _edit_msg_selection_acb(self, _action=None):
         pbranch = self.get_selected_pbranch()
         PatchBranchDescrEditDialog(parent=None, pbranch=pbranch).show()
-    def _update_to_selection_acb(self, action=None):
+    def _update_to_selection_acb(self, _action=None):
         pbranch = self.get_selected_pbranch()
         self.show_busy()
         result = ifce.SCM.do_update_workspace(rev=pbranch)
         self.unshow_busy()
         dialogue.report_any_problems(result)
-    def _pmerge_selection_acb(self, action=None):
+    def _pmerge_selection_acb(self, _action=None):
         pbranches = self.get_selected_pbranches()
         self.show_busy()
         result = ifce.SCM.do_pmerge(pbranches)
         self.unshow_busy()
         dialogue.report_any_problems(result)
-    def _pnew_acb(self, action=None):
+    def _pnew_acb(self, _action=None):
         dialog = NewPatchBranchDialog(parent=None)
         if dialog.run() == gtk.RESPONSE_CANCEL:
             dialog.destroy()
@@ -238,38 +238,38 @@ class PBranchTable(table.MapManagedTable):
                                          preserve)
         self.unshow_busy()
         dialogue.report_any_problems(result)
-    def _pstatus_acb(self, action=None):
+    def _pstatus_acb(self, _action=None):
         self.show_busy()
         res, sout, serr = ifce.SCM.get_pstatus()
         self.unshow_busy()
         if res:
             dialogue.report_any_problems((res, sout, serr))
         else:
-            dialogue.inform_user(os.linesep.join([sout,serr]))
-    def _pdiff_acb(self, action=None):
+            dialogue.inform_user(os.linesep.join([sout, serr]))
+    def _pdiff_acb(self, _action=None):
         dialog = PbDiffTextDialog(parent=dialogue.main_window)
         dialog.show()
-    def _edit_msg_acb(self, action=None):
+    def _edit_msg_acb(self, _action=None):
         PatchBranchDescrEditDialog(parent=None).show()
-    def _pbackout_acb(self, action=None):
+    def _pbackout_acb(self, _action=None):
         self.show_busy()
         result = ifce.SCM.do_pbackout()
         self.unshow_busy()
         dialogue.report_any_problems(result)
-    def _pmerge_acb(self, action=None):
+    def _pmerge_acb(self, _action=None):
         self.show_busy()
         result = ifce.SCM.do_pmerge()
         self.unshow_busy()
         dialogue.report_any_problems(result)
-    def _pgraph_acb(self, action=None):
+    def _pgraph_acb(self, _action=None):
         self.show_busy()
         res, sout, serr = ifce.SCM.get_pgraph()
         self.unshow_busy()
         if res:
             dialogue.report_any_problems((res, sout, serr))
         else:
-            dialogue.inform_user(os.linesep.join([sout,serr]))
-    def _refresh_acb(self, action=None):
+            dialogue.inform_user(os.linesep.join([sout, serr]))
+    def _refresh_acb(self, _action=None):
         self.refresh_contents()
 
 class NewPatchBranchDialog(patch_mgr.NewPatchDialog):
@@ -290,8 +290,8 @@ class PatchBranchDescrEditDialog(patch_mgr.GenericPatchDescrEditDialog):
             parent=parent, patch=pbranch)
 
 class PbDiffTextBuffer(diff.DiffTextBuffer):
-    def __init__(self, file_list=[], pbranch=None, table=None):
-        diff.DiffTextBuffer.__init__(self, file_list=file_list, table=table)
+    def __init__(self, file_list=None, pbranch=None, tag_table=None):
+        diff.DiffTextBuffer.__init__(self, file_list=file_list, table=tag_table)
         self._pbranch = pbranch
         self.a_name_list = ["diff_save", "diff_save_as", "diff_refresh"]
         self.diff_buttons = gutils.ActionButtonList([self._action_group], self.a_name_list)
@@ -302,17 +302,17 @@ class PbDiffTextBuffer(diff.DiffTextBuffer):
         return text
 
 class PbDiffTextView(diff.DiffTextView):
-    def __init__(self, file_list=[], pbranch=None):
-        buffer = PbDiffTextBuffer(file_list, pbranch=pbranch)
-        diff.DiffTextView.__init__(self, buffer=buffer)
+    def __init__(self, file_list=None, pbranch=None):
+        text_buffer = PbDiffTextBuffer(file_list, pbranch=pbranch)
+        diff.DiffTextView.__init__(self, buffer=text_buffer)
 
 class PbDiffTextWidget(diff.DiffTextWidget):
-    def __init__(self, parent, file_list=[], pbranch=None):
+    def __init__(self, file_list=None, pbranch=None):
         diff_view = PbDiffTextView(file_list=file_list, pbranch=pbranch)
-        diff.DiffTextWidget.__init__(self, parent=parent, diff_view=diff_view)
+        diff.DiffTextWidget.__init__(self, diff_view=diff_view)
 
 class PbDiffTextDialog(dialogue.AmodalDialog):
-    def __init__(self, parent, file_list=[], pbranch=None):
+    def __init__(self, parent, file_list=None, pbranch=None):
         flags = gtk.DIALOG_DESTROY_WITH_PARENT
         dialogue.AmodalDialog.__init__(self, None, parent, flags, ())
         title = "diff: %s" % utils.cwd_rel_home()
@@ -321,7 +321,7 @@ class PbDiffTextDialog(dialogue.AmodalDialog):
         else:
             title += " Patch Branch: []"
         self.set_title(title)
-        dtw = PbDiffTextWidget(self, file_list, pbranch=pbranch)
+        dtw = PbDiffTextWidget(file_list, pbranch=pbranch)
         self.vbox.pack_start(dtw)
         tws_display = dtw.diff_view.get_buffer().tws_display
         self.action_area.pack_end(tws_display, expand=False, fill=False)

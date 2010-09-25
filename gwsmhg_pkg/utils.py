@@ -275,3 +275,12 @@ else:
                 return potential_path
         return None
 
+def get_first_in_envar(envar_list):
+    for envar in envar_list:
+        try:
+            value = os.environ[envar]
+            if value != '':
+                return value
+        except KeyError:
+            continue
+    return ''

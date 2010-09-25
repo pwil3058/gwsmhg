@@ -28,13 +28,14 @@ def model_col(descr, label):
 class Model(gtk.ListStore):
     def __init__(self, descr):
         self._col_labels, self._col_types = self._extract_labels_and_types(descr)
-        apply(gtk.ListStore.__init__, [self] + self._col_types)
+        gargs = [self] + self._col_types
+        gtk.ListStore.__init__(*gargs)
     def _extract_labels_and_types(self, descr):
         labels = []
         types = []
-        for label, type in descr:
+        for label, data_type in descr:
             labels.append(label)
-            types.append(type)
+            types.append(data_type)
         return (labels, types)
     def get_col(self, label):
         return self._col_labels.index(label)
@@ -43,26 +44,26 @@ class Model(gtk.ListStore):
         for label in labels:
             cols.append(self._col_labels.index(label))
         return cols
-    def get_values(self, iter, cols):
-        return apply(self.get, [iter] + cols)
-    def set_values(self, iter, col_vals):
-        return apply(self.get, [iter] + col_vals)
-    def get_row(self, iter):
-        return self.get_values(iter, range(self.get_n_columns()))
-    def get_labelled_value(self, iter, label):
-        return self.get_value(iter, self.get_col(label))
-    def get_labelled_values(self, iter, labels):
-        return self.get_values(iter, self.get_cols(labels))
-    def set_labelled_value(self, iter, label, value):
-        self.set_value(iter, self.get_col(label), value)
-    def set_labelled_values(self, iter, label_values):
+    def get_values(self, model_iter, cols):
+        return self.get(*([model_iter] + cols))
+    def set_values(self, model_iter, col_vals):
+        return self.set(*([model_iter] + col_vals))
+    def get_row(self, model_iter):
+        return self.get_values(model_iter, range(self.get_n_columns()))
+    def get_labelled_value(self, model_iter, label):
+        return self.get_value(model_iter, self.get_col(label))
+    def get_labelled_values(self, model_iter, labels):
+        return self.get_values(model_iter, self.get_cols(labels))
+    def set_labelled_value(self, model_iter, label, value):
+        self.set_value(model_iter, self.get_col(label), value)
+    def set_labelled_values(self, model_iter, label_values):
         col_values = []
         for index in len(label_values):
             if (index % 2) == 0:
                 col_values.append(self.get_col(label_values[index]))
             else:
                 col_values.append(label_values[index])
-        self.set_values(iter, col_values)
+        self.set_values(model_iter, col_values)
     def append_contents(self, rows):
         for row in rows:
             self.append(row)
@@ -72,19 +73,19 @@ class Model(gtk.ListStore):
             self.append(row)
     def get_contents(self):
         contents = []
-        iter = self.get_iter_first()
-        while iter:
-            contents.append(self.get_row(iter))
-            iter = self.iter_next(iter)
+        model_iter = self.get_iter_first()
+        while model_iter:
+            contents.append(self.get_row(model_iter))
+            model_iter = self.iter_next(model_iter)
         return contents
     def get_row_with_key_value(self, key_label, key_value):
         index = self.get_col(key_label)
-        iter = self.get_iter_first()
-        while iter:
-            if self.get_value(iter, index) == key_value:
-                return iter
+        model_iter = self.get_iter_first()
+        while model_iter:
+            if self.get_value(model_iter, index) == key_value:
+                return model_iter
             else:
-                iter = self.iter_next(iter)
+                model_iter = self.iter_next(model_iter)
         return None
 
 # Table description is [ properties, selection_mode, [column_descr, ...] ]
@@ -167,13 +168,13 @@ class View(gtk.TreeView):
             elif attr[_A_NAME] == 'active':
                 cell.connect('toggled', self._cell_toggled_cb, attr[_A_INDEX])
     def _notify_modification(self):
-        for cb, data in self._modified_cbs:
+        for cbk, data in self._modified_cbs:
             if data is None:
-                cb()
+                cbk()
             else:
-                cb(data)
-    def register_modification_callback(self, cb, data=None):
-        self._modified_cbs.append([cb, data])
+                cbk(data)
+    def register_modification_callback(self, cbk, data=None):
+        self._modified_cbs.append([cbk, data])
     def _handle_button_press_cb(self, widget, event):
         if event.type == gtk.gdk.BUTTON_PRESS:
             if event.button == 2:
@@ -254,45 +255,45 @@ class Table(gtk.VBox):
         return self.model.get_contents()
     def apply_changes(self):
         pass # define in child
-    def _row_inserted_cb(self, model, path, iter):
+    def _row_inserted_cb(self, model, path, model_iter):
         self._set_modified(True)
     def _selection_changed_cb(self, selection):
         rows = selection.count_selected_rows()
         self.action_groups[SELECTION].set_sensitive(rows > 0)
         self.action_groups[NO_SELECTION].set_sensitive(rows == 0)
         self.action_groups[UNIQUE_SELECTION].set_sensitive(rows == 1)
-    def _undo_changes_acb(self, action=None):
+    def _undo_changes_acb(self, _action=None):
         self.set_contents()
-    def _apply_changes_acb(self, action=None):
+    def _apply_changes_acb(self, _action=None):
         self.apply_changes()
-    def _add_row_acb(self, action=None):
-        iter = self.model.append(None)
-        self.view.get_selection().select_iter(iter)
+    def _add_row_acb(self, _action=None):
+        model_iter = self.model.append(None)
+        self.view.get_selection().select_iter(model_iter)
         return
-    def _delete_selection_acb(self, action=None):
+    def _delete_selection_acb(self, _action=None):
         model, paths = self.seln.get_selected_rows()
         iters = []
         for path in paths:
             iters.append(model.get_iter(path))
-        for iter in iters:
-            model.remove(iter)
-    def _insert_row_acb(self, action=None):
+        for model_iter in iters:
+            model.remove(model_iter)
+    def _insert_row_acb(self, _action=None):
         model, paths = self.seln.get_selected_rows()
         if not paths:
             return
-        iter = self.model.insert_before(model.get_iter(paths[0]), None)
-        self.view.get_selection().select_iter(iter)
+        model_iter = self.model.insert_before(model.get_iter(paths[0]), None)
+        self.view.get_selection().select_iter(model_iter)
         return
     def get_selected_data(self, columns=None):
         store, selected_rows = self.seln.get_selected_rows()
         if not columns:
             columns = range(store.get_n_columns())
-        list = []
+        result = []
         for row in selected_rows:
-            iter = store.get_iter(row)
-            assert iter is not None
-            list.append(store.get_values(iter, columns))
-        return list
+            model_iter = store.get_iter(row)
+            assert model_iter is not None
+            result.append(store.get_values(model_iter, columns))
+        return result
 
 from gwsmhg_pkg import dialogue
 
@@ -347,19 +348,19 @@ class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorU
         store, selected_rows = self.seln.get_selected_rows()
         if not columns:
             columns = range(store.get_n_columns())
-        list = []
+        result = []
         for row in selected_rows:
-            iter = store.get_iter(row)
-            assert iter is not None
-            list.append(store.get_values(iter, columns))
-        return list
+            model_iter = store.get_iter(row)
+            assert model_iter is not None
+            result.append(store.get_values(model_iter, columns))
+        return result
     def get_selected_keys(self, keycol=0):
         store, selected_rows = self.seln.get_selected_rows()
         keys = []
         for row in selected_rows:
-            iter = store.get_iter(row)
-            assert iter is not None
-            keys.append(store.get_value(iter, keycol))
+            model_iter = store.get_iter(row)
+            assert model_iter is not None
+            keys.append(store.get_value(model_iter, keycol))
         return keys
     def get_selected_data_by_label(self, labels):
         return self.get_selected_data(self.model.get_cols(labels))
@@ -375,11 +376,11 @@ class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorU
     def get_selected_key_by_label(self, label):
         return self.get_selected_key(self.model.get_col(label))
     def select_and_scroll_to_row_with_key_value(self, key_label, key_value):
-        iter = self.model.get_row_with_key_value(key_label, key_value)
-        if not iter:
+        model_iter = self.model.get_row_with_key_value(key_label, key_value)
+        if not model_iter:
             return False
-        self.seln.select_iter(iter)
-        path = self.model.get_path(iter)
+        self.seln.select_iter(model_iter)
+        path = self.model.get_path(model_iter)
         self.view.scroll_to_cell(path, use_align=True, row_align=0.5)
         return True
 
@@ -416,16 +417,16 @@ class MapManagedTable(TableWithAGandUI, gutils.MappedManager):
     def refresh_contents(self):
         self._refresh_contents()
         self.seln.unselect_all()
-    def refresh_contents_if_mapped(self, *args):
+    def refresh_contents_if_mapped(self, *_args):
         if self.is_mapped:
             self.refresh_contents()
         else:
             self._needs_refresh = True
-    def _refresh_contents_acb(self, action):
+    def _refresh_contents_acb(self, _action):
         self.show_busy()
         self.refresh_contents()
         self.unshow_busy()
-    def update_for_chdir(self, arg=None):
+    def update_for_chdir(self, _arg=None):
         self.show_busy()
         self.model.set_contents([])
         self.refresh_contents_if_mapped()

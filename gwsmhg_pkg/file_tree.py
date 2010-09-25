@@ -13,11 +13,11 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, os.path, tempfile, gtk, gtk.gdk
+import os, os.path, gtk, gtk.gdk
 from gwsmhg_pkg import ifce, utils, text_edit, cmd_result, diff, gutils, \
     tortoise, icons, ws_event, dialogue
 
-import gobject, gtk, pango
+import gobject
 
 COLUMNS = (gobject.TYPE_STRING,
            gobject.TYPE_BOOLEAN,
@@ -31,7 +31,8 @@ NAME, IS_DIR, STYLE, FOREGROUND, ICON, STATUS, EXTRA_INFO = range(len(COLUMNS))
 
 class FileTreeStore(gtk.TreeStore):
     def __init__(self, show_hidden=False, populate_all=False, auto_expand=False, view=None):
-        apply(gtk.TreeStore.__init__, (self,) + COLUMNS)
+        argtuple = (self,) + COLUMNS
+        gtk.TreeStore.__init__(*argtuple)
         self._status_deco_map, self._extra_info_sep = ifce.SCM.get_status_row_data()
         self._file_db = None
         # If 'view' this isn't set explicitly it will be set automatically
@@ -86,7 +87,7 @@ class FileTreeStore(gtk.TreeStore):
             return self._extra_info_sep.join([name, xinfo])
         else:
             return name
-    def format_file_name_crcb(self, column, cell_renderer, store, tree_iter):
+    def format_file_name_crcb(self, _column, cell_renderer, store, tree_iter):
         cell_renderer.set_property('text', self._formatted_file_name(store, tree_iter))
     def _toggle_show_hidden_cb(self, toggleaction):
         self._update_dir('', None)
@@ -393,7 +394,7 @@ class FileTreeView(_ViewWithActionGroups):
         self.show_busy()
         self.get_model().repopulate()
         self.unshow_busy()
-    def update_tree(self, action=None):
+    def update_tree(self, _action=None):
         self.show_busy()
         self.get_model().update()
         self.unshow_busy()
@@ -449,10 +450,9 @@ class CwdFileTreeView(FileTreeView):
         self.cwd_merge_id = self.ui_manager.add_ui_from_string(CWD_UI_DESCR)
     def _edit_named_files_extern(self, file_list):
         text_edit.edit_files_extern(file_list)
-    def edit_selected_files_acb(self, menu_item):
+    def edit_selected_files_acb(self, _menu_item):
         self._edit_named_files_extern(self.get_selected_files())
     def create_new_file(self, new_file_name, open_for_edit=False):
-        model = self.get_model()
         self.show_busy()
         result = utils.create_file(new_file_name, ifce.log)
         self.unshow_busy()
@@ -460,7 +460,7 @@ class CwdFileTreeView(FileTreeView):
         if open_for_edit:
             self._edit_named_files_extern([new_file_name])
         return result
-    def create_new_file_acb(self, menu_item):
+    def create_new_file_acb(self, _menu_item):
         dialog = gtk.FileChooserDialog("New File", dialogue.main_window,
                                        gtk.FILE_CHOOSER_ACTION_SAVE,
                                        (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
@@ -501,12 +501,11 @@ class CwdFileTreeView(FileTreeView):
         return (cmd_result.OK, "", "")
     def _delete_named_files(self, file_list, ask=True):
         if not ask or dialogue.confirm_list_action(file_list, 'About to be deleted. OK?'):
-            model = self.get_model()
             self.show_busy()
             result = self.delete_files(file_list)
             self.unshow_busy()
             dialogue.report_any_problems(result)
-    def delete_selected_files_acb(self, menu_item):
+    def delete_selected_files_acb(self, _menu_item):
         self._delete_named_files(self.get_selected_files())
 
 class ScmCwdFileTreeStore(CwdFileTreeStore):
@@ -630,11 +629,11 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         if not ifce.SCM.get_extension_enabled("extdiff"):
             self.get_conditional_action("scm_extdiff_files_selection").set_visible(False)
             self.get_conditional_action("scm_extdiff_files_all").set_visible(False)
-        if tortoise.is_available:
-            self.add_conditional_action(actions.ON_REPO_INDEP_SELN_INDEP, tortoise.file_menu)
+        if tortoise.IS_AVAILABLE:
+            self.add_conditional_action(actions.ON_REPO_INDEP_SELN_INDEP, tortoise.FILE_MENU)
             for condition in tortoise.SELN_CONDITIONS:
                 action_list = []
-                for action in tortoise.file_group_partial_actions[condition]:
+                for action in tortoise.FILE_GROUP_PARTIAL_ACTIONS[condition]:
                     action_list.append(action + tuple([self._tortoise_tool_acb]))
                 self.add_conditional_actions(condition, action_list)
             self.ui_manager.add_ui_from_string(tortoise.FILES_UI_DESCR)
@@ -672,7 +671,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                 else:
                     return
             dialogue.report_any_problems(result)
-    def remove_selected_files_acb(self, menu_item):
+    def remove_selected_files_acb(self, _menu_item):
         self._remove_named_files(self.get_selected_files())
     def add_files_to_repo(self, file_list):
         self.show_busy()
@@ -692,16 +691,16 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             result = operation([], dry_run=False)
             self.unshow_busy()
             dialogue.report_any_problems(result)
-    def add_selected_files_to_repo_acb(self, menu_item):
+    def add_selected_files_to_repo_acb(self, _menu_item):
         self.add_files_to_repo(self.get_selected_files())
-    def add_all_files_to_repo_acb(self, menu_item):
+    def add_all_files_to_repo_acb(self, _menu_item):
         self.add_all_files_to_repo()
     def commit_changes(self, file_list):
         dialog = ScmCommitDialog(parent=dialogue.main_window, filelist=file_list)
         dialog.show()
-    def commit_selected_files_acb(self, menu_item):
+    def commit_selected_files_acb(self, _menu_item):
         self.commit_changes(self.get_selected_files())
-    def commit_all_changes_acb(self, menu_item):
+    def commit_all_changes_acb(self, _menu_item):
         self.commit_changes(None)
     def _get_target(self, src_file_list):
         if len(src_file_list) > 1:
@@ -739,16 +738,16 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                     res, sout, serr = operation(file_list, target, force=force, dry_run=True)
                     self.unshow_busy()
                     if cmd_result.is_less_than_error(res):
-                        ok = dialogue.confirm_list_action(sout.splitlines(), 'About to be actioned. OK?')
+                        is_ok = dialogue.confirm_list_action(sout.splitlines(), 'About to be actioned. OK?')
                         break
                     elif not force and cmd_result.suggests_force(res):
-                        ok = force = self._check_if_force((res, sout, serr))
+                        is_ok = force = self._check_if_force((res, sout, serr))
                         if not force:
                             return
                     else:
                         dialogue.report_any_problems((res, sout, serr))
                         return
-            if not ask or ok:
+            if not ask or is_ok:
                 while True:
                     self.show_busy()
                     result = operation(file_list, target, force=force)
@@ -762,29 +761,29 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                 dialogue.report_any_problems(result)
     def copy_files(self, file_list, ask=False):
         self._move_or_copy_files(file_list, "c", ask=ask)
-    def copy_selected_files_acb(self, action=None):
+    def copy_selected_files_acb(self, _action=None):
         self.copy_files(self.get_selected_files())
     def move_files(self, file_list, ask=True):
         self._move_or_copy_files(file_list, "m", ask=ask)
-    def move_selected_files_acb(self, action=None):
+    def move_selected_files_acb(self, _action=None):
         self.move_files(self.get_selected_files())
-    def diff_selected_files_acb(self, action=None):
+    def diff_selected_files_acb(self, _action=None):
         dialog = diff.ScmDiffTextDialog(parent=dialogue.main_window,
                                      file_list=self.get_selected_files())
         dialog.show()
-    def extdiff_selected_files_acb(self, action=None):
+    def extdiff_selected_files_acb(self, _action=None):
         ifce.SCM.launch_extdiff_for_ws(self.get_selected_files())
-    def resolve_selected_files_acb(self, action=None):
+    def resolve_selected_files_acb(self, _action=None):
         self.show_busy()
         result = ifce.SCM.do_resolve_workspace(self.get_selected_files())
         self.unshow_busy()
         dialogue.report_any_problems(result)
-    def mark_resolved_selected_files_acb(self, action=None):
+    def mark_resolved_selected_files_acb(self, _action=None):
         self.show_busy()
         result = ifce.SCM.do_mark_files_resolved(self.get_selected_files())
         self.unshow_busy()
         dialogue.report_any_problems(result)
-    def mark_unresolved_selected_files_acb(self, action=None):
+    def mark_unresolved_selected_files_acb(self, _action=None):
         self.show_busy()
         result = ifce.SCM.do_mark_files_unresolved(self.get_selected_files())
         self.unshow_busy()
@@ -796,7 +795,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             self.unshow_busy()
             if res == cmd_result.OK:
                 if sout:
-                    ok = dialogue.confirm_list_action(sout.splitlines(), 'About to be actioned. OK?')
+                    is_ok = dialogue.confirm_list_action(sout.splitlines(), 'About to be actioned. OK?')
                 else:
                     dialogue.inform_user('Nothing to revert')
                     return
@@ -804,15 +803,15 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                 dialogue.report_any_problems((res, sout, serr))
                 return
         else:
-            ok = True
-        if ok:
+            is_ok = True
+        if is_ok:
             self.show_busy()
             result = ifce.SCM.do_revert_files(file_list)
             self.unshow_busy()
             dialogue.report_any_problems(result)
-    def revert_selected_files_acb(self, action=None):
+    def revert_selected_files_acb(self, _action=None):
         self.revert_named_files(self.get_selected_files())
-    def revert_all_files_acb(self, action=None):
+    def revert_all_files_acb(self, _action=None):
         self.revert_named_files([])
 
 class ScmCwdFilesWidget(gtk.VBox):
@@ -843,8 +842,11 @@ class ScmCwdFilesWidget(gtk.VBox):
         self.show_all()
 
 class ScmCommitFileTreeStore(FileTreeStore):
-    def __init__(self, show_hidden=True, view=None, file_mask=[]):
-        self._file_mask = file_mask
+    def __init__(self, show_hidden=True, view=None, file_mask=None):
+        if file_mask is None:
+            self._file_mask = []
+        else:
+            self._file_mask = file_mask
         FileTreeStore.__init__(self, show_hidden=show_hidden, populate_all=True,
                                auto_expand=True, view=view)
         self.repopulate()
@@ -881,7 +883,7 @@ SCM_CHANGE_UI_DESCR = \
 '''
 
 class ScmCommitFileTreeView(FileTreeView):
-    def __init__(self, busy_indicator, auto_refresh=False, show_hidden=True, file_mask=[]):
+    def __init__(self, busy_indicator, auto_refresh=False, show_hidden=True, file_mask=None):
         self.removeds = []
         self.model = ScmCommitFileTreeStore(show_hidden=show_hidden, file_mask=file_mask)
         FileTreeView.__init__(self, model=self.model, busy_indicator=busy_indicator,
@@ -918,7 +920,7 @@ class ScmCommitFileTreeView(FileTreeView):
         self.model.set_file_mask(file_mask)
     def get_file_mask(self):
         return self.model.get_file_mask()
-    def _remove_selected_files_acb(self, menu_item):
+    def _remove_selected_files_acb(self, _menu_item):
         self.show_busy()
         file_mask = self.model.get_file_mask()
         if not file_mask:
@@ -931,7 +933,7 @@ class ScmCommitFileTreeView(FileTreeView):
         self.get_conditional_action("scmch_undo_remove_files").set_sensitive(True)
         self.unshow_busy()
         self.update_tree()
-    def _undo_last_remove_acb(self, menu_item):
+    def _undo_last_remove_acb(self, _menu_item):
         self.show_busy()
         restore_files = self.removeds[-1]
         del self.removeds[-1]
@@ -942,21 +944,21 @@ class ScmCommitFileTreeView(FileTreeView):
         self.model.set_file_mask(file_mask)
         self.unshow_busy()
         self.update_tree()
-    def _diff_selected_files_acb(self, action=None):
+    def _diff_selected_files_acb(self, _action=None):
         parent = dialogue.main_window
         dialog = diff.ScmDiffTextDialog(parent=parent, file_list=self.get_selected_files())
         dialog.show()
-    def _diff_all_files_acb(self, action=None):
+    def _diff_all_files_acb(self, _action=None):
         parent = dialogue.main_window
         dialog = diff.ScmDiffTextDialog(parent=parent, file_list=self.get_file_mask())
         dialog.show()
-    def _extdiff_selected_files_acb(self, action=None):
+    def _extdiff_selected_files_acb(self, _action=None):
         ifce.SCM.launch_extdiff_for_ws(file_list=self.get_selected_files())
-    def _extdiff_all_files_acb(self, action=None):
+    def _extdiff_all_files_acb(self, _action=None):
         ifce.SCM.launch_extdiff_for_ws(file_list=self.get_file_mask())
 
 class ScmCommitWidget(gtk.VPaned, ws_event.Listener):
-    def __init__(self, busy_indicator, file_mask=[]):
+    def __init__(self, busy_indicator, file_mask=None):
         gtk.VPaned.__init__(self)
         ws_event.Listener.__init__(self)
         # TextView for change message
@@ -1031,8 +1033,8 @@ class ScmCommitDialog(dialogue.AmodalDialog):
             if self.commit_widget.view.get_auto_save():
                 self._finish_up()
             else:
-                qn = 'Unsaved changes to summary will be lost.\n\nCancel anyway?'
-                if dialogue.ask_yes_no(qn):
+                qtn = 'Unsaved changes to summary will be lost.\n\nCancel anyway?'
+                if dialogue.ask_yes_no(qtn):
                     self._finish_up()
         else:
             self._finish_up()
