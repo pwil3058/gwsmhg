@@ -201,19 +201,7 @@ class AGandUIManager(ws_event.Listener):
         self._event_cond_change_cb()
     def create_action_button(self, action_name, use_underline=True):
         action = self.get_conditional_action(action_name)
-        label = action.get_property('label')
-        stock_id = action.get_property('stock-id')
-        if label is None:
-            button = gtk.Button(stock=stock_id, use_underline=use_underline)
-        else:
-            button = gtk.Button(label=label, use_underline=use_underline)
-            if stock_id:
-                image = gtk.Image()
-                image.set_from_stock(stock_id, gtk.ICON_SIZE_BUTTON)
-                button.set_image(image)
-        gutils.set_widget_tooltip_text(button, action.get_property("tooltip"))
-        action.connect_proxy(button)
-        return button
+        return gutils.ActionButton(action, use_underline=use_underline)
     def create_action_button_box(self, action_name_list, use_underline=True,
                                  horizontal=True,
                                  expand=True, fill=True, padding=0):
