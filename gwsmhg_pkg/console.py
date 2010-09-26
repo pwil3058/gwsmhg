@@ -92,7 +92,7 @@ class ConsoleLog(gtk.VBox, dialogue.BusyIndicatorUser):
         self._buffer = ConsoleLogBuffer()
         self._view = ConsoleLogView(text_buffer=self._buffer)
         self._action_group = gtk.ActionGroup("console_log")
-        self.ui_manager = gtk.UIManager()
+        self.ui_manager = gutils.UIManager()
         self.ui_manager.insert_action_group(self._action_group, -1)
         self._action_group.add_actions(
             [

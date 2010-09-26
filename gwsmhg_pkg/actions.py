@@ -101,7 +101,7 @@ ws_event.add_notification_cb(ws_event.CHANGE_WD|ws_event.PMIC_CHANGE,
 class AGandUIManager(ws_event.Listener):
     def __init__(self, selection=None):
         ws_event.Listener.__init__(self)
-        self.ui_manager = gtk.UIManager()
+        self.ui_manager = gutils.UIManager()
         for cond in CLASS_INDEP_CONDS:
             self.ui_manager.insert_action_group(class_indep_ags[cond], -1)
         self.seln = selection

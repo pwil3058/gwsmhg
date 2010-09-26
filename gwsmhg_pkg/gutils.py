@@ -273,3 +273,13 @@ class SplitBar(gtk.HBox):
         self.pack_start(self.lhs, expand=expand_lhs)
         self.rhs = gtk.HBox()
         self.pack_end(self.rhs, expand=expand_rhs)
+
+def _ui_manager_connect_proxy(_ui_mgr, action, widget):
+    tooltip = action.get_property('tooltip')
+    if isinstance(widget, gtk.MenuItem) and tooltip:
+        widget.set_tooltip_text(tooltip)
+
+class UIManager(gtk.UIManager):
+    def __init__(self):
+        gtk.UIManager.__init__(self)
+        self.connect('connect-proxy', _ui_manager_connect_proxy)

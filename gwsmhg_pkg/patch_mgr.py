@@ -469,7 +469,7 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
         self.append_column(tvcolumn)
         self.set_headers_visible(False)
         self.get_selection().set_mode(gtk.SELECTION_SINGLE)
-        self.ui_manager = gtk.UIManager()
+        self.ui_manager = gutils.UIManager()
         self._action_group = {}
         for condition in APPLIED_CONDITIONS + PUSH_POP_CONDITIONS + WS_UPDATE_CONDITIONS:
             self._action_group[condition] = gtk.ActionGroup(condition)

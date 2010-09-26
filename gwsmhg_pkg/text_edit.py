@@ -73,7 +73,7 @@ class SummaryView(gwsmhg_pkg.sourceview.SourceView):
         self.set_size_request(x, y)
         self.set_cursor_visible(True)
         self.set_editable(True)
-        self.ui_manager = gtk.UIManager()
+        self.ui_manager = gutils.UIManager()
         self.ui_manager.insert_action_group(text_buffer.action_group, -1)
     def get_action(self, action_name):
         for action_group in self.ui_manager.get_action_groups():
