@@ -728,7 +728,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         elif reqop == "m":
             operation = ifce.SCM.do_move_files
         else:
-            raise "Invalid operation requested"
+            assert False, "Invalid operation requested"
         response, target = self._get_target(file_list)
         if response == gtk.RESPONSE_OK:
             force = False
