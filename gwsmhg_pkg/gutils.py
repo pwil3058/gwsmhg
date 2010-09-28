@@ -187,7 +187,7 @@ class ActionHButtonBox(gtk.HBox):
         for button in self.button_list.list:
             self.pack_start(button, expand, fill, padding)
 
-TOC_NAME, TOC_LABEL, TOC_TOOLTIP, TOC_STOCK_ID = range(4)
+TOC_NAME, TOC_LABEL, TOC_TOOLTIP, TOC_STOCK_ID = list(range(4))
 
 class TimeOutController():
     def __init__(self, toggle_data, function=None, is_on=True, interval=10000):

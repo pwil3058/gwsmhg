@@ -576,7 +576,7 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
                 ("pm_clean_up_after_update", gtk.STOCK_CLEAR, "Clean Up", None,
                  "Clean up left over heads after repostory and patch series update", self.do_clean_up_after_update),
             ])
-        toggle_data = range(4)
+        toggle_data = list(range(4))
         toggle_data[gutils.TOC_NAME] = "auto_refresh_patch_list"
         toggle_data[gutils.TOC_LABEL] = "Auto Update"
         toggle_data[gutils.TOC_TOOLTIP] = "Enable/disable automatic updating of the patch list"

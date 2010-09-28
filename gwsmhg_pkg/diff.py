@@ -160,7 +160,8 @@ class DiffTextBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
             return
         try:
             fobj = open(self._save_file, 'w')
-        except IOError, (_errno, strerror):
+        except IOError as edata:
+            strerror = edata[1]
             dialogue.report_any_problems((cmd_result.ERROR, "", strerror))
             self.check_set_save_sensitive()
             return

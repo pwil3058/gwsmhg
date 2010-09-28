@@ -50,7 +50,7 @@ def chdir(newdir=None):
         # TODO: pass error message if this fails
         try:
             os.chdir(newdir)
-        except OSError, err:
+        except OSError as err:
             import errno
             ecode = errno.errorcode[err.errno]
             emsg = err.strerror

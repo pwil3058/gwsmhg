@@ -15,8 +15,8 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, gobject, gtk, urlparse, fnmatch, os.path
-from gwsmhg_pkg import dialogue, gutils, utils, table
+import os, gobject, gtk, fnmatch, os.path
+from gwsmhg_pkg import dialogue, gutils, utils, table, urlops
 
 REPO_PRECIS_MODEL_DESCR = \
 [
@@ -59,7 +59,7 @@ SAVED_WS_FILE_NAME = os.sep.join([GSWMHG_D_NAME, "workspaces"])
 SAVED_REPO_FILE_NAME = os.sep.join([GSWMHG_D_NAME, "repositories"])
 
 if not os.path.exists(GSWMHG_D_NAME):
-    os.mkdir(GSWMHG_D_NAME, 0775)
+    os.mkdir(GSWMHG_D_NAME, 0o775)
 
 def append_saved_ws(path, alias=None):
     fobj = open(SAVED_WS_FILE_NAME, 'a')
@@ -186,25 +186,25 @@ class RepoPathTable(AliasPathTable):
     def __init__(self):
         AliasPathTable.__init__(self, SAVED_REPO_FILE_NAME)
     def _extant_path(self, path):
-        if urlparse.urlparse(path).scheme:
+        if urlops.parse_url(path).scheme:
             # for the time being treat all paths expressed as URLs as extant
             return True
         return AliasPathTable._extant_path(self, path)
     def _same_paths(self, path1, path2):
-        up1 = urlparse.urlparse(path1)
+        up1 = urlops.parse_url(path1)
         if up1.scheme:
-            up2 = urlparse.urlparse(path2)
+            up2 = urlops.parse_url(path2)
             if up2.scheme:
                 # compare normalized URLs for better confidence in result
                 return up1.geturl() == up2.geturl()
             else:
                 return False
-        elif urlparse.urlparse(path2).scheme:
+        elif urlops.parse_url(path2).scheme:
             return False
         else:
             return AliasPathTable._same_paths(self, path1, path2)
     def _default_alias(self, path):
-        urlp = urlparse.urlparse(path)
+        urlp = urlops.parse_url(path)
         if not urlp.scheme:
             return AliasPathTable._default_alias(self, path)
         else:
@@ -229,7 +229,7 @@ class RepoSelectDialog(PathSelectDialog):
         self.response(gtk.RESPONSE_OK)
     def _get_default_target(self):
         rawpath = self.get_path()
-        urp = urlparse.urlparse(rawpath)
+        urp = urlops.parse_url(rawpath)
         if urp.scheme:
             path = urp.path
         else:
@@ -308,7 +308,7 @@ def assign_extern_editors(file_list):
         for globs, edstr in editor_defs:
             for glob in globs.split(os.pathsep):
                 if fnmatch.fnmatch(fobj, glob):
-                    if ed_assignments.has_key(edstr):
+                    if edstr in ed_assignments:
                         ed_assignments[edstr].append(fobj)
                     else:
                         ed_assignments[edstr] = [fobj]
@@ -317,7 +317,7 @@ def assign_extern_editors(file_list):
             if assigned:
                 break
         if not assigned:
-            if ed_assignments.has_key(DEFAULT_EDITOR):
+            if DEFAULT_EDITOR in ed_assignments:
                 ed_assignments[DEFAULT_EDITOR].append(fobj)
             else:
                 ed_assignments[DEFAULT_EDITOR] = [fobj]
@@ -371,7 +371,7 @@ class EditorAllocationDialog(dialogue.Dialog):
                                           gtk.STOCK_OK, gtk.RESPONSE_OK)
                                 )    
         self._table = EditorAllocationTable()
-        self._buttons = gutils.ActionHButtonBox(self._table.action_groups.values())
+        self._buttons = gutils.ActionHButtonBox(list(self._table.action_groups.values()))
         self.vbox.pack_start(self._table)
         self.vbox.pack_start(self._buttons, expand=False)
         self.connect("response", self._handle_response_cb)

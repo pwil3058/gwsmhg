@@ -27,7 +27,7 @@ COLUMNS = (gobject.TYPE_STRING,
            gobject.TYPE_STRING,
            gobject.TYPE_STRING)
 
-NAME, IS_DIR, STYLE, FOREGROUND, ICON, STATUS, EXTRA_INFO = range(len(COLUMNS))
+NAME, IS_DIR, STYLE, FOREGROUND, ICON, STATUS, EXTRA_INFO = list(range(len(COLUMNS)))
 
 class FileTreeStore(gtk.TreeStore):
     def __init__(self, show_hidden=False, populate_all=False, auto_expand=False, view=None):
@@ -60,12 +60,12 @@ class FileTreeStore(gtk.TreeStore):
         else:
             return self.view.row_expanded(self.get_path(dir_iter))
     def _get_status_deco(self, status=None):
-        if self._status_deco_map.has_key(status):
+        if status in self._status_deco_map:
             return self._status_deco_map[status]
         else:
             return self._status_deco_map[None]
     def _generate_row_tuple(self, name, isdir=None, status=None, extra_info=None):
-        row = range(len(COLUMNS))
+        row = list(range(len(COLUMNS)))
         row[NAME] = name
         row[IS_DIR] = isdir
         if isdir:
@@ -488,7 +488,7 @@ class CwdFileTreeView(FileTreeView):
                 os.remove(filename)
                 if ifce.log:
                     ifce.log.append_stdout(("Deleted: %s" + os.linesep) % filename)
-            except os.error, value:
+            except os.error as value:
                 errmsg = ("%s: %s" + os.linesep) % (value[1], filename)
                 serr += errmsg
                 if ifce.log:

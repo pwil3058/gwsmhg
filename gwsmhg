@@ -26,12 +26,12 @@ from gwsmhg_pkg import ifce, hg_mq_ifce, gwsm, dialogue
 
 def usage():
     """Print the program's usage message"""
-    print "Usage: gwsmhg [dir]"
+    print("Usage: gwsmhg [dir]")
 
 # read required directory from the command line
 try:
     OPTION_LIST, ARG_LIST = getopt.getopt(sys.argv[1:], "")
-except getopt.GetoptError, err:
+except getopt.GetoptError as err:
     sys.stderr.write(str(err) + os.linesep)
     usage()
     sys.exit(1)
@@ -45,7 +45,7 @@ DIR_SPECIFIED = len(ARG_LIST) == 1
 if DIR_SPECIFIED:
     try:
         os.chdir(sys.argv[1])
-    except OSError, msg:
+    except OSError as msg:
         sys.stderr.write(str(msg) + os.linesep)
         sys.exit(2)
 
@@ -55,7 +55,7 @@ try:
     gtk.main()
 except (SystemExit, KeyboardInterrupt):
     pass
-except StandardError:
+except Exception:
     dialogue.report_exception(sys.exc_info())
     sys.exit(3)
 

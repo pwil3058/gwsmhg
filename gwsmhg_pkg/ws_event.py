@@ -88,7 +88,7 @@ def notify_events(events, data=None):
                     callback(data)
                 else:
                     callback()
-            except StandardError:
+            except Exception:
                 invalid_cbs.append((registered_events, callback))
     for cb_token in invalid_cbs:
         del_notification_cb(cb_token)

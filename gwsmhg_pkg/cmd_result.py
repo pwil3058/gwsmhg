@@ -58,10 +58,8 @@ def is_error(res):
 def is_less_than_error(res):
     return basic_value(res) < ERROR
 
-import types
-
 def suggests_force(res):
-    if type(res) in [types.ListType, types.TupleType]:
+    if type(res) in [list, tuple]:
         return (res[0] & SUGGEST_FORCE) == SUGGEST_FORCE
     else:
         return (res & SUGGEST_FORCE) == SUGGEST_FORCE

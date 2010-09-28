@@ -29,7 +29,7 @@ def _edit_files_extern(filelist, edstr=config.DEFAULT_EDITOR):
 
 def edit_files_extern(file_list):
     ed_assigns = config.assign_extern_editors(file_list)
-    for edstr in ed_assigns.keys():
+    for edstr in list(ed_assigns.keys()):
         _edit_files_extern(ed_assigns[edstr], edstr)
 
 class SummaryBuffer(gwsmhg_pkg.sourceview.SourceBuffer):

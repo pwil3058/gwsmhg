@@ -18,7 +18,6 @@
 
 import subprocess
 import os
-import urlparse
 import os.path
 import signal
 import select
@@ -26,13 +25,13 @@ import select
 import gtk
 import gobject
 
-from gwsmhg_pkg import cmd_result, ws_event
+from gwsmhg_pkg import cmd_result, ws_event, urlops
 
 HOME = os.path.expanduser("~")
 
 def path_rel_home(path):
     """Return the given path as a path relative to user's home directory."""
-    if urlparse.urlparse(path).scheme:
+    if urlops.parse_url(path).scheme:
         return path
     path = os.path.abspath(path)
     len_home = len(HOME)
@@ -107,7 +106,7 @@ def create_file(name, console=None):
                 console.end_cmd()
             ws_event.notify_events(ws_event.FILE_ADD)
             return (cmd_result.OK, '', '')
-        except (IOError, OSError), msg:
+        except (IOError, OSError) as msg:
             return (cmd_result.ERROR, '', '"%s": %s' % (name, msg))
     else:
         return (cmd_result.WARNING, '', '"%s": file already exists' % name)

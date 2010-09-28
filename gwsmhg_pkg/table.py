@@ -49,7 +49,7 @@ class Model(gtk.ListStore):
     def set_values(self, model_iter, col_vals):
         return self.set(*([model_iter] + col_vals))
     def get_row(self, model_iter):
-        return self.get_values(model_iter, range(self.get_n_columns()))
+        return self.get_values(model_iter, list(range(self.get_n_columns())))
     def get_labelled_value(self, model_iter, label):
         return self.get_value(model_iter, self.get_col(label))
     def get_labelled_values(self, model_iter, labels):
@@ -287,7 +287,7 @@ class Table(gtk.VBox):
     def get_selected_data(self, columns=None):
         store, selected_rows = self.seln.get_selected_rows()
         if not columns:
-            columns = range(store.get_n_columns())
+            columns = list(range(store.get_n_columns()))
         result = []
         for row in selected_rows:
             model_iter = store.get_iter(row)
@@ -347,7 +347,7 @@ class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorU
     def get_selected_data(self, columns=None):
         store, selected_rows = self.seln.get_selected_rows()
         if not columns:
-            columns = range(store.get_n_columns())
+            columns = list(range(store.get_n_columns()))
         result = []
         for row in selected_rows:
             model_iter = store.get_iter(row)

@@ -45,7 +45,7 @@ class ScmDir:
         if len(path_parts) == 1:
             self.files[path_parts[0]] = (status, origin)
         else:
-            if not self.subdirs.has_key(path_parts[0]):
+            if path_parts[0] not in self.subdirs:
                 self.subdirs[path_parts[0]] = ScmDir()
             self.subdirs[path_parts[0]].add_file(path_parts[1:], status, origin)
     def update_status(self):
@@ -57,12 +57,12 @@ class ScmDir:
             self.status = FSTATUS_IGNORED
         elif self.status_set in [set([FSTATUS_NOT_TRACKED]), set([FSTATUS_NOT_TRACKED, FSTATUS_IGNORED])]:
             self.status = FSTATUS_NOT_TRACKED
-        for key in self.subdirs.keys():
+        for key in list(self.subdirs.keys()):
             self.subdirs[key].update_status()
     def _find_dir(self, dirpath_parts):
         if not dirpath_parts:
             return self
-        elif self.subdirs.has_key(dirpath_parts[0]):
+        elif dirpath_parts[0] in self.subdirs:
             return self.subdirs[dirpath_parts[0]]._find_dir(dirpath_parts[1:])
         else:
             return None
@@ -71,7 +71,7 @@ class ScmDir:
             return self
         return self._find_dir(dirpath.split(os.sep))
     def dirs_and_files(self, show_hidden=False):
-        dkeys = self.subdirs.keys()
+        dkeys = list(self.subdirs.keys())
         dkeys.sort()
         dirs = []
         for dkey in dkeys:
@@ -81,7 +81,7 @@ class ScmDir:
                     continue
             dirs.append((dkey, status, None))
         files = []
-        fkeys = self.files.keys()
+        fkeys = list(self.files.keys())
         fkeys.sort()
         for fkey in fkeys:
             status = self.files[fkey][0]
@@ -251,7 +251,7 @@ class BaseInterface:
                 os.remove(filename)
                 if ifce.log:
                     ifce.log.append_stdout(('Deleted: %s\n') % filename)
-            except os.error, value:
+            except os.error as value:
                 errmsg = ('%s: "%s"\n') % (value[1], filename)
                 serr += errmsg
                 if ifce.log:
@@ -509,7 +509,6 @@ class SCMInterface(BaseInterface):
         if path:
             cmd += ' "%s"' % path
         res, sout, serr = utils.run_cmd(cmd)
-        print res, sout, serr
         if res:
             return (res, sout, serr)
         return self._process_change_set_summary(res, sout, serr)
