@@ -38,7 +38,7 @@ COPYRIGHT = [('share/doc/gwsmhg', ['COPYING', 'copyright'])]
 LICENSE = 'GNU General Public License (GPL) Version 2.0'
 
 CLASSIFIERS = [
-    'Development Status :: Alpha',
+    'Development Status :: Beta',
     'Intended Audience :: Developers',
     'License :: OSI Approved :: %s' % LICENSE,
     'Programming Language :: Python',
