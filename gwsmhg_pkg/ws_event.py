@@ -40,7 +40,7 @@ ALL_BUT_CHANGE_WD = ALL_EVENTS &  ~CHANGE_WD
 FILE_CHANGES = FILE_MOD | FILE_ADD | FILE_DEL | FILE_HGIGNORE
 
 
-_notification_cbs = []
+_NOTIFICATION_CBS = []
 
 
 def add_notification_cb(events, callback):
@@ -54,7 +54,7 @@ def add_notification_cb(events, callback):
     Return a token that identifies the callback to facilitate deletion.
     """
     cb_token = (events, callback)
-    _notification_cbs.append(cb_token)
+    _NOTIFICATION_CBS.append(cb_token)
     return cb_token
 
 
@@ -65,9 +65,9 @@ def del_notification_cb(cb_token):
     Argument:
     cb_token -- the token that specifies the callback to be cancelled.
     """
-    index = _notification_cbs.index(cb_token)
+    index = _NOTIFICATION_CBS.index(cb_token)
     if index >= 0:
-        del _notification_cbs[index]
+        del _NOTIFICATION_CBS[index]
 
 
 def notify_events(events, data=None):
@@ -81,7 +81,7 @@ def notify_events(events, data=None):
     data -- extra data the notifier thinks may be of use to the callback.
     """
     invalid_cbs = []
-    for registered_events, callback in _notification_cbs:
+    for registered_events, callback in _NOTIFICATION_CBS:
         if registered_events & events:
             try:
                 if data:
