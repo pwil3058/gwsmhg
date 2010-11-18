@@ -40,3 +40,8 @@ FILE_CONDITIONS = [NO_SELECTION,
                    SELECTION_NOT_PMIC,
                   ]
 
+NOT_APPLIED = " "
+APPLIED = "+"
+APPLIED_NEEDS_REFRESH = "?"
+TOP_PATCH = "="
+TOP_PATCH_NEEDS_REFRESH = "!"

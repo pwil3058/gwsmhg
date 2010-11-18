@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import gtk, gobject, os
-from gwsmhg_pkg import dialogue, ifce, table, icons, ws_event, gutils, patch_mgr
+from gwsmhg_pkg import dialogue, ifce, table, icons, ws_event, gutils, patch_list
 from gwsmhg_pkg import diff, utils, actions
 
 PBRANCH_UI_DESCR = \
@@ -272,9 +272,9 @@ class PBranchTable(table.MapManagedTable):
     def _refresh_acb(self, _action=None):
         self.refresh_contents()
 
-class NewPatchBranchDialog(patch_mgr.NewPatchDialog):
+class NewPatchBranchDialog(patch_list.NewPatchDialog):
     def __init__(self, parent):
-        patch_mgr.NewPatchDialog.__init__(self, parent=parent, objname='Patch Branch')
+        patch_list.NewPatchDialog.__init__(self, parent=parent, objname='Patch Branch')
         self._preserve = gtk.CheckButton('Preserve', False)
         self._preserve.set_active(False)
         self.hbox.pack_start(self._preserve, expand=False, fill=False)
@@ -282,9 +282,9 @@ class NewPatchBranchDialog(patch_mgr.NewPatchDialog):
     def get_preserve(self):
         return self._preserve.get_active()
 
-class PatchBranchDescrEditDialog(patch_mgr.GenericPatchDescrEditDialog):
+class PatchBranchDescrEditDialog(patch_list.GenericPatchDescrEditDialog):
     def __init__(self, parent, pbranch=None):
-        patch_mgr.GenericPatchDescrEditDialog.__init__(self,
+        patch_list.GenericPatchDescrEditDialog.__init__(self,
             get_summary=ifce.SCM.get_pbranch_description,
             set_summary=ifce.SCM.do_set_pbranch_description,
             parent=parent, patch=pbranch)

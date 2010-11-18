@@ -13,8 +13,8 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, os.path, tempfile, pango, re, time
-from gwsmhg_pkg import ifce, utils, cmd_result, putils, ws_event
+import os, os.path, tempfile, pango, re, time, collections
+from gwsmhg_pkg import ifce, utils, cmd_result, putils, ws_event, const
 
 newlines_not_allowed_in_cmd = os.name == 'nt' or os.name == 'dos'
 
@@ -1043,6 +1043,18 @@ to the [extensions] section of your ~.hgrc file.  e.g.
 hgext.mq=
 '''
 
+_qguard_re = re.compile("^\s*([+-].*)\s*$")
+
+def _extract_name_and_guards(string):
+    name, gstring = string.split(':')
+    match = _qguard_re.match(gstring)
+    if match:
+        return name, match.group(1).split()
+    else:
+        return name, []
+
+PatchData = collections.namedtuple('PatchData', ['name', 'state', 'guards'])
+
 class PMInterface(BaseInterface):
     def __init__(self):
         BaseInterface.__init__(self, "MQ")
@@ -1113,6 +1125,28 @@ class PMInterface(BaseInterface):
             return False
         return (self.get_top_patch() is not None) or \
             self._ws_update_mgr.is_in_progress()
+    def get_all_patches_data(self):
+        output = []
+        res, sout, serr = utils.run_cmd('hg qguard -l')
+        patch_plus_guard_list = sout.splitlines()
+        applied_patches = self.get_applied_patches()
+        if len(applied_patches) > 0:
+            top_patch = applied_patches[-1]
+            for ppg in patch_plus_guard_list:
+                name, guards = _extract_name_and_guards(ppg)
+                if name in applied_patches:
+                    if name == top_patch:
+                        state = const.TOP_PATCH
+                    else:
+                        state = const.APPLIED
+                else:
+                    state = const.NOT_APPLIED
+                output.append(PatchData(name, state, guards))
+        else:
+            for ppg in patch_plus_guard_list:
+                name, guards = _extract_name_and_guards(ppg)
+                output.append(PatchData(name, const.NOT_APPLIED, guards))
+        return output
     def get_applied_patches(self):
         if not self.get_enabled():
             return []

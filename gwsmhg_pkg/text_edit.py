@@ -239,13 +239,14 @@ class NewPatchSummaryBuffer(SummaryBuffer):
             ])
     def _insert_summary_from_acb(self, _action=None):
         file_name = dialogue.ask_file_name("Enter file name", existing=True)
-        try:
-            save_file = open(file_name, 'r')
-            self.insert_at_cursor(save_file.read())
-            save_file.close()
-            self.set_modified(True)
-        except IOError:
-            dialogue.alert_user('Insert at cursor from file failed!')
+        if file_name is not None:
+            try:
+                save_file = open(file_name, 'r')
+                self.insert_at_cursor(save_file.read())
+                save_file.close()
+                self.set_modified(True)
+            except IOError:
+                dialogue.alert_user('Insert at cursor from file failed!')
 
 class PatchSummaryBuffer(NewPatchSummaryBuffer):
     def __init__(self, get_summary, set_summary, patch=None, table=None):
