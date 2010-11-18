@@ -17,7 +17,7 @@ import os, os.path, gtk, gobject, collections
 
 from gwsmhg_pkg import ifce, utils, text_edit, cmd_result, diff, gutils
 from gwsmhg_pkg import tortoise, icons, ws_event, dialogue, tlview
-from gwsmhg_pkg import actions, fsdb
+from gwsmhg_pkg import actions, fsdb, hg_mq_ifce
 
 Row = collections.namedtuple('Row',
     ['name', 'is_dir', 'style', 'foreground', 'icon', 'status', 'origin'])
@@ -135,8 +135,10 @@ class FileTreeStore(tlview.TreeStore):
     def _insert_place_holder_if_needed(self, dir_iter):
         if self.iter_n_children(dir_iter) == 0:
             self._insert_place_holder(dir_iter)
+    def _get_dir_contents(self, dirpath):
+        return self._file_db.dir_contents(dirpath, self.show_hidden_action.get_active())
     def _populate(self, dirpath, parent_iter):
-        dirs, files = self._file_db.dir_contents(dirpath, self.show_hidden_action.get_active())
+        dirs, files = self._get_dir_contents(dirpath)
         for dirdata in dirs:
             row_tuple = _generate_row_tuple(dirdata, True)
             dir_iter = self.append(parent_iter, row_tuple)
@@ -159,7 +161,7 @@ class FileTreeStore(tlview.TreeStore):
             if child_iter:
                 if self.get_value(child_iter, _NAME) is None:
                     child_iter = self.iter_next(child_iter)
-        dirs, files = self._file_db.dir_contents(dirpath, self.show_hidden_action.get_active())
+        dirs, files = self._get_dir_contents(dirpath)
         dead_entries = []
         for dirdata in dirs:
             row_tuple = _generate_row_tuple(dirdata, True)
@@ -430,7 +432,9 @@ CWD_UI_DESCR = \
     <separator/>
     <placeholder name="no_selection_not_patched"/>
     <separator/>
+    <placeholder name='filter_options'>
     <menuitem action="show_hidden_files"/>
+    </placeholder>
   </popup>
 </ui>
 '''
@@ -518,6 +522,12 @@ class CwdFileTreeView(FileTreeView):
 class ScmCwdFileTreeStore(CwdFileTreeStore):
     def __init__(self, show_hidden=False):
         CwdFileTreeStore.__init__(self, show_hidden=show_hidden)
+        self.hide_clean_action = gtk.ToggleAction('hide_clean_files', 'Hide Clean Files',
+                                                   'Show/hide "clean" files', None)
+        self.hide_clean_action.set_active(False)
+        self.hide_clean_action.connect('toggled', self._toggle_hide_clean_cb)
+        self.hide_clean_action.set_menu_item_type(gtk.CheckMenuItem)
+        self.hide_clean_action.set_tool_item_type(gtk.ToggleToolButton)
     def _get_file_db(self):
         if ifce.in_valid_repo:
             self._populate_all = True
@@ -525,6 +535,15 @@ class ScmCwdFileTreeStore(CwdFileTreeStore):
         else:
             self._populate_all = False
             return self._os_file_db
+    def _toggle_hide_clean_cb(self, toggleaction):
+        self._update_dir('', None)
+    def _get_dir_contents(self, dirpath):
+        show_hidden = self.show_hidden_action.get_active()
+        if not show_hidden and self.hide_clean_action.get_active():
+            dirs, files = self._file_db.dir_contents(dirpath, show_hidden)
+            return ([ncd for ncd in dirs if ncd.status != hg_mq_ifce.FSTATUS_CLEAN],
+                    [ncf for ncf in files if ncf.status != hg_mq_ifce.FSTATUS_CLEAN])
+        return self._file_db.dir_contents(dirpath, show_hidden)
 
 SCM_CWD_UI_DESCR = \
 '''
@@ -567,7 +586,10 @@ SCM_CWD_UI_DESCR = \
       <menuitem action="scm_commit_files_all"/>
     </placeholder>
     <separator/>
+    <placeholder name='filter_options'>
+    <menuitem action="hide_clean_files"/>
     <menuitem action="show_hidden_files"/>
+    </placeholder>
   </popup>
 </ui>
 '''
@@ -579,6 +601,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             auto_refresh=auto_refresh, show_status=True)
         self.add_notification_cb(ws_event.CHECKOUT|ws_event.FILE_CHANGES, self.update_tree),
         self.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir),
+        self.add_conditional_action(actions.ON_REPO_INDEP_SELN_INDEP, model.hide_clean_action)
         self.add_conditional_actions(actions.ON_IN_REPO_SELN,
             [
                 ("scm_remove_files", gtk.STOCK_REMOVE, "_Remove", None,
