@@ -17,6 +17,10 @@
 External command return values
 '''
 
+import collections
+
+Result = collections.namedtuple('Result', ['eflags', 'stdout', 'stderr'])
+
 OK = 0
 WARNING = 1
 ERROR = 2
@@ -59,7 +63,7 @@ def is_less_than_error(res):
     return basic_value(res) < ERROR
 
 def suggests_force(res):
-    if type(res) in [list, tuple]:
+    if type(res) in [list, tuple, Result]:
         return (res[0] & SUGGEST_FORCE) == SUGGEST_FORCE
     else:
         return (res & SUGGEST_FORCE) == SUGGEST_FORCE
@@ -72,5 +76,5 @@ def map_cmd_result(result, ignore_err_re=None):
             outres = OK
     else:
         outres = ERROR
-    return (outres, result[1], result[2])
+    return Result(outres, result[1], result[2])
 

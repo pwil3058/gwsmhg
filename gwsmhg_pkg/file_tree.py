@@ -382,7 +382,7 @@ class FileTreeView(_ViewWithActionGroups):
         sel = utils.file_list_to_string(self.get_selected_files())
         clipboard.set_text(sel)
     def _key_press_cb(self, widget, event):
-        if event.state == gtk.gdk.CONTROL_MASK:
+        if event.state & gtk.gdk.CONTROL_MASK:
             if event.keyval in [_KEYVAL_c, _KEYVAL_C]:
                 self.add_selected_files_to_clipboard()
                 return True
