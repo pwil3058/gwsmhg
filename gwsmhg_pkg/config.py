@@ -15,44 +15,57 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, gobject, gtk, fnmatch, os.path
-from gwsmhg_pkg import dialogue, gutils, utils, table, urlops
+import os, gobject, gtk, fnmatch, os.path, collections
 
-REPO_PRECIS_MODEL_DESCR = \
-[
-    ["Alias", gobject.TYPE_STRING],
-    ["Path", gobject.TYPE_STRING],
-]
+from gwsmhg_pkg import dialogue, gutils, utils, table, urlops, tlview
 
-REPO_PRECIS_TABLE_DESCR = \
-[ [ ('enable-grid-lines', False), ('reorderable', False), ('rules_hint', False),
-    ('headers-visible', True),
-  ], # properties
-  gtk.SELECTION_SINGLE, # selection mode
-  [
-    [ 'Alias', # column name
-      [ ('expand', False), ('resizable', True) ], # column properties
-      [ [ (gtk.CellRendererText, False, True), # renderer
-            [ ('editable', True), ], # properties
-            None, # cell_renderer_function
-            [ ('text', table.model_col(REPO_PRECIS_MODEL_DESCR, 'Alias')), ] # attributes
-        ],
-      ] # renderers
-    ],
-    [ 'Path', # column name
-      [ ('expand', False), ('resizable', True) ], # column properties
-      [ [ (gtk.CellRendererText, False, True), # renderer
-            [ ('editable', False), ], # properties
-            None, # cell_renderer_function
-            [ ('text', table.model_col(REPO_PRECIS_MODEL_DESCR, 'Path')), ] # attributes
-        ],
-      ] # renderers
-    ],
-  ]
-]
+PARow = collections.namedtuple('PARow', ['Alias', 'Path'])
 
-REPO_PATH = table.model_col(REPO_PRECIS_MODEL_DESCR, 'Path')
-REPO_ALIAS = table.model_col(REPO_PRECIS_MODEL_DESCR, 'Alias')
+REPO_PRECIS_MODEL_DESCR = PARow(Alias=gobject.TYPE_STRING, Path=gobject.TYPE_STRING)
+
+REPO_PRECIS_TABLE_DESCR = tlview.ViewTemplate(
+    properties={
+        'enable-grid-lines' : False,
+        'reorderable' : False, 
+        'rules_hint' : False,
+        'headers-visible' : True,
+    },
+    selection_mode=gtk.SELECTION_SINGLE,
+    columns=[
+        tlview.Column(
+            title='Alias',
+            properties={'expand': False, 'resizable' : True},
+            cells=[
+                tlview.Cell(
+                    creator=tlview.CellCreator(
+                        function=gtk.CellRendererText,
+                        expand=False,
+                        start=True
+                    ),
+                    properties={'editable' : True},
+                    renderer=None,
+                    attributes = {'text' : tlview.model_col(REPO_PRECIS_MODEL_DESCR, 'Alias')}
+                ),
+            ],
+        ),
+        tlview.Column(
+            title='Path',
+            properties={'expand': False, 'resizable' : True},
+            cells=[
+                tlview.Cell(
+                    creator=tlview.CellCreator(
+                        function=gtk.CellRendererText,
+                        expand=False,
+                        start=True
+                    ),
+                    properties={'editable' : False},
+                    renderer=None,
+                    attributes = {'text' : tlview.model_col(REPO_PRECIS_MODEL_DESCR, 'Path')}
+                ),
+            ],
+        ),
+    ]
+)
 
 GSWMHG_D_NAME = os.sep.join([utils.HOME, ".gwsmhg.d"])
 SAVED_WS_FILE_NAME = os.sep.join([GSWMHG_D_NAME, "workspaces"])
@@ -88,10 +101,10 @@ class AliasPathTable(table.Table):
         lines = fobj.readlines()
         fobj.close()
         for line in lines:
-            data = line.strip().split(os.pathsep, 1)
+            data = PARow(*line.strip().split(os.pathsep, 1))
             if data in extant_ap_list:
                 continue
-            if self._extant_path(data[REPO_PATH]):
+            if self._extant_path(data.Path):
                 extant_ap_list.append(data)
         extant_ap_list.sort()
         self._write_list_to_file(extant_ap_list)
@@ -112,23 +125,21 @@ class AliasPathTable(table.Table):
         if self._extant_path(path):
             model_iter = self.model.get_iter_first()
             while model_iter:
-                if self._same_paths(self.model.get_value(model_iter, REPO_PATH), path):
+                if self._same_paths(self.model.get_labelled_value(model_iter, 'Path'), path):
                     if alias:
-                        self.model.set_value(model_iter, REPO_ALIAS, alias)
+                        self.model.set_labelled_value(model_iter, 'Alias', alias)
                     return
                 model_iter = self.model.iter_next(model_iter)
             if not alias:
                 alias = self._default_alias(path)
-            data = ["", ""]
-            data[REPO_PATH] = self._abbrev_path(path)
-            data[REPO_ALIAS] = alias
+            data = PARow(Path=self._abbrev_path(path), Alias=alias)
             self.model.append(data)
             self.save_to_file()
     def save_to_file(self, _arg=None):
         ap_list = self.get_contents()
         self._write_list_to_file(ap_list)
     def get_selected_ap(self):
-        data = self.get_selected_data([REPO_PATH, REPO_ALIAS])
+        data = self.get_selected_data_by_label(['Path', 'Alias'])
         return data[0]
 
 class WSPathTable(AliasPathTable):
@@ -323,33 +334,51 @@ def assign_extern_editors(file_list):
                 ed_assignments[DEFAULT_EDITOR] = [fobj]
     return ed_assignments
 
-EDITOR_GLOB_MODEL_DESCR = \
-[ ['globs', gobject.TYPE_STRING],
-  ['editor', gobject.TYPE_STRING],
-]
+GERow = collections.namedtuple('GERow', ['globs', 'editor'])
 
-EDITOR_GLOB_TABLE_DESCR = \
-[ [ ('enable-grid-lines', True), ('reorderable', True) ], # properties
-  gtk.SELECTION_MULTIPLE, # selection mode
-  [
-    [ 'File Pattern(s)', [('expand', True), ], # column name and properties
-      [ [ (gtk.CellRendererText, False, True), # renderer
-          [ ('editable', True), ], # properties
-          None, # cell_renderer_function
-          [ ('text', table.model_col(EDITOR_GLOB_MODEL_DESCR, 'globs')), ] # attributes
-        ],
-      ]
-    ],
-    [ 'Editor Command', [('expand', True), ], # column
-      [ [ (gtk.CellRendererText, False, True), # renderer
-          [ ('editable', True), ], # properties
-          None, # cell_renderer_function
-          [ ('text', table.model_col(EDITOR_GLOB_MODEL_DESCR, 'editor')), ] # attributes
-        ],
-      ]
+EDITOR_GLOB_MODEL_DESCR = GERow(globs=gobject.TYPE_STRING, editor=gobject.TYPE_STRING)
+
+EDITOR_GLOB_TABLE_DESCR = tlview.ViewTemplate(
+    properties={
+        'enable-grid-lines' : True,
+        'reorderable' : True,
+    },
+    selection_mode=gtk.SELECTION_MULTIPLE,
+    columns=[
+        tlview.Column(
+            title='File Pattern(s)',
+            properties={'expand' : True},
+            cells=[
+                tlview.Cell(
+                    creator=tlview.CellCreator(
+                        function=gtk.CellRendererText,
+                        expand=False,
+                        start=True
+                    ),
+                    properties={'editable' : True},
+                    renderer=None,
+                    attributes={'text' : tlview.model_col(EDITOR_GLOB_MODEL_DESCR, 'globs')}
+                ),
+            ],
+        ),
+        tlview.Column(
+            title='Editor Command',
+            properties={'expand' : True},
+            cells=[
+                tlview.Cell(
+                    creator=tlview.CellCreator(
+                        function=gtk.CellRendererText,
+                        expand=False,
+                        start=True
+                    ),
+                    properties={'editable' : True},
+                    renderer=None,
+                    attributes={'text' : tlview.model_col(EDITOR_GLOB_MODEL_DESCR, 'editor')}
+                ),
+            ],
+        ),
     ]
-  ]
-]
+)
 
 class EditorAllocationTable(table.Table):
     def __init__(self):

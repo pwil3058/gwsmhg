@@ -13,48 +13,61 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import gtk, gobject, os
+import gtk, gobject, os, collections
 from gwsmhg_pkg import dialogue, gutils, cmd_result, change_set, icons
 from gwsmhg_pkg import file_tree, diff, ws_event, ifce, utils, actions, table
+from gwsmhg_pkg import tlview
 
-PATH_PRECIS_MODEL_DESCR = \
-[
-    ['Alias', gobject.TYPE_STRING],
-    ['Path', gobject.TYPE_STRING],
-]
+PathRow = collections.namedtuple('PathRow', ['Alias', 'Path'])
 
-PATH_PRECIS_TABLE_DESCR = \
-[ [ ('enable-grid-lines', False), ('reorderable', False), ('rules_hint', False),
-    ('headers-visible', True),
-  ], # properties
-  gtk.SELECTION_SINGLE, # selection mode
-  [
-    [ 'Alias', # column name
-      [ ('expand', False), ('resizable', True) ], # column properties
-      [ [ (gtk.CellRendererText, False, True), # renderer
-            [ ('editable', False), ], # properties
-            None, # cell_renderer_function
-            [ ('text', table.model_col(PATH_PRECIS_MODEL_DESCR, 'Alias')), ] # attributes
-        ],
-      ] # renderers
-    ],
-    [ 'Path', # column name
-      [ ('expand', False), ('resizable', True) ], # column properties
-      [ [ (gtk.CellRendererText, False, True), # renderer
-            [ ('editable', False), ], # properties
-            None, # cell_renderer_function
-            [ ('text', table.model_col(PATH_PRECIS_MODEL_DESCR, 'Path')), ] # attributes
-        ],
-      ] # renderers
-    ],
-  ]
-]
+PATH_PRECIS_MODEL_DESCR = PathRow(
+    Alias=gobject.TYPE_STRING,
+    Path=gobject.TYPE_STRING,
+)
 
-PATH_TABLE_PRECIS_DESCR = \
-[
-    ["Alias", gobject.TYPE_STRING, False, []],
-    ["Path", gobject.TYPE_STRING, True, []],
-]
+PATH_PRECIS_TABLE_DESCR = tlview.ViewTemplate(
+    properties={
+        'enable-grid-lines' : False,
+        'reorderable' : False,
+        'rules_hint' : False,
+        'headers-visible' : True,
+    },
+    selection_mode=gtk.SELECTION_SINGLE,
+    columns=[
+        tlview.Column(
+            title='Alias',
+            properties={'expand': False, 'resizable' : True},
+            cells=[
+                tlview.Cell(
+                    creator=tlview.CellCreator(
+                        function=gtk.CellRendererText,
+                        expand=False,
+                        start=True
+                    ),
+                    properties={'editable' : False},
+                    renderer=None,
+                    attributes = {'text' : tlview.model_col(PATH_PRECIS_MODEL_DESCR, 'Alias')}
+                ),
+            ],
+        ),
+        tlview.Column(
+            title='Path',
+            properties={'expand': False, 'resizable' : True},
+            cells=[
+                tlview.Cell(
+                    creator=tlview.CellCreator(
+                        function=gtk.CellRendererText,
+                        expand=False,
+                        start=True
+                    ),
+                    properties={'editable' : False},
+                    renderer=None,
+                    attributes = {'text' : tlview.model_col(PATH_PRECIS_MODEL_DESCR, 'Path')}
+                ),
+            ],
+        ),
+    ]
+)
 
 PATH_TABLE_UI_DESCR = \
 '''

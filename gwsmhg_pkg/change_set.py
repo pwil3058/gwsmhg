@@ -13,32 +13,41 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import gtk, gobject, os
+import collections, gtk, gobject, os
+
 from gwsmhg_pkg import ifce, cmd_result, gutils, utils, icons, file_tree, diff
 from gwsmhg_pkg import text_edit, ws_event, dialogue, table, actions
+from gwsmhg_pkg import tlview
 
+CSRow = collections.namedtuple('CSRow', ['Rev', 'Node', 'Age', 'Tags', 'Branches', 'Author', 'Description'])
 
-LOG_MODEL_DESCR = [
-    ['Rev', gobject.TYPE_INT],
-    ['Node', gobject.TYPE_STRING],
-    ['Age', gobject.TYPE_STRING],
-    ['Tags', gobject.TYPE_STRING],
-    ['Branches', gobject.TYPE_STRING],
-    ['Author', gobject.TYPE_STRING],
-    ['Description', gobject.TYPE_STRING],
-]
+LOG_MODEL_DESCR = CSRow(
+    Rev=gobject.TYPE_INT,
+    Node=gobject.TYPE_STRING,
+    Age=gobject.TYPE_STRING,
+    Tags=gobject.TYPE_STRING,
+    Branches=gobject.TYPE_STRING,
+    Author=gobject.TYPE_STRING,
+    Description=gobject.TYPE_STRING,
+)
 
 def cs_table_column(model_descr, name):
-    return [ name, # column name
-             [('expand', False), ('resizable', True)], # column properties
-             [ [ (gtk.CellRendererText, False, True), # renderer
-                 [ ('editable', False),
-                 ], # properties
-                 None, # cell_renderer_function
-                 [ ('text', table.model_col(model_descr, name)), ] # attributes
-               ],
-             ] # renderers
-           ]
+    return tlview.Column(
+        title=name,
+        properties={'expand' : False, 'resizable' : True},
+        cells=[
+            tlview.Cell(
+                creator=tlview.CellCreator(
+                    function=gtk.CellRendererText,
+                    expand=False,
+                    start=True
+                ),
+                properties={'editable' : False},
+                renderer=None,
+                attributes={'text' : tlview.model_col(model_descr, name)}
+            )
+        ]
+    )
 
 import re
 _BASE_ENTITIES = { '&':'amp', '<':'lt', '>':'gt' }
@@ -47,9 +56,11 @@ def safe_escape(string):
     return _BASE_ENTITIES_RE.sub(
         lambda m: '&%s;' % _BASE_ENTITIES[m.group(0)[0]], string)
 
-def cs_description_crf(_column, cell, model, model_iter, mcols):
+_MARKUP_COLOURS = {'Tags' : 'yellow', 'Branches' : 'cyan'}
+
+def cs_description_crf(_column, cell, model, model_iter, user_data):
+    mcols, colours = user_data
     markup = safe_escape(model.get_value(model_iter, mcols[0]))
-    colours = [ 'yellow', 'cyan', ]
     extras = mcols[1:]
     for index in range(len(extras)):
         if extras[index]:
@@ -58,35 +69,44 @@ def cs_description_crf(_column, cell, model, model_iter, mcols):
                 markup += ' <span background="%s"><b>%s</b></span>' % (colours[index], tag)
     cell.set_property('markup', markup)
 
-def cs_description_column(model_descr):
-    mcols = ( table.model_col(model_descr, 'Description'),
-              table.model_col(model_descr, 'Tags'),
-              table.model_col(model_descr, 'Branches'),
+def cs_description_column(model_descr, extras):
+    mcols = tuple(tlview.model_col(model_descr, x) for x in ('Description',) + extras)
+    cols = tuple(_MARKUP_COLOURS[x] for x in extras)
+    return tlview.Column(
+        title='Description',
+        properties={'expand' : False, 'resizable' : True},
+        cells=[
+            tlview.Cell(
+                creator=tlview.CellCreator(
+                    function=gtk.CellRendererText,
+                    expand=False,
+                    start=True
+                ),
+                properties={'editable' : False},
+                renderer=tlview.Renderer(
+                    function=cs_description_crf,
+                    user_data=(mcols, cols)
+                ),
+                attributes={}
             )
-    return [ 'Description', # column name
-             [('expand', False), ('resizable', True)
-             ], # column properties
-             [ [ (gtk.CellRendererText, False, True), # renderer
-                 [ ('editable', False)
-                 ], # properties
-                 (cs_description_crf, mcols), # cell_renderer_function
-                 [ ] # attributes
-               ],
-             ] # renderers
-           ]
+        ]
+    )
 
-LOG_TABLE_DESCR = \
-[ [ ('enable-grid-lines', False), ('reorderable', False), ('rules_hint', False),
-    ('headers-visible', True),
-  ], # properties
-  gtk.SELECTION_SINGLE, # selection mode
-  [
-    cs_table_column(LOG_MODEL_DESCR, 'Rev'),
-    cs_table_column(LOG_MODEL_DESCR, 'Age'),
-    cs_description_column(LOG_MODEL_DESCR),
-    cs_table_column(LOG_MODEL_DESCR, 'Author'),
-  ]
-]
+LOG_TABLE_DESCR = tlview.ViewTemplate(
+    properties={
+        'enable-grid-lines' : False,
+        'reorderable' : False,
+        'rules_hint' : False,
+        'headers-visible' : True,
+    },
+    selection_mode=gtk.SELECTION_SINGLE,
+    columns=[
+        cs_table_column(LOG_MODEL_DESCR, 'Rev'),
+        cs_table_column(LOG_MODEL_DESCR, 'Age'),
+        cs_description_column(LOG_MODEL_DESCR, ('Tags', 'Branches')),
+        cs_table_column(LOG_MODEL_DESCR, 'Author'),
+    ]
+)
 
 CS_TABLE_BASIC_UI_DESCR = \
 '''
@@ -383,16 +403,17 @@ class ParentsTable(ChangeSetTable):
             self.hide()
             return []
 
-TAGS_MODEL_DESCR = \
-[
-    ['Tag', gobject.TYPE_STRING],
-    ['Scope', gobject.TYPE_STRING],
-    ['Rev', gobject.TYPE_INT],
-    ['Branches', gobject.TYPE_STRING],
-    ['Age', gobject.TYPE_STRING],
-    ['Author', gobject.TYPE_STRING],
-    ['Description', gobject.TYPE_STRING],
-]
+TagRow = collections.namedtuple('TagRow', ['Tag', 'Scope', 'Rev', 'Branches', 'Age', 'Author', 'Description'])
+
+TAGS_MODEL_DESCR = TagRow(
+    Tag=gobject.TYPE_STRING,
+    Scope=gobject.TYPE_STRING,
+    Rev=gobject.TYPE_INT,
+    Branches=gobject.TYPE_STRING,
+    Age=gobject.TYPE_STRING,
+    Author=gobject.TYPE_STRING,
+    Description=gobject.TYPE_STRING,
+)
 
 def cs_tag_crf(_column, cell, model, model_iter, mcols):
     markup = safe_escape(model.get_value(model_iter, mcols[0]))
@@ -401,34 +422,45 @@ def cs_tag_crf(_column, cell, model, model_iter, mcols):
     cell.set_property('markup', markup)
 
 def cs_tag_column(model_descr):
-    mcols = ( table.model_col(model_descr, 'Tag'),
-              table.model_col(model_descr, 'Scope'),
+    mcols = ( tlview.model_col(model_descr, 'Tag'),
+              tlview.model_col(model_descr, 'Scope'),
             )
-    return [ 'Tag', # column name
-             [('expand', False), ('resizable', True)
-             ], # column properties
-             [ [ (gtk.CellRendererText, False, True), # renderer
-                 [ ('editable', False),
-                 ], # properties
-                 (cs_tag_crf, mcols), # cell_renderer_function
-                 [ ] # attributes
-               ],
-             ] # renderers
-           ]
+    return tlview.Column(
+        title='Tag',
+        properties={'expand' : False, 'resizable' : True},
+        cells=[
+            tlview.Cell(
+                creator=tlview.CellCreator(
+                    function=gtk.CellRendererText,
+                    expand=False,
+                    start=True
+                ),
+                properties={'editable' : False},
+                renderer=tlview.Renderer(
+                    function=cs_tag_crf,
+                    user_data=mcols
+                ),
+                attributes={}
+            )
+        ]
+    )
 
-TAGS_TABLE_DESCR = \
-[ [ ('enable-grid-lines', False), ('reorderable', False), ('rules_hint', False),
-    ('headers-visible', True),
-  ], # properties
-  gtk.SELECTION_SINGLE, # selection mode
-  [
-    cs_tag_column(TAGS_MODEL_DESCR),
-    cs_table_column(TAGS_MODEL_DESCR, 'Rev'),
-    cs_table_column(TAGS_MODEL_DESCR, 'Age'),
-    cs_description_column(TAGS_MODEL_DESCR),
-    cs_table_column(TAGS_MODEL_DESCR, 'Author'),
-  ]
-]
+TAGS_TABLE_DESCR = tlview.ViewTemplate(
+    properties={
+        'enable-grid-lines' : False,
+        'reorderable' : False,
+        'rules_hint' : False,
+        'headers-visible' : True,
+    },
+    selection_mode=gtk.SELECTION_SINGLE,
+    columns=[
+        cs_tag_column(TAGS_MODEL_DESCR),
+        cs_table_column(TAGS_MODEL_DESCR, 'Rev'),
+        cs_table_column(TAGS_MODEL_DESCR, 'Age'),
+        cs_description_column(TAGS_MODEL_DESCR, ('Branches',)),
+        cs_table_column(TAGS_MODEL_DESCR, 'Author'),
+    ]
+)
 
 TAG_TABLE_UI_DESCR = \
 '''
@@ -483,29 +515,33 @@ class TagsTable(ChangeSetTable):
         else:
             return []
 
-BRANCHES_MODEL_DESCR = \
-[
-    ['Branch', gobject.TYPE_STRING],
-    ['Rev', gobject.TYPE_INT],
-    ['Tags', gobject.TYPE_STRING],
-    ['Age', gobject.TYPE_STRING],
-    ['Author', gobject.TYPE_STRING],
-    ['Description', gobject.TYPE_STRING],
-]
+BranchRow = collections.namedtuple('BranchRow', ['Branch', 'Rev', 'Tags', 'Age', 'Author', 'Description'])
 
-BRANCHES_TABLE_DESCR = \
-[ [ ('enable-grid-lines', False), ('reorderable', False), ('rules_hint', False),
-    ('headers-visible', True),
-  ], # properties
-  gtk.SELECTION_SINGLE, # selection mode
-  [
-    cs_table_column(BRANCHES_MODEL_DESCR, 'Branch'),
-    cs_table_column(BRANCHES_MODEL_DESCR, 'Rev'),
-    cs_table_column(BRANCHES_MODEL_DESCR, 'Age'),
-    cs_description_column(BRANCHES_MODEL_DESCR),
-    cs_table_column(BRANCHES_MODEL_DESCR, 'Author'),
-  ]
-]
+BRANCHES_MODEL_DESCR = BranchRow(
+    Branch=gobject.TYPE_STRING,
+    Rev=gobject.TYPE_INT,
+    Tags=gobject.TYPE_STRING,
+    Age=gobject.TYPE_STRING,
+    Author=gobject.TYPE_STRING,
+    Description=gobject.TYPE_STRING,
+)
+
+BRANCHES_TABLE_DESCR = tlview.ViewTemplate(
+    properties={
+        'enable-grid-lines' : False,
+        'reorderable' : False,
+        'rules_hint' : False,
+        'headers-visible' : True,
+    },
+    selection_mode=gtk.SELECTION_SINGLE,
+    columns=[
+        cs_table_column(BRANCHES_MODEL_DESCR, 'Branch'),
+        cs_table_column(BRANCHES_MODEL_DESCR, 'Rev'),
+        cs_table_column(BRANCHES_MODEL_DESCR, 'Age'),
+        cs_description_column(BRANCHES_MODEL_DESCR, ('Tags',)),
+        cs_table_column(BRANCHES_MODEL_DESCR, 'Author'),
+    ]
+)
 
 class BranchesTable(ChangeSetTable):
     def __init__(self, busy_indicator=None, size_req=None):
@@ -681,30 +717,39 @@ class MoveTagDialog(dialogue.ReadTextDialog):
             dialogue.report_any_problems(result)
             self.destroy()
 
+TagListRow = collections.namedtuple('TagListRow', ['Tag'])
 
-TAG_LIST_MODEL_DESCR = [['Tag', gobject.TYPE_STRING], ]
+TAG_LIST_MODEL_DESCR = TagListRow(Tag=gobject.TYPE_STRING)
 
-TAG_LIST_TABLE_DESCR = \
-[ [ ('enable-grid-lines', False), ('reorderable', False), ('rules_hint', False),
-    ('headers-visible', False),
-  ], # properties
-  gtk.SELECTION_SINGLE, # selection mode
-  [
-    cs_table_column(TAG_LIST_MODEL_DESCR, 'Tag'),
-  ]
-]
+TAG_LIST_TABLE_DESCR = tlview.ViewTemplate(
+    properties={
+        'enable-grid-lines' : False,
+        'reorderable' : False,
+        'rules_hint' : False,
+        'headers-visible' : False,
+    },
+    selection_mode=gtk.SELECTION_SINGLE,
+    columns=[
+        cs_table_column(TAG_LIST_MODEL_DESCR, 'Tag'),
+    ]
+)   
 
-BRANCH_LIST_MODEL_DESCR = [['Branch', gobject.TYPE_STRING], ]
+BranchListRow = collections.namedtuple('BranchListRow', ['Branch'])
 
-BRANCH_LIST_TABLE_DESCR = \
-[ [ ('enable-grid-lines', False), ('reorderable', False), ('rules_hint', False),
-    ('headers-visible', False),
-  ], # properties
-  gtk.SELECTION_SINGLE, # selection mode
-  [
-    cs_table_column(BRANCH_LIST_MODEL_DESCR, 'Branch'),
-  ]
-]
+BRANCH_LIST_MODEL_DESCR = BranchListRow(Branch=gobject.TYPE_STRING)
+
+BRANCH_LIST_TABLE_DESCR = tlview.ViewTemplate(
+    properties={
+        'enable-grid-lines' : False,
+        'reorderable' : False,
+        'rules_hint' : False,
+        'headers-visible' : False,
+    },
+    selection_mode=gtk.SELECTION_SINGLE,
+    columns=[
+        cs_table_column(BRANCH_LIST_MODEL_DESCR, 'Branch'),
+    ]
+)
 
 class ChangeSetSelectWidget(gtk.VBox, dialogue.BusyIndicatorUser):
     def __init__(self, busy_indicator, label="Change Set:", discard_toggle=False):
@@ -938,8 +983,8 @@ class BackoutDialog(dialogue.ReadTextAndToggleDialog):
         _, parents_data, _ = ifce.SCM.get_parents_data(rev)
         if len(parents_data) > 1:
             for data in parents_data:
-                rev = str(data[table.model_col(LOG_MODEL_DESCR, 'Rev')])
-                descr = data[table.model_col(LOG_MODEL_DESCR, 'Description')]
+                rev = str(data[tlview.model_col(LOG_MODEL_DESCR, 'Rev')])
+                descr = data[tlview.model_col(LOG_MODEL_DESCR, 'Description')]
                 self._radio_labels.append('%s: %s' % (rev, descr))
                 self._parent_revs.append(rev)
             self._radio_buttons = gutils.RadioButtonFramedVBox(title='Choose Parent', labels=self._radio_labels)

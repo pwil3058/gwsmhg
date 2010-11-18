@@ -13,9 +13,9 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import gtk, gobject, os
+import gtk, gobject, os, collections
 from gwsmhg_pkg import dialogue, ifce, table, icons, ws_event, gutils, patch_list
-from gwsmhg_pkg import diff, utils, actions
+from gwsmhg_pkg import diff, utils, actions, tlview
 
 PBRANCH_UI_DESCR = \
 '''
@@ -43,12 +43,14 @@ PBRANCH_UI_DESCR = \
 </ui>
 '''
 
-PBRANCH_LIST_MODEL_DESCR = \
-[ ['pbranch', gobject.TYPE_STRING],
-  ['title', gobject.TYPE_STRING],
-  ['current', gobject.TYPE_BOOLEAN],
-  ['status', gobject.TYPE_BOOLEAN],
-]
+Row = collections.namedtuple('Row', ['pbranch', 'title', 'current', 'status'])
+
+PBRANCH_LIST_MODEL_DESCR = Row(
+    pbranch=gobject.TYPE_STRING,
+    title=gobject.TYPE_STRING,
+    current=gobject.TYPE_BOOLEAN,
+    status=gobject.TYPE_BOOLEAN,
+)
 
 def set_current_pixbuf(_column, cell, model, model_iter, _data=None):
     current = model.get_labelled_value(model_iter, 'current')
@@ -64,46 +66,84 @@ def set_status_pixbuf(_column, cell, model, model_iter, _data=None):
     else:
         cell.set_property('stock-id', icons.STOCK_STATUS_NOT_OK)
 
-PBRANCH_LIST_TABLE_DESCR = \
-[ [ ('enable-grid-lines', True), ('reorderable', False),
-    ('headers-visible', False)
-  ], # properties
-  gtk.SELECTION_MULTIPLE, # selection mode
-  [
-    [ 'Current', [('expand', False), ], # column name and properties
-      [ [ (gtk.CellRendererPixbuf, False, True), # renderer
-          [ ], # properties
-          (set_current_pixbuf, None), # cell_renderer_function
-          [ ] # attributes
-        ],
-      ]
-    ],
-    [ 'Status', [('expand', False), ], # column name and properties
-      [ [ (gtk.CellRendererPixbuf, False, True), # renderer
-          [ ], # properties
-          (set_status_pixbuf, None), # cell_renderer_function
-          [ ] # attributes
-        ],
-      ]
-    ],
-    [ 'PBranch', [('expand', True), ], # column name and properties
-      [ [ (gtk.CellRendererText, False, True), # renderer
-          [ ('editable', False), ], # properties
-          None, # cell_renderer_function
-          [ ('text', table.model_col(PBRANCH_LIST_MODEL_DESCR, 'pbranch')), ] # attributes
-        ],
-      ]
-    ],
-    [ 'Title', [('expand', True), ], # column
-      [ [ (gtk.CellRendererText, False, True), # renderer
-          [ ('editable', False), ], # properties
-          None, # cell_renderer_function
-          [ ('text', table.model_col(PBRANCH_LIST_MODEL_DESCR, 'title')), ] # attributes
-        ],
-      ]
+PBRANCH_LIST_TABLE_DESCR = tlview.ViewTemplate(
+    properties={
+        'enable-grid-lines' : True,
+        'reorderable' : False,
+        'headers-visible' : False
+    },
+    selection_mode=gtk.SELECTION_MULTIPLE,
+    columns=[
+        tlview.Column(
+            title='Current',
+            properties={'expand' : False},
+            cells=[
+                tlview.Cell(
+                    creator=tlview.CellCreator(
+                        function=gtk.CellRendererPixbuf,
+                        expand=False,
+                        start=True
+                    ),
+                    properties={},
+                    renderer=tlview.Renderer(
+                        function=set_current_pixbuf,
+                        user_data=None
+                    ),
+                    attributes={}
+                ),
+            ]
+        ),
+        tlview.Column(
+            title='Status',
+            properties={'expand' : False},
+            cells=[
+                tlview.Cell(
+                    creator=tlview.CellCreator(
+                        function=gtk.CellRendererPixbuf,
+                        expand=False,
+                        start=True
+                    ),
+                    properties={},
+                    renderer=tlview.Renderer(
+                        function=set_status_pixbuf,
+                        user_data=None
+                    ),
+                    attributes={}
+                ),
+            ]
+        ),
+        tlview.Column(
+            title='PBranch',
+            properties={'expand' : True},
+            cells=[
+                tlview.Cell(
+                    creator=tlview.CellCreator(
+                        function=gtk.CellRendererText,
+                        expand=False, start=True
+                    ),
+                    properties={'editable' : False},
+                    renderer=None,
+                    attributes={'text' : tlview.model_col(PBRANCH_LIST_MODEL_DESCR, 'pbranch')}
+                )
+            ],
+        ),
+        tlview.Column(
+            title='Title',
+            properties={'expand' : True},
+            cells=[
+                tlview.Cell(
+                    creator=tlview.CellCreator(
+                        function=gtk.CellRendererText,
+                        expand=False, start=True
+                    ),
+                    properties={'editable' : False},
+                    renderer=None,
+                    attributes={'text' : tlview.model_col(PBRANCH_LIST_MODEL_DESCR, 'title')}
+                )
+            ],
+        ),
     ]
-  ]
-]
+)
 
 ON_IN_PBRANCH = 'in_pbranch'
 
@@ -183,7 +223,7 @@ class PBranchTable(table.MapManagedTable):
         _res, pbranches, _serr = ifce.SCM.get_pbranch_table_data()
         in_pbranch_branch = False
         for pbranch in pbranches:
-            if pbranch[table.model_col(PBRANCH_LIST_MODEL_DESCR, 'current')]:
+            if pbranch[tlview.model_col(PBRANCH_LIST_MODEL_DESCR, 'current')]:
                 in_pbranch_branch = True
                 break
         self._action_groups[ON_IN_PBRANCH].set_sensitive(in_pbranch_branch)
