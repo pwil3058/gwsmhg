@@ -13,27 +13,57 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, os.path, gtk, gtk.gdk
-from gwsmhg_pkg import ifce, utils, text_edit, cmd_result, diff, gutils, \
-    tortoise, icons, ws_event, dialogue
+import os, os.path, gtk, gobject, collections
 
-import gobject
+from gwsmhg_pkg import ifce, utils, text_edit, cmd_result, diff, gutils
+from gwsmhg_pkg import tortoise, icons, ws_event, dialogue, tlview
+from gwsmhg_pkg import actions, fsdb
 
-COLUMNS = (gobject.TYPE_STRING,
-           gobject.TYPE_BOOLEAN,
-           gobject.TYPE_INT,
-           gobject.TYPE_STRING,
-           gobject.TYPE_STRING,
-           gobject.TYPE_STRING,
-           gobject.TYPE_STRING)
+Row = collections.namedtuple('Row',
+    ['name', 'is_dir', 'style', 'foreground', 'icon', 'status', 'origin'])
 
-NAME, IS_DIR, STYLE, FOREGROUND, ICON, STATUS, EXTRA_INFO = list(range(len(COLUMNS)))
+_MODEL_TEMPLATE = Row(
+    name=gobject.TYPE_STRING,
+    is_dir=gobject.TYPE_BOOLEAN,
+    style=gobject.TYPE_INT,
+    foreground=gobject.TYPE_STRING,
+    icon=gobject.TYPE_STRING,
+    status=gobject.TYPE_STRING,
+    origin=gobject.TYPE_STRING
+)
 
-class FileTreeStore(gtk.TreeStore):
+_NAME = tlview.model_col(_MODEL_TEMPLATE, 'name')
+_IS_DIR = tlview.model_col(_MODEL_TEMPLATE, 'is_dir')
+_STYLE = tlview.model_col(_MODEL_TEMPLATE, 'style')
+_FOREGROUND = tlview.model_col(_MODEL_TEMPLATE, 'foreground')
+_ICON = tlview.model_col(_MODEL_TEMPLATE, 'icon')
+_STATUS = tlview.model_col(_MODEL_TEMPLATE, 'status')
+_ORIGIN = tlview.model_col(_MODEL_TEMPLATE, 'origin')
+
+_FILE_ICON = {True : gtk.STOCK_DIRECTORY, False : gtk.STOCK_FILE}
+
+def _get_status_deco(status=None):
+    try:
+        return ifce.SCM.status_deco_map[status]
+    except:
+        return ifce.SCM.status_deco_map[None]
+
+def _generate_row_tuple(data, isdir=None):
+    deco = _get_status_deco(data.status)
+    row = Row(
+        name=data.name,
+        is_dir=isdir,
+        icon=_FILE_ICON[isdir],
+        status=data.status,
+        origin=data.origin,
+        style=deco.style,
+        foreground=deco.foreground
+    )
+    return row
+
+class FileTreeStore(tlview.TreeStore):
     def __init__(self, show_hidden=False, populate_all=False, auto_expand=False, view=None):
-        argtuple = (self,) + COLUMNS
-        gtk.TreeStore.__init__(*argtuple)
-        self._status_deco_map, self._extra_info_sep = ifce.SCM.get_status_row_data()
+        tlview.TreeStore.__init__(self, _MODEL_TEMPLATE)
         self._file_db = None
         # If 'view' this isn't set explicitly it will be set automatically
         # when any row is expanded
@@ -59,43 +89,16 @@ class FileTreeStore(gtk.TreeStore):
             return False
         else:
             return self.view.row_expanded(self.get_path(dir_iter))
-    def _get_status_deco(self, status=None):
-        if status in self._status_deco_map:
-            return self._status_deco_map[status]
-        else:
-            return self._status_deco_map[None]
-    def _generate_row_tuple(self, name, isdir=None, status=None, extra_info=None):
-        row = list(range(len(COLUMNS)))
-        row[NAME] = name
-        row[IS_DIR] = isdir
-        if isdir:
-            row[ICON] = gtk.STOCK_DIRECTORY
-        else:
-            # TODO: do file type icon
-            row[ICON] = gtk.STOCK_FILE
-        row[STATUS] = status
-        row[STYLE], row[FOREGROUND] = self._get_status_deco(status)
-        row[EXTRA_INFO] = extra_info
-        return tuple(row)
     def _update_iter_row_tuple(self, fsobj_iter, to_tuple):
-        for index in [STYLE, FOREGROUND, STATUS, EXTRA_INFO]:
+        for index in [_STYLE, _FOREGROUND, _STATUS, _ORIGIN]:
             self.set_value(fsobj_iter, index, to_tuple[index])
-    def _formatted_file_name(self, store, tree_iter):
-        name = store.get_value(tree_iter, NAME)
-        xinfo = store.get_value(tree_iter, EXTRA_INFO)
-        if xinfo:
-            return self._extra_info_sep.join([name, xinfo])
-        else:
-            return name
-    def format_file_name_crcb(self, _column, cell_renderer, store, tree_iter):
-        cell_renderer.set_property('text', self._formatted_file_name(store, tree_iter))
     def _toggle_show_hidden_cb(self, toggleaction):
         self._update_dir('', None)
     def fs_path(self, fsobj_iter):
         if fsobj_iter is None:
             return None
         parent_iter = self.iter_parent(fsobj_iter)
-        name = self.get_value(fsobj_iter, NAME)
+        name = self.get_value(fsobj_iter, _NAME)
         if parent_iter is None:
             return name
         else:
@@ -106,7 +109,7 @@ class FileTreeStore(gtk.TreeStore):
         return [self.fs_path(fsobj_iter) for fsobj_iter in iter_list]
     def _get_file_paths(self, fsobj_iter, path_list):
         while fsobj_iter != None:
-            if not self.get_value(fsobj_iter, IS_DIR):
+            if not self.get_value(fsobj_iter, _IS_DIR):
                 path_list.append(self.fs_path(fsobj_iter))
             else:
                 child_iter = self.iter_children(fsobj_iter)
@@ -125,7 +128,7 @@ class FileTreeStore(gtk.TreeStore):
         return self.remove(fsobj_iter)
     def _remove_place_holder(self, dir_iter):
         child_iter = self.iter_children(dir_iter)
-        if child_iter and self.get_value(child_iter, NAME) is None:
+        if child_iter and self.get_value(child_iter, _NAME) is None:
             self.remove(child_iter)
     def _insert_place_holder(self, dir_iter):
         self.append(dir_iter)
@@ -134,17 +137,17 @@ class FileTreeStore(gtk.TreeStore):
             self._insert_place_holder(dir_iter)
     def _populate(self, dirpath, parent_iter):
         dirs, files = self._file_db.dir_contents(dirpath, self.show_hidden_action.get_active())
-        for dirname, status, extra_info in dirs:
-            row_tuple = self._generate_row_tuple(dirname, True, status, extra_info)
+        for dirdata in dirs:
+            row_tuple = _generate_row_tuple(dirdata, True)
             dir_iter = self.append(parent_iter, row_tuple)
             if self._populate_all:
-                self._populate(os.path.join(dirpath, dirname), dir_iter)
+                self._populate(os.path.join(dirpath, dirdata.name), dir_iter)
                 if self._expand_new_rows():
                     self.view.expand_row(self.get_path(dir_iter), True)
             else:
                 self._insert_place_holder(dir_iter)
-        for filename, status, extra_info in files:
-            row_tuple = self._generate_row_tuple(filename, False, status, extra_info)
+        for filedata in files:
+            row_tuple = _generate_row_tuple(filedata, False)
             dummy = self.append(parent_iter, row_tuple)
         if parent_iter is not None:
             self._insert_place_holder_if_needed(parent_iter)
@@ -154,29 +157,29 @@ class FileTreeStore(gtk.TreeStore):
         else:
             child_iter = self.iter_children(parent_iter)
             if child_iter:
-                if self.get_value(child_iter, NAME) is None:
+                if self.get_value(child_iter, _NAME) is None:
                     child_iter = self.iter_next(child_iter)
         dirs, files = self._file_db.dir_contents(dirpath, self.show_hidden_action.get_active())
         dead_entries = []
-        for dirname, status, extra_info in dirs:
-            row_tuple = self._generate_row_tuple(dirname, True, status, extra_info)
-            while (child_iter is not None) and self.get_value(child_iter, IS_DIR) and (self.get_value(child_iter, NAME) < dirname):
+        for dirdata in dirs:
+            row_tuple = _generate_row_tuple(dirdata, True)
+            while (child_iter is not None) and self.get_value(child_iter, _IS_DIR) and (self.get_value(child_iter, _NAME) < dirdata.name):
                 dead_entries.append(child_iter)
                 child_iter = self.iter_next(child_iter)
             if child_iter is None:
                 dir_iter = self.append(parent_iter, row_tuple)
                 if self._populate_all:
-                    self._update_dir(os.path.join(dirpath, dirname), dir_iter)
+                    self._update_dir(os.path.join(dirpath, dirdata.name), dir_iter)
                     if self._expand_new_rows():
                         self.view.expand_row(self.get_path(dir_iter), True)
                 else:
                     self._insert_place_holder(dir_iter)
                 continue
-            name = self.get_value(child_iter, NAME)
-            if (not self.get_value(child_iter, IS_DIR)) or (name > dirname):
+            name = self.get_value(child_iter, _NAME)
+            if (not self.get_value(child_iter, _IS_DIR)) or (name > dirdata.name):
                 dir_iter = self.insert_before(parent_iter, child_iter, row_tuple)
                 if self._populate_all:
-                    self._update_dir(os.path.join(dirpath, dirname), dir_iter)
+                    self._update_dir(os.path.join(dirpath, dirdata.name), dir_iter)
                     if self._expand_new_rows():
                         self.view.expand_row(self.get_path(dir_iter), True)
                 else:
@@ -186,18 +189,18 @@ class FileTreeStore(gtk.TreeStore):
             if self._populate_all or self._row_expanded(child_iter):
                 self._update_dir(os.path.join(dirpath, name), child_iter)
             child_iter = self.iter_next(child_iter)
-        while (child_iter is not None) and self.get_value(child_iter, IS_DIR):
+        while (child_iter is not None) and self.get_value(child_iter, _IS_DIR):
             dead_entries.append(child_iter)
             child_iter = self.iter_next(child_iter)
-        for filename, status, extra_info in files:
-            row_tuple = self._generate_row_tuple(filename, False, status, extra_info)
-            while (child_iter is not None) and (self.get_value(child_iter, NAME) < filename):
+        for filedata in files:
+            row_tuple = _generate_row_tuple(filedata, False)
+            while (child_iter is not None) and (self.get_value(child_iter, _NAME) < filedata.name):
                 dead_entries.append(child_iter)
                 child_iter = self.iter_next(child_iter)
             if child_iter is None:
                 dummy = self.append(parent_iter, row_tuple)
                 continue
-            if self.get_value(child_iter, NAME) > filename:
+            if self.get_value(child_iter, _NAME) > filedata.name:
                 dummy = self.insert_before(parent_iter, child_iter, row_tuple)
                 continue
             self._update_iter_row_tuple(child_iter, row_tuple)
@@ -227,46 +230,67 @@ class FileTreeStore(gtk.TreeStore):
     def on_row_collapsed_cb(self, view, dir_iter, dummy):
         self._insert_place_holder_if_needed(dir_iter)
 
-class OsFileDb:
-    def __init__(self):
-        pass
-    def _is_not_hidden_file(self, filename):
-        return filename[0] != '.'
-    def dir_contents(self, dirpath, show_hidden=False):
-        files = []
-        dirs = []
-        if not dirpath:
-            dirpath = os.curdir
-        elements = os.listdir(dirpath)
-        for element in elements:
-            if os.path.isdir(os.path.join(dirpath, element)):
-                if self._is_not_hidden_file(element) or show_hidden:
-                    dirs.append((element, None, None))
-            elif self._is_not_hidden_file(element) or show_hidden:
-                files.append((element, None, None))
-        dirs.sort()
-        files.sort()
-        return (dirs, files)
+def _format_file_name_crcb(_column, cell_renderer, store, tree_iter, _arg=None):
+    name = store.get_value(tree_iter, _NAME)
+    xinfo = store.get_value(tree_iter, _ORIGIN)
+    if xinfo:
+        name += ' <- %s' % xinfo
+    cell_renderer.set_property('text', name)
 
-class NullFileDb:
-    def __init__(self):
-        pass
-    def dir_contents(self, dirpath, show_hidden=False):
-        return ([], [])
+_VIEW_TEMPLATE = tlview.ViewTemplate(
+    properties={'headers-visible' : False},
+    selection_mode=gtk.SELECTION_MULTIPLE,
+    columns=[
+        tlview.Column(
+            title='File Name',
+            properties={},
+            cells=[
+                tlview.Cell(
+                    creator=tlview.CellCreator(
+                        function=gtk.CellRendererPixbuf,
+                        expand=False,
+                        start=True
+                    ),
+                    properties={},
+                    renderer=None,
+                    attributes={'stock-id' : _ICON}
+                ),
+                tlview.Cell(
+                    creator=tlview.CellCreator(
+                        function=gtk.CellRendererText,
+                        expand=False,
+                        start=True
+                    ),
+                    properties={},
+                    renderer=None,
+                    attributes={'text' : _STATUS, 'style' : _STYLE, 'foreground' : _FOREGROUND}
+                ),
+                tlview.Cell(
+                    creator=tlview.CellCreator(
+                        function=gtk.CellRendererText,
+                        expand=False,
+                        start=True
+                    ),
+                    properties={},
+                    renderer=tlview.Renderer(function=_format_file_name_crcb, user_data=None),
+                    attributes={'style' : _STYLE, 'foreground' : _FOREGROUND}
+                )
+            ]
+        )
+    ]
+)
 
 class CwdFileTreeStore(FileTreeStore):
     def __init__(self, show_hidden=False):
         FileTreeStore.__init__(self, show_hidden=show_hidden)
-        self._os_file_db = OsFileDb()
+        self._os_file_db = fsdb.OsFileDb()
     def _get_file_db(self):
         return self._os_file_db
 
-from gwsmhg_pkg import actions
-
-class _ViewWithActionGroups(gtk.TreeView, dialogue.BusyIndicatorUser,
+class _ViewWithActionGroups(tlview.View, dialogue.BusyIndicatorUser,
                             actions.AGandUIManager):
-    def __init__(self, busy_indicator, model=None):
-        gtk.TreeView.__init__(self, model)
+    def __init__(self, template, busy_indicator, model=None):
+        tlview.View.__init__(self, template, model)
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
         actions.AGandUIManager.__init__(self, self.get_selection())
         self.add_conditional_action(actions.ON_REPO_INDEP_SELN_INDEP, model.show_hidden_action)
@@ -319,10 +343,11 @@ class FileTreeView(_ViewWithActionGroups):
                  show_hidden=False, show_status=False):
         if model is None:
             model = FileTreeStore(show_hidden=show_hidden)
-        _ViewWithActionGroups.__init__(self, busy_indicator, model=model)
+        _ViewWithActionGroups.__init__(self, _VIEW_TEMPLATE, busy_indicator, model=model)
+        if not show_status:
+            pass # TODO: hide the status column
         model.set_view(self)
         self._refresh_interval = 60000 # milliseconds
-        self._create_column(show_status)
         self.connect("row-expanded", model.on_row_expanded_cb)
         self.connect("row-collapsed", model.on_row_collapsed_cb)
         self.auto_refresh_action = gtk.ToggleAction("auto_refresh_files", "Auto Refresh",
@@ -349,24 +374,6 @@ class FileTreeView(_ViewWithActionGroups):
     def _toggle_auto_refresh_cb(self, action=None):
         if self.auto_refresh_action.get_active():
             gobject.timeout_add(self._refresh_interval, self._do_auto_refresh)
-    def _create_column(self, show_status):
-        tvcolumn = gtk.TreeViewColumn(None)
-        tvcolumn.set_expand(False)
-        icon_cell = gtk.CellRendererPixbuf()
-        tvcolumn.pack_start(icon_cell, False)
-        tvcolumn.set_attributes(icon_cell, stock_id=ICON)
-        if show_status:
-            status_cell = gtk.CellRendererText()
-            tvcolumn.pack_start(status_cell, expand=False)
-            tvcolumn.set_attributes(status_cell, text=STATUS, style=STYLE, foreground=FOREGROUND)
-        text_cell = gtk.CellRendererText()
-        tvcolumn.pack_start(text_cell, expand=False)
-        tvcolumn.set_attributes(text_cell, style=STYLE, foreground=FOREGROUND)
-        tvcolumn.set_cell_data_func(text_cell, self.get_model().format_file_name_crcb)
-        oldcol = self.get_column(0)
-        if oldcol:
-            self.remove_column(oldcol)
-        self.append_column(tvcolumn)
     def set_refresh_interval(self, refresh_interval):
         self._refresh_interval = refresh_interval
     def set_show_hidden(self, show_hidden):
@@ -1045,7 +1052,7 @@ class PatchFileTreeStore(FileTreeStore):
         FileTreeStore.__init__(self, show_hidden=True, populate_all=True,
                                          auto_expand=True, view=view)
         self.view = view
-        self._null_file_db = NullFileDb()
+        self._null_file_db = fsdb.NullFileDb()
     def _get_file_db(self):
         if ifce.in_valid_repo:
             return ifce.PM.get_patch_file_db(self._patch)

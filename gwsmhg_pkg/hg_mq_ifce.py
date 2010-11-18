@@ -14,7 +14,7 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import os, os.path, tempfile, pango, re, time, collections
-from gwsmhg_pkg import ifce, utils, cmd_result, putils, ws_event, const
+from gwsmhg_pkg import ifce, utils, cmd_result, putils, ws_event, const, fsdb
 
 newlines_not_allowed_in_cmd = os.name == 'nt' or os.name == 'dos'
 
@@ -34,21 +34,12 @@ FSTATUS_UNRESOLVED = 'U'
 FSTATUS_MODIFIED_SET = set([FSTATUS_MODIFIED, FSTATUS_ADDED, FSTATUS_REMOVED,
                            FSTATUS_MISSING, FSTATUS_UNRESOLVED])
 
-class ScmDir:
+class ScmDir(fsdb.GenDir):
     def __init__(self):
-        self.status = None
-        self.status_set = set()
-        self.subdirs = {}
-        self.files = {}
-    def add_file(self, path_parts, status, origin=None):
-        self.status_set.add(status)
-        if len(path_parts) == 1:
-            self.files[path_parts[0]] = (status, origin)
-        else:
-            if path_parts[0] not in self.subdirs:
-                self.subdirs[path_parts[0]] = ScmDir()
-            self.subdirs[path_parts[0]].add_file(path_parts[1:], status, origin)
-    def update_status(self):
+        fsdb.GenDir.__init__(self)
+    def _new_dir(self):
+        return ScmDir()
+    def _update_own_status(self):
         if FSTATUS_UNRESOLVED in self.status_set:
             self.status = FSTATUS_UNRESOLVED
         elif self.status_set & FSTATUS_MODIFIED_SET:
@@ -57,47 +48,21 @@ class ScmDir:
             self.status = FSTATUS_IGNORED
         elif self.status_set in [set([FSTATUS_NOT_TRACKED]), set([FSTATUS_NOT_TRACKED, FSTATUS_IGNORED])]:
             self.status = FSTATUS_NOT_TRACKED
-        for key in list(self.subdirs.keys()):
-            self.subdirs[key].update_status()
-    def _find_dir(self, dirpath_parts):
-        if not dirpath_parts:
-            return self
-        elif dirpath_parts[0] in self.subdirs:
-            return self.subdirs[dirpath_parts[0]]._find_dir(dirpath_parts[1:])
-        else:
-            return None
-    def find_dir(self, dirpath):
-        if not dirpath:
-            return self
-        return self._find_dir(dirpath.split(os.sep))
-    def dirs_and_files(self, show_hidden=False):
-        dkeys = list(self.subdirs.keys())
-        dkeys.sort()
-        dirs = []
-        for dkey in dkeys:
-            status = self.subdirs[dkey].status
-            if not show_hidden and not status in [FSTATUS_UNRESOLVED, FSTATUS_MODIFIED]:
-                if dkey[0] == '.' or status == FSTATUS_IGNORED:
-                    continue
-            dirs.append((dkey, status, None))
-        files = []
-        fkeys = list(self.files.keys())
-        fkeys.sort()
-        for fkey in fkeys:
-            status = self.files[fkey][0]
-            if not show_hidden and not status in FSTATUS_MODIFIED_SET:
-                if fkey[0] == '.' or status == FSTATUS_IGNORED:
-                    continue
-            files.append((fkey, status, self.files[fkey][1]))
-        return (dirs, files)
+    def _is_hidden_dir(self, dkey):
+        status = self.subdirs[dkey].status
+        if status not in [FSTATUS_UNRESOLVED, FSTATUS_MODIFIED]:
+            return dkey[0] == '.' or status == FSTATUS_IGNORED
+        return False
+    def _is_hidden_file(self, fdata):
+        if fdata.status not in FSTATUS_MODIFIED_SET:
+            return fdata.name[0] == '.' or fdata.status == FSTATUS_IGNORED
+        return False
 
-class ScmFileDb:
-    def __init__(self, file_list, unresolved_file_list=None):
-        self.base_dir = ScmDir()
+class ScmFileDb(fsdb.GenFileDb):
+    def __init__(self, file_list, unresolved_file_list=list()):
+        fsdb.GenFileDb.__init__(self, ScmDir)
         lfile_list = len(file_list)
         index = 0
-        if unresolved_file_list is None:
-            unresolved_file_list = []
         while index < lfile_list:
             item = file_list[index]
             index += 1
@@ -112,29 +77,22 @@ class ScmFileDb:
                 status = FSTATUS_UNRESOLVED
             parts = filename.split(os.sep)
             self.base_dir.add_file(parts, status, origin)
-    def add_file(self, filepath, status, origin=None):
-        self.base_dir.add_file(filepath.split(os.sep), status, origin)
-    def decorate_dirs(self):
-        self.base_dir.update_status()
-    def dir_contents(self, dirpath='', show_hidden=False):
-        tdir = self.base_dir.find_dir(dirpath)
-        if not tdir:
-            return ([], [])
-        return tdir.dirs_and_files(show_hidden)
+
+Deco = collections.namedtuple('Deco', ['style', 'foreground'])
 
 class BaseInterface:
     def __init__(self, name):
         self.name = name
         self.status_deco_map = {
-            None: (pango.STYLE_NORMAL, "black"),
-            FSTATUS_CLEAN: (pango.STYLE_NORMAL, "black"),
-            FSTATUS_MODIFIED: (pango.STYLE_NORMAL, "blue"),
-            FSTATUS_ADDED: (pango.STYLE_NORMAL, "darkgreen"),
-            FSTATUS_REMOVED: (pango.STYLE_NORMAL, "red"),
-            FSTATUS_UNRESOLVED: (pango.STYLE_NORMAL, "magenta"),
-            FSTATUS_MISSING: (pango.STYLE_ITALIC, "pink"),
-            FSTATUS_NOT_TRACKED: (pango.STYLE_ITALIC, "cyan"),
-            FSTATUS_IGNORED: (pango.STYLE_ITALIC, "grey"),
+            None: Deco(pango.STYLE_NORMAL, "black"),
+            FSTATUS_CLEAN: Deco(pango.STYLE_NORMAL, "black"),
+            FSTATUS_MODIFIED: Deco(pango.STYLE_NORMAL, "blue"),
+            FSTATUS_ADDED: Deco(pango.STYLE_NORMAL, "darkgreen"),
+            FSTATUS_REMOVED: Deco(pango.STYLE_NORMAL, "red"),
+            FSTATUS_UNRESOLVED: Deco(pango.STYLE_NORMAL, "magenta"),
+            FSTATUS_MISSING: Deco(pango.STYLE_ITALIC, "pink"),
+            FSTATUS_NOT_TRACKED: Deco(pango.STYLE_ITALIC, "cyan"),
+            FSTATUS_IGNORED: Deco(pango.STYLE_ITALIC, "grey"),
         }
         self.extra_info_sep = " <- "
         self._name_envars = DEFAULT_NAME_EVARS
