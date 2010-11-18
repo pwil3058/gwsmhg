@@ -13,10 +13,30 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import gtk, gobject, os
+import collections, gtk, gobject, os
 
 from gwsmhg_pkg import dialogue, ws_event, gutils, icons, ifce, utils
 from gwsmhg_pkg import file_tree, cmd_result, text_edit, const, diff
+from gwsmhg_pkg import tlview
+
+Row = collections.namedtuple('Row',
+    ['name', 'icon', 'markup'])
+
+_MODEL_TEMPLATE = Row(
+    name=gobject.TYPE_STRING,
+    icon=gobject.TYPE_STRING,
+    markup=gobject.TYPE_STRING,
+)
+
+_NAME = tlview.model_col(_MODEL_TEMPLATE, 'name')
+_MARKUP = tlview.model_col(_MODEL_TEMPLATE, 'markup')
+_ICON = tlview.model_col(_MODEL_TEMPLATE, 'icon')
+
+class Store(tlview.ListStore):
+    def __init__(self):
+        tlview.ListStore.__init__(self, _MODEL_TEMPLATE)
+    def get_patch_name(self, plist_iter):
+        return self.get_labelled_value(plist_iter, 'name')
 
 def _markup_applied_patch(patch_name, guards, selected):
     markup = patch_name
@@ -159,24 +179,53 @@ WS_UPDATE_CONDITIONS = [
     WS_UPDATE_CLEAN_UP_READY,
 ]
 
-class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener):
+_VIEW_TEMPLATE = tlview.ViewTemplate(
+    properties={
+        'enable-grid-lines' : False,
+        'reorderable' : False,
+        'rules_hint' : False,
+        'headers-visible' : False,
+    },
+    selection_mode=gtk.SELECTION_SINGLE,
+    columns=[
+        tlview.Column(
+            title='Patch List',
+            properties={'expand': False, 'resizable' : True},
+            cells=[
+                tlview.Cell(
+                    creator=tlview.CellCreator(
+                        function=gtk.CellRendererPixbuf,
+                        expand=False,
+                        start=True
+                    ),
+                    properties={},
+                    renderer=None,
+                    attributes = {'stock_id' : tlview.model_col(_MODEL_TEMPLATE, 'icon')}
+                ),
+                tlview.Cell(
+                    creator=tlview.CellCreator(
+                        function=gtk.CellRendererText,
+                        expand=False,
+                        start=True
+                    ),
+                    properties={'editable' : False},
+                    renderer=None,
+                    attributes = {'markup' : tlview.model_col(_MODEL_TEMPLATE, 'markup')}
+                ),
+            ],
+        ),
+    ]
+)
+
+class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
     def __init__(self, busy_indicator):
-        self.store = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING,
-                                   gobject.TYPE_STRING)
-        gtk.TreeView.__init__(self, self.store)
-        ws_event.Listener.__init__(self)
+        self.store = Store()
+        tlview.View.__init__(self, _VIEW_TEMPLATE, self.store)
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
-        text_cell = gtk.CellRendererText()
-        icon_cell = gtk.CellRendererPixbuf()
-        tvcolumn = gtk.TreeViewColumn("patch_list")
-        tvcolumn.pack_start(icon_cell, False)
-        tvcolumn.pack_start(text_cell)
-        tvcolumn.set_attributes(text_cell, markup=2)
-        tvcolumn.set_attributes(icon_cell, stock_id=1)
-        self.append_column(tvcolumn)
-        self.set_headers_visible(False)
-        self.get_selection().set_mode(gtk.SELECTION_SINGLE)
+        ws_event.Listener.__init__(self)
         self.ui_manager = gutils.UIManager()
+        self.unapplied_count = 0
+        self.applied_count = 0
         self._action_group = {}
         for condition in APPLIED_CONDITIONS + PUSH_POP_CONDITIONS + WS_UPDATE_CONDITIONS:
             self._action_group[condition] = gtk.ActionGroup(condition)
@@ -292,7 +341,6 @@ class PatchListView(gtk.TreeView, dialogue.BusyIndicatorUser, ws_event.Listener)
         self._action_group[PUSH_POP_INDIFFERENT].add_action(self.toc.toggle_action)
         self.cwd_merge_id = self.ui_manager.add_ui_from_string(PM_PATCHES_UI_DESCR)
         self.get_selection().connect("changed", self._selection_changed_cb)
-        self.applied_count = self.unapplied_count = 0
         self.set_contents()
         self.get_selection().unselect_all()
         self._selection_changed_cb(self.get_selection())
