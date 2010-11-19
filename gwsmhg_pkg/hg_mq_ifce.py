@@ -82,6 +82,33 @@ class ScmFileDb(fsdb.GenFileDb):
 
 Deco = collections.namedtuple('Deco', ['style', 'foreground'])
 
+_hg_version_re = re.compile('[^(]*\(version ([0-9][0-9.]*)\).*')
+
+def _get_hg_version():
+    result = utils.run_cmd('hg version')
+    match = _hg_version_re.match(result[1])
+    if match:
+        parts = match.group(1).split('.')
+        return tuple(int(part) for part in parts)
+    else:
+        return None
+
+def _is_hg_version_ge(version):
+    hg_version = _get_hg_version()
+    for index in range(len(version)):
+        try:
+            if hg_version[index] < version[index]:
+                return False
+            elif hg_version[index] > version[index]:
+                return True
+        except IndexError:
+            return False
+    return True
+
+def _changes_exist():
+    result = utils.run_cmd('hg status -m')
+    return result[1] != ''
+
 class BaseInterface:
     def __init__(self, name):
         self.name = name
@@ -1345,10 +1372,16 @@ class PMInterface(BaseInterface):
     def do_new_patch(self, patch_name_raw, force=False):
         in_charge = self.get_in_progress()
         patch_name = re.sub('\s', '_', patch_name_raw)
-        if force:
-            cmd = 'hg qnew -f %s' % patch_name
+        if _is_hg_version_ge((1,5)):
+            if _changes_exist() and not force:
+                return (cmd_result.ERROR_SUGGEST_FORCE_OR_REFRESH, '', 'Uncommited/unrefreshed changes exist!!!')
+            else:
+                cmd = 'hg qnew %s' % patch_name
         else:
-            cmd = 'hg qnew %s' % patch_name
+            if force:
+                cmd = 'hg qnew -f %s' % patch_name
+            else:
+                cmd = 'hg qnew %s' % patch_name
         res, sout, serr = self._run_cmd_on_console(cmd)
         if not in_charge:
             ws_event.notify_events(ws_event.PMIC_CHANGE, True)
