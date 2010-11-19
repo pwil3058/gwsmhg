@@ -48,7 +48,7 @@ class ScmDir(fsdb.GenDir):
             self.status = FSTATUS_IGNORED
         elif self.status_set in [set([FSTATUS_NOT_TRACKED]), set([FSTATUS_NOT_TRACKED, FSTATUS_IGNORED])]:
             self.status = FSTATUS_NOT_TRACKED
-        elif self.status_set == set([FSTATUS_CLEAN]):
+        elif self.status_set in [set([FSTATUS_CLEAN]), set([FSTATUS_CLEAN, FSTATUS_IGNORED])]:
             self.status = FSTATUS_CLEAN
     def _is_hidden_dir(self, dkey):
         status = self.subdirs[dkey].status
