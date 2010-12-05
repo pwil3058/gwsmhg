@@ -15,7 +15,7 @@
 
 import gtk, collections
 
-from gwsmhg_pkg import gutils, actions, tlview
+from gwsmhg_pkg import gutils, actions, tlview, icons
 
 class Model(tlview.ListStore):
     def __init__(self, descr):
@@ -60,7 +60,7 @@ class Table(gtk.VBox):
             [
                 ('table_delete_selection', gtk.STOCK_DELETE, '_Delete', None,
                  'Delete selected row(s)', self._delete_selection_acb),
-                ('table_insert_row', gtk.STOCK_ADD, '_Insert', None,
+                ('table_insert_row', icons.STOCK_INSERT, '_Insert', None,
                  'Insert a new entry before the selected row(s)', self._insert_row_acb),
             ])
         self._modified = False

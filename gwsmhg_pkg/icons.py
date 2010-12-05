@@ -28,6 +28,9 @@ STOCK_TAG = "stock_tag"
 STOCK_BRANCH = "stock_branch"
 APP_ICON = "gwsmhg"
 
+# Icons that are aliased to Gtk stock items
+STOCK_INSERT = 'gwsmhg_stock_insert'
+
 # Icons that have to be designed eventually (using GtK stock in the meantime)
 STOCK_PULL = gtk.STOCK_GO_FORWARD
 STOCK_PUSH = gtk.STOCK_GO_BACK
@@ -80,6 +83,7 @@ if not os.path.exists(_libdir) or not os.path.isdir(_libdir):
 APP_ICON_FILE = os.path.join(os.path.dirname(_libdir), APP_ICON + os.extsep + "png")
 
 _FACTORY = gtk.IconFactory()
+_STYLE = gtk.Frame().get_style()
 
 def make_pixbuf(name):
     #pb = gtk.gdk.pixbuf_new_from_xpm_data(xpm)
@@ -87,6 +91,9 @@ def make_pixbuf(name):
 
 for _name in _ICON_NAME_LIST:
     _FACTORY.add(_name, gtk.IconSet(make_pixbuf(_name)))
+
+_FACTORY.add(STOCK_INSERT, _STYLE.lookup_icon_set(gtk.STOCK_ADD))
+gtk.stock_add([(STOCK_INSERT, '_Insert', 0, 0, None)])
 
 _FACTORY.add_default()
 
