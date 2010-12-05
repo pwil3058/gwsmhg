@@ -16,7 +16,7 @@
 import os, gtk, sys
 from gwsmhg_pkg import dialogue, icons, ifce, actions, change_set, file_tree
 from gwsmhg_pkg import path, cmd_result, diff, config, tortoise
-from gwsmhg_pkg import ws_event, patch_mgr, pbranch, utils
+from gwsmhg_pkg import ws_event, patch_mgr, utils
 
 GWSM_UI_DESCR = \
 '''
@@ -183,9 +183,6 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
         self._notebook.append_page(self._history_table, gtk.Label("History"))
         self._path_table = path.PathTable()
         self._notebook.append_page(self._path_table, gtk.Label("Paths"))
-        if ifce.SCM.get_extension_enabled('pbranch'):
-            self._pbranch = pbranch.PBranchTable()
-            self._notebook.append_page(self._pbranch, gtk.Label("PBranch"))
         self._notebook.set_current_page(pmpage)
         # Now lay the widgets out
         vbox = gtk.VBox()
