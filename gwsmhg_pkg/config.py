@@ -83,6 +83,8 @@ def append_saved_ws(path, alias=None):
     fobj.write(os.linesep)
     fobj.close()
 
+_KEYVAL_ESCAPE = gtk.gdk.keyval_from_name('Escape')
+
 class AliasPathTable(table.Table):
     def __init__(self, saved_file):
         self._saved_file = saved_file
@@ -90,6 +92,8 @@ class AliasPathTable(table.Table):
                              table_descr=REPO_PRECIS_TABLE_DESCR,
                              size_req=(480, 160))
         self.view.register_modification_callback(self.save_to_file)
+        self.connect("key_press_event", self._key_press_cb)
+        self.connect('button_press_event', self._handle_button_press_cb)
         self.set_contents()
     def _extant_path(self, path):
         return os.path.exists(os.path.expanduser(path))
@@ -140,7 +144,20 @@ class AliasPathTable(table.Table):
         self._write_list_to_file(ap_list)
     def get_selected_ap(self):
         data = self.get_selected_data_by_label(['Path', 'Alias'])
+        if not data:
+            return False
         return data[0]
+    def _handle_button_press_cb(self, widget, event):
+        if event.type == gtk.gdk.BUTTON_PRESS:
+            if event.button == 2:
+                self.seln.unselect_all()
+                return True
+        return False
+    def _key_press_cb(self, widget, event):
+        if event.keyval == _KEYVAL_ESCAPE:
+            self.seln.unselect_all()
+            return True
+        return False
 
 class WSPathTable(AliasPathTable):
     def __init__(self):
@@ -157,9 +174,6 @@ class PathSelectDialog(dialogue.Dialog):
         self.ap_table = create_table()
         self.ap_table.seln.connect("changed", self._selection_cb)
         hbox.pack_start(self.ap_table)
-        self._select_button = gtk.Button(label="_Select")
-        self._select_button.connect("clicked", self._select_cb)
-        hbox.pack_start(self._select_button, expand=False, fill=False)
         self.vbox.pack_start(hbox)
         hbox = gtk.HBox()
         hbox.pack_start(gtk.Label("%s:" % label))
@@ -173,12 +187,12 @@ class PathSelectDialog(dialogue.Dialog):
         self.vbox.pack_start(hbox, expand=False, fill=False)
         self.show_all()
         self.ap_table.seln.unselect_all()
-        self._selection_cb(self.ap_table.seln)
-    def _selection_cb(self, selection=None):
-        self._select_button.set_sensitive(selection.count_selected_rows())
-    def _select_cb(self, button=None):
+        self._path.set_text('')
+    def _selection_cb(self, _selection=None):
         alpth = self.ap_table.get_selected_ap()
-        self._path.set_text(alpth[0])
+        if alpth:
+            self._path.clear_to_history()
+            self._path.set_text(alpth[0])
     def _path_cb(self, entry=None):
         self.response(gtk.RESPONSE_OK)
     def _browse_cb(self, button=None):

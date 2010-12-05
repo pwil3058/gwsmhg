@@ -128,20 +128,21 @@ class EntryWithHistory(gtk.Entry):
             return True
         else:
             return False
-    def get_text_and_clear_to_history(self):
-        text = self.get_text().rstrip()
-        self.set_text("")
+    def clear_to_history(self):
         self._history_index = 0
         # beware the empty command string
-        if not text:
-            return ""
-        # don't save entries that start with white space
-        if text[0] in [' ', '\t']:
-            return text.lstrip()
+        text = self.get_text().rstrip()
+        self.set_text("")
+        # don't save empty entries or ones that start with white space
+        if not text or text[0] in [' ', '\t']:
+            return
         # no adjacent duplicate entries allowed
         if (self._history_len == 0) or (text != self._history_list[-1]):
             self._history_list.append(text)
             self._history_len = len(self._history_list)
+    def get_text_and_clear_to_history(self):
+        text = self.get_text().rstrip()
+        self.clear_to_history()
         return text
 
 class ActionButton(gtk.Button):
