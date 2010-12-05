@@ -277,9 +277,9 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
             ])
         self._action_group[WS_UPDATE_MERGE_READY].add_actions(
             [
-                ("pm_push_merge", icons.STOCK_PUSH_PATCH, "QPush (Merge)", None,
+                ("pm_push_merge", icons.STOCK_QPUSH_MERGE, None, None,
                  "Apply the next unapplied patch merging with equivalent saved patch", self.do_push_merge),
-                ("pm_push_all_with_merge", icons.STOCK_PUSH_PATCH, "QPush All (Merge)", None,
+                ("pm_push_all_with_merge", icons.STOCK_QPUSH_MERGE_ALL, None, None,
                  "Apply all remaining unapplied patches with \"merge\" option enabled", self.do_push_all_with_merge),
             ])
         self._action_group[WS_UPDATE_QSAVE_READY].add_actions(
@@ -293,7 +293,7 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
                  "Pop the top applied patch", self.do_pop),
                 ("pm_pop_all", icons.STOCK_POP_PATCH, "QPop All", None,
                  "Pop all remaining applied patches", self.do_pop_all),
-                ("pm_refresh_top_patch", gtk.STOCK_REFRESH, "QRefresh", None,
+                ("pm_refresh_top_patch", icons.STOCK_QREFRESH, None, None,
                  "Refresh the top patch", self.do_refresh),
             ])
         self._action_group[WS_UPDATE_READY].add_actions(
@@ -318,7 +318,7 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
                 ("menu_patch_list", None, "Patch _List"),
                 ("refresh_patch_list", gtk.STOCK_REFRESH, "Update Patch List", None,
                  "Refresh/update the patch list display", self.set_contents),
-                ("pm_new", gtk.STOCK_ADD, "New", None,
+                ("pm_new", icons.STOCK_QNEW, None, None,
                  "Create a new patch", self.do_new_patch),
                 ("pm_import_external_patch", icons.STOCK_IMPORT_PATCH, "QImport", None,
                  "Import an external patch", self.do_import_external_patch),

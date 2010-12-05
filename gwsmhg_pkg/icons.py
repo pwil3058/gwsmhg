@@ -13,66 +13,13 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import gtk, gtk.gdk, os.path, sys
+import gtk, gtk.gdk, os.path, sys, collections
 
-STOCK_COMMIT = "stock_commit"
-STOCK_DIFF = "stock_diff"
-STOCK_POP_PATCH = "stock_pop_patch"
-STOCK_PUSH_PATCH = "stock_push_patch"
-STOCK_FOLD_PATCH = "stock_fold_patch"
-STOCK_FINISH_PATCH = "stock_finish_patch"
-STOCK_IMPORT_PATCH = "stock_import_patch"
-STOCK_APPLIED = "stock_applied"
-STOCK_MERGE = "stock_merge"
-STOCK_TAG = "stock_tag"
-STOCK_BRANCH = "stock_branch"
-APP_ICON = "gwsmhg"
-
-# Icons that are aliased to Gtk stock items
-STOCK_INSERT = 'gwsmhg_stock_insert'
-
-# Icons that have to be designed eventually (using GtK stock in the meantime)
-STOCK_PULL = gtk.STOCK_GO_FORWARD
-STOCK_PUSH = gtk.STOCK_GO_BACK
-STOCK_VERIFY = STOCK_APPLIED
-STOCK_CHECKOUT = gtk.STOCK_EXECUTE
-STOCK_UPDATE = gtk.STOCK_EXECUTE
-STOCK_CLONE = gtk.STOCK_COPY
-STOCK_REMOVE = gtk.STOCK_REMOVE
-STOCK_MOVE = gtk.STOCK_PASTE
-STOCK_INIT = STOCK_APPLIED
-STOCK_LOG = gtk.STOCK_FIND
-STOCK_RECOVERY = gtk.STOCK_REVERT_TO_SAVED
-STOCK_RENAME = gtk.STOCK_PASTE
-STOCK_CONFIG = gtk.STOCK_PREFERENCES
-STOCK_SERVE = gtk.STOCK_EXECUTE
-STOCK_SHELVE = gtk.STOCK_EXECUTE
-STOCK_STATUS = gtk.STOCK_INFO
-STOCK_SYNCH = gtk.STOCK_REFRESH
-STOCK_GUESS = gtk.STOCK_DIALOG_QUESTION
-STOCK_ROLLBACK = gtk.STOCK_UNDO
-STOCK_BACKOUT = gtk.STOCK_MEDIA_REWIND
-STOCK_STATUS_OK = gtk.STOCK_APPLY
-STOCK_STATUS_NOT_OK = gtk.STOCK_CANCEL
-STOCK_NEW_PATCH = gtk.STOCK_ADD
-STOCK_GRAPH = gtk.STOCK_FILE
-STOCK_REVERT = gtk.STOCK_UNDO
-STOCK_EDIT = gtk.STOCK_EDIT
-STOCK_RESOLVE = gtk.STOCK_CONVERT
-STOCK_MARK_RESOLVE = gtk.STOCK_APPLY
-STOCK_MARK_UNRESOLVE = gtk.STOCK_CANCEL
-STOCK_SELECT_GUARD = STOCK_APPLIED
-
-_ICON_NAME_LIST = \
-    [ STOCK_COMMIT, STOCK_DIFF, STOCK_POP_PATCH, STOCK_PUSH_PATCH,
-      STOCK_FOLD_PATCH, STOCK_FINISH_PATCH, STOCK_IMPORT_PATCH, STOCK_APPLIED,
-      STOCK_MERGE, STOCK_TAG, STOCK_BRANCH,
-    ]
-
-# first look in the source directory
-_libdir = os.path.join(sys.path[0], "pixmaps")
+# find the icons directory
+# first look in the source directory (so that we can run uninstalled)
+_libdir = os.path.join(sys.path[0], 'pixmaps')
 if not os.path.exists(_libdir) or not os.path.isdir(_libdir):
-    _TAILEND = os.path.join("share", "pixmaps", "gwsmhg")
+    _TAILEND = os.path.join('share', 'pixmaps', 'gwsmhg')
     _prefix = sys.path[0]
     while _prefix:
         _libdir = os.path.join(_prefix, _TAILEND)
@@ -80,20 +27,134 @@ if not os.path.exists(_libdir) or not os.path.isdir(_libdir):
             break
         _prefix = os.path.dirname(_prefix)
 
-APP_ICON_FILE = os.path.join(os.path.dirname(_libdir), APP_ICON + os.extsep + "png")
+APP_ICON = 'gwsmhg'
+APP_ICON_FILE = os.path.join(os.path.dirname(_libdir), APP_ICON + os.extsep + 'png')
+
+STOCK_APPLIED = 'gwsmhg_stock_applied'
+STOCK_BRANCH = 'gwsmhg_stock_branch'
+STOCK_COMMIT = 'gwsmhg_stock_commit'
+STOCK_DIFF = 'gwsmhg_stock_diff'
+STOCK_FINISH_PATCH = 'gwsmhg_stock_finish_patch'
+STOCK_FOLD_PATCH = 'gwsmhg_stock_fold_patch'
+STOCK_IMPORT_PATCH = 'gwsmhg_stock_import_patch'
+STOCK_MERGE = 'gwsmhg_stock_merge'
+STOCK_NEW_PATCH = 'gwsmhg_stock_new_patch'
+STOCK_POP_PATCH = 'gwsmhg_stock_pop_patch'
+STOCK_PUSH_PATCH = 'gwsmhg_stock_push_patch'
+STOCK_REFRESH_PATCH = 'gwsmhg_stock_refresh_patch'
+STOCK_TAG = 'gwsmhg_stock_tag'
+
+_STOCK_ITEMS_OWN_PNG = [
+    (STOCK_APPLIED, 'Applied', 0, 0, None),
+    (STOCK_BRANCH, 'Branch', 0, 0, None),
+    (STOCK_COMMIT, 'Commit', 0, 0, None),
+    (STOCK_DIFF, 'Diff', 0, 0, None),
+    (STOCK_FINISH_PATCH, 'Finish', 0, 0, None),
+    (STOCK_FOLD_PATCH, 'Fold', 0, 0, None),
+    (STOCK_IMPORT_PATCH, 'Import)', 0, 0, None),
+    (STOCK_MERGE, 'Merge', 0, 0, None),
+    (STOCK_NEW_PATCH, 'New', 0, 0, None),
+    (STOCK_POP_PATCH, 'Pop', 0, 0, None),
+    (STOCK_PUSH_PATCH, 'Push', 0, 0, None),
+    (STOCK_REFRESH_PATCH, 'Refresh', 0, 0, None),
+    (STOCK_TAG, 'Tag', 0, 0, None),
+]
+
+gtk.stock_add(_STOCK_ITEMS_OWN_PNG)
 
 _FACTORY = gtk.IconFactory()
-_STYLE = gtk.Frame().get_style()
+_FACTORY.add_default()
+
+def _png_file_name(item_name):
+    return os.path.join(_libdir, item_name[len('gwsmhg_'):] + os.extsep + 'png')
 
 def make_pixbuf(name):
-    #pb = gtk.gdk.pixbuf_new_from_xpm_data(xpm)
-    return gtk.gdk.pixbuf_new_from_file(os.path.join(_libdir, name + os.extsep + "png"))
+    return gtk.gdk.pixbuf_new_from_file(_png_file_name(name))
 
-for _name in _ICON_NAME_LIST:
+for _item in _STOCK_ITEMS_OWN_PNG:
+    _name = _item[0]
     _FACTORY.add(_name, gtk.IconSet(make_pixbuf(_name)))
 
-_FACTORY.add(STOCK_INSERT, _STYLE.lookup_icon_set(gtk.STOCK_ADD))
-gtk.stock_add([(STOCK_INSERT, '_Insert', 0, 0, None)])
+StockAlias = collections.namedtuple('StockAlias', ['name', 'alias', 'text'])
 
-_FACTORY.add_default()
+# Icons that are aliased to Gtk or other stock items
+STOCK_BACKOUT = 'gwsmhg_stock_backout'
+STOCK_CHECKOUT = 'gwsmhg_stock_checkout'
+STOCK_CLONE = 'gwsmhg_stock_clone'
+STOCK_CONFIG = 'gwsmhg_stock_config'
+STOCK_EDIT = 'gwsmhg_stock_edit'
+STOCK_GRAPH = 'gwsmhg_stock_graph'
+STOCK_GUESS = 'gwsmhg_stock_guess'
+STOCK_INIT = 'gwsmhg_stock_init'
+STOCK_INSERT = 'gwsmhg_stock_insert'
+STOCK_LOG = 'gwsmhg_stock_log'
+STOCK_MARK_RESOLVE = 'gwsmhg_stock_mark_resolve'
+STOCK_MARK_UNRESOLVE = 'gwsmhg_stock_mark_uresolve'
+STOCK_MOVE = 'gwsmhg_stock_move'
+STOCK_PULL = 'gwsmhg_stock_pull'
+STOCK_PUSH = 'gwsmhg_stock_push'
+STOCK_QNEW = 'gwsmhg_qnew'
+STOCK_QPUSH_MERGE = 'gwsmhg_qpush_merge'
+STOCK_QPUSH_MERGE_ALL = 'gwsmhg_qpush_merge_all'
+STOCK_QREFRESH = 'gwsmhg_qrefresh'
+STOCK_RECOVERY = 'gwsmhg_stock_recovery'
+STOCK_REMOVE = 'gwsmhg_stock_remove'
+STOCK_RENAME = 'gwsmhg_stock_rename'
+STOCK_RESOLVE = 'gwsmhg_stock_resolve'
+STOCK_REVERT = 'gwsmhg_stock_revert'
+STOCK_ROLLBACK = 'gwsmhg_stock_rollback'
+STOCK_SELECT_GUARD = 'gwsmhg_stock_select_guard'
+STOCK_SERVE = 'gwsmhg_stock_serve'
+STOCK_SHELVE = 'gwsmhg_stock_shelve'
+STOCK_STATUS = 'gwsmhg_stock_status'
+STOCK_STATUS_NOT_OK = 'gwsmhg_stock_status_not_ok'
+STOCK_STATUS_OK = 'gwsmhg_stock_ok'
+STOCK_SYNCH = 'gwsmhg_stock_synch'
+STOCK_UPDATE = 'gwsmhg_stock_update'
+STOCK_VERIFY = 'gwsmhg_stock_verify'
+
+# Icons that have to be designed eventually (using GtK stock in the meantime)
+_STOCK_ALIAS_LIST = [
+    StockAlias(name=STOCK_BACKOUT, alias=gtk.STOCK_MEDIA_REWIND, text=''),
+    StockAlias(name=STOCK_CHECKOUT, alias=gtk.STOCK_EXECUTE, text=''),
+    StockAlias(name=STOCK_CLONE, alias=gtk.STOCK_COPY, text=''),
+    StockAlias(name=STOCK_CONFIG, alias=gtk.STOCK_PREFERENCES, text=''),
+    StockAlias(name=STOCK_EDIT, alias=gtk.STOCK_EDIT, text=''),
+    StockAlias(name=STOCK_GRAPH, alias=gtk.STOCK_FILE, text=''),
+    StockAlias(name=STOCK_GUESS, alias=gtk.STOCK_DIALOG_QUESTION, text=''),
+    StockAlias(name=STOCK_INIT, alias=STOCK_APPLIED, text=''),
+    StockAlias(name=STOCK_INSERT, alias=gtk.STOCK_ADD, text='_Insert'),
+    StockAlias(name=STOCK_LOG, alias=gtk.STOCK_FIND, text=''),
+    StockAlias(name=STOCK_MARK_RESOLVE, alias=gtk.STOCK_APPLY, text=''),
+    StockAlias(name=STOCK_MARK_UNRESOLVE, alias=gtk.STOCK_CANCEL, text=''),
+    StockAlias(name=STOCK_MOVE, alias=gtk.STOCK_PASTE, text=''),
+    StockAlias(name=STOCK_PULL, alias=gtk.STOCK_GO_FORWARD, text=''),
+    StockAlias(name=STOCK_PUSH, alias=gtk.STOCK_GO_BACK, text=''),
+    StockAlias(name=STOCK_QNEW, alias=STOCK_NEW_PATCH, text='QNew'),
+    StockAlias(name=STOCK_QPUSH_MERGE, alias=STOCK_PUSH_PATCH, text='QPush -m'),
+    StockAlias(name=STOCK_QPUSH_MERGE_ALL, alias=STOCK_PUSH_PATCH, text='QPush -ma'),
+    StockAlias(name=STOCK_QREFRESH, alias=STOCK_REFRESH_PATCH, text='QRefresh'),
+    StockAlias(name=STOCK_RECOVERY, alias=gtk.STOCK_REVERT_TO_SAVED, text=''),
+    StockAlias(name=STOCK_REMOVE, alias=gtk.STOCK_REMOVE, text=''),
+    StockAlias(name=STOCK_RENAME, alias=gtk.STOCK_PASTE, text=''),
+    StockAlias(name=STOCK_RESOLVE, alias=gtk.STOCK_CONVERT, text='Resolve'),
+    StockAlias(name=STOCK_REVERT, alias=gtk.STOCK_UNDO, text=''),
+    StockAlias(name=STOCK_ROLLBACK, alias=gtk.STOCK_UNDO, text=''),
+    StockAlias(name=STOCK_SELECT_GUARD, alias=STOCK_APPLIED, text=''),
+    StockAlias(name=STOCK_SERVE, alias=gtk.STOCK_EXECUTE, text=''),
+    StockAlias(name=STOCK_SHELVE, alias=gtk.STOCK_EXECUTE, text=''),
+    StockAlias(name=STOCK_STATUS, alias=gtk.STOCK_INFO, text=''),
+    StockAlias(name=STOCK_STATUS_NOT_OK, alias=gtk.STOCK_CANCEL, text=''),
+    StockAlias(name=STOCK_STATUS_OK, alias=gtk.STOCK_APPLY, text=''),
+    StockAlias(name=STOCK_SYNCH, alias=gtk.STOCK_REFRESH, text=''),
+    StockAlias(name=STOCK_UPDATE, alias=gtk.STOCK_EXECUTE, text=''),
+    StockAlias(name=STOCK_VERIFY, alias=STOCK_APPLIED, text=''),
+]
+
+_STYLE = gtk.Frame().get_style()
+
+for _item in _STOCK_ALIAS_LIST:
+    _FACTORY.add(_item.name, _STYLE.lookup_icon_set(_item.alias))
+
+gtk.stock_add([(item.name, item.text, 0, 0, None) for item in _STOCK_ALIAS_LIST])
 

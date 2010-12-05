@@ -144,7 +144,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
                 ('gwsm_merge_ws', icons.STOCK_MERGE, 'Merge', '',
                  'Merge the current working directory with default alternative head',
                  self._merge_ws_acb),
-                ('gwsm_resolve_ws', icons.STOCK_RESOLVE, 'Resolve', '',
+                ('gwsm_resolve_ws', icons.STOCK_RESOLVE, None, '',
                  'Resolve any unresolve merge conflicts in the current working directory',
                  self._resolve_ws_acb),
                 ("gwsm_checkout_ws", icons.STOCK_CHECKOUT, "Checkout", "",
