@@ -13,10 +13,10 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import gtk, gobject, os, tempfile, re
-from gwsmhg_pkg import dialogue, ifce, cmd_result, gutils, file_tree, icons, utils
-from gwsmhg_pkg import text_edit, change_set, diff, path, ws_event
-from gwsmhg_pkg import actions, patch_list
+import gtk
+
+from gwsmhg_pkg import gutils, file_tree
+from gwsmhg_pkg import patch_list
 
 class TopPatchFilesWidget(gtk.VBox):
     def __init__(self, busy_indicator, auto_refresh=False):

@@ -20,8 +20,6 @@ them from templates and allow easier access to named contents.
 
 import gtk, collections
 
-from gwsmhg_pkg import gutils
-
 def model_col(descr, label):
     """Return the index of the column with the given label in the descr
     which is named tuple"""
@@ -96,28 +94,23 @@ class TreeStore(Model, gtk.TreeStore):
         assert True, "set_contents(%s) must be defined in child" % rows
 
 ViewTemplate = collections.namedtuple('ViewTemplate', ['properties', 'selection_mode', 'columns'])
-"""
-properties is a dictionary: {property_name: value, ...}
-selection_mode is one of gtk.SELECTION_NONE, gtk.SELECTION_SINGLE,
-    gtk.SELECTION_BROWSE or gtk.SELECTION_MULTIPLE
-column_descr is class Column
-"""
+#properties is a dictionary: {property_name: value, ...}
+#selection_mode is one of gtk.SELECTION_NONE, gtk.SELECTION_SINGLE,
+#    gtk.SELECTION_BROWSE or gtk.SELECTION_MULTIPLE
+#column_descr is class Column
 
 Column = collections.namedtuple('Column', ['title', 'properties', 'cells'])
-"""
-title is a string
-properties is a dictionary: {property_name: value, ...}
-selection_mode is one of gtk.SELECTION_NONE, gtk.SELECTION_SINGLE,
-    gtk.SELECTION_BROWSE or gtk.SELECTION_MULTIPLE
-cells is a list of class Cell
-"""
+#title is a string
+#properties is a dictionary: {property_name: value, ...}
+#selection_mode is one of gtk.SELECTION_NONE, gtk.SELECTION_SINGLE,
+#    gtk.SELECTION_BROWSE or gtk.SELECTION_MULTIPLE
+#cells is a list of class Cell
 
 CellCreator = collections.namedtuple('CellCreator', ['function', 'expand', 'start'])
-"""
-function is a gtk cell class creation function
-expand is boolean
-start is boolean
-"""
+#function is a gtk cell class creation function
+#expand is boolean
+#start is boolean
+
 def _create_cell(column, descr):
     """descr is a CellCreator"""
     cell = descr.function()
@@ -136,12 +129,10 @@ def _create_cell(column, descr):
 Renderer = collections.namedtuple('Renderer', ['function', 'user_data'])
 
 Cell = collections.namedtuple('Cell', ['creator', 'properties', 'renderer', 'attributes'])
-"""
-creator is a class CellCreator
-properties is a dictionary: {property_name: value, ...}
-renderer is a named tuple Renderer
-attributes is a dictionary: {attribute_name: index, ...}
-"""
+#creator is a class CellCreator
+#properties is a dictionary: {property_name: value, ...}
+#renderer is a named tuple Renderer
+#attributes is a dictionary: {attribute_name: index, ...}
 
 ColumnAndCells = collections.namedtuple('ColumnAndCells', ['column', 'cells'])
 

@@ -13,11 +13,11 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import collections, gtk, gobject, os
+import collections, gtk, gobject, os, tempfile, re
 
 from gwsmhg_pkg import dialogue, ws_event, gutils, icons, ifce, utils
 from gwsmhg_pkg import file_tree, cmd_result, text_edit, const, diff
-from gwsmhg_pkg import tlview
+from gwsmhg_pkg import tlview, path, change_set
 
 Row = collections.namedtuple('Row',
     ['name', 'icon', 'markup'])
