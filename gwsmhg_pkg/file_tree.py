@@ -587,7 +587,7 @@ SCM_CWD_UI_DESCR = \
     </placeholder>
     <separator/>
     <placeholder name='filter_options'>
-    <menuitem action="hide_clean_files"/>
+    <menuitem action="hide_clean_files" position='top'/>
     <menuitem action="show_hidden_files"/>
     </placeholder>
   </popup>
