@@ -39,6 +39,8 @@ STOCK_FOLD_PATCH = 'gwsmhg_stock_fold_patch'
 STOCK_IMPORT_PATCH = 'gwsmhg_stock_import_patch'
 STOCK_MERGE = 'gwsmhg_stock_merge'
 STOCK_NEW_PATCH = 'gwsmhg_stock_new_patch'
+STOCK_PATCH_GUARD = 'gwsmhg_stock_patch_guard'
+STOCK_PATCH_GUARD_SELECT = 'gwsmhg_stock_patch_guard_select'
 STOCK_POP_PATCH = 'gwsmhg_stock_pop_patch'
 STOCK_PUSH_PATCH = 'gwsmhg_stock_push_patch'
 STOCK_REFRESH_PATCH = 'gwsmhg_stock_refresh_patch'
@@ -54,6 +56,8 @@ _STOCK_ITEMS_OWN_PNG = [
     (STOCK_IMPORT_PATCH, 'Import)', 0, 0, None),
     (STOCK_MERGE, 'Merge', 0, 0, None),
     (STOCK_NEW_PATCH, 'New', 0, 0, None),
+    (STOCK_PATCH_GUARD, 'Guard', 0, 0, None),
+    (STOCK_PATCH_GUARD_SELECT, 'Select', 0, 0, None),
     (STOCK_POP_PATCH, 'Pop', 0, 0, None),
     (STOCK_PUSH_PATCH, 'Push', 0, 0, None),
     (STOCK_REFRESH_PATCH, 'Refresh', 0, 0, None),
@@ -93,10 +97,12 @@ STOCK_MARK_UNRESOLVE = 'gwsmhg_stock_mark_uresolve'
 STOCK_MOVE = 'gwsmhg_stock_move'
 STOCK_PULL = 'gwsmhg_stock_pull'
 STOCK_PUSH = 'gwsmhg_stock_push'
+STOCK_QGUARD = 'gwsmhg_qguard'
 STOCK_QNEW = 'gwsmhg_qnew'
 STOCK_QPUSH_MERGE = 'gwsmhg_qpush_merge'
 STOCK_QPUSH_MERGE_ALL = 'gwsmhg_qpush_merge_all'
 STOCK_QREFRESH = 'gwsmhg_qrefresh'
+STOCK_QSELECT = 'gwsmhg_qselect'
 STOCK_RECOVERY = 'gwsmhg_stock_recovery'
 STOCK_REMOVE = 'gwsmhg_stock_remove'
 STOCK_RENAME = 'gwsmhg_stock_rename'
@@ -130,10 +136,12 @@ _STOCK_ALIAS_LIST = [
     StockAlias(name=STOCK_MOVE, alias=gtk.STOCK_PASTE, text=''),
     StockAlias(name=STOCK_PULL, alias=gtk.STOCK_GO_FORWARD, text=''),
     StockAlias(name=STOCK_PUSH, alias=gtk.STOCK_GO_BACK, text=''),
+    StockAlias(name=STOCK_QGUARD, alias=STOCK_PATCH_GUARD, text='QGuard'),
     StockAlias(name=STOCK_QNEW, alias=STOCK_NEW_PATCH, text='QNew'),
     StockAlias(name=STOCK_QPUSH_MERGE, alias=STOCK_PUSH_PATCH, text='QPush -m'),
     StockAlias(name=STOCK_QPUSH_MERGE_ALL, alias=STOCK_PUSH_PATCH, text='QPush -ma'),
     StockAlias(name=STOCK_QREFRESH, alias=STOCK_REFRESH_PATCH, text='QRefresh'),
+    StockAlias(name=STOCK_QSELECT, alias=STOCK_PATCH_GUARD_SELECT, text='QSelect'),
     StockAlias(name=STOCK_RECOVERY, alias=gtk.STOCK_REVERT_TO_SAVED, text=''),
     StockAlias(name=STOCK_REMOVE, alias=gtk.STOCK_REMOVE, text=''),
     StockAlias(name=STOCK_RENAME, alias=gtk.STOCK_PASTE, text=''),

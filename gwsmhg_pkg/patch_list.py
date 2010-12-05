@@ -247,7 +247,7 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
                  "Show diff for the selected patch", self.show_diff_acb),
                 ("pm_rename_patch", None, "QRename", None,
                  "Rename the selected patch", self.do_rename),
-                ("pm_set_patch_guards", None, "QGuard", None,
+                ("pm_set_patch_guards", icons.STOCK_QGUARD, None, None,
                  "Set guards on the selected patch", self.do_set_guards),
             ])
         self._action_group[UNAPPLIED].add_actions(
@@ -324,7 +324,7 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
                  "Import an external patch", self.do_import_external_patch),
                 ("pm_import_patch_series", icons.STOCK_IMPORT_PATCH, "QImport Patch Series", None,
                  "Import an external patch (mq/quilt style) series", self.do_import_external_patch_series),
-                ("pm_select_guards", icons.STOCK_SELECT_GUARD, "QSelect", None,
+                ("pm_select_guards", icons.STOCK_QSELECT, None, None,
                  "Select which guards are in force", self.do_select_guards),
             ])
         self._action_group[WS_UPDATE_CLEAN_UP_READY].add_actions(
