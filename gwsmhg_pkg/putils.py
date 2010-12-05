@@ -33,7 +33,7 @@ _ALT_TIMESTAMP_RE_STR = '([A-Z][a-z]{2} [A-Z][a-z]{2} \d{2} \d{2}:\d{2}:\d{2} \d
 _EITHER_TS_RE = '(%s|%s)' % (_TIMESTAMP_RE_STR, _ALT_TIMESTAMP_RE_STR)
 _UDIFF_H1 = re.compile('^--- (.*?)(\s+%s)?$' % _EITHER_TS_RE)
 _UDIFF_H2 = re.compile('^\+\+\+ (.*?)(\s+%s)?$' % _EITHER_TS_RE)
-_UDIFF_PD = re.compile("^@@\s+-(\d+),(\d+)\s+\+(\d+),(\d+)\s+@@\s*(.*)$")
+_UDIFF_PD = re.compile("^@@\s+-(\d+)(,(\d+))?\s+\+(\d+)(,(\d+))?\s+@@\s*(.*)$")
 
 _GIT_HDR_DIFF = re.compile("^diff --git (.*)$")
 _GIT_OLD_MODE = re.compile('^old mode (\d*)$')
@@ -58,8 +58,8 @@ _GIT_EXTRAS = \
 _CDIFF_H1 = re.compile("^\*\*\* (\S+)\s*(.*)$")
 _CDIFF_H2 = re.compile("^--- (\S+)\s*(.*)$")
 _CDIFF_H3 = re.compile("^\*+$")
-_CDIFF_CHG = re.compile("^\*+\s+(\d+),(\d+)\s+\*+\s*(.*)$")
-_CDIFF_DEL = re.compile("^-+\s+(\d+),(\d+)\s+-+\s*(.*)$")
+_CDIFF_CHG = re.compile("^\*+\s+(\d+)(,(\d+))?\s+\*+\s*(.*)$")
+_CDIFF_DEL = re.compile("^-+\s+(\d+)(,(\d+))?\s+-+\s*(.*)$")
 
 _HDR_INDEX = re.compile("^Index:\s+(.*)$")
 _HDR_DIFF = re.compile("^diff\s+(.*)$")
