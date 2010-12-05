@@ -1033,7 +1033,7 @@ hgext.mq=
 _qguard_re = re.compile("^\s*([+-].*)\s*$")
 
 def _extract_name_and_guards(string):
-    name, gstring = string.split(':')
+    name, gstring = string.split(':', 1)
     match = _qguard_re.match(gstring)
     if match:
         return name, match.group(1).split()
@@ -1114,6 +1114,8 @@ class PMInterface(BaseInterface):
             self._ws_update_mgr.is_in_progress()
     def get_all_patches_data(self):
         output = []
+        if not self.get_enabled():
+            return output
         res, sout, serr = utils.run_cmd('hg qguard -l')
         patch_plus_guard_list = sout.splitlines()
         applied_patches = self.get_applied_patches()
