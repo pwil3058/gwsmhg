@@ -33,6 +33,7 @@ def init(ifce_module):
         in_valid_repo = True
     else:
         in_valid_repo = False
+    ws_event.notify_events(ws_event.CHANGE_WD)
 
 def create_log(busy_indicator):
     global log

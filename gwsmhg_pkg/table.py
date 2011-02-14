@@ -224,7 +224,7 @@ class MapManagedTable(TableWithAGandUI, gutils.MappedManager):
                                   scroll_bar=scroll_bar)
         gutils.MappedManager.__init__(self)
         self._needs_refresh = True
-        self.add_conditional_actions(actions.ON_IN_REPO_SELN_INDEP,
+        self.add_conditional_actions(actions.IN_REPO,
             [
                 ("table_refresh_contents", gtk.STOCK_REFRESH, "Refresh", None,
                  "Refresh the tables contents", self._refresh_contents_acb),

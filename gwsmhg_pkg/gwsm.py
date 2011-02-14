@@ -208,7 +208,6 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
         self.add(vbox)
         self.show_all()
         self._update_title()
-        actions.update_class_indep_sensitivities()
         self._parent_table.seln.unselect_all()
         self.add_notification_cb(ws_event.CHANGE_WD, self._reset_after_cd)
         if open_dialog:

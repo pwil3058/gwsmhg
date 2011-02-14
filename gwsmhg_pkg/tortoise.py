@@ -131,31 +131,22 @@ FILES_UI_DESCR = \
 </ui>
 '''
 
-FILE_GROUP_PARTIAL_ACTIONS = {}
-
-SELN_CONDITIONS = [
-    actions.ON_IN_REPO_UNIQUE_SELN,
-    actions.ON_IN_REPO_NOT_PMIC_SELN,
-    ]
-
-for condition in SELN_CONDITIONS:
-    FILE_GROUP_PARTIAL_ACTIONS[condition] = []
-    
 FILE_MENU = gtk.Action("tortoise_files_menu", "_Tortoise", None, None)
 
-FILE_GROUP_PARTIAL_ACTIONS[actions.ON_IN_REPO_UNIQUE_SELN] = \
+FILE_GROUP_PARTIAL_ACTIONS = {
+    actions.IN_REPO + actions.UNIQUE_SELN: \
     [
         ('tortoise_rename', icons.STOCK_RENAME, 'Rename', '',
          'Launch tortoise "rename" tool'),
-    ]
-
-FILE_GROUP_PARTIAL_ACTIONS[actions.ON_IN_REPO_NOT_PMIC_SELN] = \
+    ], \
+    actions.IN_REPO + actions.NOT_PMIC + actions.SELN: \
     [
         ('tortoise_commit', icons.STOCK_COMMIT, 'Commit', '',
          'Launch tortoise "commit" tool'),
         ('tortoise_status', icons.STOCK_STATUS, 'Status', '',
          'Launch tortoise "status" tool'),
-    ]
+    ],
+}
 
 def run_tool_for_files(action, file_list):
     name = _action_tool_name(action)
