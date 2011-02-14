@@ -36,23 +36,14 @@ class TopPatchFilesWidget(gtk.VBox):
         self.pack_start(scw, expand=True, fill=True)
         self.show_all()
 
-class PatchListWidget(gtk.VBox):
-    def __init__(self, busy_indicator):
-        gtk.VBox.__init__(self)
-        self.list_view = patch_list.PatchListView(busy_indicator=busy_indicator)
-        # file tree menu bar
-        self.menu_bar = self.list_view.ui_manager.get_widget("/patch_list_menubar")
-        self.pack_start(self.menu_bar, expand=False)
-        self.pack_start(gutils.wrap_in_scrolled_window(self.list_view))
-
 class PatchManagementWidget(gtk.VBox):
     def __init__(self, busy_indicator=None):
         gtk.VBox.__init__(self)
         self._file_tree = TopPatchFilesWidget(busy_indicator=busy_indicator,
             auto_refresh=False)
-        self._patch_list = PatchListWidget(busy_indicator=busy_indicator)
-        self._menu_bar = self._patch_list.list_view.ui_manager.get_widget("/patches_menubar")
-        self._tool_bar = self._patch_list.list_view.ui_manager.get_widget("/patches_toolbar")
+        self._patch_list = patch_list.List(busy_indicator=busy_indicator)
+        self._menu_bar = self._patch_list.ui_manager.get_widget("/patches_menubar")
+        self._tool_bar = self._patch_list.ui_manager.get_widget("/patches_toolbar")
         #self._tool_bar.set_icon_size(gtk.ICON_SIZE_SMALL_TOOLBAR)
         #self._tool_bar.set_style(gtk.TOOLBAR_BOTH_HORIZ)
         self._tool_bar.set_style(gtk.TOOLBAR_BOTH)

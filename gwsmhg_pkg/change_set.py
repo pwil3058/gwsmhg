@@ -157,7 +157,7 @@ class ChangeSetTable(table.MapManagedTable):
                  self._tag_cs_acb),
             ])
         self.cwd_merge_id = [self.ui_manager.add_ui_from_string(CS_TABLE_BASIC_UI_DESCR)]
-        self.add_notification_cb(ws_event.REPO_MOD, self.refresh_contents_if_mapped)
+        self.add_notification_cb(ws_event.REPO_MOD|ws_event.PATCH_CHANGES, self.refresh_contents_if_mapped)
     def _view_cs_summary_acb(self, _):
         rev = self.get_selected_key()
         self.show_busy()

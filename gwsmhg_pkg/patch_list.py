@@ -75,7 +75,7 @@ def _patch_status_icon(status):
     else:
         return None
 
-PM_PATCHES_UI_DESCR = \
+_UI_DESCR = \
 '''
 <ui>
   <menubar name="patches_menubar">
@@ -217,15 +217,25 @@ _VIEW_TEMPLATE = tlview.ViewTemplate(
     ]
 )
 
-class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
-    def __init__(self, busy_indicator):
+_finish_empty_msg_prompt = os.linesep.join(
+    ["Do you wish to:",
+     "\tcancel,",
+     "\tedit the description and retry, or",
+     "\tforce the finish operation?"
+    ])
+
+class List(gtk.VBox, dialogue.BusyIndicatorUser, ws_event.Listener):
+    def __init__(self, busy_indicator=None):
+        gtk.VBox.__init__(self)
         self.store = Store()
-        tlview.View.__init__(self, _VIEW_TEMPLATE, self.store)
+        self.view = tlview.View(_VIEW_TEMPLATE, self.store)
+        self.seln = self.view.get_selection()
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
         ws_event.Listener.__init__(self)
         self.ui_manager = gutils.UIManager()
         self.unapplied_count = 0
         self.applied_count = 0
+        self.last_import_dir = None
         self._action_group = {}
         for condition in APPLIED_CONDITIONS + PUSH_POP_CONDITIONS + WS_UPDATE_CONDITIONS:
             self._action_group[condition] = gtk.ActionGroup(condition)
@@ -317,7 +327,7 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
                 ("menu_patches_ws", None, "_Workspace Update"),
                 ("menu_patch_list", None, "Patch _List"),
                 ("refresh_patch_list", gtk.STOCK_REFRESH, "Update Patch List", None,
-                 "Refresh/update the patch list display", self.set_contents),
+                 "Refresh/update the patch list display", self._update_list_cb),
                 ("pm_new", icons.STOCK_QNEW, None, None,
                  "Create a new patch", self.do_new_patch),
                 ("pm_import_external_patch", icons.STOCK_IMPORT_PATCH, "QImport", None,
@@ -337,30 +347,25 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
         toggle_data[gutils.TOC_LABEL] = "Auto Update"
         toggle_data[gutils.TOC_TOOLTIP] = "Enable/disable automatic updating of the patch list"
         toggle_data[gutils.TOC_STOCK_ID] = gtk.STOCK_REFRESH
-        self.toc = gutils.TimeOutController(toggle_data, function=self.set_contents, is_on=False)
+        self.toc = gutils.TimeOutController(toggle_data, function=self._repopulate_list_cb, is_on=False)
         self._action_group[PUSH_POP_INDIFFERENT].add_action(self.toc.toggle_action)
-        self.cwd_merge_id = self.ui_manager.add_ui_from_string(PM_PATCHES_UI_DESCR)
-        self.get_selection().connect("changed", self._selection_changed_cb)
-        self.set_contents()
-        self.get_selection().unselect_all()
-        self._selection_changed_cb(self.get_selection())
-        self.connect("button_press_event", self._handle_button_press_cb)
-        self.connect("key_press_event", self._handle_key_press_cb)
-        self.add_notification_cb(ws_event.REPO_MOD, self.update_in_repo_sensitivity)
-        self.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir)
-        self.update_in_repo_sensitivity()
-    def update_for_chdir(self):
-        self.show_busy()
-        ifce.PM.update_is_enabled()
-        self.update_in_repo_sensitivity()
-        self.set_contents()
-        self.unshow_busy()
+        self.ui_manager.add_ui_from_string(_UI_DESCR)
+        self.menu_bar = self.ui_manager.get_widget('/patch_list_menubar')
+        self.pack_start(self.menu_bar, expand=False)
+        self.seln.connect("changed", self._selection_changed_cb)
+        self.pack_start(gutils.wrap_in_scrolled_window(self.view))
+        self.view.connect('button_press_event', self._handle_button_press_cb)
+        self.view.connect("key_press_event", self._handle_key_press_cb)
+        self.add_notification_cb(ws_event.CHANGE_WD, self._repopulate_list_cb)
+        self.add_notification_cb(ws_event.PATCH_CHANGES, self._update_list_cb)
+        self.repopulate_list()
+        self._selection_changed_cb(self.seln)
     def _selection_changed_cb(self, selection):
         if selection.count_selected_rows() == 0:
             for index in APPLIED, UNAPPLIED, APPLIED_INDIFFERENT, UNAPPLIED_AND_INTERDIFF:
                 self._action_group[index].set_sensitive(False)
         else:
-            model, model_iter = self.get_selection().get_selected()
+            model, model_iter = self.seln.get_selected()
             applied = model.get_value(model_iter, 1) != None
             self._action_group[APPLIED_INDIFFERENT].set_sensitive(True)
             self._action_group[APPLIED].set_sensitive(applied)
@@ -374,20 +379,17 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
                 menu.popup(None, None, None, event.button, event.time)
                 return True
             elif event.button == 2:
-                self.get_selection().unselect_all()
+                self.seln.unselect_all()
                 return True
         return False
     def _handle_key_press_cb(self, widget, event):
         if event.keyval == gtk.gdk.keyval_from_name('Escape'):
-            self.get_selection().unselect_all()
+            self.seln.unselect_all()
             return True
         return False
     def get_selected_patch(self):
-        model, model_iter = self.get_selection().get_selected()
-        if model_iter is None:
-            return None
-        else:
-            return model.get_value(model_iter, 0)
+        store, store_iter = self.seln.get_selected()
+        return None if store_iter is None else store.get_patch_name(store_iter)
     def _set_ws_update_menu_sensitivity(self):
         self._action_group[WS_UPDATE_QSAVE_READY].set_sensitive(
             ifce.PM.get_ws_update_qsave_ready(unapplied_count=self.unapplied_count,
@@ -404,15 +406,16 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
             ifce.PM.get_ws_update_clean_up_ready())
     def update_in_repo_sensitivity(self):
         if ifce.in_valid_repo:
-            self._selection_changed_cb(self.get_selection())
+            self._selection_changed_cb(self.seln)
             self._set_ws_update_menu_sensitivity()
             self._action_group[PUSH_POP_INDIFFERENT].set_sensitive(True)
             self._action_group[PUSH_POP_INDIFFERENT].get_action("pm_select_guards").set_sensitive(ifce.PM.get_enabled())
         else:
             for condition in APPLIED_CONDITIONS + PUSH_POP_CONDITIONS + WS_UPDATE_CONDITIONS:
                 self._action_group[condition].set_sensitive(False)
-    def set_contents(self, _action=None):
-        self.show_busy()
+    def _update_list_cb(self, _arg=None):
+        self._repopulate_list_cb(_arg)
+    def repopulate_list(self):
         patch_data_list = ifce.PM.get_all_patches_data()
         selected = ifce.PM.get_selected_guards()
         self.unapplied_count = 0
@@ -434,7 +437,12 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
         self._action_group[PUSH_POSSIBLE].set_sensitive(self.unapplied_count > 0)
         self._action_group[PUSH_NOT_POSSIBLE].set_sensitive(self.unapplied_count == 0)
         self._set_ws_update_menu_sensitivity()
-        self.get_selection().unselect_all()
+        self.seln.unselect_all()
+    def _repopulate_list_cb(self, _arg=None):
+        self.show_busy()
+        ifce.PM.update_is_enabled()
+        self.update_in_repo_sensitivity()
+        self.repopulate_list()
         self.unshow_busy()
     def do_refresh(self, _action=None, notify=True):
         self.show_busy()
@@ -456,7 +464,6 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
             self.show_busy()
             res, sout, serr = ifce.PM.do_pop_to(patch=patch)
             self.unshow_busy()
-            self.set_contents()
             if res != cmd_result.OK:
                 if res & cmd_result.SUGGEST_FORCE_OR_REFRESH:
                     ans = dialogue.ask_force_refresh_or_cancel(os.linesep.join([sout, serr]), res)
@@ -487,7 +494,6 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
             self.show_busy()
             res, sout, serr = ifce.PM.do_push_to(patch=patch, merge=merge)
             self.unshow_busy()
-            self.set_contents()
             if res != cmd_result.OK:
                 if res & cmd_result.SUGGEST_FORCE_OR_REFRESH:
                     ans = dialogue.ask_force_refresh_or_cancel(os.linesep.join([sout, serr]), res, parent=None)
@@ -544,7 +550,6 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
                 self.do_edit_description_wait(next_patch)
             self.show_busy()
             res, sout, serr = ifce.PM.do_finish_patch(next_patch)
-            self.set_contents()
             self.unshow_busy()
             if res != cmd_result.OK:
                 dialogue.report_any_problems((res, sout, serr))
@@ -575,9 +580,10 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
             dialog.destroy()
             if patch == new_name:
                 return
+            self.show_busy()
             res, sout, serr = ifce.PM.do_rename_patch(patch, new_name)
+            self.unshow_busy()
             dialogue.report_any_problems((res, sout, serr))
-            self.set_contents()
         else:
             dialog.destroy()
     def do_set_guards(self, _action=None):
@@ -588,9 +594,10 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
         if response == gtk.RESPONSE_OK:
             guards = dialog.entry.get_text()
             dialog.destroy()
+            self.show_busy()
             res, sout, serr = ifce.PM.do_set_patch_guards(patch, guards)
+            self.unshow_busy()
             dialogue.report_any_problems((res, sout, serr))
-            self.set_contents()
         else:
             dialog.destroy()
     def do_select_guards(self, _action=None):
@@ -600,32 +607,36 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
         if response == gtk.RESPONSE_OK:
             selected_guards = dialog.entry.get_text()
             dialog.destroy()
+            self.show_busy()
             res, sout, serr = ifce.PM.do_select_guards(selected_guards)
+            self.unshow_busy()
             dialogue.report_any_problems((res, sout, serr))
-            self.set_contents()
         else:
             dialog.destroy()
     def do_delete(self, _action=None):
         patch = self.get_selected_patch()
+        self.show_busy()
         res, sout, serr = ifce.PM.do_delete_patch(patch)
+        self.unshow_busy()
         dialogue.report_any_problems((res, sout, serr))
-        self.set_contents()
     def do_fold(self, _action=None):
         patch = self.get_selected_patch()
+        self.show_busy()
         res, sout, serr = ifce.PM.do_fold_patch(patch)
+        self.unshow_busy()
         dialogue.report_any_problems((res, sout, serr))
-        self.set_contents()
     def do_fold_to(self, _action=None):
         patch = self.get_selected_patch()
         while True:
             next_patch = ifce.PM.get_next_patch()
             if not next_patch:
                 return
+            self.show_busy()
             res, sout, serr = ifce.PM.do_fold_patch(next_patch)
+            self.unshow_busy()
             if res != cmd_result.OK:
                 dialogue.report_any_problems((res, sout, serr))
                 return
-            self.set_contents()
             if patch == next_patch:
                 return
     def do_duplicate(self, _action=None):
@@ -651,7 +662,6 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
                 self.unshow_busy()
             else:
                 return
-        self.set_contents()
         if res != cmd_result.OK:
             dialogue.report_any_problems((res, sout, serr))
             if res & cmd_result.ERROR:
@@ -696,7 +706,6 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
                 self.unshow_busy()
         if top_patch:
             os.remove(temp_pfname)
-        self.set_contents()
         if res != cmd_result.OK:
             dialogue.report_any_problems((res, sout, serr))
     def do_save_queue_state_for_update(self, _action=None):
@@ -706,7 +715,6 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
         self.show_busy()
         res, sout, serr = ifce.PM.do_save_queue_state_for_update()
         self.unshow_busy()
-        self.set_contents()
         dialogue.report_any_problems((res, sout, serr))
     def do_pull_to_repository(self, _action=None):
         if not ifce.PM.get_enabled():
@@ -760,7 +768,6 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
         self.show_busy()
         result = ifce.PM.do_clean_up_after_update()
         self.unshow_busy()
-        self.set_contents()
         dialogue.report_any_problems(result)
     def do_new_patch(self, _action=None):
         if not ifce.PM.get_enabled():
@@ -791,7 +798,6 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
             else:
                 dialogue.report_any_problems((res, sout, serr))
                 break
-        self.set_contents()
         if new_patch_descr and res != cmd_result.ERROR:
             self.show_busy()
             res, sout, serr = ifce.PM.do_set_patch_description(new_patch_name, new_patch_descr)
@@ -825,7 +831,6 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
                     continue
             dialogue.report_any_problems((res, sout, serr))
             break
-        self.set_contents()
     def do_import_external_patch_series(self, _action=None):
         if not ifce.PM.get_enabled():
             dialogue.report_any_problems(ifce.PM.not_enabled_response)
@@ -874,7 +879,6 @@ class PatchListView(tlview.View, dialogue.BusyIndicatorUser, ws_event.Listener):
                         continue
                 dialogue.report_any_problems((res, sout, serr))
                 break
-            self.set_contents()
             index += 1
 
 class NewPatchDescrEditWidget(gtk.VBox):

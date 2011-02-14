@@ -1232,7 +1232,7 @@ class PMInterface(BaseInterface):
         if not guards:
             guards = "--none"
         result = self._run_cmd_on_console('hg qselect %s' % guards)
-        ws_event.notify_events(ws_event.REPO_MOD)
+        ws_event.notify_events(ws_event.PATCH_MODIFY)
         return result
     def do_set_patch_guards(self, patch_name, guards):
         cmd = 'hg qguard '
@@ -1241,16 +1241,16 @@ class PMInterface(BaseInterface):
         else:
             cmd += "-- %s %s" % (patch_name, guards)
         result = self._run_cmd_on_console(cmd)
-        ws_event.notify_events(ws_event.REPO_MOD)
+        ws_event.notify_events(ws_event.PATCH_MODIFY)
         return result
     def do_recover_interrupted_refresh(self):
         self._run_cmd_on_console('hg revert --all')
         self._run_cmd_on_console('hg qpush')
-        ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD)
+        ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.PATCH_PUSH)
     def do_refresh(self, notify=True):
         result = self._run_cmd_on_console('hg qrefresh')
         if notify and not cmd_result.is_error(result[0]):
-            ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD)
+            ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.PATCH_REFRESH)
         return result
     def do_pop_to(self, patch=None, force=False):
         if patch is None:
@@ -1270,9 +1270,9 @@ class PMInterface(BaseInterface):
                 cmd = 'hg qpop %s' % patch
         result = self._run_cmd_on_console(cmd)
         if cmd_result.is_less_than_error(result[0]):
+            events = ws_event.CHECKOUT|ws_event.PATCH_POP|ws_event.FILE_CHANGES
             if not self.get_in_progress():
-                ws_event.notify_events(ws_event.PMIC_CHANGE, False)
-            events = ws_event.CHECKOUT|ws_event.REPO_MOD|ws_event.FILE_CHANGES
+                events |= ws_event.PMIC_CHANGE
             ws_event.notify_events(events)
         return result
     def do_push_to(self, patch=None, force=False, merge=False):
@@ -1297,9 +1297,9 @@ class PMInterface(BaseInterface):
             else:
                 result = self._run_cmd_on_console('%s %s' % (cmd, patch), ignore_err_re=self._qpush_re)
         if cmd_result.is_less_than_error(result[0]):
+            events = ws_event.CHECKOUT|ws_event.PATCH_PUSH|ws_event.FILE_CHANGES
             if not in_charge:
-                ws_event.notify_events(ws_event.PMIC_CHANGE, True)
-            events = ws_event.CHECKOUT|ws_event.REPO_MOD|ws_event.FILE_CHANGES
+                events |= ws_event.PMIC_CHANGE
             ws_event.notify_events(events)
             if merge and len(self.get_unapplied_patches()) == 0:
                 self._ws_update_mgr.set_state('merged')
@@ -1345,23 +1345,23 @@ class PMInterface(BaseInterface):
         return True
     def do_finish_patch(self, patch):
         result = self._run_cmd_on_console('hg qfinish %s' % patch)
+        events = ws_event.CHECKOUT|ws_event.REPO_MOD|ws_event.FILE_CHANGES|ws_event.PATCH_DELETE|ws_event.PATCH_POP
         if not self.get_in_progress():
-            ws_event.notify_events(ws_event.PMIC_CHANGE, False)
-        events = ws_event.CHECKOUT|ws_event.REPO_MOD|ws_event.FILE_CHANGES
+                    events |= ws_event.PMIC_CHANGE
         ws_event.notify_events(events)
         return result
     def do_rename_patch(self, old_name, new_name):
         cmd = 'hg qrename %s %s' % (old_name, new_name)
         result = self._run_cmd_on_console(cmd)
-        ws_event.notify_events(ws_event.REPO_MOD)
+        ws_event.notify_events(ws_event.PATCH_CREATE|ws_event.PATCH_DELETE)
         return result
     def do_delete_patch(self, patch):
         result = self._run_cmd_on_console('hg qdelete %s' % patch)
-        ws_event.notify_events(ws_event.UNAPPLIED_PATCH_MOD)
+        ws_event.notify_events(ws_event.PATCH_DELETE)
         return result
     def do_fold_patch(self, patch):
         result = self._run_cmd_on_console('hg qfold %s' % patch)
-        ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD)
+        ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.PATCH_DELETED)
         return result
     def do_import_patch(self, patch_file_name, as_patch_name=None, force=False):
         cmd = 'hg qimport'
@@ -1373,7 +1373,7 @@ class PMInterface(BaseInterface):
         res, sout, serr = self._run_cmd_on_console(cmd, ignore_err_re=self._adding_re)
         if res and re.search("already exists", serr):
             res |= cmd_result.SUGGEST_FORCE_OR_RENAME
-        ws_event.notify_events(ws_event.UNAPPLIED_PATCH_MOD)
+        ws_event.notify_events(ws_event.PATCH_CREATE)
         return (res, sout, serr)
     def do_new_patch(self, patch_name_raw, force=False):
         in_charge = self.get_in_progress()
@@ -1389,9 +1389,9 @@ class PMInterface(BaseInterface):
             else:
                 cmd = 'hg qnew %s' % patch_name
         res, sout, serr = self._run_cmd_on_console(cmd)
+        events = ws_event.CHECKOUT|ws_event.PATCH_CREATE|ws_event.PATCH_PUSH
         if not in_charge:
-            ws_event.notify_events(ws_event.PMIC_CHANGE, True)
-        events = ws_event.CHECKOUT|ws_event.REPO_MOD
+            events |= ws_event.PMIC_CHANGE
         ws_event.notify_events(events)
         if res & cmd_result.SUGGEST_REFRESH:
             res |= cmd_result.SUGGEST_FORCE
@@ -1416,7 +1416,7 @@ class PMInterface(BaseInterface):
         cmd = 'hg qsave -e -c'
         result = self._run_cmd_on_console(cmd)
         self._ws_update_mgr.start(result[2], 'qsaved')
-        ws_event.notify_events(ws_event.CHECKOUT|ws_event.FILE_CHANGES|ws_event.REPO_MOD)
+        ws_event.notify_events(ws_event.CHECKOUT|ws_event.FILE_CHANGES|ws_event.REPO_MOD|ws_event.PATCH_CHANGES)
         return result
     def do_pull_from(self, rev=None, update=False, source=None):
         result = BaseInterface.do_pull_from(self, rev=rev, update=update, source=source)
@@ -1442,10 +1442,9 @@ class PMInterface(BaseInterface):
             result = self._run_cmd_on_console('hg qpop -a -n %s' % pcd)
             if top_patch:
                 utils.run_cmd('hg qgoto %s' % top_patch)
-                ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD)
+                ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD|ws_event.PATCH_CHANGES)
             else:
-                ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD)
-                ws_event.notify_events(ws_event.PMIC_CHANGE, False)
+                ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD|ws_event.PATCH_CHANGES|ws_event.PMIC_CHANGE)
             return result
         else:
             return (cmd_result.WARNING, 'Saved patch directory not found.', '')
