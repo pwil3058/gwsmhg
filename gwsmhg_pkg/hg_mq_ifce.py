@@ -1243,6 +1243,10 @@ class PMInterface(BaseInterface):
         result = self._run_cmd_on_console(cmd)
         ws_event.notify_events(ws_event.REPO_MOD)
         return result
+    def do_recover_interrupted_refresh(self):
+        self._run_cmd_on_console('hg revert --all')
+        self._run_cmd_on_console('hg qpush')
+        ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD)
     def do_refresh(self, notify=True):
         result = self._run_cmd_on_console('hg qrefresh')
         if notify and not cmd_result.is_error(result[0]):
