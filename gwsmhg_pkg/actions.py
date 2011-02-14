@@ -160,6 +160,8 @@ class AGandUIManager(ws_event.Listener):
         self._action_groups.set_sensitivity_for_condns(get_in_repo_condns())
     def pmic_condns_change_cb(self, _arg=None):
         self._action_groups.set_sensitivity_for_condns(get_pmic_condns())
+    def set_sensitivity_for_condns(self, condns):
+        self._action_groups.set_sensitivity_for_condns(condns)
     def add_conditional_action(self, condns, action):
         self._action_groups.add_action(condns, action)
     def add_conditional_actions(self, condns, actions):

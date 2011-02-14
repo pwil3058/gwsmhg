@@ -18,9 +18,9 @@ import collections, gtk, gobject, os, tempfile, re
 from gwsmhg_pkg import dialogue, ws_event, gutils, icons, ifce, utils
 from gwsmhg_pkg import file_tree, cmd_result, text_edit, const, diff
 from gwsmhg_pkg import tlview, path, change_set
+from gwsmhg_pkg import actions
 
-Row = collections.namedtuple('Row',
-    ['name', 'icon', 'markup'])
+Row = collections.namedtuple('Row',    ['name', 'icon', 'markup'])
 
 _MODEL_TEMPLATE = Row(
     name=gobject.TYPE_STRING,
@@ -37,6 +37,8 @@ class Store(tlview.ListStore):
         tlview.ListStore.__init__(self, _MODEL_TEMPLATE)
     def get_patch_name(self, plist_iter):
         return self.get_labelled_value(plist_iter, 'name')
+    def get_patch_is_applied(self, plist_iter):
+        return self.get_labelled_value(plist_iter, 'icon') is not None
 
 def _markup_applied_patch(patch_name, guards, selected):
     markup = patch_name
@@ -139,45 +141,58 @@ _UI_DESCR = \
 </ui>
 '''
 
-APPLIED = "pm_sel_applied"
-UNAPPLIED = "pm_sel_unapplied"
-UNAPPLIED_AND_INTERDIFF = "pm_sel_unapplied_interdiff"
-APPLIED_INDIFFERENT = "pm_sel_indifferent"
-PUSH_POSSIBLE = "pm_push_possible"
-PUSH_NOT_POSSIBLE = "pm_push_not_possible"
-POP_POSSIBLE = "pm_pop_possible"
-POP_NOT_POSSIBLE = "pm_pop_not_possible"
-PUSH_POP_INDIFFERENT = "pm_push_pop_indifferent"
-WS_UPDATE_QSAVE_READY = "pm_ws_update_qsave_ready"
-WS_UPDATE_PULL_READY = "pm_ws_update_pull_ready"
-WS_UPDATE_READY = "pm_ws_update_ready"
-WS_UPDATE_TO_READY = "pm_ws_update_to_ready"
-WS_UPDATE_MERGE_READY = "pm_ws_update_merge_ready"
-WS_UPDATE_CLEAN_UP_READY = "pm_ws_update_clean_up_ready"
+DONT_CARE = 0
+IN_REPO = actions.IN_REPO
+POP_POSSIBLE = actions.PMIC
+SELN = actions.SELN
+_NEXTRACONDS = 11
+APPLIED, \
+UNAPPLIED, \
+INTERDIFF, \
+PUSH_POSSIBLE, \
+WS_UPDATE_QSAVE_READY, \
+WS_UPDATE_PULL_READY, \
+WS_UPDATE_READY, \
+WS_UPDATE_TO_READY, \
+WS_UPDATE_MERGE_READY, \
+WS_UPDATE_CLEAN_UP_READY, \
+IN_PGND = [2 ** (n + actions.NCONDS) for n in range(_NEXTRACONDS)]
 
-APPLIED_CONDITIONS = [
-    APPLIED,
-    UNAPPLIED,
-    UNAPPLIED_AND_INTERDIFF,
-    APPLIED_INDIFFERENT,
-]
+_APPLIED_CONDNS = APPLIED | UNAPPLIED
+_WS_CONDNS = WS_UPDATE_QSAVE_READY | WS_UPDATE_PULL_READY | WS_UPDATE_READY | \
+    WS_UPDATE_TO_READY | WS_UPDATE_MERGE_READY | WS_UPDATE_CLEAN_UP_READY
 
-PUSH_POP_CONDITIONS = [
-    PUSH_POSSIBLE,
-    PUSH_NOT_POSSIBLE,
-    POP_POSSIBLE,
-    POP_NOT_POSSIBLE,
-    PUSH_POP_INDIFFERENT,
-]
+def _get_applied_condns(seln):
+    model, model_iter = seln.get_selected()
+    if model_iter is None:
+        return actions.MaskedCondns(DONT_CARE, _APPLIED_CONDNS)
+    cond = APPLIED if model.get_patch_is_applied(model_iter) else UNAPPLIED
+    return actions.MaskedCondns(cond, _APPLIED_CONDNS)
 
-WS_UPDATE_CONDITIONS = [
-    WS_UPDATE_QSAVE_READY,
-    WS_UPDATE_PULL_READY,
-    WS_UPDATE_READY,
-    WS_UPDATE_TO_READY,
-    WS_UPDATE_MERGE_READY,
-    WS_UPDATE_CLEAN_UP_READY,
-]
+def _get_interdiff_condns():
+    return actions.MaskedCondns(INTERDIFF if utils.which("interdiff") is not None else 0, INTERDIFF)
+
+def _get_in_pgnd_condns():
+    return actions.MaskedCondns(IN_PGND if ifce.in_valid_repo and ifce.PM.get_enabled() else 0, IN_PGND)
+
+def _get_pushable_condns(unapplied_count):
+    return actions.MaskedCondns(PUSH_POSSIBLE if unapplied_count > 0 else 0, PUSH_POSSIBLE)
+
+def _get_ws_update_condns(applied_count, unapplied_count):
+    condn = DONT_CARE
+    if ifce.PM.get_ws_update_qsave_ready(unapplied_count=unapplied_count, applied_count=applied_count):
+        condn += WS_UPDATE_QSAVE_READY
+    if ifce.PM.get_ws_update_pull_ready(applied_count=applied_count):
+        condn += WS_UPDATE_PULL_READY
+    if ifce.PM.get_ws_update_to_ready(applied_count=applied_count):
+        condn += WS_UPDATE_TO_READY
+    if ifce.PM.get_ws_update_ready(applied_count=applied_count):
+        condn += WS_UPDATE_READY
+    if ifce.PM.get_ws_update_merge_ready(unapplied_count=unapplied_count):
+        condn += WS_UPDATE_MERGE_READY
+    if ifce.PM.get_ws_update_clean_up_ready():
+        condn += WS_UPDATE_CLEAN_UP_READY
+    return actions.MaskedCondns(condn, _WS_CONDNS)
 
 _VIEW_TEMPLATE = tlview.ViewTemplate(
     properties={
@@ -224,30 +239,22 @@ _finish_empty_msg_prompt = os.linesep.join(
      "\tforce the finish operation?"
     ])
 
-class List(gtk.VBox, dialogue.BusyIndicatorUser, ws_event.Listener):
+class List(gtk.VBox, dialogue.BusyIndicatorUser, actions.AGandUIManager):
     def __init__(self, busy_indicator=None):
+        self.last_import_dir = None
         gtk.VBox.__init__(self)
         self.store = Store()
         self.view = tlview.View(_VIEW_TEMPLATE, self.store)
-        self.seln = self.view.get_selection()
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
-        ws_event.Listener.__init__(self)
-        self.ui_manager = gutils.UIManager()
-        self.unapplied_count = 0
-        self.applied_count = 0
-        self.last_import_dir = None
-        self._action_group = {}
-        for condition in APPLIED_CONDITIONS + PUSH_POP_CONDITIONS + WS_UPDATE_CONDITIONS:
-            self._action_group[condition] = gtk.ActionGroup(condition)
-            self.ui_manager.insert_action_group(self._action_group[condition], -1)
-        self._action_group[APPLIED].add_actions(
+        actions.AGandUIManager.__init__(self, self.view.get_selection())
+        self.add_conditional_actions(APPLIED,
             [
                 ("pm_pop_to_patch", icons.STOCK_POP_PATCH, "QPop To", None,
                  "Pop to the selected patch", self.do_pop_to),
                 ("pm_finish_to", icons.STOCK_FINISH_PATCH, "QFinish To", None,
                  "Move patches up to the selected patch into main repository", self.do_finish_to),
             ])
-        self._action_group[APPLIED_INDIFFERENT].add_actions(
+        self.add_conditional_actions(SELN,
             [
                 ("pm_edit_patch_descr", gtk.STOCK_EDIT, "Description", None,
                  "Edit the selected patch's description", self.do_edit_description),
@@ -260,7 +267,7 @@ class List(gtk.VBox, dialogue.BusyIndicatorUser, ws_event.Listener):
                 ("pm_set_patch_guards", icons.STOCK_QGUARD, None, None,
                  "Set guards on the selected patch", self.do_set_guards),
             ])
-        self._action_group[UNAPPLIED].add_actions(
+        self.add_conditional_actions(UNAPPLIED,
             [
                 ("pm_delete_patch", gtk.STOCK_DELETE, "QDelete", None,
                  "Delete the selected patch", self.do_delete),
@@ -273,31 +280,19 @@ class List(gtk.VBox, dialogue.BusyIndicatorUser, ws_event.Listener):
                 ("pm_duplicate", gtk.STOCK_COPY, "Duplicate", None,
                  "Duplicate the selected patch behind the top patch", self.do_duplicate),
             ])
-        self._action_group[UNAPPLIED_AND_INTERDIFF].add_actions(
+        self.add_conditional_actions(UNAPPLIED + INTERDIFF,
             [
                 ("pm_interdiff", gtk.STOCK_PASTE, "Interdiff", None,
                  'Place the "interdiff" of the selected patch and the top patch behind the top patch', self.do_interdiff),
             ])
-        self._action_group[PUSH_POSSIBLE].add_actions(
+        self.add_conditional_actions(PUSH_POSSIBLE,
             [
                 ("pm_push", icons.STOCK_PUSH_PATCH, "QPush", None,
                  "Apply the next unapplied patch", self.do_push),
                 ("pm_push_all", icons.STOCK_PUSH_PATCH, "QPush All", None,
                  "Apply all remaining unapplied patches", self.do_push_all),
             ])
-        self._action_group[WS_UPDATE_MERGE_READY].add_actions(
-            [
-                ("pm_push_merge", icons.STOCK_QPUSH_MERGE, None, None,
-                 "Apply the next unapplied patch merging with equivalent saved patch", self.do_push_merge),
-                ("pm_push_all_with_merge", icons.STOCK_QPUSH_MERGE_ALL, None, None,
-                 "Apply all remaining unapplied patches with \"merge\" option enabled", self.do_push_all_with_merge),
-            ])
-        self._action_group[WS_UPDATE_QSAVE_READY].add_actions(
-            [
-                ("save_queue_state_for_update", None, "QSave For Update", None,
-                 "Save the queue state prepatory to update", self.do_save_queue_state_for_update),
-            ])
-        self._action_group[POP_POSSIBLE].add_actions(
+        self.add_conditional_actions(POP_POSSIBLE,
             [
                 ("pm_pop", icons.STOCK_POP_PATCH, "QPop", None,
                  "Pop the top applied patch", self.do_pop),
@@ -306,38 +301,53 @@ class List(gtk.VBox, dialogue.BusyIndicatorUser, ws_event.Listener):
                 ("pm_refresh_top_patch", icons.STOCK_QREFRESH, None, None,
                  "Refresh the top patch", self.do_refresh),
             ])
-        self._action_group[WS_UPDATE_READY].add_actions(
-            [
-                ("pm_update_workspace", None, "Update Workspace", None,
-                 "Update the workspace to the repository tip", self.do_update_workspace),
-            ])
-        self._action_group[WS_UPDATE_TO_READY].add_actions(
-            [
-                ("pm_update_workspace_to", None, "Update Workspace To", None,
-                 "Update the workspace to a specified revision", self.do_update_workspace_to),
-            ])
-        self._action_group[WS_UPDATE_PULL_READY].add_actions(
-            [
-                ("pm_pull_to_repository", None, "Pull To Workspace", None,
-                 "Pull to the repository from the default remote path", self.do_pull_to_repository),
-            ])
-        self._action_group[PUSH_POP_INDIFFERENT].add_actions(
+        self.add_conditional_actions(IN_PGND,
             [
                 ("menu_patches", None, "_Patches"),
                 ("menu_patches_ws", None, "_Workspace Update"),
-                ("menu_patch_list", None, "Patch _List"),
                 ("refresh_patch_list", gtk.STOCK_REFRESH, "Update Patch List", None,
                  "Refresh/update the patch list display", self._update_list_cb),
-                ("pm_new", icons.STOCK_QNEW, None, None,
-                 "Create a new patch", self.do_new_patch),
-                ("pm_import_external_patch", icons.STOCK_IMPORT_PATCH, "QImport", None,
-                 "Import an external patch", self.do_import_external_patch),
                 ("pm_import_patch_series", icons.STOCK_IMPORT_PATCH, "QImport Patch Series", None,
                  "Import an external patch (mq/quilt style) series", self.do_import_external_patch_series),
                 ("pm_select_guards", icons.STOCK_QSELECT, None, None,
                  "Select which guards are in force", self.do_select_guards),
             ])
-        self._action_group[WS_UPDATE_CLEAN_UP_READY].add_actions(
+        self.add_conditional_actions(IN_REPO,
+            [
+                ("menu_patch_list", None, "Patch _List"),
+                ("pm_new", icons.STOCK_QNEW, None, None,
+                 "Create a new patch", self.do_new_patch),
+                ("pm_import_external_patch", icons.STOCK_IMPORT_PATCH, "QImport", None,
+                 "Import an external patch", self.do_import_external_patch),
+            ])
+        self.add_conditional_actions(WS_UPDATE_MERGE_READY,
+            [
+                ("pm_push_merge", icons.STOCK_QPUSH_MERGE, None, None,
+                 "Apply the next unapplied patch merging with equivalent saved patch", self.do_push_merge),
+                ("pm_push_all_with_merge", icons.STOCK_QPUSH_MERGE_ALL, None, None,
+                 "Apply all remaining unapplied patches with \"merge\" option enabled", self.do_push_all_with_merge),
+            ])
+        self.add_conditional_actions(WS_UPDATE_QSAVE_READY,
+            [
+                ("save_queue_state_for_update", None, "QSave For Update", None,
+                 "Save the queue state prepatory to update", self.do_save_queue_state_for_update),
+            ])
+        self.add_conditional_actions(WS_UPDATE_READY,
+            [
+                ("pm_update_workspace", None, "Update Workspace", None,
+                 "Update the workspace to the repository tip", self.do_update_workspace),
+            ])
+        self.add_conditional_actions(WS_UPDATE_TO_READY,
+            [
+                ("pm_update_workspace_to", None, "Update Workspace To", None,
+                 "Update the workspace to a specified revision", self.do_update_workspace_to),
+            ])
+        self.add_conditional_actions(WS_UPDATE_PULL_READY,
+            [
+                ("pm_pull_to_repository", None, "Pull To Workspace", None,
+                 "Pull to the repository from the default remote path", self.do_pull_to_repository),
+            ])
+        self.add_conditional_actions(WS_UPDATE_CLEAN_UP_READY,
             [
                 ("pm_clean_up_after_update", gtk.STOCK_CLEAR, "Clean Up", None,
                  "Clean up left over heads after repostory and patch series update", self.do_clean_up_after_update),
@@ -348,7 +358,7 @@ class List(gtk.VBox, dialogue.BusyIndicatorUser, ws_event.Listener):
         toggle_data[gutils.TOC_TOOLTIP] = "Enable/disable automatic updating of the patch list"
         toggle_data[gutils.TOC_STOCK_ID] = gtk.STOCK_REFRESH
         self.toc = gutils.TimeOutController(toggle_data, function=self._repopulate_list_cb, is_on=False)
-        self._action_group[PUSH_POP_INDIFFERENT].add_action(self.toc.toggle_action)
+        self.add_conditional_action(DONT_CARE, self.toc.toggle_action)
         self.ui_manager.add_ui_from_string(_UI_DESCR)
         self.menu_bar = self.ui_manager.get_widget('/patch_list_menubar')
         self.pack_start(self.menu_bar, expand=False)
@@ -359,23 +369,12 @@ class List(gtk.VBox, dialogue.BusyIndicatorUser, ws_event.Listener):
         self.add_notification_cb(ws_event.CHANGE_WD, self._repopulate_list_cb)
         self.add_notification_cb(ws_event.PATCH_CHANGES, self._update_list_cb)
         self.repopulate_list()
-        self._selection_changed_cb(self.seln)
     def _selection_changed_cb(self, selection):
-        if selection.count_selected_rows() == 0:
-            for index in APPLIED, UNAPPLIED, APPLIED_INDIFFERENT, UNAPPLIED_AND_INTERDIFF:
-                self._action_group[index].set_sensitive(False)
-        else:
-            model, model_iter = self.seln.get_selected()
-            applied = model.get_value(model_iter, 1) != None
-            self._action_group[APPLIED_INDIFFERENT].set_sensitive(True)
-            self._action_group[APPLIED].set_sensitive(applied)
-            self._action_group[UNAPPLIED].set_sensitive(not applied)
-            interdiff_avail = utils.which("interdiff") is not None
-            self._action_group[UNAPPLIED_AND_INTERDIFF].set_sensitive(interdiff_avail and not applied)
+        self.set_sensitivity_for_condns(_get_applied_condns(self.seln))
     def _handle_button_press_cb(self, widget, event):
         if event.type == gtk.gdk.BUTTON_PRESS:
             if event.button == 3:
-                menu = self.ui_manager.get_widget("/patches_popup")
+                menu = self.ui_manager.get_widget('/patches_popup')
                 menu.popup(None, None, None, event.button, event.time)
                 return True
             elif event.button == 2:
@@ -390,58 +389,35 @@ class List(gtk.VBox, dialogue.BusyIndicatorUser, ws_event.Listener):
     def get_selected_patch(self):
         store, store_iter = self.seln.get_selected()
         return None if store_iter is None else store.get_patch_name(store_iter)
-    def _set_ws_update_menu_sensitivity(self):
-        self._action_group[WS_UPDATE_QSAVE_READY].set_sensitive(
-            ifce.PM.get_ws_update_qsave_ready(unapplied_count=self.unapplied_count,
-                                              applied_count=self.applied_count))
-        self._action_group[WS_UPDATE_PULL_READY].set_sensitive(
-            ifce.PM.get_ws_update_pull_ready(applied_count=self.applied_count))
-        self._action_group[WS_UPDATE_TO_READY].set_sensitive(
-            ifce.PM.get_ws_update_to_ready(applied_count=self.applied_count))
-        self._action_group[WS_UPDATE_READY].set_sensitive(
-            ifce.PM.get_ws_update_ready(applied_count=self.applied_count))
-        self._action_group[WS_UPDATE_MERGE_READY].set_sensitive(
-            ifce.PM.get_ws_update_merge_ready(unapplied_count=self.unapplied_count))
-        self._action_group[WS_UPDATE_CLEAN_UP_READY].set_sensitive(
-            ifce.PM.get_ws_update_clean_up_ready())
-    def update_in_repo_sensitivity(self):
-        if ifce.in_valid_repo:
-            self._selection_changed_cb(self.seln)
-            self._set_ws_update_menu_sensitivity()
-            self._action_group[PUSH_POP_INDIFFERENT].set_sensitive(True)
-            self._action_group[PUSH_POP_INDIFFERENT].get_action("pm_select_guards").set_sensitive(ifce.PM.get_enabled())
-        else:
-            for condition in APPLIED_CONDITIONS + PUSH_POP_CONDITIONS + WS_UPDATE_CONDITIONS:
-                self._action_group[condition].set_sensitive(False)
     def _update_list_cb(self, _arg=None):
         self._repopulate_list_cb(_arg)
     def repopulate_list(self):
         patch_data_list = ifce.PM.get_all_patches_data()
         selected = ifce.PM.get_selected_guards()
-        self.unapplied_count = 0
-        self.applied_count = 0
+        unapplied_count = 0
+        applied_count = 0
         self.store.clear()
         for patch_data in patch_data_list:
             icon = _patch_status_icon(patch_data.state)
             if patch_data.state is not const.NOT_APPLIED:
                 markup, dummy = _markup_applied_patch(patch_data.name, patch_data.guards, selected)
                 self.store.append([patch_data.name, icon, markup])
-                self.applied_count += 1
+                applied_count += 1
             else:
                 markup, appliable = _markup_unapplied_patch(patch_data.name, patch_data.guards, selected)
                 self.store.append([patch_data.name, icon, markup])
                 if appliable:
-                    self.unapplied_count += 1
-        self._action_group[POP_POSSIBLE].set_sensitive(self.applied_count > 0)
-        self._action_group[POP_NOT_POSSIBLE].set_sensitive(self.applied_count == 0)
-        self._action_group[PUSH_POSSIBLE].set_sensitive(self.unapplied_count > 0)
-        self._action_group[PUSH_NOT_POSSIBLE].set_sensitive(self.unapplied_count == 0)
-        self._set_ws_update_menu_sensitivity()
+                    unapplied_count += 1
         self.seln.unselect_all()
+        condns = _get_ws_update_condns(applied_count, unapplied_count)
+        condns |= _get_pushable_condns(unapplied_count)
+        condns |= _get_applied_condns(self.seln)
+        condns |= _get_in_pgnd_condns()
+        condns |= _get_interdiff_condns()
+        self.set_sensitivity_for_condns(condns)
     def _repopulate_list_cb(self, _arg=None):
         self.show_busy()
         ifce.PM.update_is_enabled()
-        self.update_in_repo_sensitivity()
         self.repopulate_list()
         self.unshow_busy()
     def do_refresh(self, _action=None, notify=True):
@@ -730,7 +706,7 @@ class List(gtk.VBox, dialogue.BusyIndicatorUser, ws_event.Listener):
             dialog.destroy()
             self.show_busy()
             result = ifce.PM.do_pull_from(source=source, rev=rev)
-            self._set_ws_update_menu_sensitivity()
+            self._condn_change_update_cb()
             self.unshow_busy()
             dialogue.report_any_problems(result)
         else:
@@ -741,7 +717,7 @@ class List(gtk.VBox, dialogue.BusyIndicatorUser, ws_event.Listener):
             return
         self.show_busy()
         result = ifce.PM.do_update_workspace()
-        self._set_ws_update_menu_sensitivity()
+        self._condn_change_update_cb()
         self.unshow_busy()
         dialogue.report_any_problems(result)
     def do_update_workspace_to(self, _action=None):
@@ -756,7 +732,7 @@ class List(gtk.VBox, dialogue.BusyIndicatorUser, ws_event.Listener):
             if rev:
                 self.show_busy()
                 result = ifce.PM.do_update_workspace(rev=rev)
-                self._set_ws_update_menu_sensitivity()
+                self._condn_change_update_cb()
                 self.unshow_busy()
                 dialogue.report_any_problems(result)
         else:
