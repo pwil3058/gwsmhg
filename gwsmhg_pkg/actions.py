@@ -63,35 +63,66 @@ CLASS_DEP_SELN_DEP_CONDS = [
         ON_IN_REPO_PMIC_UNIQUE_SELN, ON_IN_REPO_NOT_PMIC_UNIQUE_SELN,
     ]
 
-class_indep_ags = {}
-
 import gtk
 
-for condition in CLASS_INDEP_CONDS:
-    class_indep_ags[condition] = gtk.ActionGroup(condition)
+class ConditionalActions:
+    def __init__(self, name, ui_mgrs=None, condn=0):
+        self.groups = dict()
+        self.current_condn = condn
+        self.ui_mgrs = [] if ui_mgrs is None else ui_mgrs[:]
+        self.name = name
+    def _group_name(self, condn):
+        return '{0}:{1:x}'.format(self.name, condn)
+    def _new_group(self, condn):
+        assert condn not in self.groups
+        self.groups[condn] = gtk.ActionGroup(self._group_name(condn))
+        self.groups[condn].set_sensitive((condn & self.current_condn) == condn)
+        for ui_mgr in self.ui_mgrs:
+            ui_mgr.insert_action_group(self.groups[condn], -1)
+    def add_action(self, condn, action):
+        if condn not in self.groups:
+            self._new_group(condn)
+        self.groups[condn].add_action(action)
+    def add_actions(self, condn, actions):
+        if condn not in self.groups:
+            self._new_group(condn)
+        self.groups[condn].add_actions(actions)
+    def set_sensitivity_for_condn(self, condn):
+        for key_condn, group in self.groups.items():
+            group.set_sensitive((key_condn & condn) == key_condn)
+        self.current_condn = condn
+    def add_ui_mgr(self, ui_mgr):
+        self.ui_mgrs.append(ui_mgr)
+        for agrp in self.groups.values():
+            ui_mgr.insert_action_group(agrp, -1)
+    def get_action_by_name(self, action_name):
+        for agrp in self.groups.values():
+            action = agrp.get_action(action_name)
+            if action:
+                return action
+        return None
+
+DONT_CARE = 0
+NOT_IN_REPO, IN_REPO, \
+NOT_PMIC, PMIC = [2 ** n for n in range(4)]
+
+class_indep_ags = ConditionalActions('class_indep')
 
 from gwsmhg_pkg import ifce, ws_event, gutils
 
 def update_class_indep_sensitivities(_arg=None):
-    in_repo = ifce.in_valid_repo
-    pmic = in_repo and ifce.PM.get_in_progress()
-    class_indep_ags[ON_IN_REPO].set_sensitive(in_repo)
-    class_indep_ags[ON_NOT_IN_REPO].set_sensitive(not in_repo)
-    class_indep_ags[ON_IN_REPO_PMIC].set_sensitive(pmic)
-    class_indep_ags[ON_IN_REPO_NOT_PMIC].set_sensitive(in_repo and not pmic)
+    condn = IN_REPO if ifce.in_valid_repo else NOT_IN_REPO
+    condn |= PMIC if ifce.in_valid_repo and ifce.PM.get_in_progress() else NOT_PMIC
+    class_indep_ags.set_sensitivity_for_condn(condn)
 
 def add_class_indep_action(cond, action):
-    class_indep_ags[cond].add_action(action)
+    class_indep_ags.add_action(cond, action)
 
 def add_class_indep_actions(cond, actions):
-    class_indep_ags[cond].add_actions(actions)
+    class_indep_ags.add_actions(cond, actions)
 
 def get_class_indep_action(action_name):
-    for cond in CLASS_INDEP_CONDS:
-        action = class_indep_ags[cond].get_action(action_name)
-        if action:
-            return action
-    return None
+    return class_indep_ags.get_action_by_name(action_name)
 
 update_class_indep_sensitivities()
 
@@ -102,8 +133,7 @@ class AGandUIManager(ws_event.Listener):
     def __init__(self, selection=None):
         ws_event.Listener.__init__(self)
         self.ui_manager = gutils.UIManager()
-        for cond in CLASS_INDEP_CONDS:
-            self.ui_manager.insert_action_group(class_indep_ags[cond], -1)
+        class_indep_ags.add_ui_mgr(self.ui_manager)
         self.seln = selection
         self._action_groups = {}
         for cond in CLASS_DEP_SELN_INDEP_CONDS:

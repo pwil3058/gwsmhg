@@ -75,7 +75,7 @@ def _tortoise_tool_bgnd_acb(action):
     if not utils.run_cmd_in_bgnd(cmd):
         dialogue.report_any_problems((cmd_result.ERROR, '"%s" failed' % cmd, ''))
 
-actions.add_class_indep_actions(actions.ON_REPO_INDEP, [
+actions.add_class_indep_actions(actions.DONT_CARE, [
         ('gwsm_tortoise', None, '_Tortoise Tools'),
         ('tortoise_recovery', icons.STOCK_RECOVERY, 'Recovery', '',
          'Launch tortoise "recovery" tool', _tortoise_tool_modal_acb),
@@ -83,14 +83,14 @@ actions.add_class_indep_actions(actions.ON_REPO_INDEP, [
          'Launch tortoise "userconfig" tool', _tortoise_tool_bgnd_acb),
     ])
 
-actions.add_class_indep_actions(actions.ON_NOT_IN_REPO, [
+actions.add_class_indep_actions(actions.NOT_IN_REPO, [
         ('tortoise_clone', icons.STOCK_CLONE, 'Clone', '',
          'Launch tortoise "clone" tool', _tortoise_tool_modal_acb),
         ('tortoise_init', icons.STOCK_INIT,'Init','',
          'Launch tortoise "init" tool', _tortoise_tool_modal_acb),
     ])
 
-actions.add_class_indep_actions(actions.ON_IN_REPO, [
+actions.add_class_indep_actions(actions.IN_REPO, [
         ('tortoise_datamine', gtk.STOCK_EXECUTE, 'Datamine', '',
          'Launch tortoise "datamine" tool', _tortoise_tool_bgnd_acb),
         ('tortoise_guess', icons.STOCK_GUESS, 'Guess', '',
@@ -105,7 +105,7 @@ actions.add_class_indep_actions(actions.ON_IN_REPO, [
          'Launch tortoise "shelve" tool', _tortoise_tool_modal_acb),
     ])
 
-actions.add_class_indep_actions(actions.ON_IN_REPO_NOT_PMIC, [
+actions.add_class_indep_actions(actions.IN_REPO + actions.NOT_PMIC, [
         ('tortoise_commit', icons.STOCK_COMMIT, 'Commit', '',
          'Launch tortoise "commit" tool', _tortoise_tool_modal_acb),
         ('tortoise_merge', icons.STOCK_MERGE, 'Merge', '',
