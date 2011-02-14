@@ -275,7 +275,7 @@ class IncomingTable(change_set.SearchableChangeSetTable):
         rev = self.get_selected_key_by_label("Node")
         self.show_busy()
         ifce.SCM.do_pull_from(rev=rev, source=self._path)
-        self._refresh_contents()
+        self.refresh_contents()
         self.unshow_busy()
     def _view_cs_summary_acb(self, _action):
         rev = self.get_selected_key_by_label("Node")
@@ -322,7 +322,7 @@ class OutgoingTable(change_set.SearchableChangeSetTable):
         rev = self.get_selected_key()
         self.show_busy()
         ifce.SCM.do_push_to(rev=rev, path=self._path)
-        self._refresh_contents()
+        self.refresh_contents()
         self.unshow_busy()
     def _fetch_contents(self):
         _res, outgoing, _serr = ifce.SCM.get_outgoing_table_data(self._path)

@@ -303,10 +303,11 @@ class SearchableChangeSetTable(ChangeSetTable):
         if not cmd_result.is_ok(res):
             dialogue.report_any_problems((res, sout, serr))
             return
-        rev = int(sout)
-        self._select_and_scroll_to_rev(rev)
+        if sout:
+            rev = int(sout)
+            self._select_and_scroll_to_rev(rev)
     def _select_and_scroll_to_rev(self, rev):
-        self.select_and_scroll_to_row_with_key_value('Rev', rev)
+        self.select_and_scroll_to_row_with_key_value(key='Rev', key_value=rev)
     def _fetch_rev(self, revarg):
         assert True, 'define in child'
         return (self, revarg)
@@ -344,7 +345,7 @@ class HistoryTable(SearchableChangeSetTable):
         else:
             return []
     def _select_and_scroll_to_rev(self, rev):
-        while not self.select_and_scroll_to_row_with_key_value('Rev', rev):
+        while not self.select_and_scroll_to_row_with_key_value(key='Rev', key_value=rev):
             self._append_contents(torev=rev)
     def _append_contents(self, torev=None):
         self.show_busy()
@@ -373,9 +374,9 @@ class HistoryTable(SearchableChangeSetTable):
             self._button_box.show()
             if self._current_max == None:
                 self._current_max = self._default_max
-    def update_for_chdir(self, arg=None):
+    def reset_contents_if_mapped(self, arg=None):
         self._current_max = self._default_max
-        SearchableChangeSetTable.update_for_chdir(self, arg)
+        SearchableChangeSetTable.reset_contents_if_mapped(self, arg)
     def set_contents(self):
         SearchableChangeSetTable.set_contents(self)
         self._check_button_visibility()

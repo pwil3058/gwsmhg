@@ -60,8 +60,13 @@ class Model(gtk.TreeModel):
             contents.append(self.get_row(model_iter))
             model_iter = self.iter_next(model_iter)
         return contents
-    def get_row_with_key_value(self, key_label, key_value):
-        index = self.get_col(key_label)
+    def get_row_with_key_value(self, key_value, key=None):
+        if key is None:
+            index = 0
+        elif isinstance(key, int):
+            index = key
+        else:
+            index = self.get_col(key)
         model_iter = self.get_iter_first()
         while model_iter:
             if self.get_value(model_iter, index) == key_value:

@@ -137,6 +137,7 @@ class Table(gtk.VBox):
 class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorUser):
     def __init__(self, model_descr, table_descr, popup=None, scroll_bar=True,
                  busy_indicator=None, size_req=None, model_class=Model):
+        assert issubclass(model_class, Model)
         self._popup = popup
         gtk.VBox.__init__(self)
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
@@ -170,13 +171,38 @@ class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorU
         return False
     def _fetch_contents(self):
         pass # define in child
-    def set_contents(self):
-        self.show_busy()
+    def _set_contents(self):
         self.view.set_model(None)
         self.model.set_contents(self._fetch_contents())
         self.view.set_model(self.model)
         self.view.columns_autosize()
         self.seln.unselect_all()
+    def set_contents(self):
+        self.show_busy()
+        self._set_contents()
+        self.unshow_busy()
+    def refresh_contents(self):
+        self.show_busy()
+        selected_keys = self.get_selected_keys()
+        visible_range = self.view.get_visible_range()
+        if visible_range is not None:
+            start = visible_range[0][0]
+            end = visible_range[1][0]
+            length = end - start + 1
+            middle_offset = length / 2
+            align = float(middle_offset) / float(length)
+            middle = start + middle_offset
+            middle_key = self.model.get_value(self.model.get_iter(middle), 0)
+        self._set_contents()
+        for key in selected_keys:
+            model_iter = self.model.get_row_with_key_value(key_value=key)
+            if model_iter is not None:
+                self.seln.select_iter(model_iter)
+        if visible_range is not None:
+            middle_iter = self.model.get_row_with_key_value(key_value=middle_key)
+            if middle_iter is not None:
+                middle = self.model.get_path(middle_iter)
+            self.view.scroll_to_cell(middle, use_align=True, row_align=align)
         self.unshow_busy()
     def get_contents(self):
         return self.model.get_contents()
@@ -211,14 +237,16 @@ class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorU
             return None
     def get_selected_key_by_label(self, label):
         return self.get_selected_key(self.model.get_col(label))
-    def select_and_scroll_to_row_with_key_value(self, key_label, key_value):
-        model_iter = self.model.get_row_with_key_value(key_label, key_value)
+    def select_and_scroll_to_row_with_key_value(self, key_value, key=None):
+        model_iter = self.model.get_row_with_key_value(key_value, key)
         if not model_iter:
             return False
         self.seln.select_iter(model_iter)
         path = self.model.get_path(model_iter)
         self.view.scroll_to_cell(path, use_align=True, row_align=0.5)
         return True
+
+_NEEDS_RESET = 123
 
 class MapManagedTable(TableWithAGandUI, gutils.MappedManager):
     def __init__(self, model_descr, table_descr, popup=None, scroll_bar=True,
@@ -236,11 +264,11 @@ class MapManagedTable(TableWithAGandUI, gutils.MappedManager):
                  "Refresh the tables contents", self._refresh_contents_acb),
             ])
         from gwsmhg_pkg import ws_event
-        self.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir)
+        self.add_notification_cb(ws_event.CHANGE_WD, self.reset_contents_if_mapped)
     def map_action(self):
         if self._needs_refresh:
             self.show_busy()
-            self._refresh_contents()
+            self.refresh_contents()
             self.unshow_busy()
     def unmap_action(self):
         pass
@@ -251,40 +279,17 @@ class MapManagedTable(TableWithAGandUI, gutils.MappedManager):
         TableWithAGandUI.set_contents(self)
         self._needs_refresh = False
     def refresh_contents(self):
-        self._refresh_contents()
-        self.seln.unselect_all()
+        TableWithAGandUI.refresh_contents(self)
+        self._needs_refresh = False
     def refresh_contents_if_mapped(self, *_args):
         if self.is_mapped:
             self.refresh_contents()
-        else:
+        elif not self._needs_refresh:
             self._needs_refresh = True
+    def reset_contents_if_mapped(self, *_args):
+        if self.is_mapped:
+            self.set_contents()
+        else:
+            self._needs_refresh = _NEEDS_RESET
     def _refresh_contents_acb(self, _action):
-        self.show_busy()
         self.refresh_contents()
-        self.unshow_busy()
-    def update_for_chdir(self, _arg=None):
-        self.show_busy()
-        self.model.set_contents([])
-        self.refresh_contents_if_mapped()
-        self.unshow_busy()
-
-#class AutoRefreshTableView(MapManagedTableView):
-#    def __init__(self, descr, busy_indicator, sel_mode=gtk.SELECTION_SINGLE,
-#                 perm_headers=False, bgnd=["white", "#F0F0F0"],
-#                 auto_refresh_on=False, auto_refresh_interval=30000):
-#        self.rtoc = RefreshController(is_on=auto_refresh_on, interval=auto_refresh_interval)
-#        self._normal_interval = auto_refresh_interval
-#        MapManagedTableView.__init__(self, descr=descr, sel_mode=sel_mode,
-#            perm_headers=False, bgnd=bgnd, busy_indicator=busy_indicator)
-#        self.rtoc.set_function(self._refresh_contents)
-#        self.show_all()
-#    def map_action(self):
-#        MapManagedTableView.map_action(self)
-#        self.rtoc.restart_cycle()
-#    def unmap_action(self):
-#        self.rtoc.stop_cycle()
-#        MapManagedTableView.unmap_action(self)
-#    def refresh_contents(self):
-#        self.rtoc.stop_cycle()
-#        self._refresh_contents()
-#        self.rtoc.restart_cycle()

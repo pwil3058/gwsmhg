@@ -377,7 +377,7 @@ class List(table.TableWithAGandUI):
         toggle_data[gutils.TOC_LABEL] = "Auto Update"
         toggle_data[gutils.TOC_TOOLTIP] = "Enable/disable automatic updating of the patch list"
         toggle_data[gutils.TOC_STOCK_ID] = gtk.STOCK_REFRESH
-        self.toc = gutils.TimeOutController(toggle_data, function=self._repopulate_list_cb, is_on=False)
+        self.toc = gutils.TimeOutController(toggle_data, function=self._update_list_cb, is_on=False)
         self.add_conditional_action(DONT_CARE, self.toc.toggle_action)
         self.ui_manager.add_ui_from_string(_UI_DESCR)
         self.header.lhs.pack_start(self.ui_manager.get_widget('/patch_list_menubar'), expand=True, fill=True)
@@ -391,7 +391,7 @@ class List(table.TableWithAGandUI):
         store, store_iter = self.seln.get_selected()
         return None if store_iter is None else store.get_patch_name(store_iter)
     def _update_list_cb(self, _arg=None):
-        self._repopulate_list_cb(_arg)
+        self.refresh_contents()
     def _fetch_contents(self):
         patch_data_list = ifce.PM.get_all_patches_data()
         selected = ifce.PM.get_selected_guards()
