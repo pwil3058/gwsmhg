@@ -13,9 +13,18 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
+"""
+Provide generic enhancements to Textview widgets primarily to create
+them from templates and allow easier access to named contents.
+"""
+
 import gtk
 
-from gwsmhg_pkg import gutils, actions, tlview, icons
+from gwsmhg_pkg import gutils
+from gwsmhg_pkg import actions
+from gwsmhg_pkg import tlview
+from gwsmhg_pkg import icons
+from gwsmhg_pkg import dialogue
 
 class Model(tlview.ListStore):
     def __init__(self, descr):
@@ -125,19 +134,16 @@ class Table(gtk.VBox):
         columns = self.model.get_cols(labels)
         return self.get_selected_data(columns)
 
-from gwsmhg_pkg import dialogue
-
 class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorUser):
     def __init__(self, model_descr, table_descr, popup=None, scroll_bar=True,
-                 busy_indicator=None, size_req=None):
+                 busy_indicator=None, size_req=None, model_class=Model):
         self._popup = popup
         gtk.VBox.__init__(self)
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
         self.header = gutils.SplitBar()
         self.pack_start(self.header, expand=False)
-        self.model = Model(model_descr)
+        self.model = model_class(model_descr)
         self.view = tlview.View(table_descr, self.model)
-        self.seln = self.view.get_selection()
         actions.AGandUIManager.__init__(self, self.view.get_selection())
         if size_req:
             self.view.set_size_request(size_req[0], size_req[1])

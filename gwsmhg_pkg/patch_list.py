@@ -13,12 +13,29 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import collections, gtk, gobject, os, tempfile, re
+import collections
+import gtk
+import gobject
+import os
+import tempfile
+import re
 
-from gwsmhg_pkg import dialogue, ws_event, gutils, icons, ifce, utils
-from gwsmhg_pkg import file_tree, cmd_result, text_edit, const, diff
-from gwsmhg_pkg import tlview, path, change_set
+from gwsmhg_pkg import dialogue
+from gwsmhg_pkg import ws_event
+from gwsmhg_pkg import gutils
+from gwsmhg_pkg import icons
+from gwsmhg_pkg import ifce
+from gwsmhg_pkg import utils
+from gwsmhg_pkg import file_tree
+from gwsmhg_pkg import cmd_result
+from gwsmhg_pkg import text_edit
+from gwsmhg_pkg import const
+from gwsmhg_pkg import diff
+from gwsmhg_pkg import tlview
+from gwsmhg_pkg import path
+from gwsmhg_pkg import change_set
 from gwsmhg_pkg import actions
+from gwsmhg_pkg import table
 
 Row = collections.namedtuple('Row',    ['name', 'icon', 'markup'])
 
@@ -32,9 +49,9 @@ _NAME = tlview.model_col(_MODEL_TEMPLATE, 'name')
 _MARKUP = tlview.model_col(_MODEL_TEMPLATE, 'markup')
 _ICON = tlview.model_col(_MODEL_TEMPLATE, 'icon')
 
-class Store(tlview.ListStore):
-    def __init__(self):
-        tlview.ListStore.__init__(self, _MODEL_TEMPLATE)
+class Store(table.Model):
+    def __init__(self, template=_MODEL_TEMPLATE):
+        table.Model.__init__(self, template)
     def get_patch_name(self, plist_iter):
         return self.get_labelled_value(plist_iter, 'name')
     def get_patch_is_applied(self, plist_iter):
@@ -239,14 +256,17 @@ _finish_empty_msg_prompt = os.linesep.join(
      "\tforce the finish operation?"
     ])
 
-class List(gtk.VBox, dialogue.BusyIndicatorUser, actions.AGandUIManager):
+class List(table.TableWithAGandUI):
     def __init__(self, busy_indicator=None):
         self.last_import_dir = None
-        gtk.VBox.__init__(self)
-        self.store = Store()
-        self.view = tlview.View(_VIEW_TEMPLATE, self.store)
-        dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
-        actions.AGandUIManager.__init__(self, self.view.get_selection())
+        table.TableWithAGandUI.__init__(self,
+                                        model_descr=_MODEL_TEMPLATE,
+                                        table_descr=_VIEW_TEMPLATE,
+                                        popup='/patches_popup',
+                                        scroll_bar=True,
+                                        busy_indicator=None,
+                                        size_req=None,
+                                        model_class=Store)
         self.add_conditional_actions(APPLIED,
             [
                 ("pm_pop_to_patch", icons.STOCK_POP_PATCH, "QPop To", None,
@@ -360,58 +380,42 @@ class List(gtk.VBox, dialogue.BusyIndicatorUser, actions.AGandUIManager):
         self.toc = gutils.TimeOutController(toggle_data, function=self._repopulate_list_cb, is_on=False)
         self.add_conditional_action(DONT_CARE, self.toc.toggle_action)
         self.ui_manager.add_ui_from_string(_UI_DESCR)
-        self.menu_bar = self.ui_manager.get_widget('/patch_list_menubar')
-        self.pack_start(self.menu_bar, expand=False)
+        self.header.lhs.pack_start(self.ui_manager.get_widget('/patch_list_menubar'), expand=True, fill=True)
         self.seln.connect("changed", self._selection_changed_cb)
-        self.pack_start(gutils.wrap_in_scrolled_window(self.view))
-        self.view.connect('button_press_event', self._handle_button_press_cb)
-        self.view.connect("key_press_event", self._handle_key_press_cb)
         self.add_notification_cb(ws_event.CHANGE_WD, self._repopulate_list_cb)
         self.add_notification_cb(ws_event.PATCH_CHANGES, self._update_list_cb)
         self.repopulate_list()
     def _selection_changed_cb(self, selection):
         self.set_sensitivity_for_condns(_get_applied_condns(self.seln))
-    def _handle_button_press_cb(self, widget, event):
-        if event.type == gtk.gdk.BUTTON_PRESS:
-            if event.button == 3:
-                menu = self.ui_manager.get_widget('/patches_popup')
-                menu.popup(None, None, None, event.button, event.time)
-                return True
-            elif event.button == 2:
-                self.seln.unselect_all()
-                return True
-        return False
-    def _handle_key_press_cb(self, widget, event):
-        if event.keyval == gtk.gdk.keyval_from_name('Escape'):
-            self.seln.unselect_all()
-            return True
-        return False
     def get_selected_patch(self):
         store, store_iter = self.seln.get_selected()
         return None if store_iter is None else store.get_patch_name(store_iter)
     def _update_list_cb(self, _arg=None):
         self._repopulate_list_cb(_arg)
-    def repopulate_list(self):
+    def _fetch_contents(self):
         patch_data_list = ifce.PM.get_all_patches_data()
         selected = ifce.PM.get_selected_guards()
         unapplied_count = 0
         applied_count = 0
-        self.store.clear()
+        contents = []
         for patch_data in patch_data_list:
             icon = _patch_status_icon(patch_data.state)
             if patch_data.state is not const.NOT_APPLIED:
                 markup, dummy = _markup_applied_patch(patch_data.name, patch_data.guards, selected)
-                self.store.append([patch_data.name, icon, markup])
+                contents.append([patch_data.name, icon, markup])
                 applied_count += 1
             else:
                 markup, appliable = _markup_unapplied_patch(patch_data.name, patch_data.guards, selected)
-                self.store.append([patch_data.name, icon, markup])
+                contents.append([patch_data.name, icon, markup])
                 if appliable:
                     unapplied_count += 1
-        self.seln.unselect_all()
-        condns = _get_ws_update_condns(applied_count, unapplied_count)
-        condns |= _get_pushable_condns(unapplied_count)
-        condns |= _get_applied_condns(self.seln)
+        condns = _get_pushable_condns(unapplied_count)
+        condns |= _get_ws_update_condns(applied_count, unapplied_count)
+        self.set_sensitivity_for_condns(condns)
+        return contents
+    def repopulate_list(self):
+        self.set_contents()
+        condns = _get_applied_condns(self.seln)
         condns |= _get_in_pgnd_condns()
         condns |= _get_interdiff_condns()
         self.set_sensitivity_for_condns(condns)
