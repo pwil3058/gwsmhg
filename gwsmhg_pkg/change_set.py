@@ -182,9 +182,7 @@ class ChangeSetTable(table.MapManagedTable):
                 result = ifce.SCM.do_merge_workspace(rev=rev, force=False)
                 self.unshow_busy()
                 if result[0] & cmd_result.SUGGEST_FORCE:
-                    question = os.linesep.join(result[1:])
-                    ans = dialogue.ask_force_or_cancel(question)
-                    if ans == dialogue.RESPONSE_FORCE:
+                    if dialogue.ask_force_or_cancel(result) == dialogue.RESPONSE_FORCE:
                         self.show_busy()
                         result = ifce.SCM.do_merge_workspace(rev=rev, force=True)
                         self.unshow_busy()
@@ -199,9 +197,7 @@ class ChangeSetTable(table.MapManagedTable):
         result = ifce.SCM.do_merge_workspace(rev=rev)
         self.unshow_busy()
         if result[0] & cmd_result.SUGGEST_FORCE:
-            question = os.linesep.join(result[1:])
-            ans = dialogue.ask_force_or_cancel(question)
-            if ans == dialogue.RESPONSE_FORCE:
+            if dialogue.ask_force_or_cancel(result) == dialogue.RESPONSE_FORCE:
                 self.show_busy()
                 result = ifce.SCM.do_merge_workspace(rev=rev, force=True)
                 self.unshow_busy()
@@ -273,11 +269,10 @@ class HeadsTable(ChangeSetTable):
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR))
     def _fetch_contents(self):
-        res, heads, serr = ifce.SCM.get_heads_data()
-        dialogue.report_any_problems((res, heads, serr))
-        if cmd_result.is_ok(res):
-            return heads
-        else:
+        try:
+            return ifce.SCM.get_heads_data()
+        except cmd_result.Failure as failure:
+            dialogue.report_failure(failure)
             return []
 
 class SearchableChangeSetTable(ChangeSetTable):
@@ -299,13 +294,10 @@ class SearchableChangeSetTable(ChangeSetTable):
         text = entry.get_text_and_clear_to_history()
         if not text:
             return
-        res, sout, serr = self._fetch_rev(text)
-        if not cmd_result.is_ok(res):
-            dialogue.report_any_problems((res, sout, serr))
-            return
-        if sout:
-            rev = int(sout)
-            self._select_and_scroll_to_rev(rev)
+        try:
+            self._select_and_scroll_to_rev(int(self._fetch_rev(text)))
+        except cmd_result.Failure as failure:
+            dialogue.report_failure(failure)
     def _select_and_scroll_to_rev(self, rev):
         self.select_and_scroll_to_row_with_key_value(key='Rev', key_value=rev)
     def _fetch_rev(self, revarg):
@@ -338,11 +330,10 @@ class HistoryTable(SearchableChangeSetTable):
     def _fetch_rev(self, revarg):
         return ifce.SCM.get_rev(revarg)
     def _fetch_contents(self):
-        res, history, serr = ifce.SCM.get_history_data(maxitems=self._current_max)
-        dialogue.report_any_problems((res, history, serr))
-        if cmd_result.is_ok(res):
-            return history
-        else:
+        try:
+            return ifce.SCM.get_history_data(maxitems=self._current_max)
+        except cmd_result.Failure as failure:
+            dialogue.report_failure(failure)
             return []
     def _select_and_scroll_to_rev(self, rev):
         while not self.select_and_scroll_to_row_with_key_value(key='Rev', key_value=rev):
@@ -358,8 +349,7 @@ class HistoryTable(SearchableChangeSetTable):
         else:
             count = start_rev - torev + 1
         self._current_max += count
-        _, data, _ = ifce.SCM.get_history_data(rev=start_rev,
-                                                    maxitems=count)
+        data = ifce.SCM.get_history_data(rev=start_rev, maxitems=count)
         self.model.append_contents(data)
         self.view.columns_autosize()
         self._check_button_visibility()
@@ -396,13 +386,12 @@ class ParentsTable(ChangeSetTable):
     def _checkout_cb(self, arg=None):
         self.set_contents()
     def _fetch_contents(self):
-        res, parents, _ = ifce.SCM.get_parents_data(rev=self._rev)
-        if cmd_result.is_ok(res):
+        parents = ifce.SCM.get_parents_data(rev=self._rev)
+        if parents:
             self.show()
-            return parents
         else:
             self.hide()
-            return []
+        return parents
 
 TagRow = collections.namedtuple('TagRow', ['Tag', 'Scope', 'Rev', 'Branches', 'Age', 'Author', 'Description'])
 
@@ -509,11 +498,10 @@ class TagsTable(ChangeSetTable):
         MoveTagDialog(tag=tag).run()
         self.unshow_busy()
     def _fetch_contents(self):
-        res, tags, serr = ifce.SCM.get_tags_data()
-        dialogue.report_any_problems((res, tags, serr))
-        if cmd_result.is_ok(res):
-            return tags
-        else:
+        try:
+            return ifce.SCM.get_tags_data()
+        except cmd_result.Failure as failure:
+            dialogue.report_failure(failure)
             return []
 
 BranchRow = collections.namedtuple('BranchRow', ['Branch', 'Rev', 'Tags', 'Age', 'Author', 'Description'])
@@ -554,11 +542,10 @@ class BranchesTable(ChangeSetTable):
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_TAG_UI_DESCR))
     def _fetch_contents(self):
-        res, branches, serr = ifce.SCM.get_branches_data()
-        dialogue.report_any_problems((res, branches, serr))
-        if cmd_result.is_ok(res):
-            return branches
-        else:
+        try:
+            return ifce.SCM.get_branches_data()
+        except cmd_result.Failure as failure:
+            dialogue.report_failure(failure)
             return []
 
 class PrecisType:
@@ -582,11 +569,7 @@ class SelectTable(table.TableWithAGandUI):
         self.set_contents()
         self.show_all()
     def _fetch_contents(self):
-        res, data, _ = self._ptype.get_data()
-        if cmd_result.is_ok(res):
-            return data
-        else:
-            return []
+        return self._ptype.get_data()
 
 class SelectDialog(dialogue.Dialog):
     def __init__(self, ptype, title, size=(640, 240), parent=None):
@@ -652,7 +635,7 @@ class SetTagDialog(dialogue.ReadTextAndToggleDialog):
                                          rev=self._rev)
             self.unshow_busy()
             if result[0] & cmd_result.SUGGEST_FORCE:
-                ans = dialogue.ask_rename_force_or_cancel(result[1] + result[2], result[0])
+                ans = dialogue.ask_rename_force_or_cancel(result)
                 if ans == dialogue.RESPONSE_RENAME:
                     self.show()
                     return
@@ -909,7 +892,7 @@ class ChangeSetSummaryDialog(dialogue.AmodalDialog):
                                        buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE))
         self._rev = rev
         self.set_title('gwsmg: Change Set: %s : %s' % (rev, utils.cwd_rel_home()))
-        _, summary, _ = self.get_change_set_summary()
+        summary = self.get_change_set_summary()
         self._add_labelled_texts([("Precis:", summary['PRECIS'])])
         self._add_labelled_texts([("Revision:", summary['REV']), ("Node:", summary['NODE'])])
         self._add_labelled_texts([("Date:", summary['DATE']), ("Age:", summary['AGE'])])
@@ -981,7 +964,7 @@ class BackoutDialog(dialogue.ReadTextAndToggleDialog):
         self.entry.set_editable(False)
         self._radio_labels = []
         self._parent_revs = []
-        _, parents_data, _ = ifce.SCM.get_parents_data(rev)
+        parents_data = ifce.SCM.get_parents_data(rev)
         if len(parents_data) > 1:
             for data in parents_data:
                 rev = str(data[tlview.model_col(LOG_MODEL_DESCR, 'Rev')])

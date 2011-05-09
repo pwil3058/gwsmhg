@@ -13,8 +13,9 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, gtk, gwsmhg_pkg.sourceview, pango, re
+import os, gtk, pango, re
 from gwsmhg_pkg import dialogue, ifce, utils, cmd_result, gutils, icons
+from gwsmhg_pkg import sourceview
 
 STATES = [gtk.STATE_NORMAL, gtk.STATE_ACTIVE, gtk.STATE_PRELIGHT, gtk.STATE_INSENSITIVE]
 
@@ -39,11 +40,11 @@ class tws_line_count_display(gtk.HBox):
             for state in STATES:
                 self._entry.modify_base(state, gtk.gdk.color_parse("#00FF00"))
 
-class DiffTextBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
+class DiffTextBuffer(sourceview.SourceBuffer):
     def __init__(self, file_list=None, table=None):
         if not table:
-            table = gwsmhg_pkg.sourceview.SourceTagTable()
-        gwsmhg_pkg.sourceview.SourceBuffer.__init__(self, table)
+            table = sourceview.SourceTagTable()
+        sourceview.SourceBuffer.__init__(self, table)
         if file_list is None:
             self._file_list = []
         else:
@@ -162,7 +163,7 @@ class DiffTextBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
             fobj = open(self._save_file, 'w')
         except IOError as edata:
             strerror = edata[1]
-            dialogue.report_any_problems((cmd_result.ERROR, "", strerror))
+            dialogue.report_any_problems(cmd_result.Result(cmd_result.ERROR, "", strerror))
             self.check_set_save_sensitive()
             return
         text = self.get_text(self.get_start_iter(), self.get_end_iter())
@@ -188,9 +189,9 @@ class DiffTextBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
     def get_action_button_box(self):
         return gutils.ActionHButtonBox([self._action_group], action_name_list=self.a_name_list)
 
-class DiffTextView(gwsmhg_pkg.sourceview.SourceView):
+class DiffTextView(sourceview.SourceView):
     def __init__(self, buffer):
-        gwsmhg_pkg.sourceview.SourceView.__init__(self, buffer)
+        sourceview.SourceView.__init__(self, buffer)
         fdesc = pango.FontDescription("mono, 10")
         self.modify_font(fdesc)
         self.set_margin(81)
@@ -260,9 +261,11 @@ class ScmDiffTextBuffer(DiffTextBuffer):
             self.a_name_list = ["diff_save", "diff_save_as"]
         self.diff_buttons = gutils.ActionButtonList([self._action_group], self.a_name_list)
     def _get_diff_text(self):
-        res, text, serr = ifce.SCM.get_diff_for_files(self._file_list, self._fromrev, self._torev)
-        dialogue.report_any_problems((res, text, serr))
-        return text
+        try:
+            return ifce.SCM.get_diff_for_files(self._file_list, self._fromrev, self._torev)
+        except cmd_result.Failure as failure:
+            dialogue.report_failure(failure)
+            return failure.result.stdout
 
 class ScmDiffTextView(DiffTextView):
     def __init__(self, file_list=None, fromrev=None, torev=None):
@@ -287,13 +290,13 @@ class ScmDiffTextDialog(dialogue.AmodalDialog):
             else:
                 title += " REV[%s] -> []" % (str(fromrev))
         elif torev:
-            _res, parents, _serr = ifce.SCM.get_parents(torev)
+            parents = ifce.SCM.get_parents(torev)
             if len(parents) == 1:
                 title += " REV[%s] -> REV[%s]" % (str(parents[0]), str(torev))
             else:
                 title += " * -> [%s]" % (str(torev))
         else:
-            _res, parents, _serr = ifce.SCM.get_parents()
+            parents = ifce.SCM.get_parents()
             if len(parents) == 1:
                 title += " REV[%s] -> []" % (str(parents[0]))
             else:
@@ -342,9 +345,11 @@ class PmDiffTextBuffer(DiffTextBuffer):
             self.a_name_list = ["diff_save", "diff_save_as"]
         self.diff_buttons = gutils.ActionButtonList([self._action_group], self.a_name_list)
     def _get_diff_text(self):
-        res, text, serr = ifce.PM.get_diff_for_files(self._file_list, self._patch)
-        dialogue.report_any_problems((res, text, serr))
-        return text
+        try:
+            return ifce.PM.get_diff_for_files(self._file_list, self._patch)
+        except cmd_result.Failure as failure:
+            dialogue.report_failure(failure)
+            return failure.result.stdout
 
 class PmDiffTextView(DiffTextView):
     def __init__(self, file_list=None, patch=None):
@@ -386,9 +391,11 @@ class IncomingDiffTextBuffer(DiffTextBuffer):
         self.a_name_list = ["diff_save", "diff_save_as"]
         self.diff_buttons = gutils.ActionButtonList([self._action_group], self.a_name_list)
     def _get_diff_text(self):
-        res, text, serr = ifce.SCM.get_incoming_diff(self._rev, self._path)
-        dialogue.report_any_problems((res, text, serr))
-        return text
+        try:
+            return ifce.SCM.get_incoming_diff(self._rev, self._path)
+        except cmd_result.Failure as failure:
+            dialogue.report_failure(failure)
+            return failure.result.stdout
 
 class IncomingDiffTextView(DiffTextView):
     def __init__(self, rev, path=None):

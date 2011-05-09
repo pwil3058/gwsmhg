@@ -144,7 +144,7 @@ class ConsoleLog(gtk.VBox, dialogue.BusyIndicatorUser):
     def _cmd_entry_cb(self, entry):
         text = entry.get_text_and_clear_to_history()
         if not text:
-            return (cmd_result.OK, "", "")
+            return
         self.show_busy()
         pre_dir = os.getcwd()
         result = utils.run_cmd_in_console(text, self)
@@ -158,7 +158,7 @@ class ConsoleLog(gtk.VBox, dialogue.BusyIndicatorUser):
     def _hg_cmd_entry_cb(self, entry):
         text = entry.get_text_and_clear_to_history()
         if not text:
-            return (cmd_result.OK, "", "")
+            return
         self.show_busy()
         result = utils.run_cmd_in_console("hg " + text, self)
         self.unshow_busy()

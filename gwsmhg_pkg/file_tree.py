@@ -508,8 +508,8 @@ class CwdFileTreeView(FileTreeView):
             ifce.log.end_cmd()
         ws_event.notify_events(ws_event.FILE_DEL)
         if serr:
-            return (cmd_result.ERROR, "", serr)
-        return (cmd_result.OK, "", "")
+            return cmd_result.Result(cmd_result.ERROR, "", serr)
+        return cmd_result.Result(cmd_result.OK, "", "")
     def _delete_named_files(self, file_list, ask=True):
         if not ask or dialogue.confirm_list_action(file_list, 'About to be deleted. OK?'):
             self.show_busy()
@@ -593,6 +593,8 @@ SCM_CWD_UI_DESCR = \
   </popup>
 </ui>
 '''
+def _check_if_force(result):
+    return dialogue.ask_force_or_cancel(result) == dialogue.RESPONSE_FORCE
 
 class ScmCwdFileTreeView(CwdFileTreeView):
     def __init__(self, busy_indicator, auto_refresh=False, show_hidden=False):
@@ -677,24 +679,20 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         tortoise.run_tool_for_files(action, self.get_selected_files())
     def new_file(self, new_file_name):
         result = utils.create_file(new_file_name, ifce.log)
-        if not result[0]:
-            res, sout, serr = ifce.SCM.do_add_files([new_file_name])
-            if res:
-                return (res, sout, serr)
+        if result.eflags == 0:
+            result = ifce.SCM.do_add_files([new_file_name])
         return result
     def delete_files(self, file_list):
         return ifce.SCM.do_delete_files(file_list)
     def get_scm_name(self):
         return ifce.SCM.name
-    def _check_if_force(self, result):
-        return dialogue.ask_force_or_cancel('\n'.join(result[1:])) == dialogue.RESPONSE_FORCE
     def _remove_named_files(self, file_list, ask=True):
         if not ask or dialogue.confirm_list_action(file_list, 'About to be removed. OK?'):
             self.show_busy()
             result = ifce.SCM.do_remove_files(file_list)
             self.unshow_busy()
             if cmd_result.suggests_force(result):
-                if self._check_if_force(result):
+                if _check_if_force(result):
                     self.show_busy()
                     result = ifce.SCM.do_remove_files(file_list, force=True)
                     self.unshow_busy()
@@ -711,12 +709,12 @@ class ScmCwdFileTreeView(CwdFileTreeView):
     def add_all_files_to_repo(self):
         operation = ifce.SCM.do_add_files
         self.show_busy()
-        res, info, serr = operation([], dry_run=True)
+        result = operation([], dry_run=True)
         self.unshow_busy()
-        if res != cmd_result.OK:
-            dialogue.report_any_problems((res, info, serr))
+        if result.eflags != cmd_result.OK:
+            dialogue.report_any_problems(result)
             return
-        if dialogue.confirm_list_action((info + serr).splitlines(), 'About to be actioned. OK?'):
+        if dialogue.confirm_list_action('\n'.join(result[1:]).splitlines(), 'About to be actioned. OK?'):
             self.show_busy()
             result = operation([], dry_run=False)
             self.unshow_busy()
@@ -765,17 +763,17 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             if ask:
                 while True:
                     self.show_busy()
-                    res, sout, serr = operation(file_list, target, force=force, dry_run=True)
+                    result = operation(file_list, target, force=force, dry_run=True)
                     self.unshow_busy()
-                    if cmd_result.is_less_than_error(res):
-                        is_ok = dialogue.confirm_list_action(sout.splitlines(), 'About to be actioned. OK?')
+                    if cmd_result.is_less_than_error(result):
+                        is_ok = dialogue.confirm_list_action(result.stdout.splitlines(), 'About to be actioned. OK?')
                         break
-                    elif not force and cmd_result.suggests_force(res):
-                        is_ok = force = self._check_if_force((res, sout, serr))
+                    elif not force and cmd_result.suggests_force(result):
+                        is_ok = force = _check_if_force(result)
                         if not force:
                             return
                     else:
-                        dialogue.report_any_problems((res, sout, serr))
+                        dialogue.report_any_problems(result)
                         return
             if not ask or is_ok:
                 while True:
@@ -783,7 +781,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                     result = operation(file_list, target, force=force)
                     self.unshow_busy()
                     if not force and cmd_result.suggests_force(result):
-                        force = self._check_if_force(result)
+                        force = _check_if_force(result)
                         if not force:
                             return
                         continue
@@ -821,16 +819,16 @@ class ScmCwdFileTreeView(CwdFileTreeView):
     def revert_named_files(self, file_list, ask=True):
         if ask:
             self.show_busy()
-            res, sout, serr = ifce.SCM.do_revert_files(file_list, dry_run=True)
+            result = ifce.SCM.do_revert_files(file_list, dry_run=True)
             self.unshow_busy()
-            if res == cmd_result.OK:
-                if sout:
-                    is_ok = dialogue.confirm_list_action(sout.splitlines(), 'About to be actioned. OK?')
+            if result.eflags == cmd_result.OK:
+                if result.stdout:
+                    is_ok = dialogue.confirm_list_action(result.stdout.splitlines(), 'About to be actioned. OK?')
                 else:
                     dialogue.inform_user('Nothing to revert')
                     return
             else:
-                dialogue.report_any_problems((res, sout, serr))
+                dialogue.report_any_problems(result)
                 return
         else:
             is_ok = True
@@ -1254,8 +1252,6 @@ class TopPatchFileTreeView(CwdFileTreeView):
         self.add_notification_cb(ws_event.CHECKOUT|ws_event.CHANGE_WD, self.repopulate_tree)
         self.add_notification_cb(ws_event.FILE_CHANGES, self.update_tree)
         self.init_action_states()
-    def _check_if_force(self, result):
-        return dialogue.ask_force_or_cancel('\n'.join(result[1:])) == dialogue.RESPONSE_FORCE
     def create_new_file(self, new_file_name, open_for_edit=False):
         result = CwdFileTreeView.create_new_file(self, new_file_name, open_for_edit)
         if not result[0]:
@@ -1270,7 +1266,7 @@ class TopPatchFileTreeView(CwdFileTreeView):
             result = ifce.PM.do_remove_files(file_list)
             self.unshow_busy()
             if cmd_result.suggests_force(result):
-                if self._check_if_force(result):
+                if _check_if_force(result):
                     self.show_busy()
                     result = ifce.PM.do_remove_files(file_list, force=True)
                     self.unshow_busy()
@@ -1311,18 +1307,18 @@ class TopPatchFileTreeView(CwdFileTreeView):
             if ask:
                 while True:
                     self.show_busy()
-                    res, sout, serr = operation(file_list, target, force=force,
+                    result = operation(file_list, target, force=force,
                                                 dry_run=True)
                     self.unshow_busy()
-                    if res == cmd_result.OK:
-                        is_ok = dialogue.confirm_list_action(sout.splitlines(), 'About to be actioned. OK?')
+                    if result.eflags == cmd_result.OK:
+                        is_ok = dialogue.confirm_list_action(result.stdout.splitlines(), 'About to be actioned. OK?')
                         break
-                    elif not force and cmd_result.suggests_force(res):
-                        is_ok = force = self._check_if_force((res, sout, serr))
+                    elif not force and cmd_result.suggests_force(result):
+                        is_ok = force = _check_if_force(result)
                         if not force:
                             return
                     else:
-                        dialogue.report_any_problems((res, sout, serr))
+                        dialogue.report_any_problems(result)
                         return
             if not ask or is_ok:
                 while True:
@@ -1330,7 +1326,7 @@ class TopPatchFileTreeView(CwdFileTreeView):
                     result = operation(file_list, target, force=force)
                     self.unshow_busy()
                     if not force and cmd_result.suggests_force(result):
-                        force = self._check_if_force(result)
+                        force = _check_if_force(result)
                         if not force:
                             return
                         continue
@@ -1358,16 +1354,16 @@ class TopPatchFileTreeView(CwdFileTreeView):
     def revert_named_files(self, file_list, ask=True):
         if ask:
             self.show_busy()
-            res, sout, serr = ifce.PM.do_revert_files(file_list, dry_run=True)
+            result = ifce.PM.do_revert_files(file_list, dry_run=True)
             self.unshow_busy()
-            if res == cmd_result.OK:
-                if sout:
-                    is_ok = dialogue.confirm_list_action(sout.splitlines(), 'About to be actioned. OK?')
+            if result.eflags == cmd_result.OK:
+                if result.stdout:
+                    is_ok = dialogue.confirm_list_action(result.stdoutt.splitlines(), 'About to be actioned. OK?')
                 else:
                     dialogue.inform_user('Nothing to revert')
                     return
             else:
-                dialogue.report_any_problems((res, sout, serr))
+                dialogue.report_any_problems(result)
                 return
         else:
             is_ok = True

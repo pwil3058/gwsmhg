@@ -55,7 +55,7 @@ def chdir(newdir=None):
             import errno
             ecode = errno.errorcode[err.errno]
             emsg = err.strerror
-            return (cmd_result.ERROR, '', '%s: "%s" :%s' % (ecode, newdir, emsg))
+            return cmd_result.Result(cmd_result.ERROR, '', '%s: "%s" :%s' % (ecode, newdir, emsg))
     root = SCM.get_root()
     if root:
         os.chdir(root)
@@ -69,4 +69,4 @@ def chdir(newdir=None):
     if term:
         term.set_cwd(new_wd)
     log.append_entry("New Working Directory: %s" % new_wd)
-    return (cmd_result.OK, "", "")
+    return cmd_result.Result(cmd_result.OK, "", "")

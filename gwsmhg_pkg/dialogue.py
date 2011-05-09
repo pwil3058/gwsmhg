@@ -17,6 +17,7 @@
 
 import gtk, os
 from gwsmhg_pkg import cmd_result, icons, ws_event
+from gwsmhg_pkg import gutils
 
 main_window = None
 
@@ -86,19 +87,6 @@ class FileChooserDialog(gtk.FileChooserDialog):
             parent = main_window
         gtk.FileChooserDialog.__init__(self, title=title, parent=parent, action=action, buttons=buttons, backend=backend)
 
-def wrap_in_scrolled_window(widget, policy=(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC), with_frame=True, label=None):
-    scrw = gtk.ScrolledWindow()
-    scrw.set_policy(policy[0], policy[1])
-    scrw.add(widget)
-    if with_frame:
-        frame = gtk.Frame(label)
-        frame.add(scrw)
-        frame.show_all()
-        return frame
-    else:
-        scrw.show_all()
-        return scrw
-
 class QuestionDialog(Dialog):
     def __init__(self, title=None, parent=None, flags=0, buttons=None, question=""):
         Dialog.__init__(self, title=title, parent=parent, flags=flags, buttons=buttons)
@@ -115,7 +103,7 @@ class QuestionDialog(Dialog):
         self.tview.set_size_request(320, 80)
         self.tview.show()
         self.tview.get_buffer().set_text(question)
-        hbox.add(wrap_in_scrolled_window(self.tview))
+        hbox.add(gutils.wrap_in_scrolled_window(self.tview))
     def set_question(self, question):
         self.tview.get_buffer().set_text(question)
 
@@ -150,53 +138,66 @@ RESPONSE_DISCARD = 7
 RESPONSE_EDIT = 8
 RESPONSE_MERGE = 9
 
-def ask_force_refresh_or_cancel(question, flags=cmd_result.SUGGEST_ALL, parent=None):
+def _form_question(result, clarification):
+    if clarification:
+        return '\n'.join(list(result[1:]) + [clarification])
+    else:
+        return '\n'.join(result[1:])
+
+def ask_force_refresh_or_cancel(result, clarification=None, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
-    if flags & cmd_result.SUGGEST_REFRESH:
+    if result.eflags & cmd_result.SUGGEST_REFRESH:
         buttons += ("_Refresh and Retry", RESPONSE_REFRESH)
-    if flags & cmd_result.SUGGEST_FORCE:
+    if result.eflags & cmd_result.SUGGEST_FORCE:
         buttons += ("_Force", RESPONSE_FORCE)
+    question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
-def ask_force_or_cancel(question, parent=None):
+def ask_force_or_cancel(result, clarification=None, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, "_Force", RESPONSE_FORCE)
+    question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
-def ask_merge_discard_or_cancel(question, flags=cmd_result.SUGGEST_ALL, parent=None):
+def ask_merge_discard_or_cancel(result, clarification=None, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
-    if flags & cmd_result.SUGGEST_MERGE:
+    if result.eflags & cmd_result.SUGGEST_MERGE:
         buttons += ("_Merge", RESPONSE_MERGE)
-    if flags & cmd_result.SUGGEST_DISCARD:
+    if result.eflags & cmd_result.SUGGEST_DISCARD:
         buttons += ("_Discard Changes", RESPONSE_DISCARD)
+    question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
-def ask_recover_or_cancel(question, parent=None):
+def ask_recover_or_cancel(result, clarification=None, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, "_Recover", RESPONSE_RECOVER)
+    question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
-def ask_edit_force_or_cancel(question, flags=cmd_result.SUGGEST_ALL, parent=None):
+def ask_edit_force_or_cancel(result, clarification=None, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
-    if flags & cmd_result.SUGGEST_EDIT:
+    if result.eflags & cmd_result.SUGGEST_EDIT:
         buttons += ("_Edit", RESPONSE_EDIT)
-    if flags & cmd_result.SUGGEST_FORCE:
+    if result.eflags & cmd_result.SUGGEST_FORCE:
         buttons += ("_Force", RESPONSE_FORCE)
+    question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
-def ask_rename_force_or_cancel(question, flags=cmd_result.SUGGEST_ALL, parent=None):
+def ask_rename_force_or_cancel(result, clarification=None, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
-    if flags & cmd_result.SUGGEST_RENAME:
+    if result.eflags & cmd_result.SUGGEST_RENAME:
         buttons += ("_Rename", RESPONSE_RENAME)
-    if flags & cmd_result.SUGGEST_FORCE:
+    if result.eflags & cmd_result.SUGGEST_FORCE:
         buttons += ("_Force", RESPONSE_FORCE)
+    question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
-def ask_rename_force_or_skip(question, flags=cmd_result.SUGGEST_ALL, parent=None):
+def ask_rename_force_or_skip(result, clarification=None, parent=None):
     buttons = ()
-    if flags & cmd_result.SUGGEST_RENAME:
+    if result.eflags & cmd_result.SUGGEST_RENAME:
         buttons += ("_Rename", RESPONSE_RENAME)
-    if flags & cmd_result.SUGGEST_FORCE:
+    if result.eflags & cmd_result.SUGGEST_FORCE:
         buttons += ("_Force", RESPONSE_FORCE)
     buttons += ("_Skip", RESPONSE_SKIP, "Skip _All", RESPONSE_SKIP_ALL)
+    question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
 def ask_file_name(prompt, suggestion=None, existing=True, parent=None):
@@ -268,13 +269,18 @@ def alert_user(msg, parent=None):
     inform_user(msg, parent=parent, problem_type=gtk.MESSAGE_ERROR)
 
 def report_any_problems(result, parent=None):
-    if cmd_result.is_ok(result[0]):
+    if cmd_result.is_ok(result):
         return
-    elif cmd_result.is_error(result[0]):
-        problem_type = gtk.MESSAGE_ERROR
-    else:
+    elif cmd_result.is_warning(result):
         problem_type = gtk.MESSAGE_WARNING
+    else:
+        problem_type = gtk.MESSAGE_ERROR
     inform_user(os.linesep.join(result[1:]), parent, problem_type)
+
+def report_failure(failure, parent=None):
+    result = failure.result
+    if result.eflags != 0:
+        inform_user(os.linesep.join(result[1:]), parent, gtk.MESSAGE_ERROR)
 
 _REPORT_REQUEST_MSG = \
 '''

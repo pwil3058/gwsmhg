@@ -270,20 +270,20 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
         dialog.show()
     def _revert_ws_acb(self, _action=None):
         self.show_busy()
-        res, sout, serr = ifce.SCM.do_revert_files(dry_run=True)
+        result = ifce.SCM.do_revert_files(dry_run=True)
         self.unshow_busy()
-        if cmd_result.is_less_than_error(res):
-            if sout:
-                is_ok = dialogue.confirm_list_action(sout.splitlines(), 'About to be actioned. OK?')
+        if cmd_result.is_less_than_error(result):
+            if result.stdout:
+                is_ok = dialogue.confirm_list_action(result.stdout.splitlines(), 'About to be actioned. OK?')
                 if not is_ok:
                     return
                 self.show_busy()
-                res, sout, serr = ifce.SCM.do_revert_files(dry_run=False)
+                result = ifce.SCM.do_revert_files(dry_run=False)
                 self.unshow_busy()
             else:
                 dialogue.inform_user('Nothing to revert')
                 return
-        dialogue.report_any_problems((res, sout, serr))
+        dialogue.report_any_problems(result)
     def _tag_ws_acb(self, _action=None):
         self.show_busy()
         change_set.SetTagDialog(parent=self).run()
@@ -336,9 +336,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
                 result = ifce.SCM.do_merge_workspace(rev=None, force=False)
                 self.unshow_busy()
                 if result[0] & cmd_result.SUGGEST_FORCE:
-                    question = os.linesep.join(result[1:])
-                    ans = dialogue.ask_force_or_cancel(question, parent=self)
-                    if ans == dialogue.RESPONSE_FORCE:
+                    if dialogue.ask_force_or_cancel(result, parent=self) == dialogue.RESPONSE_FORCE:
                         self.show_busy()
                         result = ifce.SCM.do_merge_workspace(rev=None, force=True)
                         self.unshow_busy()
@@ -357,9 +355,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
         result = ifce.SCM.do_merge_workspace()
         self.unshow_busy()
         if result[0] & cmd_result.SUGGEST_FORCE:
-            question = os.linesep.join(result[1:])
-            ans = dialogue.ask_force_or_cancel(question)
-            if ans == dialogue.RESPONSE_FORCE:
+            if dialogue.ask_force_or_cancel(result) == dialogue.RESPONSE_FORCE:
                 self.show_busy()
                 result = ifce.SCM.do_merge_workspace(force=True)
                 self.unshow_busy()

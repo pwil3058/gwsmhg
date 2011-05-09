@@ -1,4 +1,4 @@
-### Copyright (C) 2007 Peter Williams <peter_ono@users.sourceforge.net>
+### Copyright (C) 2007-2011 Peter Williams <peter_ono@users.sourceforge.net>
 
 ### This program is free software; you can redistribute it and/or modify
 ### it under the terms of the GNU General Public License as published by
@@ -21,17 +21,19 @@ import collections
 
 Result = collections.namedtuple('Result', ['eflags', 'stdout', 'stderr'])
 
+# N.B. WARNING is at bit 9 so that 8 bits are available for important
+# flags that we hope hg can be modified to use
 OK = 0
 _NFLAGS = 9
-WARNING, \
 ERROR, \
 SUGGEST_FORCE, \
 SUGGEST_REFRESH, \
+SUGGEST_RECOVER, \
 SUGGEST_RENAME, \
 SUGGEST_DISCARD, \
 SUGGEST_EDIT, \
 SUGGEST_MERGE, \
-SUGGEST_RECOVER = [2 ** flag_num for flag_num in range(_NFLAGS)]
+WARNING = [2 ** flag_num for flag_num in range(_NFLAGS)]
 SUGGEST_ALL = 2 ** _NFLAGS - 1 - WARNING|ERROR
 SUGGEST_FORCE_OR_REFRESH = SUGGEST_FORCE | SUGGEST_REFRESH
 WARNING_SUGGEST_FORCE = WARNING | SUGGEST_FORCE
@@ -46,7 +48,10 @@ SUGGEST_MERGE_OR_DISCARD = SUGGEST_MERGE | SUGGEST_DISCARD
 BASIC_VALUES_MASK = OK | WARNING | ERROR
 
 def basic_value(res):
-    return res & BASIC_VALUES_MASK
+    if isinstance(res, Result):
+        return res.eflags & BASIC_VALUES_MASK
+    else:
+        return res & BASIC_VALUES_MASK
 
 def is_ok(res):
     return basic_value(res) == OK
@@ -55,27 +60,30 @@ def is_warning(res):
     return basic_value(res) == WARNING
 
 def is_less_than_warning(res):
-    return basic_value(res) < WARNING
+    return basic_value(res) not in [WARNING, ERROR]
 
 def is_error(res):
     return basic_value(res) == ERROR
 
 def is_less_than_error(res):
-    return basic_value(res) < ERROR
+    return basic_value(res) != ERROR
 
 def suggests_force(res):
-    if type(res) in [list, tuple, Result]:
-        return (res[0] & SUGGEST_FORCE) == SUGGEST_FORCE
+    if isinstance(res, Result):
+        return (res.eflags & SUGGEST_FORCE) == SUGGEST_FORCE
     else:
         return (res & SUGGEST_FORCE) == SUGGEST_FORCE
 
 def map_cmd_result(result, ignore_err_re=None):
-    if result[0] == 0:
-        if result[2] and not (ignore_err_re and ignore_err_re.match(result[2])):
+    if result.eflags == 0:
+        if result.stderr and not (ignore_err_re and ignore_err_re.match(result.stderr)):
             outres = WARNING
         else:
             outres = OK
     else:
         outres = ERROR
-    return Result(outres, result[1], result[2])
+    return Result(outres, result.stdout, result.stderr)
 
+class Failure(Exception):
+    def __init__(self, result):
+        self.result = result

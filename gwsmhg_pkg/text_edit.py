@@ -265,9 +265,9 @@ class PatchSummaryBuffer(NewPatchSummaryBuffer):
             ])
     def _save_summary_acb(self, _action=None):
         text = self.get_text(self.get_start_iter(), self.get_end_iter())
-        res, sout, serr = self._set_summary(self.patch, text)
-        if res:
-            dialogue.alert_user(os.linesep.join([sout, serr]))
+        result = self._set_summary(self.patch, text)
+        if result.eflags:
+            dialogue.report_any_problems(result)
         else:
             self.set_modified(False)
     def _ok_to_overwrite_summary(self):
@@ -275,12 +275,11 @@ class PatchSummaryBuffer(NewPatchSummaryBuffer):
             return dialogue.ask_ok_cancel("Buffer contents will be destroyed. Continue?")
         return True
     def load_summary(self):
-        res, text, serr = self._get_summary(self.patch)
-        if res:
-            dialogue.alert_user(os.linesep.join([text, serr]))
-        else:
-            self.set_text(text)
+        try:
+            self.set_text(self._get_summary(self.patch))
             self.set_modified(False)
+        except cmd_result.Failure as failure:
+            dialogue.report_failure(failure)
     def _load_summary_acb(self, _action=None):
         if self._ok_to_overwrite_summary():
             self.load_summary()

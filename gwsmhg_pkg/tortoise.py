@@ -73,7 +73,7 @@ def _tortoise_tool_bgnd_acb(action):
     name = _action_tool_name(action)
     cmd = 'hgtk %s' % name
     if not utils.run_cmd_in_bgnd(cmd):
-        dialogue.report_any_problems((cmd_result.ERROR, '"%s" failed' % cmd, ''))
+        dialogue.report_any_problems(cmd_result.Result(cmd_result.ERROR, '"%s" failed' % cmd, ''))
 
 actions.add_class_indep_actions(actions.DONT_CARE, [
         ('gwsm_tortoise', None, '_Tortoise Tools'),

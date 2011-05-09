@@ -1,6 +1,6 @@
 # -*- python -*-
 
-### Copyright (C) 2005 Peter Williams <peter_ono@users.sourceforge.net>
+### Copyright (C) 2005-2011 Peter Williams <peter_ono@users.sourceforge.net>
 
 ### This program is free software; you can redistribute it and/or modify
 ### it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@ import os
 import os.path
 import signal
 import select
+import time
 
 import gtk
 import gobject
@@ -28,6 +29,8 @@ import gobject
 from gwsmhg_pkg import cmd_result, ws_event, urlops
 
 HOME = os.path.expanduser("~")
+
+BENCHMARK = False
 
 def path_rel_home(path):
     """Return the given path as a path relative to user's home directory."""
@@ -38,7 +41,6 @@ def path_rel_home(path):
     if len(path) >= len_home and HOME == path[:len_home]:
         path = "~" + path[len_home:]
     return path
-
 
 def cwd_rel_home():
     """Return path of current working directory relative to user's home
@@ -105,19 +107,19 @@ def create_file(name, console=None):
             if console:
                 console.end_cmd()
             ws_event.notify_events(ws_event.FILE_ADD)
-            return (cmd_result.OK, '', '')
+            return cmd_result.Result(cmd_result.OK, '', '')
         except (IOError, OSError) as msg:
-            return (cmd_result.ERROR, '', '"%s": %s' % (name, msg))
+            return cmd_result.Result(cmd_result.ERROR, '', '"%s": %s' % (name, msg))
     else:
-        return (cmd_result.WARNING, '', '"%s": file already exists' % name)
+        return cmd_result.Result(cmd_result.WARNING, '', '"%s": file already exists' % name)
 
 
 def run_cmd(cmd, input_text=None):
     """Run the given command and report the outcome as a cmd_result tuple.
     If input_text is not None pas it to the command as standard input.
     """
-    if not cmd:
-        return [ 0, None, None ]
+    if BENCHMARK:
+        start_time = time.clock()
     try:
         oldterm = os.environ['TERM']
         os.environ['TERM'] = "dumb"
@@ -134,7 +136,9 @@ def run_cmd(cmd, input_text=None):
         signal.signal(signal.SIGPIPE, savedsh)
     if oldterm:
         os.environ['TERM'] = oldterm
-    return [ sub.returncode, outd, errd ]
+    if BENCHMARK:
+        print 'run:', time.clock() - start_time, sub.returncode, len(outd), len(errd), ':', cmd
+    return cmd_result.Result(sub.returncode, outd, errd)
 
 
 def run_cmd_in_console(cmd, console, input_text=None):
@@ -144,8 +148,8 @@ def run_cmd_in_console(cmd, console, input_text=None):
     """
     if os.name == 'nt' or os.name == 'dos':
         return run_cmd_in_console_nt(cmd, console, input_text=input_text)
-    if not cmd:
-        return [ 0, None, None ]
+    if BENCHMARK:
+        start_time = time.clock()
     try:
         oldterm = os.environ['TERM']
         os.environ['TERM'] = "dumb"
@@ -194,7 +198,9 @@ def run_cmd_in_console(cmd, console, input_text=None):
         signal.signal(signal.SIGPIPE, savedsh)
     if oldterm:
         os.environ['TERM'] = oldterm
-    return [ sub.returncode, outd, errd ]
+    if BENCHMARK:
+        print 'console:', time.clock() - start_time, sub.returncode, len(outd), len(errd), ':', cmd
+    return cmd_result.Result(sub.returncode, outd, errd)
 
 
 def _wait_for_bgnd_cmd_timeout(pid):
@@ -221,7 +227,6 @@ def run_cmd_in_bgnd(cmd):
     gobject.timeout_add(2000, _wait_for_bgnd_cmd_timeout, pid)
     return True
 
-
 if os.name == 'nt' or os.name == 'dos':
     def run_cmd_in_console_nt(cmd, console, input_text=None):
         """Run the given command in the given console and report the
@@ -235,7 +240,7 @@ if os.name == 'nt' or os.name == 'dos':
         console.append_stdout(sout)
         console.append_stderr(serr)
         console.end_cmd()
-        return (res, sout, serr)
+        return cmd_result.Result(res, sout, serr)
 
 
     def _which(cmd):

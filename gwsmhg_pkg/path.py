@@ -122,11 +122,7 @@ class PathTable(table.MapManagedTable):
         self.add_notification_cb(ws_event.REPO_HGRC, self.refresh_contents_if_mapped)
         self.show_all()
     def _fetch_contents(self):
-        res, data, _serr = ifce.SCM.get_path_table_data()
-        if res == cmd_result.OK and data:
-            return data
-        else:
-            return []
+        return ifce.SCM.get_path_table_data()
     def get_selected_path_alias(self):
         return self.get_selected_key_by_label('Alias')
     def get_selected_path(self):
@@ -179,8 +175,7 @@ class IncomingParentsTable(change_set.ChangeSetTable):
         self.unshow_busy()
         dialog.show()
     def _fetch_contents(self):
-        _res, parents, _serr = ifce.SCM.get_incoming_parents_table_data(self._rev, self._path)
-        return parents
+        return ifce.SCM.get_incoming_parents_table_data(self._rev, self._path)
 
 class IncomingFileTreeStore(file_tree.FileTreeStore):
     def __init__(self, rev, path):
@@ -284,8 +279,7 @@ class IncomingTable(change_set.SearchableChangeSetTable):
         self.unshow_busy()
         dialog.show()
     def _fetch_contents(self):
-        _res, outgoing, _serr = ifce.SCM.get_incoming_table_data(self._path)
-        return outgoing
+        return ifce.SCM.get_incoming_table_data(self._path)
 
 OUTGOING_TABLE_UI_DESCR = \
 '''
@@ -325,8 +319,7 @@ class OutgoingTable(change_set.SearchableChangeSetTable):
         self.refresh_contents()
         self.unshow_busy()
     def _fetch_contents(self):
-        _res, outgoing, _serr = ifce.SCM.get_outgoing_table_data(self._path)
-        return outgoing
+        return ifce.SCM.get_outgoing_table_data(self._path)
 
 class PathCSDialog(dialogue.AmodalDialog):
     def __init__(self, title, path=None, table_type=None, parent=None):
@@ -361,11 +354,7 @@ class PathSelectTable(table.TableWithAGandUI):
         self.set_contents()
         self.show_all()
     def _fetch_contents(self):
-        res, data, _serr = ifce.SCM.get_path_table_data()
-        if res == cmd_result.OK and data:
-            return data
-        else:
-            return []
+        return ifce.SCM.get_path_table_data()
     def get_selected_path_alias(self):
         return self.get_selected_key_by_label('Alias')
     def get_selected_path(self):

@@ -1,6 +1,4 @@
-# -*- python -*-
-
-### Copyright (C) 2005 Peter Williams <peter_ono@users.sourceforge.net>
+### Copyright (C) 2005-2011 Peter Williams <peter_ono@users.sourceforge.net>
 
 ### This program is free software; you can redistribute it and/or modify
 ### it under the terms of the GNU General Public License as published by
@@ -15,15 +13,24 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, gobject, gtk, fnmatch, os.path, collections
+import os
+import gobject
+import gtk
+import fnmatch
+import collections
 
-from gwsmhg_pkg import dialogue, gutils, utils, table, urlops, tlview
+from gwsmhg_pkg import dialogue
+from gwsmhg_pkg import gutils
+from gwsmhg_pkg import utils
+from gwsmhg_pkg import table
+from gwsmhg_pkg import urlops
+from gwsmhg_pkg import tlview
 
 PARow = collections.namedtuple('PARow', ['Alias', 'Path'])
 
-REPO_PRECIS_MODEL_DESCR = PARow(Alias=gobject.TYPE_STRING, Path=gobject.TYPE_STRING)
+PATH_ALIAS_MODEL_DESCR = PARow(Alias=gobject.TYPE_STRING, Path=gobject.TYPE_STRING)
 
-REPO_PRECIS_TABLE_DESCR = tlview.ViewTemplate(
+PATH_ALIAS_TABLE_DESCR = tlview.ViewTemplate(
     properties={
         'enable-grid-lines' : False,
         'reorderable' : False, 
@@ -44,7 +51,7 @@ REPO_PRECIS_TABLE_DESCR = tlview.ViewTemplate(
                     ),
                     properties={'editable' : True},
                     renderer=None,
-                    attributes = {'text' : tlview.model_col(REPO_PRECIS_MODEL_DESCR, 'Alias')}
+                    attributes = {'text' : tlview.model_col(PATH_ALIAS_MODEL_DESCR, 'Alias')}
                 ),
             ],
         ),
@@ -60,19 +67,19 @@ REPO_PRECIS_TABLE_DESCR = tlview.ViewTemplate(
                     ),
                     properties={'editable' : False},
                     renderer=None,
-                    attributes = {'text' : tlview.model_col(REPO_PRECIS_MODEL_DESCR, 'Path')}
+                    attributes = {'text' : tlview.model_col(PATH_ALIAS_MODEL_DESCR, 'Path')}
                 ),
             ],
         ),
     ]
 )
 
-GSWMHG_D_NAME = os.sep.join([utils.HOME, ".gwsmhg.d"])
-SAVED_WS_FILE_NAME = os.sep.join([GSWMHG_D_NAME, "workspaces"])
-SAVED_REPO_FILE_NAME = os.sep.join([GSWMHG_D_NAME, "repositories"])
+CONFIG_DIR_NAME = os.sep.join([utils.HOME, ".gwsmhg.d"])
+SAVED_WS_FILE_NAME = os.sep.join([CONFIG_DIR_NAME, "workspaces"])
+SAVED_REPO_FILE_NAME = os.sep.join([CONFIG_DIR_NAME, "repositories"])
 
-if not os.path.exists(GSWMHG_D_NAME):
-    os.mkdir(GSWMHG_D_NAME, 0o775)
+if not os.path.exists(CONFIG_DIR_NAME):
+    os.mkdir(CONFIG_DIR_NAME, 0o775)
 
 def append_saved_ws(path, alias=None):
     fobj = open(SAVED_WS_FILE_NAME, 'a')
@@ -88,8 +95,8 @@ _KEYVAL_ESCAPE = gtk.gdk.keyval_from_name('Escape')
 class AliasPathTable(table.Table):
     def __init__(self, saved_file):
         self._saved_file = saved_file
-        table.Table.__init__(self, model_descr=REPO_PRECIS_MODEL_DESCR,
-                             table_descr=REPO_PRECIS_TABLE_DESCR,
+        table.Table.__init__(self, model_descr=PATH_ALIAS_MODEL_DESCR,
+                             table_descr=PATH_ALIAS_TABLE_DESCR,
                              size_req=(480, 160))
         self.view.register_modification_callback(self.save_to_file)
         self.connect("key_press_event", self._key_press_cb)
@@ -295,7 +302,7 @@ for env in ['COLORTERM', 'TERM']:
     except KeyError:
         pass
 
-EDITOR_GLOB_FILE_NAME = os.sep.join([GSWMHG_D_NAME, "editors"])
+EDITOR_GLOB_FILE_NAME = os.sep.join([CONFIG_DIR_NAME, "editors"])
 
 editor_defs = []
 

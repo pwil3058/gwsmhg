@@ -249,7 +249,7 @@ _VIEW_TEMPLATE = tlview.ViewTemplate(
     ]
 )
 
-_finish_empty_msg_prompt = os.linesep.join(
+_finish_empty_msg_prompt = '\n'.join(
     ["Do you wish to:",
      "\tcancel,",
      "\tedit the description and retry, or",
@@ -426,27 +426,27 @@ class List(table.TableWithAGandUI):
         self.unshow_busy()
     def do_refresh(self, _action=None, notify=True):
         self.show_busy()
-        res, sout, serr = ifce.PM.do_refresh(notify=notify)
+        result = ifce.PM.do_refresh(notify=notify)
         self.unshow_busy()
-        if res != cmd_result.OK:
-            if res & cmd_result.SUGGEST_RECOVER:
-                if dialogue.ask_recover_or_cancel(os.linesep.join([sout, serr])) == dialogue.RESPONSE_RECOVER:
+        if result.eflags != cmd_result.OK:
+            if result.eflags & cmd_result.SUGGEST_RECOVER:
+                if dialogue.ask_recover_or_cancel(result) == dialogue.RESPONSE_RECOVER:
                     self.show_busy()
-                    res, sout, serr = ifce.PM.do_recover_interrupted_refresh()
-                    if res == cmd_result.OK:
-                        res, sout, serr = ifce.PM.do_refresh(notify=notify)
+                    result = ifce.PM.do_recover_interrupted_refresh()
+                    if result.eflags == cmd_result.OK:
+                        result = ifce.PM.do_refresh(notify=notify)
                     self.unshow_busy()
-            if res != cmd_result.OK: # There're may still be problems
-                dialogue.report_any_problems((res, sout, serr))
+            if result.eflags != cmd_result.OK: # There're may still be problems
+                dialogue.report_any_problems(result)
                 return
     def _do_pop_to(self, patch=None):
         while True:
             self.show_busy()
-            res, sout, serr = ifce.PM.do_pop_to(patch=patch)
+            result = ifce.PM.do_pop_to(patch=patch)
             self.unshow_busy()
-            if res != cmd_result.OK:
-                if res & cmd_result.SUGGEST_FORCE_OR_REFRESH:
-                    ans = dialogue.ask_force_refresh_or_cancel(os.linesep.join([sout, serr]), res)
+            if result.eflags != cmd_result.OK:
+                if result.eflags & cmd_result.SUGGEST_FORCE_OR_REFRESH:
+                    ans = dialogue.ask_force_refresh_or_cancel(result)
                     if ans == gtk.RESPONSE_CANCEL:
                         return False
                     elif ans == dialogue.RESPONSE_REFRESH:
@@ -454,10 +454,10 @@ class List(table.TableWithAGandUI):
                         continue
                     elif ans == dialogue.RESPONSE_FORCE:
                         self.show_busy()
-                        res, sout, serr = ifce.PM.do_pop_to(force=True)
+                        result = ifce.PM.do_pop_to(force=True)
                         self.unshow_busy()
-                if res != cmd_result.OK: # there're are still problems
-                    dialogue.report_any_problems((res, sout, serr))
+                if result.eflags != cmd_result.OK: # there're are still problems
+                    dialogue.report_any_problems(result)
                     return False
             return True
     def do_pop_to(self, _action=None):
@@ -472,11 +472,11 @@ class List(table.TableWithAGandUI):
     def _do_push_to(self, patch=None, merge=False):
         while True:
             self.show_busy()
-            res, sout, serr = ifce.PM.do_push_to(patch=patch, merge=merge)
+            result = ifce.PM.do_push_to(patch=patch, merge=merge)
             self.unshow_busy()
-            if res != cmd_result.OK:
-                if res & cmd_result.SUGGEST_FORCE_OR_REFRESH:
-                    ans = dialogue.ask_force_refresh_or_cancel(os.linesep.join([sout, serr]), res, parent=None)
+            if result.eflags != cmd_result.OK:
+                if result.eflags & cmd_result.SUGGEST_FORCE_OR_REFRESH:
+                    ans = dialogue.ask_force_refresh_or_cancel(result, parent=None)
                     if ans == gtk.RESPONSE_CANCEL:
                         return False
                     if ans == dialogue.RESPONSE_REFRESH:
@@ -484,10 +484,10 @@ class List(table.TableWithAGandUI):
                         continue
                     elif ans == dialogue.RESPONSE_FORCE:
                         self.show_busy()
-                        res, sout, serr = ifce.PM.do_push_to(force=True, merge=merge)
+                        result = ifce.PM.do_push_to(force=True, merge=merge)
                         self.unshow_busy()
-                if res != cmd_result.OK: # there're are still problems
-                    dialogue.report_any_problems((res, sout, serr))
+                if result.eflags != cmd_result.OK: # there're are still problems
+                    dialogue.report_any_problems(result)
                     return False
             return True
     def do_push_to(self, _action=None):
@@ -515,24 +515,20 @@ class List(table.TableWithAGandUI):
                 self.unshow_busy()
                 if is_ok:
                     break
-                msg = os.linesep.join(
-                    ['"%s" has an empty description.' % next_patch,
-                     "Do you wish to:",
-                     "\tcancel,",
-                     "\tedit the description and retry, or",
-                     "\tforce the finish operation?"
-                    ])
-                ans = dialogue.ask_edit_force_or_cancel(msg, parent=None)
+                dummyres = cmd_result.Result(eflags=cmd_result.SUGGEST_ALL,
+                    stdout = '"%s" has an empty description.' % next_patch,
+                    stderr = '')
+                ans = dialogue.ask_edit_force_or_cancel(dummyres, clarification=_finish_empty_msg_prompt, parent=None)
                 if ans == gtk.RESPONSE_CANCEL:
                     return
                 elif ans == dialogue.RESPONSE_FORCE:
                     break
                 self.do_edit_description_wait(next_patch)
             self.show_busy()
-            res, sout, serr = ifce.PM.do_finish_patch(next_patch)
+            result = ifce.PM.do_finish_patch(next_patch)
             self.unshow_busy()
-            if res != cmd_result.OK:
-                dialogue.report_any_problems((res, sout, serr))
+            if result.eflags != cmd_result.OK:
+                dialogue.report_any_problems(result)
                 break
             if patch == next_patch:
                 break
@@ -561,9 +557,9 @@ class List(table.TableWithAGandUI):
             if patch == new_name:
                 return
             self.show_busy()
-            res, sout, serr = ifce.PM.do_rename_patch(patch, new_name)
+            result = ifce.PM.do_rename_patch(patch, new_name)
             self.unshow_busy()
-            dialogue.report_any_problems((res, sout, serr))
+            dialogue.report_any_problems(result)
         else:
             dialog.destroy()
     def do_set_guards(self, _action=None):
@@ -575,9 +571,9 @@ class List(table.TableWithAGandUI):
             guards = dialog.entry.get_text()
             dialog.destroy()
             self.show_busy()
-            res, sout, serr = ifce.PM.do_set_patch_guards(patch, guards)
+            result = ifce.PM.do_set_patch_guards(patch, guards)
             self.unshow_busy()
-            dialogue.report_any_problems((res, sout, serr))
+            dialogue.report_any_problems(result)
         else:
             dialog.destroy()
     def do_select_guards(self, _action=None):
@@ -588,23 +584,24 @@ class List(table.TableWithAGandUI):
             selected_guards = dialog.entry.get_text()
             dialog.destroy()
             self.show_busy()
-            res, sout, serr = ifce.PM.do_select_guards(selected_guards)
+            result = ifce.PM.do_select_guards(selected_guards)
             self.unshow_busy()
-            dialogue.report_any_problems((res, sout, serr))
+            dialogue.report_any_problems(result)
         else:
             dialog.destroy()
     def do_delete(self, _action=None):
         patch = self.get_selected_patch()
-        self.show_busy()
-        res, sout, serr = ifce.PM.do_delete_patch(patch)
-        self.unshow_busy()
-        dialogue.report_any_problems((res, sout, serr))
+        if dialogue.ask_ok_cancel('Confirm delete "%s" patch?' % patch):
+            self.show_busy()
+            result = ifce.PM.do_delete_patch(patch)
+            self.unshow_busy()
+            dialogue.report_any_problems(result)
     def do_fold(self, _action=None):
         patch = self.get_selected_patch()
         self.show_busy()
-        res, sout, serr = ifce.PM.do_fold_patch(patch)
+        result = ifce.PM.do_fold_patch(patch)
         self.unshow_busy()
-        dialogue.report_any_problems((res, sout, serr))
+        dialogue.report_any_problems(result)
     def do_fold_to(self, _action=None):
         patch = self.get_selected_patch()
         while True:
@@ -612,10 +609,10 @@ class List(table.TableWithAGandUI):
             if not next_patch:
                 return
             self.show_busy()
-            res, sout, serr = ifce.PM.do_fold_patch(next_patch)
+            result = ifce.PM.do_fold_patch(next_patch)
             self.unshow_busy()
-            if res != cmd_result.OK:
-                dialogue.report_any_problems((res, sout, serr))
+            if result.eflags != cmd_result.OK:
+                dialogue.report_any_problems(result)
                 return
             if patch == next_patch:
                 return
@@ -632,25 +629,23 @@ class List(table.TableWithAGandUI):
             return
         self.show_busy()
         old_pfname = ifce.PM.get_patch_file_name(patch)
-        res, sout, serr = ifce.PM.do_import_patch(old_pfname, duplicate_patch_name)
+        result = ifce.PM.do_import_patch(old_pfname, duplicate_patch_name)
         self.unshow_busy()
-        if res == cmd_result.ERROR_SUGGEST_FORCE:
-            if dialogue.ask_force_refresh_or_cancel(os.linesep.join([sout, serr]), res) == dialogue.RESPONSE_FORCE:
+        if result.eflags == cmd_result.ERROR_SUGGEST_FORCE:
+            if dialogue.ask_force_refresh_or_cancel(result) == dialogue.RESPONSE_FORCE:
                 self.show_busy()
-                res, sout, serr = ifce.PM.do_import_patch(old_pfname, duplicate_patch_name,
-                                                          force=True)
+                result = ifce.PM.do_import_patch(old_pfname, duplicate_patch_name, force=True)
                 self.unshow_busy()
             else:
                 return
-        if res != cmd_result.OK:
-            dialogue.report_any_problems((res, sout, serr))
-            if res & cmd_result.ERROR:
+        if result.eflags != cmd_result.OK:
+            dialogue.report_any_problems(result)
+            if result.eflags & cmd_result.ERROR:
                 return
         self.show_busy()
-        res, sout, serr = ifce.PM.do_set_patch_description(duplicate_patch_name,
-                                                           duplicate_patch_descr)
+        result = ifce.PM.do_set_patch_description(duplicate_patch_name, duplicate_patch_descr)
         self.unshow_busy()
-        dialogue.report_any_problems((res, sout, serr))
+        dialogue.report_any_problems(result)
     def do_interdiff(self, _action=None):
         patch = self.get_selected_patch()
         dialog = DuplicatePatchDialog(patch, verb="Interdiff", parent=None)
@@ -667,35 +662,35 @@ class List(table.TableWithAGandUI):
         if top_patch:
             top_pfname = ifce.PM.get_patch_file_name(top_patch)
             old_pfname = ifce.PM.get_patch_file_name(patch)
-            res, diff_text, serr = utils.run_cmd("interdiff %s %s" % (top_pfname, old_pfname))
-            if res != cmd_result.OK:
-                dialogue.report_any_problems((res, diff_text, serr))
+            result = utils.run_cmd("interdiff %s %s" % (top_pfname, old_pfname))
+            if result.eflags != cmd_result.OK:
+                dialogue.report_any_problems(result)
                 return
             temp_pfname = tempfile.mktemp()
             tfobj = open(temp_pfname, 'w')
-            tfobj.write(os.linesep.join([interdiff_patch_descr, diff_text]))
+            tfobj.write('\n'.join([interdiff_patch_descr, result.stdout]))
             tfobj.close()
         else:
             temp_pfname = ifce.PM.get_patch_file_name(patch)
-        res, sout, serr = ifce.PM.do_import_patch(temp_pfname, interdiff_patch_name)
+        result = ifce.PM.do_import_patch(temp_pfname, interdiff_patch_name)
         self.unshow_busy()
-        if res == cmd_result.ERROR_SUGGEST_FORCE:
-            if dialogue.ask_force_refresh_or_cancel(os.linesep.join([sout, serr]), res) == dialogue.RESPONSE_FORCE:
+        if result.eflags == cmd_result.ERROR_SUGGEST_FORCE:
+            if dialogue.ask_force_refresh_or_cancel(result) == dialogue.RESPONSE_FORCE:
                 self.show_busy()
-                res, sout, serr = ifce.PM.do_import_patch(temp_pfname, interdiff_patch_name, force=True)
+                result = ifce.PM.do_import_patch(temp_pfname, interdiff_patch_name, force=True)
                 self.unshow_busy()
         if top_patch:
             os.remove(temp_pfname)
-        if res != cmd_result.OK:
-            dialogue.report_any_problems((res, sout, serr))
+        if result.eflags != cmd_result.OK:
+            dialogue.report_any_problems(result)
     def do_save_queue_state_for_update(self, _action=None):
         if not ifce.PM.get_enabled():
             dialogue.report_any_problems(ifce.PM.not_enabled_response)
             return
         self.show_busy()
-        res, sout, serr = ifce.PM.do_save_queue_state_for_update()
+        result = ifce.PM.do_save_queue_state_for_update()
         self.unshow_busy()
-        dialogue.report_any_problems((res, sout, serr))
+        dialogue.report_any_problems(result)
     def do_pull_to_repository(self, _action=None):
         if not ifce.PM.get_enabled():
             dialogue.report_any_problems(ifce.PM.not_enabled_response)
@@ -765,10 +760,10 @@ class List(table.TableWithAGandUI):
         force = False
         while True:
             self.show_busy()
-            res, sout, serr = ifce.PM.do_new_patch(new_patch_name, force=force)
+            result = ifce.PM.do_new_patch(new_patch_name, force=force)
             self.unshow_busy()
-            if res & cmd_result.SUGGEST_FORCE_OR_REFRESH:
-                ans = dialogue.ask_force_refresh_or_cancel(os.linesep.join([sout, serr]), res, parent=None)
+            if result.eflags & cmd_result.SUGGEST_FORCE_OR_REFRESH:
+                ans = dialogue.ask_force_refresh_or_cancel(result, parent=None)
                 if ans == gtk.RESPONSE_CANCEL:
                     return
                 if ans == dialogue.RESPONSE_REFRESH:
@@ -776,13 +771,13 @@ class List(table.TableWithAGandUI):
                 elif ans == dialogue.RESPONSE_FORCE:
                     force = True
             else:
-                dialogue.report_any_problems((res, sout, serr))
+                dialogue.report_any_problems(result)
                 break
-        if new_patch_descr and res != cmd_result.ERROR:
+        if new_patch_descr and result.eflags != cmd_result.ERROR:
             self.show_busy()
-            res, sout, serr = ifce.PM.do_set_patch_description(new_patch_name, new_patch_descr)
+            result = ifce.PM.do_set_patch_description(new_patch_name, new_patch_descr)
             self.unshow_busy()
-            dialogue.report_any_problems((res, sout, serr))
+            dialogue.report_any_problems(result)
     def do_import_external_patch(self, _action=None):
         if not ifce.PM.get_enabled():
             dialogue.report_any_problems(ifce.PM.not_enabled_response)
@@ -794,11 +789,10 @@ class List(table.TableWithAGandUI):
         patch_name = None
         while True:
             self.show_busy()
-            res, sout, serr = ifce.PM.do_import_patch(patch_file_name, patch_name, force)
+            result = ifce.PM.do_import_patch(patch_file_name, patch_name, force)
             self.unshow_busy()
-            if res & cmd_result.SUGGEST_FORCE_OR_RENAME:
-                question = os.linesep.join([sout, serr, "Force import of patch, rename patch or cancel import?"])
-                ans = dialogue.ask_rename_force_or_cancel(question)
+            if result.eflags & cmd_result.SUGGEST_FORCE_OR_RENAME:
+                ans = dialogue.ask_rename_force_or_cancel(result, clarification='Force import of patch, rename patch or cancel import?')
                 if ans == gtk.RESPONSE_CANCEL:
                     return
                 elif ans == dialogue.RESPONSE_FORCE:
@@ -809,7 +803,7 @@ class List(table.TableWithAGandUI):
                         patch_name = os.path.basename(patch_file_name)
                     patch_name = dialogue.get_modified_string("Rename Patch", "New Name :", patch_name)
                     continue
-            dialogue.report_any_problems((res, sout, serr))
+            dialogue.report_any_problems(result)
             break
     def do_import_external_patch_series(self, _action=None):
         if not ifce.PM.get_enabled():
@@ -820,7 +814,7 @@ class List(table.TableWithAGandUI):
             return
         series_fn = os.sep.join([patch_series_dir, "series"])
         if (not os.path.exists(series_fn) and os.path.isfile(series_fn)):
-            dialogue.report_any_problems((cmd_result.ERROR, "", "Series file not found."))
+            dialogue.report_any_problems(cmd_result.Result(cmd_result.ERROR, "", "Series file not found."))
             return
         sfobj = open(series_fn, 'r')
         series = sfobj.readlines()
@@ -839,11 +833,10 @@ class List(table.TableWithAGandUI):
             patch_name = None
             while True:
                 self.show_busy()
-                res, sout, serr = ifce.PM.do_import_patch(patch_file_name, patch_name, force)
+                result = ifce.PM.do_import_patch(patch_file_name, patch_name, force)
                 self.unshow_busy()
-                if res & cmd_result.SUGGEST_FORCE_OR_RENAME:
-                    question = os.linesep.join([sout, serr, "Force import of patch, rename patch or skip patch?"])
-                    ans = dialogue.ask_rename_force_or_skip(question)
+                if result.eflags & cmd_result.SUGGEST_FORCE_OR_RENAME:
+                    ans = dialogue.ask_rename_force_or_skip(result, clarification='Force import of patch, rename patch or skip patch?')
                     if ans == dialogue.RESPONSE_SKIP_ALL:
                         index = len(series)
                         break
@@ -857,7 +850,7 @@ class List(table.TableWithAGandUI):
                             patch_name = base_name
                         patch_name = dialogue.get_modified_string("Rename Patch", "New Name :", patch_name)
                         continue
-                dialogue.report_any_problems((res, sout, serr))
+                dialogue.report_any_problems(result)
                 break
             index += 1
 
@@ -904,7 +897,7 @@ class GenericPatchDescrEditDialog(dialogue.AmodalDialog):
     def _handle_response_cb(self, dialog, response_id):
         if response_id == gtk.RESPONSE_CLOSE:
             if self.edit_descr_widget.view.get_buffer().get_modified():
-                qtn = os.linesep.join(["Unsaved changes to summary will be lost.", "Close anyway?"])
+                qtn = '\n'.join(["Unsaved changes to summary will be lost.", "Close anyway?"])
                 if dialogue.ask_yes_no(qtn):
                     self.destroy()
             else:
@@ -941,9 +934,10 @@ class DuplicatePatchDialog(dialogue.Dialog):
         hbox.show_all()
         self.vbox.pack_start(hbox)
         self.edit_descr_widget = NewPatchDescrEditWidget()
-        res, old_descr, _serr = ifce.PM.get_patch_description(patch)
-        if not res:
-            self.edit_descr_widget.view.get_buffer().set_text(old_descr)
+        try:
+            self.edit_descr_widget.view.get_buffer().set_text(ifce.PM.get_patch_description(patch))
+        except cmd_result.Failure:
+            pass
         self.vbox.pack_start(self.edit_descr_widget)
         self.set_focus_child(self.new_name_entry)
     def get_duplicate_patch_name(self):
