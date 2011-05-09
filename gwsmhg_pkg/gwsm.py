@@ -391,5 +391,5 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
             self.unshow_busy()
             dialogue.report_any_problems(result)
     def _config_editors_acb(self, _action=None):
-        config.EditorAllocationDialog(self).show()
+        config.EditorAllocationDialog(parent=self).show()
 

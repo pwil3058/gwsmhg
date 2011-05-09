@@ -304,37 +304,32 @@ for env in ['COLORTERM', 'TERM']:
 
 EDITOR_GLOB_FILE_NAME = os.sep.join([CONFIG_DIR_NAME, "editors"])
 
-editor_defs = []
-
-def _read_editor_defs():
-    global editor_defs
+def _read_editor_defs(edeff=EDITOR_GLOB_FILE_NAME):
     editor_defs = []
-    fobj = open(EDITOR_GLOB_FILE_NAME, 'r')
-    for line in fobj.readlines():
-        eqi = line.find('=')
-        if eqi < 0:
-            continue
-        glob = line[:eqi].strip()
-        edstr = line[eqi+1:].strip()
-        editor_defs.append([glob, edstr])
-    fobj.close()
+    if os.path.isfile(edeff):
+        for line in open(edeff, 'r').readlines():
+            eqi = line.find('=')
+            if eqi < 0:
+                continue
+            glob = line[:eqi].strip()
+            edstr = line[eqi+1:].strip()
+            editor_defs.append([glob, edstr])
+    return editor_defs
 
-def _write_editor_defs(edefs=None):
-    if edefs is None:
-        edefs = editor_defs
-    fobj = open(EDITOR_GLOB_FILE_NAME, 'w')
+def _write_editor_defs(edefs, edeff=EDITOR_GLOB_FILE_NAME):
+    fobj = open(edeff, 'w')
     for edef in edefs:
         fobj.write('='.join(edef))
         fobj.write(os.linesep)
     fobj.close()
 
-if os.path.exists(EDITOR_GLOB_FILE_NAME):
-    _read_editor_defs()
-else:
+if not os.path.exists(EDITOR_GLOB_FILE_NAME):
     _write_editor_defs([('*', DEFAULT_EDITOR)])
 
-def assign_extern_editors(file_list):
+def _assign_extern_editors(file_list, edeff=EDITOR_GLOB_FILE_NAME):
     ed_assignments = {}
+    unassigned_files = []
+    editor_defs = _read_editor_defs(edeff)
     for fobj in file_list:
         assigned = False
         for globs, edstr in editor_defs:
@@ -349,10 +344,16 @@ def assign_extern_editors(file_list):
             if assigned:
                 break
         if not assigned:
-            if DEFAULT_EDITOR in ed_assignments:
-                ed_assignments[DEFAULT_EDITOR].append(fobj)
-            else:
-                ed_assignments[DEFAULT_EDITOR] = [fobj]
+            unassigned_files.append(fobj)
+    return ed_assignments, unassigned_files
+
+def assign_extern_editors(file_list):
+    ed_assignments, unassigned_files = _assign_extern_editors(file_list, EDITOR_GLOB_FILE_NAME)
+    if unassigned_files:
+        if DEFAULT_EDITOR in ed_assignments:
+            ed_assignments[DEFAULT_EDITOR] += unassigned_files
+        else:
+            ed_assignments[DEFAULT_EDITOR] = unassigned_files
     return ed_assignments
 
 GERow = collections.namedtuple('GERow', ['globs', 'editor'])
@@ -402,25 +403,25 @@ EDITOR_GLOB_TABLE_DESCR = tlview.ViewTemplate(
 )
 
 class EditorAllocationTable(table.Table):
-    def __init__(self):
+    def __init__(self, edeff=EDITOR_GLOB_FILE_NAME):
         table.Table.__init__(self, EDITOR_GLOB_MODEL_DESCR,
                              EDITOR_GLOB_TABLE_DESCR, (320, 160))
+        self._edeff = edeff
         self.set_contents()
     def _fetch_contents(self):
-        return editor_defs
+        return _read_editor_defs(self._edeff)
     def apply_changes(self):
-        _write_editor_defs(edefs=self.get_contents())
-        _read_editor_defs()
+        _write_editor_defs(edefs=self.get_contents(), edeff=self._edeff)
         self.set_contents()
 
 class EditorAllocationDialog(dialogue.Dialog):
-    def __init__(self, parent=None):
+    def __init__(self, edeff=EDITOR_GLOB_FILE_NAME, parent=None):
         dialogue.Dialog.__init__(self, title='gwsmg: Editor Allocation', parent=parent,
                                  flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                                  buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE,
                                           gtk.STOCK_OK, gtk.RESPONSE_OK)
                                 )    
-        self._table = EditorAllocationTable()
+        self._table = EditorAllocationTable(edeff=edeff)
         self._buttons = gutils.ActionHButtonBox(list(self._table.action_groups.values()))
         self.vbox.pack_start(self._table)
         self.vbox.pack_start(self._buttons, expand=False)
