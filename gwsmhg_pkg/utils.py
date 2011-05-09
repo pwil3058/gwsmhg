@@ -18,10 +18,14 @@
 
 import subprocess
 import os
+import sys
 import os.path
 import signal
 import select
 import time
+import zlib
+import gzip
+import bz2
 
 import gtk
 import gobject
@@ -288,3 +292,65 @@ def get_first_in_envar(envar_list):
         except KeyError:
             continue
     return ''
+
+def get_file_contents(srcfile, decompress=False):
+    '''
+    Get the contents of filename to text after (optionally) applying
+    decompression as indicated by filename's suffix.
+    '''
+    if decompress:
+        _root, ext = os.path.splitext(srcfile)
+        res = 0
+        if ext == '.gz':
+            return gzip.open(srcfile).read()
+        elif ext == '.bz2':
+            bz2f = bz2.BZ2File(srcfile, 'r')
+            text = bz2f.read()
+            bz2f.close()
+            return text
+        elif ext == '.xz':
+            res, text, serr = run_cmd('xz -cd %s' % srcfile)
+        elif ext == '.lzma':
+            res, text, serr = run_cmd('lzma -cd %s' % srcfile)
+        else:
+            return open(srcfile).read()
+        if res != 0:
+            sys.stderr.write(serr)
+        return text
+    else:
+        return open(srcfile).read()
+
+def set_file_contents(filename, text, compress=False):
+    '''
+    Set the contents of filename to text after (optionally) applying
+    compression as indicated by filename's suffix.
+    '''
+    if compress:
+        _root, ext = os.path.splitext(filename)
+        res = 0
+        if ext == '.gz':
+            try:
+                gzip.open(filename, 'wb').write(text)
+                return True
+            except (IOError, zlib.error):
+                return False
+        elif ext == '.bz2':
+            try:
+                bz2f = bz2.BZ2File(filename, 'w')
+                text = bz2f.write(text)
+                bz2f.close()
+                return True
+            except IOError:
+                return False
+        elif ext == '.xz':
+            res, text, serr = run_cmd('xz -c', text)
+        elif ext == '.lzma':
+            res, text, serr = run_cmd('lzma -c', text)
+        if res != 0:
+            sys.stderr.write(serr)
+            return False
+    try:
+        open(filename, 'w').write(text)
+    except IOError:
+        return False
+    return True

@@ -15,6 +15,7 @@
 
 import os, os.path, tempfile, pango, re, time, collections
 from gwsmhg_pkg import ifce, utils, cmd_result, putils, ws_event, const, fsdb
+from gwsmhg_pkg import patchlib
 
 newlines_not_allowed_in_cmd = os.name == 'nt' or os.name == 'dos'
 
@@ -61,6 +62,14 @@ class ScmDir(fsdb.GenDir):
         return False
 
 class ScmFileDb(fsdb.GenFileDb):
+    @staticmethod
+    def map_patchlib_status(status):
+        if status == patchlib.FilePathPlus.ADDED:
+            return FSTATUS_ADDED
+        elif status == patchlib.FilePathPlus.DELETED:
+            return FSTATUS_REMOVED
+        else:
+            return FSTATUS_MODIFIED
     def __init__(self, file_list, unresolved_file_list=list()):
         fsdb.GenFileDb.__init__(self, ScmDir)
         lfile_list = len(file_list)
@@ -68,17 +77,22 @@ class ScmFileDb(fsdb.GenFileDb):
         while index < lfile_list:
             item = file_list[index]
             index += 1
-            filename = item[2:]
-            status = item[0]
-            origin = None
-            if status == FSTATUS_ADDED and index < lfile_list:
-                if file_list[index][0] == FSTATUS_ORIGIN:
-                    origin = file_list[index][2:]
-                    index += 1
-            elif filename in unresolved_file_list:
-                status = FSTATUS_UNRESOLVED
-            parts = filename.split(os.sep)
-            self.base_dir.add_file(parts, status, origin)
+            if isinstance(item, patchlib.FilePathPlus):
+                parts = item.path.split(os.sep)
+                status = ScmFileDb.map_patchlib_status(item.status)
+                self.base_dir.add_file(parts, status, item.expath)
+            else:
+                filename = item[2:]
+                status = item[0]
+                origin = None
+                if status == FSTATUS_ADDED and index < lfile_list:
+                    if file_list[index][0] == FSTATUS_ORIGIN:
+                        origin = file_list[index][2:]
+                        index += 1
+                elif filename in unresolved_file_list:
+                    status = FSTATUS_UNRESOLVED
+                parts = filename.split(os.sep)
+                self.base_dir.add_file(parts, status, origin)
 
 Deco = collections.namedtuple('Deco', ['style', 'foreground'])
 
@@ -535,11 +549,7 @@ class SCMInterface(BaseInterface):
         result = utils.run_cmd(cmd)
         if result.eflags:
             raise cmd_result.Failure(result)
-        is_ok, diff = putils.get_patch_diff_fm_text(result.stdout)
-        if is_ok:
-            return diff
-        else:
-            return ''
+        return putils.get_patch_diff_fm_text(result.stdout)
     def get_heads_data(self):
         if not self.get_root():
             return []
@@ -968,10 +978,9 @@ class PMInterface(BaseInterface):
             return ScmFileDb([])
         if patch and not self.get_patch_is_applied(patch):
             pfn = self.get_patch_file_name(patch)
-            result, file_list = putils.get_patch_files(pfn, status=True, decorated=True)
-            if result:
-                return ScmFileDb(file_list)
-            else:
+            try:
+                return ScmFileDb(putils.get_patch_files_plus(pfn))
+            except:
                 return ScmFileDb([])
         top = self.get_top_patch()
         if not top:
@@ -1058,11 +1067,7 @@ class PMInterface(BaseInterface):
             if not parent:
                 # the patch is not applied
                 pfn = self.get_patch_file_name(patch)
-                result, diff = putils.get_patch_diff(pfn, file_list)
-                if result:
-                    return diff
-                else:
-                    raise cmd_result.Failure(cmd_result.Result(cmd_result.WARNING, '', diff))
+                return putils.get_patch_diff(pfn, file_list)
         else:
             top = self.get_top_patch()
             if top:
@@ -1168,17 +1173,14 @@ class PMInterface(BaseInterface):
         return os.path.join(os.getcwd(), '.hg', 'patches', patch)
     def get_patch_description(self, patch):
         if patch:
-            cmd = 'hg qheader %s' % patch
+            pfn = self.get_patch_file_name(patch)
         else:
-            cmd = 'hg qheader'
-        result = utils.run_cmd(cmd)
-        if result.eflags:
-            raise cmd_result.Failure(result)
-        return result.stdout
+            pfn = self.get_patch_file_name(self.get_top_patch())
+        return putils.get_patch_descr(pfn)
     def do_set_patch_description(self, patch, descr):
         pfn = self.get_patch_file_name(patch)
         ifce.log.start_cmd("set description for: %s" %patch)
-        if putils.set_patch_descr_lines(pfn, descr.splitlines()):
+        if putils.set_patch_descr(pfn, descr):
             ifce.log.append_stdout(descr)
             serr = ''
         else:

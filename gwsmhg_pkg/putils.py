@@ -23,480 +23,98 @@ import shutil
 import tempfile
 
 from gwsmhg_pkg import utils
+from gwsmhg_pkg import patchlib
 
-_DIFFSTAT_EMPTY = re.compile("^#? 0 files changed$")
-_DIFFSTAT_END = re.compile("^#? (\d+) files? changed(, (\d+) insertions?\(\+\))?(, (\d+) deletions?\(-\))?(, (\d+) modifications?\(\!\))?$")
-_DIFFSTAT_FSTATS = re.compile("^#? (\S+)\s*\|((binary)|(\s*(\d+)(\s+\+*-*\!*)?))$")
+def get_patch_descr_fm_text(text):
+    obj = patchlib.Patch.parse_text(text)
+    return obj.get_description()
 
-_TIMESTAMP_RE_STR = '(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{9} [-+]{1}\d{4})'
-_ALT_TIMESTAMP_RE_STR = '([A-Z][a-z]{2} [A-Z][a-z]{2} \d{2} \d{2}:\d{2}:\d{2} \d{4} [-+]{1}\d{4})'
-_EITHER_TS_RE = '(%s|%s)' % (_TIMESTAMP_RE_STR, _ALT_TIMESTAMP_RE_STR)
-_UDIFF_H1 = re.compile('^--- (.*?)(\s+%s)?$' % _EITHER_TS_RE)
-_UDIFF_H2 = re.compile('^\+\+\+ (.*?)(\s+%s)?$' % _EITHER_TS_RE)
-_UDIFF_PD = re.compile("^@@\s+-(\d+)(,(\d+))?\s+\+(\d+)(,(\d+))?\s+@@\s*(.*)$")
-
-_GIT_HDR_DIFF = re.compile("^diff --git (.*)$")
-_GIT_OLD_MODE = re.compile('^old mode (\d*)$')
-_GIT_NEW_MODE = re.compile('^new mode (\d*)$')
-_GIT_DELETED_FILE_MODE = re.compile('^deleted file mode (\d*)$')
-_GIT_NEW_FILE_MODE = re.compile('^new file mode (\d*)$')
-_GIT_COPY_FROM = re.compile('^copy from (.*)$')
-_GIT_COPY_TO = re.compile('^copy to (.*)$')
-_GIT_RENAME_FROM = re.compile('^rename from (.*)$')
-_GIT_RENAME_TO = re.compile('^rename to (.*)$')
-_GIT_SIMILARITY_INDEX = re.compile('^similarity index (\d*)%$')
-_GIT_DISSIMILARITY_INDEX = re.compile('^dissimilarity index (\d*)%$')
-_GIT_INDEX = re.compile('^index ([a-fA-F0-9]+)..([a-fA-F0-9]+) (\d*)%$')
-
-_GIT_EXTRAS = \
-[
-    _GIT_OLD_MODE, _GIT_NEW_MODE, _GIT_DELETED_FILE_MODE, _GIT_NEW_FILE_MODE,
-    _GIT_COPY_FROM, _GIT_COPY_TO, _GIT_RENAME_FROM, _GIT_RENAME_TO,
-    _GIT_SIMILARITY_INDEX, _GIT_DISSIMILARITY_INDEX, _GIT_INDEX
-]
-
-_CDIFF_H1 = re.compile("^\*\*\* (\S+)\s*(.*)$")
-_CDIFF_H2 = re.compile("^--- (\S+)\s*(.*)$")
-_CDIFF_H3 = re.compile("^\*+$")
-_CDIFF_CHG = re.compile("^\*+\s+(\d+)(,(\d+))?\s+\*+\s*(.*)$")
-_CDIFF_DEL = re.compile("^-+\s+(\d+)(,(\d+))?\s+-+\s*(.*)$")
-
-_HDR_INDEX = re.compile("^Index:\s+(.*)$")
-_HDR_DIFF = re.compile("^diff\s+(.*)$")
-_HDR_SEP = re.compile("^==*$")
-_HDR_RCS1 = re.compile("^RCS file:\s+(.*)$")
-_HDR_RCS2 = re.compile("^retrieving revision\s+(\d+(\.\d+)*)$")
-
-_BLANK_LINE = re.compile("^\s*$")
-_DIVIDER_LINE = re.compile("^---$")
-
-def _udiff_starts_at(lines, i):
-    """
-    Return whether the ith line in lines is the start of a unified diff
-
-    Arguments:
-    lines -- the list of lines to be examined
-    i     -- the line number to be examined
-    """
-    if (i + 2) >= len(lines):
-        return False
-    if not _UDIFF_H1.match(lines[i]):
-        return False
-    if not _UDIFF_H2.match(lines[i + 1]):
-        return False
-    return _UDIFF_PD.match(lines[i + 2])
-
-def _is_git_extra_line(line):
-    """
-    Return whether the line is a git diff "extra" line
-
-    Argument:
-    line -- theline to be examined
-    """
-    for regex in _GIT_EXTRAS:
-        match = regex.match(line)
-        if match:
-            return (regex, match)
-    return False
-
-def _git_diff_starts_at(lines, i):
-    """
-    Return whether the ith line in lines is the start of a git diff
-
-    Arguments:
-    lines -- the list of lines to be examined
-    i     -- the line number to be examined
-    """
-    if i < len(lines) and _GIT_HDR_DIFF.match(lines[i]):
-        i += 1
-    else:
-        return False
-    extra_count = 0
-    while i < len(lines) and _is_git_extra_line(lines[i]):
-        i += 1
-        extra_count += 1
-    if extra_count == 0:
-        return _udiff_starts_at(lines, i)
-    elif i < len(lines):
-        return _GIT_HDR_DIFF.match(lines[i]) or _udiff_starts_at(lines, i)
-    else:
-        return True
-
-def _cdiff_starts_at(lines, i):
-    """
-    Return whether the ith line in lines is the start of a combined diff
-
-    Arguments:
-    lines -- the list of lines to be examined
-    i     -- the line number to be examined
-    """
-    if (i + 3) >= len(lines):
-        return False
-    if not _CDIFF_H1.match(lines[i]):
-        return False
-    if not _CDIFF_H2.match(lines[i + 1]):
-        return False
-    if not _CDIFF_H3.match(lines[i + 2]):
-        return False
-    return _CDIFF_CHG.match(lines[i + 3]) or  _CDIFF_DEL.match(lines[i + 3])
-
-def _trisect_patch_lines(lines):
-    """
-    Return indices splitting lines into comments, stats and diff parts
-
-    Arguments:
-    lines -- the list of lines to be trisected
-
-    Return a two tuple indicating start of stats and diff parts.
-    For stats part provide integer index of first stats line or None if
-    the stats part is not present.
-    For diff part provide a two tuple (index of first diff line, diff type)
-    or None if the diff part is not present.
-    """
-    n = len(lines)
-    patch_type = None
-    patch_si = None
-    diffstat_si = None
-    i = 0
-    while i < n:
-        if _DIFFSTAT_EMPTY.match(lines[i]):
-            diffstat_si = i
-        elif _DIFFSTAT_FSTATS.match(lines[i]):
-            k = 1
-            while (i + k) < n and _DIFFSTAT_FSTATS.match(lines[i + k]):
-                k += 1
-            if (i + k) < n and _DIFFSTAT_END.match(lines[i + k]):
-                diffstat_si = i
-                i += k
-            else:
-                diffstat_si = None
-                i += k - 1
-        elif _git_diff_starts_at(lines, i):
-            patch_si = i
-            patch_type = 'git'
-            break
-        elif _HDR_INDEX.match(lines[i]) or _HDR_DIFF.match(lines[i]):
-            k = i + 1
-            if k < n and _HDR_SEP.match(lines[k]):
-                k += 1
-            if _udiff_starts_at(lines, k):
-                patch_si = i
-                patch_type = "u"
-                break
-            elif _cdiff_starts_at(lines, k):
-                patch_si = i
-                patch_type = "c"
-                break
-            else:
-                i = k
-                diffstat_si = None
-        elif _HDR_RCS1.match(lines[i]):
-            if (i + 1) < n and _HDR_RCS2.match(lines[i]):
-                k = i + 1
-                if k < n and _HDR_SEP.match(lines[k]):
-                    k += 1
-                if _udiff_starts_at(lines, k):
-                    patch_si = i
-                    patch_type = "u"
-                    break
-                elif _cdiff_starts_at(lines, k):
-                    patch_si = i
-                    patch_type = "c"
-                    break
-                else:
-                    i = k
-                    diffstat_si = None
-            else:
-                diffstat_si = None
-        elif _udiff_starts_at(lines, i):
-            patch_si = i
-            patch_type = "u"
-            break
-        elif _cdiff_starts_at(lines, i):
-            patch_si = i
-            patch_type = "c"
-            break
-        elif not (_BLANK_LINE.match(lines[i]) or _DIVIDER_LINE.match(lines[i])):
-            diffstat_si = None
-        i += 1
-    if patch_si is None:
-        return (diffstat_si, None)
-    else:
-        return (diffstat_si, (patch_si, patch_type))
-
-def _trisect_patch_file(path):
+def get_patch_descr(path):
     try:
-        f = open(path, 'r')
+        buf = utils.get_file_contents(path)
     except IOError:
-        return (False, (None, None, None))
-    buf = f.read()
-    f.close()
-    lines = buf.splitlines()
-    diffstat_si, patch = _trisect_patch_lines(lines)
-    if patch is None:
-        if diffstat_si is None:
-            res = (lines, [], [])
-        else:
-            res = (lines[0:diffstat_si], lines[diffstat_si:], [])
-    else:
-        plines = lines[patch[0]:]
-        if diffstat_si is None:
-            res = (lines[:patch[0]], [], plines)
-        else:
-            res = (lines[0:diffstat_si], lines[diffstat_si:patch[0]], plines)
-    return (True,  res)
+        return ''
+    return get_patch_descr_fm_text(buf)
 
-def get_patch_descr_lines(path):
+def get_patch_hdr_fm_text(text, omit_diffstat=False):
+    obj = patchlib.Patch.parse_text(text)
+    if omit_diffstat:
+        obj.set_diffstat('')
+    hdr = obj.get_header()
+    return '' if hdr is None else str(hdr)
+
+def get_patch_hdr(path, omit_diffstat=False):
     try:
-        f = open(path, 'r')
+        buf = utils.get_file_contents(path)
     except IOError:
-        return (False, None)
-    buf = f.read()
-    lines = buf.splitlines()
-    f.close()
-    diffstat_si, patch = _trisect_patch_lines(lines)
-    if diffstat_si is None:
-        if patch is None:
-            res = lines
-        else:
-            res = lines[0:patch[0]]
-    else:
-        res = lines[0:diffstat_si]
-    return ( True,  res)
+        return ''
+    return get_patch_hdr_fm_text(buf, omit_diffstat)
 
-def get_patch_diff_fm_text(textbuf):
-    lines = textbuf.splitlines()
-    _, patch = _trisect_patch_lines(lines)
-    if patch is None:
-        return (False, '')
-    return (True, os.linesep.join(lines[patch[0]:]) + os.linesep)
-
-def get_patch_diff(path, file_list=None):
+def get_patch_diff_fm_text(text, file_list=None, strip_level=0):
+    obj = patchlib.Patch.parse_text(text)
     if not file_list:
-        try:
-            f = open(path, 'r')
-        except IOError:
-            return (False, None)
-        buf = f.read()
-        f.close()
-        return get_patch_diff_fm_text(buf)
-    if not utils.which("filterdiff"):
-        return (False, "This functionality requires \"filterdiff\" from \"patchutils\"")
-    cmd = "filterdiff -p 1"
-    for filename in file_list:
-        cmd += " -i %s" % filename
-    res, sout, serr = utils.run_cmd("%s %s" % (cmd, path))
-    if res == 0:
-        return (True, sout)
+        return ''.join([str(x) for x in obj.diff_pluses])
     else:
-        return (False, sout + serr)
+        num_strip_level = int(strip_level)
+        return ''.join([str(x) for x in obj.diff_pluses if x.get_file_path(num_strip_level) in file_list])
 
-def _append_lines_to_file(f, lines):
-    for line in lines:
-        f.write(line + os.linesep)
+def get_patch_diff(path, file_list=None, strip_level=0):
+    return get_patch_diff_fm_text(utils.get_file_contents(path), file_list, strip_level)
 
-def _strip_trailing_ws(lines):
-    n = len(lines)
-    i = 0
-    while i < n:
-        lines[i] = lines[i].rstrip()
-        i += 1
-
-def _lines_to_temp_file(lines):
+def _write_via_temp(path, text):
+    tmpdir = os.path.dirname(path)
+    _dummy, suffix = os.path.splitext(path)
     try:
-        tmpf_name = tempfile.mktemp()
-        tmpf = open(tmpf_name, 'w')
-        _append_lines_to_file(tmpf, lines)
-        tmpf.close()
+        fd, tmpf_name = tempfile.mkstemp(dir=tmpdir,suffix=suffix)
+        os.close(fd)
+        utils.set_file_contents(tmpf_name, text)
     except IOError:
         if tmpf_name is not None and os.path.exists(tmpf_name):
             os.remove(tmpf_name)
-        return ""
-    return tmpf_name
-
-def set_patch_descr_lines(path, lines):
-    if os.path.exists(path):
-        res, parts = _trisect_patch_file(path)
-        if not res:
-            return False
-    else:
-        parts = ([], [], [])
-    comments = [line for line in parts[0] if line.startswith('#')]
-    tmpf_name = _lines_to_temp_file(comments + lines + parts[1] + parts[2])
-    if not tmpf_name:
         return False
     try:
-        shutil.copyfile(tmpf_name, path)
-        ret = True
+        os.rename(tmpf_name, path)
+        return True
     except IOError:
-        ret = False
-    os.remove(tmpf_name)
-    return ret
-
-def _rediff_lines(lines, orig_lines=None):
-    if not utils.which("rediff"):
-        return lines
-    lines_tf = _lines_to_temp_file(lines)
-    if not lines_tf:
-        return lines
-    if orig_lines and len(orig_lines):
-        orig_lines_tf = _lines_to_temp_file(orig_lines)
-    else:
-        orig_lines_tf = None
-    if not orig_lines_tf:
-        res, sout, _ = utils.run_cmd("rediff %s" % lines_tf)
-    else:
-        res, sout, _ = utils.run_cmd("rediff %s %s" % (orig_lines_tf, lines_tf))
-        os.remove(orig_lines_tf)
-    os.remove(lines_tf)
-    if res == 0:
-        return sout.splitlines()
-    else:
-        return lines
-
-def set_patch_diff_lines(path, lines):
-    if os.path.exists(path):
-        res, parts = _trisect_patch_file(path)
-        if not res:
-            return False
-    else:
-        parts = ([], [], [])
-    lines = _rediff_lines(lines, orig_lines=parts[2])
-    tmpf_name = _lines_to_temp_file(parts[0] + parts[1] + lines)
-    if not tmpf_name:
+        if os.path.exists(tmpf_name):
+            os.remove(tmpf_name)
         return False
-    try:
-        shutil.copyfile(tmpf_name, path)
-        ret = True
-    except IOError:
-        ret = False
-    os.remove(tmpf_name)
-    return ret
 
-ADDED = "A"
-EXTANT = "M"
-DELETED = "R"
-
-def _file_name_in_diffline(diffline):
-    match = re.match('diff --git \w+/(.*) \w+/(.*)', diffline)
-    if match:
-        return match.group(1)
+def set_patch_descr(path, text):
+    if os.path.exists(path):
+        patch_obj = patchlib.Patch.parse_text(utils.get_file_contents(path))
     else:
-        return None
+        patch_obj = patchlib.Patch()
+    patch_obj.set_description(text)
+    return _write_via_temp(path, str(patch_obj))
 
-def _get_git_diff_file_data(lines, i):
-    assert _GIT_HDR_DIFF.match(lines[i])
-    diffline = lines[i]
-    i += 1
-    new_file = False
-    deleted_file = False
-    copy_from = None
-    copy_to = None
-    rename_from = None
-    rename_to = None
-    while i < len(lines):
-        match_data = _is_git_extra_line(lines[i])
-        if not match_data:
-            break
-        else:
-            i += 1
-            regex, match = match_data
-        if regex is _GIT_COPY_FROM:
-            copy_from = match.group(1)
-        elif regex is _GIT_COPY_TO:
-            copy_to = match.group(1)
-        elif regex is _GIT_RENAME_FROM:
-            rename_from = match.group(1)
-        elif regex is _GIT_RENAME_TO:
-            rename_from = match.group(1)
-        elif regex is _GIT_NEW_FILE_MODE:
-            new_file = True
-        elif regex is _GIT_DELETED_FILE_MODE:
-            deleted_file = True
-    if copy_to:
-        return [i, [(copy_to, ADDED, copy_from)]]
-    if rename_to:
-        return [i, [(rename_to, ADDED, rename_from), (rename_from, DELETED, None)]]
-    if deleted_file:
-        while i < len(lines):
-            match = _UDIFF_H1.match(lines[i])
-            i += 1
-            if match:
-                filename = match.group(1)[2:]
-                return [i, [(filename, DELETED, None)]]
-    while i < len(lines) and not _GIT_HDR_DIFF.match(lines[i]):
-        match = _UDIFF_H2.match(lines[i])
-        i += 1
-        if match:
-            filename = match.group(1)[2:]
-            if new_file:
-                return [i, [(filename, ADDED, None)]]
-            else:
-                return [i, [(filename, EXTANT, None)]]
-    filename = _file_name_in_diffline(diffline)
-    if new_file:
-        return (i, [[filename, ADDED, None]])
+def set_patch_hdr(path, text, omit_diffstat=False):
+    if os.path.exists(path):
+        patch_obj = patchlib.Patch.parse_text(utils.get_file_contents(path))
     else:
-        return (i, [[filename, EXTANT, None]])
+        patch_obj = patchlib.Patch()
+    if omit_diffstat:
+        dummy = patchlib.Patch.parse_text(text)
+        dummy.set_diffstat('')
+        hdr = dummy.get_header()
+        text = '' if hdr is None else str(hdr)
+    patch_obj.set_header(text)
+    return _write_via_temp(path, str(patch_obj))
 
-def _get_git_diff_files(lines, i):
-    files = []
-    while i < len(lines):
-        i, files_data = _get_git_diff_file_data(lines, i)
-        files += files_data
-        while i < len(lines) and not _git_diff_starts_at(lines, i):
-            i += 1
-    return files
+def get_patch_files(path, strip_level=1):
+    obj = patchlib.Patch.parse_text(utils.get_file_contents(path))
+    return obj.get_file_paths(int(strip_level))
 
-def _get_unified_diff_files(lines, i):
-    files = []
-    while i < len(lines):
-        match1 = _UDIFF_H1.match(lines[i])
-        i += 1
-        if match1:
-            match2 = _UDIFF_H2.match(lines[i])
-            i += 1
-            file1 = match1.group(1)
-            if file1 == '/dev/null':
-                files.append((match2.group(1).split('/', 1)[1], ADDED, None))
-            else:
-                file2 = match2.group(1)
-                if file2 == '/dev/null' :
-                    files.append((file1.split('/', 1)[1], DELETED, None))
-                else:
-                    files.append((file2.split('/', 1)[1], EXTANT, None))
-    return files
+def get_patch_files_plus(path, strip_level=1):
+    obj = patchlib.Patch.parse_text(utils.get_file_contents(path))
+    return obj.get_file_paths_plus(int(strip_level))
 
-def _get_combined_diff_files(lines, i):
-    files = []
-    while i < len(lines):
-        pass
-    return files
-
-def get_patch_files(path, status=True, decorated=False):
-    try:
-        f = open(path, 'r')
-    except IOError:
-        return (False, 'Problem(s) open file "%s" not found' % path)
-    buf = f.read()
-    f.close()
-    lines = buf.splitlines()
-    _, patch = _trisect_patch_lines(lines)
-    if patch is None:
-        return (True, [])
-    if patch[1] == 'git':
-        files = _get_git_diff_files(lines, patch[0])
-    elif patch[1] == 'u':
-        files = _get_unified_diff_files(lines, patch[0])
+def apply_patch_text(text, indir=None, patch_args=''):
+    from pyquilt_pkg import customization
+    patch_opts = customization.get_default_opts('patch')
+    if indir:
+        cmd = 'patch -d %s' % indir
     else:
-        files = _get_combined_diff_files(lines, patch[0])
-    if decorated:
-        filelist = []
-        for file_data in files:
-            filelist.append(' '.join([file_data[1], file_data[0]]))
-            if file_data[1] == ADDED and file_data[2]:
-                filelist.append('  %s' % file_data[2])
-        return (True, filelist)
-    elif status:
-        return (True, files)
-    return (True, [file_data[0] for file_data in files])
+        cmd = 'patch'
+    cmd += ' %s %s' % (patch_opts, patch_args)
+    return shell.run_cmd(cmd, input_text=text)
