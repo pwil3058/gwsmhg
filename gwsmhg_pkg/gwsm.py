@@ -75,7 +75,10 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
         # see if we're in a valid work space and if not offer a selection
         # unless a directory was specified on the command line
         open_dialog = None # we need this later
-        if not ifce.in_valid_repo and not dir_specified:
+        if dir_specified:
+            if ifce.term:
+                ifce.term.set_cwd(os.getcwd())
+        elif not ifce.in_valid_repo:
             open_dialog = config.WSOpenDialog()
             if open_dialog.run() == gtk.RESPONSE_OK:
                 wspath = open_dialog.get_path()

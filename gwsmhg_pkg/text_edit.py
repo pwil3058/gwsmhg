@@ -15,6 +15,7 @@
 
 import os, gtk, gwsmhg_pkg.sourceview, pango, gobject
 from gwsmhg_pkg import dialogue, ifce, utils, gutils, config
+from gwsmhg_pkg import cmd_result
 
 def _edit_files_extern(filelist, edstr=config.DEFAULT_EDITOR):
     if not edstr.split()[0] in config.EDITORS_THAT_NEED_A_TERMINAL:

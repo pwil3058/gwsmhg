@@ -339,12 +339,12 @@ class PathCSDialog(dialogue.AmodalDialog):
 class IncomingCSDialog(PathCSDialog):
     def __init__(self, path):
         PathCSDialog.__init__(self, path=path, title="Incoming To",
-                              table=IncomingTable)
+                              table_type=IncomingTable)
 
 class OutgoingCSDialog(PathCSDialog):
     def __init__(self, path):
         PathCSDialog.__init__(self, path=path, title="Outgoing From",
-                              table=OutgoingTable)
+                              table_type=OutgoingTable)
 
 class PathSelectTable(table.TableWithAGandUI):
     def __init__(self, size_req=(640, 240), busy_indicator=None):
