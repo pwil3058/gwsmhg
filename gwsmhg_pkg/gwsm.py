@@ -92,7 +92,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
             open_dialog.show_busy()
         dialogue.init(self)
         actions.AGandUIManager.__init__(self)
-        actions.add_class_indep_actions(actions.DONT_CARE,
+        actions.add_class_indep_actions(actions.Condns.DONT_CARE,
             [
                 ("gwsm_working_directory", None, "_Working Directory"),
                 ("gwsm_configuration", None, "_Configuration"),
@@ -103,7 +103,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
                 ("gwsm_quit", gtk.STOCK_QUIT, "_Quit", "",
                  "Quit", self._quit),
             ])
-        actions.add_class_indep_actions(actions.NOT_IN_REPO,
+        actions.add_class_indep_actions(actions.Condns.NOT_IN_REPO,
             [
                 ("gwsm_init_wd", icons.STOCK_INIT, "_Initialise", "",
                  "Initialise the current working directory", self._init_wd_acb),
@@ -111,7 +111,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
                  "Clone a repository cd into the resultant working directory",
                  self._clone_repo_acb),
             ])
-        actions.add_class_indep_actions(actions.IN_REPO,
+        actions.add_class_indep_actions(actions.Condns.IN_REPO,
             [
                 ('gwsm_repo_menu', None, "_Repository"),
                 ("gwsm_diff_ws", icons.STOCK_DIFF, "Diff", "",
@@ -130,7 +130,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
                  "Refresh the displayed data. Useful after external actions change workspace/repository state.",
                  self._refresh_displayed_data_acb),
             ])
-        actions.add_class_indep_actions(actions.IN_REPO + actions.NOT_PMIC,
+        actions.add_class_indep_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC,
             [
                 ("gwsm_revert_ws", icons.STOCK_REVERT, "Revert", "",
                  "Revert all changes in the current working directory",

@@ -158,58 +158,57 @@ _UI_DESCR = \
 </ui>
 '''
 
-DONT_CARE = 0
-IN_REPO = actions.IN_REPO
-POP_POSSIBLE = actions.PMIC
-SELN = actions.SELN
-_NEXTRACONDS = 11
-APPLIED, \
-UNAPPLIED, \
-INTERDIFF, \
-PUSH_POSSIBLE, \
-WS_UPDATE_QSAVE_READY, \
-WS_UPDATE_PULL_READY, \
-WS_UPDATE_READY, \
-WS_UPDATE_TO_READY, \
-WS_UPDATE_MERGE_READY, \
-WS_UPDATE_CLEAN_UP_READY, \
-IN_PGND = [2 ** (n + actions.NCONDS) for n in range(_NEXTRACONDS)]
+class Condns(actions.Condns):
+    _NEXTRACONDS = 11
+    POP_POSSIBLE = actions.Condns.PMIC
+    APPLIED, \
+    UNAPPLIED, \
+    INTERDIFF, \
+    PUSH_POSSIBLE, \
+    WS_UPDATE_QSAVE_READY, \
+    WS_UPDATE_PULL_READY, \
+    WS_UPDATE_READY, \
+    WS_UPDATE_TO_READY, \
+    WS_UPDATE_MERGE_READY, \
+    WS_UPDATE_CLEAN_UP_READY, \
+    IN_PGND = [2 ** (n + actions.Condns.NCONDS) for n in range(_NEXTRACONDS)]
+    _APPLIED_CONDNS = APPLIED | UNAPPLIED
+    _WS_CONDNS = WS_UPDATE_QSAVE_READY | WS_UPDATE_PULL_READY | WS_UPDATE_READY | \
+        WS_UPDATE_TO_READY | WS_UPDATE_MERGE_READY | WS_UPDATE_CLEAN_UP_READY
 
-_APPLIED_CONDNS = APPLIED | UNAPPLIED
-_WS_CONDNS = WS_UPDATE_QSAVE_READY | WS_UPDATE_PULL_READY | WS_UPDATE_READY | \
-    WS_UPDATE_TO_READY | WS_UPDATE_MERGE_READY | WS_UPDATE_CLEAN_UP_READY
-
-def _get_applied_condns(seln):
-    model, model_iter = seln.get_selected()
-    if model_iter is None:
-        return actions.MaskedCondns(DONT_CARE, _APPLIED_CONDNS)
-    cond = APPLIED if model.get_patch_is_applied(model_iter) else UNAPPLIED
-    return actions.MaskedCondns(cond, _APPLIED_CONDNS)
-
-def _get_interdiff_condns():
-    return actions.MaskedCondns(INTERDIFF if utils.which("interdiff") is not None else 0, INTERDIFF)
-
-def _get_in_pgnd_condns():
-    return actions.MaskedCondns(IN_PGND if ifce.in_valid_repo and ifce.PM.get_enabled() else 0, IN_PGND)
-
-def _get_pushable_condns(unapplied_count):
-    return actions.MaskedCondns(PUSH_POSSIBLE if unapplied_count > 0 else 0, PUSH_POSSIBLE)
-
-def _get_ws_update_condns(applied_count, unapplied_count):
-    condn = DONT_CARE
-    if ifce.PM.get_ws_update_qsave_ready(unapplied_count=unapplied_count, applied_count=applied_count):
-        condn += WS_UPDATE_QSAVE_READY
-    if ifce.PM.get_ws_update_pull_ready(applied_count=applied_count):
-        condn += WS_UPDATE_PULL_READY
-    if ifce.PM.get_ws_update_to_ready(applied_count=applied_count):
-        condn += WS_UPDATE_TO_READY
-    if ifce.PM.get_ws_update_ready(applied_count=applied_count):
-        condn += WS_UPDATE_READY
-    if ifce.PM.get_ws_update_merge_ready(unapplied_count=unapplied_count):
-        condn += WS_UPDATE_MERGE_READY
-    if ifce.PM.get_ws_update_clean_up_ready():
-        condn += WS_UPDATE_CLEAN_UP_READY
-    return actions.MaskedCondns(condn, _WS_CONDNS)
+class MaskedCondns(actions.MaskedCondns):
+    @staticmethod
+    def get_applied_condns(seln):
+        model, model_iter = seln.get_selected()
+        if model_iter is None:
+            return actions.MaskedCondns(Condns.DONT_CARE, Condns._APPLIED_CONDNS)
+        cond = Condns.APPLIED if model.get_patch_is_applied(model_iter) else Condns.UNAPPLIED
+        return actions.MaskedCondns(cond, Condns._APPLIED_CONDNS)
+    @staticmethod
+    def get_interdiff_condns():
+        return actions.MaskedCondns(Condns.INTERDIFF if utils.which("interdiff") is not None else 0, Condns.INTERDIFF)
+    @staticmethod
+    def get_in_pgnd_condns():
+        return actions.MaskedCondns(Condns.IN_PGND if ifce.in_valid_repo and ifce.PM.get_enabled() else 0, Condns.IN_PGND)
+    @staticmethod
+    def get_pushable_condns(unapplied_count):
+        return actions.MaskedCondns(Condns.PUSH_POSSIBLE if unapplied_count > 0 else 0, Condns.PUSH_POSSIBLE)
+    @staticmethod
+    def get_ws_update_condns(applied_count, unapplied_count):
+        condn = Condns.DONT_CARE
+        if ifce.PM.get_ws_update_qsave_ready(unapplied_count=unapplied_count, applied_count=applied_count):
+            condn += Condns.WS_UPDATE_QSAVE_READY
+        if ifce.PM.get_ws_update_pull_ready(applied_count=applied_count):
+            condn += Condns.WS_UPDATE_PULL_READY
+        if ifce.PM.get_ws_update_to_ready(applied_count=applied_count):
+            condn += Condns.WS_UPDATE_TO_READY
+        if ifce.PM.get_ws_update_ready(applied_count=applied_count):
+            condn += Condns.WS_UPDATE_READY
+        if ifce.PM.get_ws_update_merge_ready(unapplied_count=unapplied_count):
+            condn += Condns.WS_UPDATE_MERGE_READY
+        if ifce.PM.get_ws_update_clean_up_ready():
+            condn += Condns.WS_UPDATE_CLEAN_UP_READY
+        return actions.MaskedCondns(condn, Condns._WS_CONDNS)
 
 _VIEW_TEMPLATE = tlview.ViewTemplate(
     properties={
@@ -267,14 +266,14 @@ class List(table.TableWithAGandUI):
                                         busy_indicator=None,
                                         size_req=None,
                                         model_class=Store)
-        self.add_conditional_actions(APPLIED,
+        self.add_conditional_actions(Condns.APPLIED,
             [
                 ("pm_pop_to_patch", icons.STOCK_POP_PATCH, "QPop To", None,
                  "Pop to the selected patch", self.do_pop_to),
                 ("pm_finish_to", icons.STOCK_FINISH_PATCH, "QFinish To", None,
                  "Move patches up to the selected patch into main repository", self.do_finish_to),
             ])
-        self.add_conditional_actions(SELN,
+        self.add_conditional_actions(Condns.SELN,
             [
                 ("pm_edit_patch_descr", gtk.STOCK_EDIT, "Description", None,
                  "Edit the selected patch's description", self.do_edit_description),
@@ -287,7 +286,7 @@ class List(table.TableWithAGandUI):
                 ("pm_set_patch_guards", icons.STOCK_QGUARD, None, None,
                  "Set guards on the selected patch", self.do_set_guards),
             ])
-        self.add_conditional_actions(UNAPPLIED,
+        self.add_conditional_actions(Condns.UNAPPLIED,
             [
                 ("pm_delete_patch", gtk.STOCK_DELETE, "QDelete", None,
                  "Delete the selected patch", self.do_delete),
@@ -300,19 +299,19 @@ class List(table.TableWithAGandUI):
                 ("pm_duplicate", gtk.STOCK_COPY, "Duplicate", None,
                  "Duplicate the selected patch behind the top patch", self.do_duplicate),
             ])
-        self.add_conditional_actions(UNAPPLIED + INTERDIFF,
+        self.add_conditional_actions(Condns.UNAPPLIED + Condns.INTERDIFF,
             [
                 ("pm_interdiff", gtk.STOCK_PASTE, "Interdiff", None,
                  'Place the "interdiff" of the selected patch and the top patch behind the top patch', self.do_interdiff),
             ])
-        self.add_conditional_actions(PUSH_POSSIBLE,
+        self.add_conditional_actions(Condns.PUSH_POSSIBLE,
             [
                 ("pm_push", icons.STOCK_PUSH_PATCH, "QPush", None,
                  "Apply the next unapplied patch", self.do_push),
                 ("pm_push_all", icons.STOCK_PUSH_PATCH, "QPush All", None,
                  "Apply all remaining unapplied patches", self.do_push_all),
             ])
-        self.add_conditional_actions(POP_POSSIBLE,
+        self.add_conditional_actions(Condns.POP_POSSIBLE,
             [
                 ("pm_pop", icons.STOCK_POP_PATCH, "QPop", None,
                  "Pop the top applied patch", self.do_pop),
@@ -321,7 +320,7 @@ class List(table.TableWithAGandUI):
                 ("pm_refresh_top_patch", icons.STOCK_QREFRESH, None, None,
                  "Refresh the top patch", self.do_refresh),
             ])
-        self.add_conditional_actions(IN_PGND,
+        self.add_conditional_actions(Condns.IN_PGND,
             [
                 ("menu_patches", None, "_Patches"),
                 ("menu_patches_ws", None, "_Workspace Update"),
@@ -332,7 +331,7 @@ class List(table.TableWithAGandUI):
                 ("pm_select_guards", icons.STOCK_QSELECT, None, None,
                  "Select which guards are in force", self.do_select_guards),
             ])
-        self.add_conditional_actions(IN_REPO,
+        self.add_conditional_actions(Condns.IN_REPO,
             [
                 ("menu_patch_list", None, "Patch _List"),
                 ("pm_new", icons.STOCK_QNEW, None, None,
@@ -340,34 +339,34 @@ class List(table.TableWithAGandUI):
                 ("pm_import_external_patch", icons.STOCK_IMPORT_PATCH, "QImport", None,
                  "Import an external patch", self.do_import_external_patch),
             ])
-        self.add_conditional_actions(WS_UPDATE_MERGE_READY,
+        self.add_conditional_actions(Condns.WS_UPDATE_MERGE_READY,
             [
                 ("pm_push_merge", icons.STOCK_QPUSH_MERGE, None, None,
                  "Apply the next unapplied patch merging with equivalent saved patch", self.do_push_merge),
                 ("pm_push_all_with_merge", icons.STOCK_QPUSH_MERGE_ALL, None, None,
                  "Apply all remaining unapplied patches with \"merge\" option enabled", self.do_push_all_with_merge),
             ])
-        self.add_conditional_actions(WS_UPDATE_QSAVE_READY,
+        self.add_conditional_actions(Condns.WS_UPDATE_QSAVE_READY,
             [
                 ("save_queue_state_for_update", None, "QSave For Update", None,
                  "Save the queue state prepatory to update", self.do_save_queue_state_for_update),
             ])
-        self.add_conditional_actions(WS_UPDATE_READY,
+        self.add_conditional_actions(Condns.WS_UPDATE_READY,
             [
                 ("pm_update_workspace", None, "Update Workspace", None,
                  "Update the workspace to the repository tip", self.do_update_workspace),
             ])
-        self.add_conditional_actions(WS_UPDATE_TO_READY,
+        self.add_conditional_actions(Condns.WS_UPDATE_TO_READY,
             [
                 ("pm_update_workspace_to", None, "Update Workspace To", None,
                  "Update the workspace to a specified revision", self.do_update_workspace_to),
             ])
-        self.add_conditional_actions(WS_UPDATE_PULL_READY,
+        self.add_conditional_actions(Condns.WS_UPDATE_PULL_READY,
             [
                 ("pm_pull_to_repository", None, "Pull To Workspace", None,
                  "Pull to the repository from the default remote path", self.do_pull_to_repository),
             ])
-        self.add_conditional_actions(WS_UPDATE_CLEAN_UP_READY,
+        self.add_conditional_actions(Condns.WS_UPDATE_CLEAN_UP_READY,
             [
                 ("pm_clean_up_after_update", gtk.STOCK_CLEAR, "Clean Up", None,
                  "Clean up left over heads after repostory and patch series update", self.do_clean_up_after_update),
@@ -378,7 +377,7 @@ class List(table.TableWithAGandUI):
         toggle_data[gutils.TOC_TOOLTIP] = "Enable/disable automatic updating of the patch list"
         toggle_data[gutils.TOC_STOCK_ID] = gtk.STOCK_REFRESH
         self.toc = gutils.TimeOutController(toggle_data, function=self._update_list_cb, is_on=False)
-        self.add_conditional_action(DONT_CARE, self.toc.toggle_action)
+        self.add_conditional_action(Condns.DONT_CARE, self.toc.toggle_action)
         self.ui_manager.add_ui_from_string(_UI_DESCR)
         self.header.lhs.pack_start(self.ui_manager.get_widget('/patch_list_menubar'), expand=True, fill=True)
         self.seln.connect("changed", self._selection_changed_cb)
@@ -386,7 +385,7 @@ class List(table.TableWithAGandUI):
         self.add_notification_cb(ws_event.PATCH_CHANGES, self._update_list_cb)
         self.repopulate_list()
     def _selection_changed_cb(self, selection):
-        self.set_sensitivity_for_condns(_get_applied_condns(self.seln))
+        self.set_sensitivity_for_condns(MaskedCondns.get_applied_condns(self.seln))
     def get_selected_patch(self):
         store, store_iter = self.seln.get_selected()
         return None if store_iter is None else store.get_patch_name(store_iter)
@@ -409,15 +408,15 @@ class List(table.TableWithAGandUI):
                 contents.append([patch_data.name, icon, markup])
                 if appliable:
                     unapplied_count += 1
-        condns = _get_pushable_condns(unapplied_count)
-        condns |= _get_ws_update_condns(applied_count, unapplied_count)
+        condns = MaskedCondns.get_pushable_condns(unapplied_count)
+        condns |= MaskedCondns.get_ws_update_condns(applied_count, unapplied_count)
         self.set_sensitivity_for_condns(condns)
         return contents
     def repopulate_list(self):
         self.set_contents()
-        condns = _get_applied_condns(self.seln)
-        condns |= _get_in_pgnd_condns()
-        condns |= _get_interdiff_condns()
+        condns = MaskedCondns.get_applied_condns(self.seln)
+        condns |= MaskedCondns.get_in_pgnd_condns()
+        condns |= MaskedCondns.get_interdiff_condns()
         self.set_sensitivity_for_condns(condns)
     def _repopulate_list_cb(self, _arg=None):
         self.show_busy()

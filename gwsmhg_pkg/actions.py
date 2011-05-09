@@ -18,7 +18,34 @@ import gtk
 from gwsmhg_pkg import ws_event, gutils
 from gwsmhg_pkg import ifce
 
-class MaskedCondns:
+class Condns(int):
+    DONT_CARE = 0
+    NCONDS = 7
+    NOT_IN_REPO, IN_REPO, \
+    NO_SELN, SELN, UNIQUE_SELN, \
+    NOT_PMIC, PMIC = [2 ** n for n in range(NCONDS)]
+    IN_REPO_CONDS = NOT_IN_REPO | IN_REPO
+    SELN_CONDNS = NO_SELN | SELN | UNIQUE_SELN
+    PMIC_CONDNS = NOT_PMIC | PMIC
+
+class MaskedCondns(object):
+    @staticmethod
+    def get_in_repo_condns():
+        return MaskedCondns(Condns.IN_REPO if ifce.in_valid_repo else Condns.NOT_IN_REPO, Condns.IN_REPO_CONDS)
+    @staticmethod
+    def get_pmic_condns():
+        return MaskedCondns(Condns.PMIC if ifce.PM.get_in_progress() else Condns.NOT_PMIC, Condns.PMIC_CONDNS)
+    @staticmethod
+    def get_seln_condns(seln):
+        if seln is None:
+            return MaskedCondns(Condns.DONT_CARE, Condns.SELN_CONDNS)
+        selsz = seln.count_selected_rows()
+        if selsz == 0:
+            return MaskedCondns(Condns.NO_SELN, Condns.SELN_CONDNS)
+        elif selsz == 1:
+            return MaskedCondns(Condns.SELN + Condns.UNIQUE_SELN, Condns.SELN_CONDNS)
+        else:
+            return MaskedCondns(Condns.SELN, Condns.SELN_CONDNS)
     def __init__(self, condns, mask):
         self.condns = condns
         self.mask = mask
@@ -94,40 +121,13 @@ class ConditionalActions:
             string += '\tGroup({0:x},{1}): {2}\n'.format(condns, name, member_names)
         return string
 
-DONT_CARE = 0
-NCONDS = 7
-NOT_IN_REPO, IN_REPO, \
-NO_SELN, SELN, UNIQUE_SELN, \
-NOT_PMIC, PMIC = [2 ** n for n in range(NCONDS)]
-
-_IN_REPO_CONDS = NOT_IN_REPO | IN_REPO
-_SELN_CONDNS = NO_SELN | SELN | UNIQUE_SELN
-_PMIC_CONDNS = NOT_PMIC | PMIC
-
-def get_in_repo_condns():
-    return MaskedCondns(IN_REPO if ifce.in_valid_repo else NOT_IN_REPO, _IN_REPO_CONDS)
-
-def get_pmic_condns():
-    return MaskedCondns(PMIC if ifce.PM.get_in_progress() else NOT_PMIC, _PMIC_CONDNS)
-
-def get_seln_condns(seln):
-    if seln is None:
-        return MaskedCondns(DONT_CARE, _SELN_CONDNS)
-    selsz = seln.count_selected_rows()
-    if selsz == 0:
-        return MaskedCondns(NO_SELN, _SELN_CONDNS)
-    elif selsz == 1:
-        return MaskedCondns(SELN + UNIQUE_SELN, _SELN_CONDNS)
-    else:
-        return MaskedCondns(SELN, _SELN_CONDNS)
-
 class_indep_ags = ConditionalActions('class_indep')
 
 def _update_class_indep_in_repo_cb(_arg=None):
-    class_indep_ags.set_sensitivity_for_condns(get_in_repo_condns())
+    class_indep_ags.set_sensitivity_for_condns(MaskedCondns.get_in_repo_condns())
 
 def _update_class_indep_pmic_cb(_arg=None):
-    class_indep_ags.set_sensitivity_for_condns(get_pmic_condns())
+    class_indep_ags.set_sensitivity_for_condns(MaskedCondns.get_pmic_condns())
 
 def add_class_indep_action(condns, action):
     class_indep_ags.add_action(condns, action)
@@ -155,11 +155,11 @@ class AGandUIManager(ws_event.Listener):
         self.add_notification_cb(ws_event.PMIC_CHANGE|ws_event.CHANGE_WD, self.pmic_condns_change_cb)
         self.init_action_states()
     def seln_condns_change_cb(self, seln):
-        self._action_groups.set_sensitivity_for_condns(get_seln_condns(seln))
+        self._action_groups.set_sensitivity_for_condns(MaskedCondns.get_seln_condns(seln))
     def cwd_condns_change_cb(self, _arg=None):
-        self._action_groups.set_sensitivity_for_condns(get_in_repo_condns())
+        self._action_groups.set_sensitivity_for_condns(MaskedCondns.get_in_repo_condns())
     def pmic_condns_change_cb(self, _arg=None):
-        self._action_groups.set_sensitivity_for_condns(get_pmic_condns())
+        self._action_groups.set_sensitivity_for_condns(MaskedCondns.get_pmic_condns())
     def set_sensitivity_for_condns(self, condns):
         self._action_groups.set_sensitivity_for_condns(condns)
     def add_conditional_action(self, condns, action):
@@ -173,9 +173,9 @@ class AGandUIManager(ws_event.Listener):
     def move_conditional_action(self, action_name, new_cond):
         return self._action_groups.move_action(new_cond, action_name)
     def init_action_states(self):
-        condn_set = get_in_repo_condns() | get_pmic_condns()
+        condn_set = MaskedCondns.get_in_repo_condns() | MaskedCondns.get_pmic_condns()
         if self.seln is not None:
-            condn_set |= get_seln_condns(self.seln)
+            condn_set |= MaskedCondns.get_seln_condns(self.seln)
         self._action_groups.set_sensitivity_for_condns(condn_set)
     def create_action_button(self, action_name, use_underline=True):
         action = self.get_conditional_action(action_name)

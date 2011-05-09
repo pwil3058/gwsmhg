@@ -136,12 +136,12 @@ class ChangeSetTable(table.MapManagedTable):
                                        busy_indicator=busy_indicator,
                                        size_req=size_req,
                                        scroll_bar=scroll_bar)
-        self.add_conditional_actions(actions.IN_REPO + actions.UNIQUE_SELN,
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.UNIQUE_SELN,
             [
                 ("cs_summary", gtk.STOCK_INFO, "Summary", None,
                  "View a summary of the selected change set", self._view_cs_summary_acb),
             ])
-        self.add_conditional_actions(actions.IN_REPO + actions.NOT_PMIC + actions.UNIQUE_SELN,
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC + actions.Condns.UNIQUE_SELN,
             [
                 ("cs_update_ws_to", gtk.STOCK_JUMP_TO, "Update To", None,
                  "Update the work space to the selected change set",
@@ -309,7 +309,7 @@ class HistoryTable(SearchableChangeSetTable):
         SearchableChangeSetTable.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
         self._default_max = 8192
         self._current_max = self._default_max
-        self.add_conditional_actions(actions.IN_REPO,
+        self.add_conditional_actions(actions.Condns.IN_REPO,
             [
                 ('cs_next_tranch', gtk.STOCK_GO_FORWARD, '', None,
                  'Load the next tranche of change sets', self._cs_next_tranche_acb),
@@ -474,7 +474,7 @@ class TagsTable(ChangeSetTable):
                                 table_descr = TAGS_TABLE_DESCR,
                                 busy_indicator=busy_indicator,
                                 size_req=size_req)
-        self.add_conditional_actions(actions.IN_REPO + actions.NOT_PMIC + actions.UNIQUE_SELN,
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC + actions.Condns.UNIQUE_SELN,
             [
                 ("cs_remove_selected_tag", icons.STOCK_REMOVE, "Remove", None,
                  "Remove the selected tag from the repository",
@@ -847,21 +847,21 @@ class FileTreeView(file_tree.FileTreeView):
                                         auto_refresh=False, show_status=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.set_headers_visible(False)
-        self.add_conditional_actions(actions.IN_REPO + actions.SELN,
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.SELN,
             [
                 ("scm_diff_files_selection", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for selected file(s)", self._diff_selected_files_acb),
                 ("scm_extdiff_files_selection", icons.STOCK_DIFF, "E_xtdiff", None,
                  "Launch extdiff for selected file(s)", self._extdiff_selected_files_acb),
             ])
-        self.add_conditional_actions(actions.IN_REPO + actions.NO_SELN,
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NO_SELN,
             [
                 ("scm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for all changes", self._diff_all_files_acb),
                 ("scm_extdiff_files_all", icons.STOCK_DIFF, "E_xtdiff", None,
                  "Launch extdiff for all changes", self._extdiff_all_files_acb),
             ])
-        self.set_visibility_for_condns(actions.DONT_CARE, False)
+        self.set_visibility_for_condns(actions.Condns.DONT_CARE, False)
         if not ifce.SCM.get_extension_enabled("extdiff"):
             self.get_conditional_action("scm_extdiff_files_selection").set_visible(False)
             self.get_conditional_action("scm_extdiff_files_all").set_visible(False)

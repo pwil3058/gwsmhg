@@ -295,7 +295,7 @@ class _ViewWithActionGroups(tlview.View, dialogue.BusyIndicatorUser,
         tlview.View.__init__(self, template, model)
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
         actions.AGandUIManager.__init__(self, self.get_selection())
-        self.add_conditional_action(actions.DONT_CARE, model.show_hidden_action)
+        self.add_conditional_action(actions.Condns.DONT_CARE, model.show_hidden_action)
         self.connect('button_press_event', self._handle_button_press_cb)
     def _handle_button_press_cb(self, widget, event):
         if event.type == gtk.gdk.BUTTON_PRESS:
@@ -358,8 +358,8 @@ class FileTreeView(_ViewWithActionGroups):
         self.auto_refresh_action.connect("toggled", self._toggle_auto_refresh_cb)
         self.auto_refresh_action.set_menu_item_type(gtk.CheckMenuItem)
         self.auto_refresh_action.set_tool_item_type(gtk.ToggleToolButton)
-        self.add_conditional_action(actions.DONT_CARE, self.auto_refresh_action)
-        self.add_conditional_actions(actions.DONT_CARE,
+        self.add_conditional_action(actions.Condns.DONT_CARE, self.auto_refresh_action)
+        self.add_conditional_actions(actions.Condns.DONT_CARE,
             [
                 ("refresh_files", gtk.STOCK_REFRESH, "_Refresh", None,
                  "Refresh/update the file tree display", self.update_tree),
@@ -446,14 +446,14 @@ class CwdFileTreeView(FileTreeView):
             model = CwdFileTreeStore(show_hidden=show_hidden)
         FileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
             auto_refresh=auto_refresh, show_status=show_status)
-        self.add_conditional_actions(actions.SELN,
+        self.add_conditional_actions(actions.Condns.SELN,
             [
                 ("edit_files", gtk.STOCK_EDIT, "_Edit", None,
                  "Edit the selected file(s)", self.edit_selected_files_acb),
                 ("delete_files", gtk.STOCK_DELETE, "_Delete", None,
                  "Delete the selected file(s) from the repository", self.delete_selected_files_acb),
             ])
-        self.add_conditional_actions(actions.DONT_CARE,
+        self.add_conditional_actions(actions.Condns.DONT_CARE,
             [
                 ("new_file", gtk.STOCK_NEW, "_New", None,
                  "Create a new file and open for editing", self.create_new_file_acb),
@@ -603,8 +603,8 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             auto_refresh=auto_refresh, show_status=True)
         self.add_notification_cb(ws_event.CHECKOUT|ws_event.FILE_CHANGES, self.update_tree),
         self.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir),
-        self.add_conditional_action(actions.DONT_CARE, model.hide_clean_action)
-        self.add_conditional_actions(actions.IN_REPO + actions.SELN,
+        self.add_conditional_action(actions.Condns.DONT_CARE, model.hide_clean_action)
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.SELN,
             [
                 ("scm_remove_files", gtk.STOCK_REMOVE, "_Remove", None,
                  "Remove the selected file(s) from the repository", self.remove_selected_files_acb),
@@ -619,7 +619,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                 ("scm_move_files_selection", icons.STOCK_RENAME, "_Move/Rename", None,
                  "Move the selected file(s)", self.move_selected_files_acb),
             ])
-        self.add_conditional_actions(actions.IN_REPO + actions.NOT_PMIC + actions.SELN,
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC + actions.Condns.SELN,
             [
                 ("scm_resolve_files_selection", icons.STOCK_RESOLVE, "Re_solve", None,
                  "Resolve merge conflicts in the selected file(s)", self.resolve_selected_files_acb),
@@ -632,12 +632,12 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                 ("scm_commit_files_selection", icons.STOCK_COMMIT, "_Commit", None,
                  "Commit changes for selected file(s)", self.commit_selected_files_acb),
             ])
-        self.add_conditional_actions(actions.IN_REPO + actions.UNIQUE_SELN,
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.UNIQUE_SELN,
            [
                 ("scm_rename_file", icons.STOCK_RENAME, "Re_name/Move", None,
                  "Rename/move the selected file", self.move_selected_files_acb),
             ])
-        self.add_conditional_actions(actions.IN_REPO + actions.NO_SELN,
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NO_SELN,
             [
                 ("scm_add_files_all", gtk.STOCK_ADD, "_Add all", None,
                  "Add all files to the repository", self.add_all_files_to_repo_acb),
@@ -646,14 +646,14 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                 ("scm_extdiff_files_all", icons.STOCK_DIFF, "E_xtdiff", None,
                  "Launch extdiff for all changes", self.extdiff_selected_files_acb),
             ])
-        self.add_conditional_actions(actions.IN_REPO + actions.NOT_PMIC + actions.NO_SELN,
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC + actions.Condns.NO_SELN,
             [
                 ("scm_revert_files_all", icons.STOCK_REVERT, "Rever_t", None,
                  "Revert all changes in working directory", self.revert_all_files_acb),
                 ("scm_commit_files_all", icons.STOCK_COMMIT, "_Commit", None,
                  "Commit all changes", self.commit_all_changes_acb),
             ])
-        self.add_conditional_actions(actions.DONT_CARE,
+        self.add_conditional_actions(actions.Condns.DONT_CARE,
             [
                 ("menu_files", None, "_Files"),
             ])
@@ -662,7 +662,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             self.get_conditional_action("scm_extdiff_files_selection").set_visible(False)
             self.get_conditional_action("scm_extdiff_files_all").set_visible(False)
         if tortoise.IS_AVAILABLE:
-            self.add_conditional_action(actions.DONT_CARE, tortoise.FILE_MENU)
+            self.add_conditional_action(actions.Condns.DONT_CARE, tortoise.FILE_MENU)
             for condition in tortoise.FILE_GROUP_PARTIAL_ACTIONS:
                 action_list = []
                 for action in tortoise.FILE_GROUP_PARTIAL_ACTIONS[condition]:
@@ -918,7 +918,7 @@ class ScmCommitFileTreeView(FileTreeView):
                               auto_refresh=auto_refresh, show_status=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.set_headers_visible(False)
-        self.add_conditional_actions(actions.IN_REPO + actions.SELN,
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.SELN,
             [
                 ("scmch_remove_files", gtk.STOCK_DELETE, "_Remove", None,
                  "Remove the selected files from the change set", self._remove_selected_files_acb),
@@ -927,12 +927,12 @@ class ScmCommitFileTreeView(FileTreeView):
                 ("scm_extdiff_files_selection", icons.STOCK_DIFF, "E_xtdiff", None,
                  "Launch extdiff for the selected file(s)", self._extdiff_selected_files_acb),
             ])
-        self.add_conditional_actions(actions.IN_REPO,
+        self.add_conditional_actions(actions.Condns.IN_REPO,
             [
                 ("scmch_undo_remove_files", gtk.STOCK_UNDO, "_Undo", None,
                  "Undo the last remove", self._undo_last_remove_acb),
             ])
-        self.add_conditional_actions(actions.IN_REPO + actions.NO_SELN,
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NO_SELN,
             [
                 ("scm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for all changes", self._diff_all_files_acb),
@@ -1110,21 +1110,21 @@ class PatchFileTreeView(CwdFileTreeView):
         model = PatchFileTreeStore(patch=patch)
         CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
              auto_refresh=False, show_status=True)
-        self.add_conditional_actions(actions.IN_REPO + actions.SELN,
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.SELN,
             [
                 ("pm_diff_files_selection", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for selected file(s)", self.diff_selected_files_acb),
                 ("pm_extdiff_files_selection", icons.STOCK_DIFF, "E_xtdiff", None,
                  "Launch extdiff for selected file(s)", self.extdiff_selected_files_acb),
             ])
-        self.add_conditional_actions(actions.IN_REPO + actions.NO_SELN,
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NO_SELN,
             [
                 ("pm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for all changes", self.diff_all_files_acb),
                 ("pm_extdiff_files_all", icons.STOCK_DIFF, "E_xtdiff", None,
                  "Launch extdiff for all changes", self.extdiff_all_files_acb),
             ])
-        self.add_conditional_actions(actions.IN_REPO,
+        self.add_conditional_actions(actions.Condns.IN_REPO,
             [
                 ("menu_files", None, "_Files"),
             ])
@@ -1208,8 +1208,8 @@ class TopPatchFileTreeView(CwdFileTreeView):
         model = PatchFileTreeStore()
         CwdFileTreeView.__init__(self, busy_indicator=busy_indicator,
             model=model, auto_refresh=auto_refresh, show_status=True)
-        self.move_conditional_action('new_file', actions.IN_REPO + actions.PMIC)
-        self.add_conditional_actions(actions.IN_REPO + actions.PMIC + actions.SELN,
+        self.move_conditional_action('new_file', actions.Condns.IN_REPO + actions.Condns.PMIC)
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.PMIC + actions.Condns.SELN,
             [
                 ("pm_remove_files", gtk.STOCK_REMOVE, "_Remove", None,
                  "Remove the selected file(s) from the patch", self.remove_selected_files_acb),
@@ -1224,12 +1224,12 @@ class TopPatchFileTreeView(CwdFileTreeView):
                 ("pm_revert_files_selection", gtk.STOCK_UNDO, "Rever_t", None,
                  "Revert changes in the selected file(s)", self.revert_selected_files_acb),
             ])
-        self.add_conditional_actions(actions.IN_REPO + actions.PMIC + actions.UNIQUE_SELN,
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.PMIC + actions.Condns.UNIQUE_SELN,
             [
                 ("pm_rename_file", gtk.STOCK_PASTE, "Re_name/Move", None,
                  "Rename/move the selected file", self.move_selected_files_acb),
             ])
-        self.add_conditional_actions(actions.IN_REPO + actions.PMIC + actions.NO_SELN,
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.PMIC + actions.Condns.NO_SELN,
             [
                 ("pm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for all changes", self.diff_all_files_acb),
@@ -1238,7 +1238,7 @@ class TopPatchFileTreeView(CwdFileTreeView):
                 ("pm_revert_files_all", gtk.STOCK_UNDO, "Rever_t", None,
                  "Revert all changes in working directory", self.revert_all_files_acb),
             ])
-        self.add_conditional_actions(actions.IN_REPO,
+        self.add_conditional_actions(actions.Condns.IN_REPO,
             [
                 ("menu_files", None, "_Files"),
             ])

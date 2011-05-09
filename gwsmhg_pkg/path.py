@@ -96,7 +96,7 @@ class PathTable(table.MapManagedTable):
                                        table_descr=PATH_PRECIS_TABLE_DESCR,
                                        busy_indicator=busy_indicator,
                                        popup='/table_popup')
-        self.add_conditional_actions(actions.IN_REPO + actions.UNIQUE_SELN,
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.UNIQUE_SELN,
             [
                 ("remote_repo_mgmt", gtk.STOCK_EXECUTE, "Manage", None,
                  "Open remote management for selected repository",
@@ -111,7 +111,7 @@ class PathTable(table.MapManagedTable):
                  "Pull all available change sets from the selected path",
                  self._pull_from_acb),
             ])
-        self.add_conditional_actions(actions.IN_REPO + actions.NOT_PMIC + actions.UNIQUE_SELN,
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC + actions.Condns.UNIQUE_SELN,
             [
                 ("push_to_path", gtk.STOCK_EXECUTE, "Push", None,
                  "Push all available change sets to the selected path",
@@ -208,12 +208,12 @@ class IncomingFileTreeView(file_tree.FileTreeView):
             auto_refresh=False, show_status=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.set_headers_visible(False)
-        self.add_conditional_actions(actions.IN_REPO + actions.NO_SELN,
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NO_SELN,
             [
                 ("incoming_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  "Display the diff for all changes", self._diff_all_files_acb),
             ])
-        self.set_visibility_for_condns(actions.DONT_CARE, False)
+        self.set_visibility_for_condns(actions.Condns.DONT_CARE, False)
         self.scm_change_merge_id = self.ui_manager.add_ui_from_string(INCOMING_CS_FILES_UI_DESCR)
     def _diff_all_files_acb(self, _action=None):
         parent = dialogue.main_window
@@ -257,7 +257,7 @@ class IncomingTable(change_set.SearchableChangeSetTable):
         change_set.SearchableChangeSetTable.__init__(self, busy_indicator=busy_indicator,
                                                      size_req = (640, 120),
                                                      prefix = "Incoming", rev=False)
-        self.add_conditional_actions(actions.IN_REPO + actions.UNIQUE_SELN,
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.UNIQUE_SELN,
            [
                 ("cs_pull_to", gtk.STOCK_EXECUTE, "Pull To", None,
                  "Pull up to the selected change set", self._pull_to_cs_acb),
@@ -303,7 +303,7 @@ class OutgoingTable(change_set.SearchableChangeSetTable):
         change_set.SearchableChangeSetTable.__init__(self, busy_indicator=busy_indicator,
                                                      size_req = (640, 120),
                                                      prefix = "Outgoing")
-        self.add_conditional_actions(actions.IN_REPO + actions.NOT_PMIC + actions.UNIQUE_SELN,
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC + actions.Condns.UNIQUE_SELN,
             [
                 ("cs_push_to", gtk.STOCK_EXECUTE, "Push To", None,
                  "Push up to the selected change set", self._push_to_cs_acb),
@@ -467,7 +467,7 @@ class RemoteRepoManagementWidget(gtk.VBox, actions.AGandUIManager, dialogue.Busy
         hbox.pack_start(gutils.LabelledText(label="Alias:", text=alias, min_chars=12))
         self.pack_start(hbox, expand=False)
         self.ui_manager.add_ui_from_string(REMOTE_MGMT_UI_DESCR)
-        self.add_conditional_actions(actions.IN_REPO,
+        self.add_conditional_actions(actions.Condns.IN_REPO,
             [
                 ("path_refresh_remote", gtk.STOCK_REFRESH, "_Refresh", None,
                  "Refresh remote repository date", self._refresh_data_acb),
@@ -475,7 +475,7 @@ class RemoteRepoManagementWidget(gtk.VBox, actions.AGandUIManager, dialogue.Busy
                  "Pull all available changes from  remote repository",
                  self._pull_repo_acb),
             ])
-        self.add_conditional_actions(actions.IN_REPO + actions.NOT_PMIC,
+        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC,
             [
                 ("path_remote_push", icons.STOCK_PUSH, "Push", "",
                  "Push all available changes to remote repository",
