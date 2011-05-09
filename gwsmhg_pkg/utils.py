@@ -354,3 +354,26 @@ def set_file_contents(filename, text, compress=False):
     except IOError:
         return False
     return True
+
+def is_utf8_compliant(text):
+    try:
+        _ = text.decode('utf-8')
+    except UnicodeError:
+        return False
+    return True
+
+ISO_8859_CODECS = ['iso-8859-{0}'.format(x) for x in range(1, 17)]
+ISO_2022_CODECS = ['iso-2022-jp', 'iso-2022-kr'] + \
+    ['iso-2022-jp-{0}'.format(x) for x in range(1, 3) + ['2004', 'ext']]
+
+def make_utf8_compliant(text):
+    '''Return a UTF-8 compliant bersion of text'''
+    if is_utf8_compliant(text):
+        return text
+    for codec in ISO_8859_CODECS + ISO_2022_CODECS:
+        try:
+            text = unicode(text, codec).encode('utf-8')
+            return text
+        except UnicodeError:
+            continue
+    raise UnicodeError

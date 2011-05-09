@@ -50,13 +50,13 @@ class SummaryBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
             ])
     def _insert_sign_off_acb(self, _action=None):
         data = ifce.SCM.get_author_name_and_email()
-        self.insert_at_cursor("Signed-off-by: %s\n" % data)
+        self.insert_at_cursor("Signed-off-by: %s\n" % utils.make_utf8_compliant(data))
     def _insert_ack_acb(self, _action=None):
         data = ifce.SCM.get_author_name_and_email()
-        self.insert_at_cursor("Acked-by: %s\n" % data)
+        self.insert_at_cursor("Acked-by: %s\n" % utils.make_utf8_compliant(data))
     def _insert_author_acb(self, _action=None):
         data = ifce.SCM.get_author_name_and_email()
-        self.insert_at_cursor("Author: %s\n" % data)
+        self.insert_at_cursor("Author: %s\n" % utils.make_utf8_compliant(data))
 
 class SummaryView(gwsmhg_pkg.sourceview.SourceView):
     def __init__(self, text_buffer=None, table=None):
@@ -153,9 +153,8 @@ class ChangeSummaryBuffer(SummaryBuffer):
         if not file_name:
             file_name = self._save_file_name
         try:
-            save_file = open(file_name, 'r')
-            self.set_text(save_file.read())
-            save_file.close()
+            text = open(file_name, 'rb').read()
+            self.set_text(utils.make_utf8_compliant(text))
             self._save_file_name = file_name
             self.set_modified(False)
         except IOError:
@@ -170,9 +169,8 @@ class ChangeSummaryBuffer(SummaryBuffer):
     def insert_summary_from(self, _action=None):
         file_name = dialogue.ask_file_name("Enter file name", existing=True)
         try:
-            save_file = open(file_name, 'r')
-            self.insert_at_cursor(save_file.read())
-            save_file.close()
+            text = open(file_name, 'rb').read()
+            self.insert_at_cursor(utils.make_utf8_compliant(text))
             self.set_modified(True)
         except IOError:
             dialogue.alert_user('Insert at cursor from file failed!')
@@ -242,9 +240,8 @@ class NewPatchSummaryBuffer(SummaryBuffer):
         file_name = dialogue.ask_file_name("Enter file name", existing=True)
         if file_name is not None:
             try:
-                save_file = open(file_name, 'r')
-                self.insert_at_cursor(save_file.read())
-                save_file.close()
+                text = open(file_name, 'rb').read()
+                self.insert_at_cursor(utils.make_utf8_compliant(text))
                 self.set_modified(True)
             except IOError:
                 dialogue.alert_user('Insert at cursor from file failed!')
@@ -277,7 +274,9 @@ class PatchSummaryBuffer(NewPatchSummaryBuffer):
         return True
     def load_summary(self):
         try:
-            self.set_text(self._get_summary(self.patch))
+            text = self._get_summary(self.patch)
+            # if the patch was imported its header may not be UTF-8 compliant
+            self.set_text(utils.make_utf8_compliant(text))
             self.set_modified(False)
         except cmd_result.Failure as failure:
             dialogue.report_failure(failure)
