@@ -17,6 +17,13 @@ import collections, os
 
 Data = collections.namedtuple('Data', ['name', 'status', 'origin'])
 
+def path_parts(path):
+    parts = []
+    while path:
+        path, part = os.path.split(path)
+        parts.insert(0, part)
+    return parts
+
 class NullFileDb:
     def __init__(self):
         pass
@@ -81,7 +88,7 @@ class GenDir:
     def find_dir(self, dirpath):
         if not dirpath:
             return self
-        return self._find_dir(dirpath.split(os.sep))
+        return self._find_dir(path_parts(dirpath))
     def _is_hidden_dir(self, dkey):
         return dkey[0] == '.'
     def _is_hidden_file(self, fdata):
@@ -109,9 +116,9 @@ class GenFileDb:
         self.base_dir = dir_type()
     def _set_contents(self, file_list, unresolved_file_list=list()):
         for item in file_list:
-            self.base_dir.add_file(item.split(os.sep), status=None, origin=None)
+            self.base_dir.add_file(path_parts(item), status=None, origin=None)
     def add_file(self, filepath, status, origin=None):
-        self.base_dir.add_file(filepath.split(os.sep), status, origin)
+        self.base_dir.add_file(path_parts(filepath), status, origin)
     def decorate_dirs(self):
         self.base_dir.update_status()
     def dir_contents(self, dirpath='', show_hidden=False):
