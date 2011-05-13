@@ -13,14 +13,17 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import collections, os
+import collections
+import os
 
 Data = collections.namedtuple('Data', ['name', 'status', 'origin'])
 
-def path_parts(path):
-    parts = []
-    while path:
-        path, part = os.path.split(path)
+def split_path(path):
+    assert not os.path.isabs(path) # Would result in endless loop
+    dirpart, part = os.path.split(path)
+    parts = [] if not part else [part]
+    while dirpart:
+        dirpart, part = os.path.split(dirpart)
         parts.insert(0, part)
     return parts
 
@@ -88,7 +91,7 @@ class GenDir:
     def find_dir(self, dirpath):
         if not dirpath:
             return self
-        return self._find_dir(path_parts(dirpath))
+        return self._find_dir(split_path(dirpath))
     def _is_hidden_dir(self, dkey):
         return dkey[0] == '.'
     def _is_hidden_file(self, fdata):
@@ -116,9 +119,9 @@ class GenFileDb:
         self.base_dir = dir_type()
     def _set_contents(self, file_list, unresolved_file_list=list()):
         for item in file_list:
-            self.base_dir.add_file(path_parts(item), status=None, origin=None)
+            self.base_dir.add_file(split_path(item), status=None, origin=None)
     def add_file(self, filepath, status, origin=None):
-        self.base_dir.add_file(path_parts(filepath), status, origin)
+        self.base_dir.add_file(split_path(filepath), status, origin)
     def decorate_dirs(self):
         self.base_dir.update_status()
     def dir_contents(self, dirpath='', show_hidden=False):

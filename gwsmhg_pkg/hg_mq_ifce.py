@@ -78,7 +78,7 @@ class ScmFileDb(fsdb.GenFileDb):
             item = file_list[index]
             index += 1
             if isinstance(item, patchlib.FilePathPlus):
-                parts = fsdb.path_parts(item.path)
+                parts = fsdb.split_path(item.path)
                 status = ScmFileDb.map_patchlib_status(item.status)
                 self.base_dir.add_file(parts, status, item.expath)
             else:
@@ -91,7 +91,7 @@ class ScmFileDb(fsdb.GenFileDb):
                         index += 1
                 elif filename in unresolved_file_list:
                     status = FSTATUS_UNRESOLVED
-                parts = fsdb.path_parts(filename)
+                parts = fsdb.split_path(filename)
                 self.base_dir.add_file(parts, status, origin)
 
 Deco = collections.namedtuple('Deco', ['style', 'foreground'])
