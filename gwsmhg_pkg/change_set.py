@@ -372,8 +372,8 @@ class HistoryTable(SearchableChangeSetTable):
     def reset_contents_if_mapped(self, arg=None):
         self._current_max = self._default_max
         SearchableChangeSetTable.reset_contents_if_mapped(self, arg)
-    def set_contents(self):
-        SearchableChangeSetTable.set_contents(self)
+    def _set_contents(self):
+        SearchableChangeSetTable._set_contents(self)
         self._check_button_visibility()
     def _cs_next_tranche_acb(self, _action=None):
         self._append_contents()
