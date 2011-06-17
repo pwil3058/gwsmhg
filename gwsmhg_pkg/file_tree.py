@@ -387,7 +387,7 @@ class FileTreeView(_ViewWithActionGroups):
         return [store.fs_path(store.get_iter(x)) for x in selection]
     def add_selected_files_to_clipboard(self, clipboard=None):
         if not clipboard:
-            clipboard = gtk.clipboard_get(gtk.gdk.SELECTION_CLIPBOARD)
+            clipboard = gtk.clipboard_get()
         sel = utils.file_list_to_string(self.get_selected_files())
         clipboard.set_text(sel)
     def _key_press_cb(self, widget, event):
