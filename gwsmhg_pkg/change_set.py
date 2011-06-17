@@ -305,8 +305,13 @@ class SearchableChangeSetTable(ChangeSetTable):
         return (self, revarg)
 
 class HistoryTable(SearchableChangeSetTable):
+    @staticmethod
+    def search_equal_func(model, column, key, model_iter, _data=None):
+        text = model.get_labelled_value(model_iter, label='Description')
+        return text.find(key) == -1
     def __init__(self, busy_indicator=None, size_req=None):
         SearchableChangeSetTable.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
+        self.view.set_search_equal_func(HistoryTable.search_equal_func)
         self._default_max = 8192
         self._current_max = self._default_max
         self.add_conditional_actions(actions.Condns.IN_REPO,
