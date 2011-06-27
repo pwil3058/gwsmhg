@@ -11,7 +11,7 @@
 
 ### You should have received a copy of the GNU General Public License
 ### along with this program; if not, write to the Free Software
-### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+### Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import os, gtk, sys
 from gwsmhg_pkg import dialogue, icons, ifce, actions, change_set, file_tree
@@ -190,7 +190,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
         # Now lay the widgets out
         vbox = gtk.VBox()
         hbox = gtk.HBox()
-        hbox.pack_start(self._menubar, expand=False)
+        hbox.pack_start(self._menubar, expand=True)
         hbox.pack_end(self._rhs_menubar, expand=False)
         vbox.pack_start(hbox, expand=False)
         vbox.pack_start(self._parent_table, expand=False)
