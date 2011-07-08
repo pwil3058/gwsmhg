@@ -1358,7 +1358,7 @@ class TopPatchFileTreeView(CwdFileTreeView):
             self.unshow_busy()
             if result.eflags == cmd_result.OK:
                 if result.stdout:
-                    is_ok = dialogue.confirm_list_action(result.stdoutt.splitlines(), 'About to be actioned. OK?')
+                    is_ok = dialogue.confirm_list_action(result.stdout.splitlines(), 'About to be actioned. OK?')
                 else:
                     dialogue.inform_user('Nothing to revert')
                     return
