@@ -17,7 +17,7 @@ import glob
 
 NAME = 'gwsmhg'
 
-VERSION = '0.13.1'
+VERSION = '0.13.2'
 
 DESCRIPTION = 'a PyGTK GUI wrapper for hg and mq'
 
@@ -57,4 +57,3 @@ URL = 'http://gwsmhg.sourceforge.net/'
 SCRIPTS = ['gwsmhg']
 
 PACKAGES = ['gwsmhg_pkg']
-
