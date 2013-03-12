@@ -450,6 +450,8 @@ class SCMInterface(BaseInterface):
         plist = []
         for line in result.stdout.splitlines():
             pdata = line.split(':', 6)
+            if (len(pdata) < 6):
+                raise cmd_result.Failure(result)
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return plist
@@ -466,6 +468,8 @@ class SCMInterface(BaseInterface):
         plist = []
         for line in result.stdout.splitlines():
             pdata = line.split(":", 6)
+            if (len(pdata) < 6):
+                raise cmd_result.Failure(result)
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return plist
@@ -539,6 +543,8 @@ class SCMInterface(BaseInterface):
             if result.eflags != 0:
                 raise cmd_result.Failure(result)
             pdata = result.stdout.strip().split(':', 6)
+            if (len(pdata) < 6):
+                raise cmd_result.Failure(result)
             pdata[0] = int(pdata[0])
             plist.append(pdata)
         return plist

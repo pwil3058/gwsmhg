@@ -175,7 +175,11 @@ class IncomingParentsTable(change_set.ChangeSetTable):
         self.unshow_busy()
         dialog.show()
     def _fetch_contents(self):
-        return ifce.SCM.get_incoming_parents_table_data(self._rev, self._path)
+        try:
+            return ifce.SCM.get_incoming_parents_table_data(self._rev, self._path)
+        except cmd_result.Failure as failure:
+            dialogue.report_failure(failure)
+            return []
 
 class IncomingFileTreeStore(file_tree.FileTreeStore):
     def __init__(self, rev, path):
@@ -279,7 +283,11 @@ class IncomingTable(change_set.SearchableChangeSetTable):
         self.unshow_busy()
         dialog.show()
     def _fetch_contents(self):
-        return ifce.SCM.get_incoming_table_data(self._path)
+        try:
+            return ifce.SCM.get_incoming_table_data(self._path)
+        except cmd_result.Failure as failure:
+            dialogue.report_failure(failure)
+            return []
 
 OUTGOING_TABLE_UI_DESCR = \
 '''
@@ -319,7 +327,11 @@ class OutgoingTable(change_set.SearchableChangeSetTable):
         self.refresh_contents()
         self.unshow_busy()
     def _fetch_contents(self):
-        return ifce.SCM.get_outgoing_table_data(self._path)
+        try:
+            return ifce.SCM.get_outgoing_table_data(self._path)
+        except cmd_result.Failure as failure:
+            dialogue.report_failure(failure)
+            return []
 
 class PathCSDialog(dialogue.AmodalDialog):
     def __init__(self, title, path=None, table_type=None, parent=None):
@@ -419,7 +431,11 @@ class PullDialog(dialogue.Dialog):
         if dirname:
             self._path.set_text(dirname)
     def _get_incoming_data(self):
-        return ifce.SCM.get_incoming_table_data(self.get_path())
+        try:
+            return ifce.SCM.get_incoming_table_data(self.get_path())
+        except cmd_result.Failure as failure:
+            dialogue.report_failure(failure)
+            return []
     def _incoming_cb(self, button=None):
         self.show_busy()
         title = "Choose Revision"
@@ -519,4 +535,3 @@ class RemoteRepoManagementDialog(dialogue.AmodalDialog):
         self.connect("response", self._close_cb)
     def _close_cb(self, dialog, response_id):
         self.destroy()
-
