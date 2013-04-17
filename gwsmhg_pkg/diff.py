@@ -1,59 +1,37 @@
 ### Copyright (C) 2007 Peter Williams <peter_ono@users.sourceforge.net>
-
+###
 ### This program is free software; you can redistribute it and/or modify
 ### it under the terms of the GNU General Public License as published by
 ### the Free Software Foundation; version 2 of the License only.
-
+###
 ### This program is distributed in the hope that it will be useful,
 ### but WITHOUT ANY WARRANTY; without even the implied warranty of
 ### MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ### GNU General Public License for more details.
-
+###
 ### You should have received a copy of the GNU General Public License
 ### along with this program; if not, write to the Free Software
-### Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-import os, gtk, pango, re
-from gwsmhg_pkg import dialogue, ifce, utils, cmd_result, gutils, icons
+import re
+import gtk
+import pango
+import os
+
+from gwsmhg_pkg import utils
+from gwsmhg_pkg import cmd_result
+from gwsmhg_pkg import patchlib
+
+from gwsmhg_pkg import dialogue
 from gwsmhg_pkg import sourceview
+from gwsmhg_pkg import textview
+from gwsmhg_pkg import ifce
+from gwsmhg_pkg import gutils
+from gwsmhg_pkg import icons
 
-STATES = [gtk.STATE_NORMAL, gtk.STATE_ACTIVE, gtk.STATE_PRELIGHT, gtk.STATE_INSENSITIVE]
-
-class tws_line_count_display(gtk.HBox):
+class FileAndRefreshActions:
     def __init__(self):
-        gtk.HBox.__init__(self)
-        self.pack_start(gtk.Label(_('Added TWS lines:')), expand=False, fill=False)
-        self._entry = gtk.Entry()
-        self._entry.set_width_chars(1)
-        self._entry.set_text(str(0))
-        self._entry.set_editable(False)
-        self.pack_start(self._entry, expand=False, fill=False)
-        self.show_all()
-    def set_value(self, val):
-        sval = str(val)
-        self._entry.set_width_chars(len(sval))
-        self._entry.set_text(sval)
-        if val:
-            for state in STATES:
-                self._entry.modify_base(state, gtk.gdk.color_parse("#FF0000"))
-        else:
-            for state in STATES:
-                self._entry.modify_base(state, gtk.gdk.color_parse("#00FF00"))
-
-class DiffTextBuffer(sourceview.SourceBuffer):
-    def __init__(self, file_list=None, table=None):
-        if not table:
-            table = sourceview.SourceTagTable()
-        sourceview.SourceBuffer.__init__(self, table)
-        if file_list is None:
-            self._file_list = []
-        else:
-            self._file_list = file_list
-        self._tws_change_cbs = []
-        self.tws_check = re.compile('^(\+.*\S)(\s+\n)$')
-        self.tws_list = []
-        self.tws_index = 0
-        self._action_group = gtk.ActionGroup("diff_text")
+        self._action_group = gtk.ActionGroup("diff_file_and_refresh")
         self._action_group.add_actions(
             [
                 ("diff_save", gtk.STOCK_SAVE, _('_Save'), None,
@@ -65,81 +43,199 @@ class DiffTextBuffer(sourceview.SourceBuffer):
             ])
         self._save_file = None
         self.check_set_save_sensitive()
-        self.tws_display = tws_line_count_display()
-        self.index_tag = self.create_tag("INDEX", weight=pango.WEIGHT_BOLD, foreground="#0000AA", family="monospace")
-        self.sep_tag = self.create_tag("SEP", weight=pango.WEIGHT_BOLD, foreground="#0000AA", family="monospace")
-        self.minus_tag = self.create_tag("MINUS", foreground="#AA0000", family="monospace")
-        self.lab_tag = self.create_tag("LAB", foreground="#AA0000", family="monospace")
-        self.plus_tag = self.create_tag("PLUS", foreground="#006600", family="monospace")
-        self.added_tws_tag = self.create_tag("ADDED_TWS", background="#006600", family="monospace")
-        self.star_tag = self.create_tag("STAR", foreground="#006600", family="monospace")
-        self.rab_tag = self.create_tag("RAB", foreground="#006600", family="monospace")
-        self.change_tag = self.create_tag("CHANGED", foreground="#AA6600", family="monospace")
-        self.stats_tag = self.create_tag("STATS", foreground="#AA00AA", family="monospace")
-        self.func_tag = self.create_tag("FUNC", foreground="#00AAAA", family="monospace")
-        self.unchanged_tag = self.create_tag("UNCHANGED", foreground="black", family="monospace")
-    def register_tws_change_cb(self, func):
-        self._tws_change_cbs.append(func)
-    def _append_tagged_text(self, text, tag):
-        self.insert_with_tags(self.get_end_iter(), text, tag)
-    def _append_patch_line(self, line):
-        first_char = line[0]
-        if first_char == " ":
-            self._append_tagged_text(line, self.unchanged_tag)
-        elif first_char == "+":
-            match = self.tws_check.match(line)
-            if match:
-                self._append_tagged_text(match.group(1), self.plus_tag)
-                self._append_tagged_text(match.group(2), self.added_tws_tag)
-                return len(match.group(1))
-            else:
-                self._append_tagged_text(line, self.plus_tag)
-        elif first_char == "-":
-            self._append_tagged_text(line, self.minus_tag)
-        elif first_char == "!":
-            self._append_tagged_text(line, self.change_tag)
-        elif first_char == "@":
-            i = line.find("@@", 2)
-            if i == -1:
-                self._append_tagged_text(line, self.stats_tag)
-            else:
-                self._append_tagged_text(line[:i+2], self.stats_tag)
-                self._append_tagged_text(line[i+2:], self.func_tag)
-        elif first_char == "=":
-            self._append_tagged_text(line, self.sep_tag)
-        elif first_char == "*":
-            self._append_tagged_text(line, self.star_tag)
-        elif first_char == "<":
-            self._append_tagged_text(line, self.lab_tag)
-        elif first_char == ">":
-            self._append_tagged_text(line, self.rab_tag)
+    def check_save_sensitive(self):
+        return self._save_file is not None and os.path.exists(self._save_file)
+    def check_set_save_sensitive(self):
+        set_sensitive = self.check_save_sensitive()
+        self._action_group.get_action("diff_save").set_sensitive(set_sensitive)
+    def _save_acb(self, _action):
+        self._save_to_file()
+    def _save_as_acb(self, _action):
+        if self._save_file:
+            suggestion = self._save_file
         else:
-            self._append_tagged_text(line, self.index_tag)
-        return 0
+            suggestion = os.getcwd()
+        self._save_file = dialogue.ask_file_name(_('Save as ...'), suggestion=suggestion, existing=False)
+        self._save_to_file()
+    def _save_to_file(self):
+        if not self._save_file:
+            return
+        try:
+            fobj = open(self._save_file, 'w')
+        except IOError as edata:
+            strerror = edata[1]
+            dialogue.report_any_problems(cmd_result.Result(cmd_result.ERROR, strerror))
+            self.check_set_save_sensitive()
+            return
+        text = self._get_text_to_save()
+        fobj.write(text)
+        fobj.close()
+        self.check_set_save_sensitive()
+
+class TextWidget(gtk.VBox):
+    class TwsLineCountDisplay(gtk.HBox):
+        STATES = [gtk.STATE_NORMAL, gtk.STATE_ACTIVE, gtk.STATE_PRELIGHT, gtk.STATE_INSENSITIVE]
+        LABEL = _('Added TWS lines:')
+        def __init__(self):
+            gtk.HBox.__init__(self)
+            self.pack_start(gtk.Label(self.LABEL), expand=False, fill=False)
+            self._entry = gtk.Entry()
+            self._entry.set_width_chars(1)
+            self._entry.set_text(str(0))
+            self._entry.set_editable(False)
+            self.pack_start(self._entry, expand=False, fill=False)
+            self.show_all()
+        def set_value(self, val):
+            sval = str(val)
+            self._entry.set_width_chars(len(sval))
+            self._entry.set_text(sval)
+            if val:
+                for state in self.STATES:
+                    self._entry.modify_base(state, gtk.gdk.color_parse("#FF0000"))
+            else:
+                for state in self.STATES:
+                    self._entry.modify_base(state, gtk.gdk.color_parse("#00FF00"))
+    class View(textview.View):
+        class Buffer(textview.Buffer):
+            TWS_CHECK_CRE = re.compile('^(\+.*\S)(\s+\n)$')
+            def __init__(self):
+                textview.Buffer.__init__(self)
+                self.index_tag = self.create_tag("INDEX", weight=pango.WEIGHT_BOLD, foreground="#0000AA", family="monospace")
+                self.sep_tag = self.create_tag("SEP", weight=pango.WEIGHT_BOLD, foreground="#0000AA", family="monospace")
+                self.minus_tag = self.create_tag("MINUS", foreground="#AA0000", family="monospace")
+                self.lab_tag = self.create_tag("LAB", foreground="#AA0000", family="monospace")
+                self.plus_tag = self.create_tag("PLUS", foreground="#006600", family="monospace")
+                self.added_tws_tag = self.create_tag("ADDED_TWS", background="#006600", family="monospace")
+                self.star_tag = self.create_tag("STAR", foreground="#006600", family="monospace")
+                self.rab_tag = self.create_tag("RAB", foreground="#006600", family="monospace")
+                self.change_tag = self.create_tag("CHANGED", foreground="#AA6600", family="monospace")
+                self.stats_tag = self.create_tag("STATS", foreground="#AA00AA", family="monospace")
+                self.func_tag = self.create_tag("FUNC", foreground="#00AAAA", family="monospace")
+                self.unchanged_tag = self.create_tag("UNCHANGED", foreground="black", family="monospace")
+            def _append_tagged_text(self, text, tag):
+                self.insert_with_tags(self.get_end_iter(), text, tag)
+            def _append_patch_line(self, line):
+                first_char = line[0]
+                if first_char == " ":
+                    self._append_tagged_text(line, self.unchanged_tag)
+                elif first_char == "+":
+                    match = self.TWS_CHECK_CRE.match(line)
+                    if match:
+                        self._append_tagged_text(match.group(1), self.plus_tag)
+                        self._append_tagged_text(match.group(2), self.added_tws_tag)
+                        return len(match.group(1))
+                    else:
+                        self._append_tagged_text(line, self.plus_tag)
+                elif first_char == "-":
+                    self._append_tagged_text(line, self.minus_tag)
+                elif first_char == "!":
+                    self._append_tagged_text(line, self.change_tag)
+                elif first_char == "@":
+                    i = line.find("@@", 2)
+                    if i == -1:
+                        self._append_tagged_text(line, self.stats_tag)
+                    else:
+                        self._append_tagged_text(line[:i+2], self.stats_tag)
+                        self._append_tagged_text(line[i+2:], self.func_tag)
+                elif first_char == "=":
+                    self._append_tagged_text(line, self.sep_tag)
+                elif first_char == "*":
+                    self._append_tagged_text(line, self.star_tag)
+                elif first_char == "<":
+                    self._append_tagged_text(line, self.lab_tag)
+                elif first_char == ">":
+                    self._append_tagged_text(line, self.rab_tag)
+                else:
+                    self._append_tagged_text(line, self.index_tag)
+                return 0
+        def __init__(self, width_in_chars=81, aspect_ratio=0.33, fdesc=None):
+            textview.View.__init__(self, buffer=self.Buffer(), width_in_chars=width_in_chars, aspect_ratio=aspect_ratio, fdesc=fdesc)
+    def __init__(self, width_in_chars=81, aspect_ratio=0.33, fdesc=None):
+        gtk.VBox.__init__(self)
+        self.tws_list = []
+        self.tws_index = 0
+        self.view = TextWidget.View(width_in_chars=width_in_chars, aspect_ratio=aspect_ratio, fdesc=fdesc)
+        self.pack_start(gutils.wrap_in_scrolled_window(self.view))
+        self._action_group = gtk.ActionGroup("diff_text")
+        self._action_group.add_actions(
+            [
+                ("diff_save", gtk.STOCK_SAVE, _('_Save'), None,
+                 _('Save the diff to previously nominated file'), self._save_acb),
+                ("diff_save_as", gtk.STOCK_SAVE_AS, _('Save _as'), None,
+                 _('Save the diff to a nominated file'), self._save_as_acb),
+                ("diff_refresh", gtk.STOCK_REFRESH, _('_Refresh'), None,
+                 _('Refresh contents of the diff'), self._refresh_acb),
+                ("tws_nav_first", gtk.STOCK_GOTO_TOP, _('_First'), None,
+                 _('Scroll to first line with added trailing white space'),
+                 self._tws_nav_first_acb),
+                ("tws_nav_prev", gtk.STOCK_GO_UP, _('_Prev'), None,
+                 _('Scroll to previous line with added trailing white space'),
+                 self._tws_nav_prev_acb),
+                ("tws_nav_next", gtk.STOCK_GO_DOWN, _('_Next'), None,
+                 _('Scroll to next line with added trailing white space'),
+                 self._tws_nav_next_acb),
+                ("tws_nav_last", gtk.STOCK_GOTO_BOTTOM, _('_Last'), None,
+                 _('Scroll to last line with added trailing white space'),
+                 self._tws_nav_last_acb),
+            ])
+        self.tws_nav_buttonbox = gutils.ActionHButtonBox([self._action_group],
+            ["tws_nav_first", "tws_nav_prev", "tws_nav_next", "tws_nav_last"])
+        self._tws_nav_buttons_packed = False
+        self._save_file = None
+        self.check_set_save_sensitive()
+        self.tws_display = self.TwsLineCountDisplay()
+        self.set_contents()
+        self.show_all()
+    @property
+    def bfr(self):
+        return self.view.get_buffer()
     def _get_diff_text(self):
         return ""
     def set_contents(self):
+        def update_for_tws_change(new_count):
+            if self._tws_nav_buttons_packed and not new_count:
+                self.remove(self.tws_nav_buttonbox)
+                self.view.set_cursor_visible(False)
+                self._tws_nav_buttons_packed = False
+            elif not self._tws_nav_buttons_packed and new_count:
+                self.pack_start(self.tws_nav_buttonbox, expand=False, fill=True)
+                self.view.set_cursor_visible(True)
+                self._tws_nav_buttons_packed = True
+            self.show_all()
         text = self._get_diff_text()
         old_count = len(self.tws_list)
-        self.begin_not_undoable_action()
-        self.set_text("")
+        self.bfr.begin_not_undoable_action()
+        self.bfr.set_text("")
         self.tws_list = []
         line_no = 0
-        for line in text.splitlines():
-            offset = self._append_patch_line(line + '\n')
+        for line in text.splitlines(True):
+            offset = self.bfr._append_patch_line(line)
             if offset:
                 self.tws_list.append((line_no, offset - 2))
             line_no += 1
-        self.end_not_undoable_action()
+        self.bfr.end_not_undoable_action()
         new_count = len(self.tws_list)
         self.tws_display.set_value(new_count)
         if not (new_count == old_count):
-            for func in self._tws_change_cbs:
-                func(new_count)
+            update_for_tws_change(new_count)
+    def _save_to_file(self):
+        if not self._save_file:
+            return
+        try:
+            fobj = open(self._save_file, 'w')
+        except IOError as edata:
+            strerror = edata[1]
+            dialogue.report_any_problems(cmd_result.Result(cmd_result.ERROR, strerror))
+            self.check_set_save_sensitive()
+            return
+        text = self.bfr.get_text(self.bfr.get_start_iter(), self.bfr.get_end_iter())
+        fobj.write(text)
+        fobj.close()
+        self.check_set_save_sensitive()
     def _tws_index_iter(self):
         pos = self.tws_list[self.tws_index]
-        model_iter = self.get_iter_at_line_offset(pos[0], pos[1])
-        self.place_cursor(model_iter)
+        model_iter = self.bfr.get_iter_at_line_offset(pos[0], pos[1])
+        self.bfr.place_cursor(model_iter)
         return model_iter
     def get_tws_first_iter(self):
         self.tws_index = 0
@@ -156,20 +252,6 @@ class DiffTextBuffer(sourceview.SourceBuffer):
     def get_tws_last_iter(self):
         self.tws_index = len(self.tws_list) - 1
         return self._tws_index_iter()
-    def _save_to_file(self):
-        if not self._save_file:
-            return
-        try:
-            fobj = open(self._save_file, 'w')
-        except IOError as edata:
-            strerror = edata[1]
-            dialogue.report_any_problems(cmd_result.Result(cmd_result.ERROR, "", strerror))
-            self.check_set_save_sensitive()
-            return
-        text = self.get_text(self.get_start_iter(), self.get_end_iter())
-        fobj.write(text)
-        fobj.close()
-        self.check_set_save_sensitive()
     def check_save_sensitive(self):
         return self._save_file is not None and os.path.exists(self._save_file)
     def check_set_save_sensitive(self):
@@ -186,74 +268,155 @@ class DiffTextBuffer(sourceview.SourceBuffer):
             suggestion = os.getcwd()
         self._save_file = dialogue.ask_file_name(_('Save as ...'), suggestion=suggestion, existing=False)
         self._save_to_file()
-    def get_action_button_box(self):
-        return gutils.ActionHButtonBox([self._action_group], action_name_list=self.a_name_list)
-
-class DiffTextView(sourceview.SourceView):
-    def __init__(self, buffer):
-        sourceview.SourceView.__init__(self, buffer)
-        fdesc = pango.FontDescription("mono, 10")
-        self.modify_font(fdesc)
-        self.set_margin(81)
-        self.set_show_margin(True)
-        context = self.get_pango_context()
-        metrics = context.get_metrics(fdesc)
-        width = pango.PIXELS(metrics.get_approximate_char_width() * 85)
-        self.set_size_request(width, width / 2)
-        self.set_cursor_visible(False)
-        self.set_editable(False)
-        self._action_group = gtk.ActionGroup("diff_tws_nav")
-        self._action_group.add_actions(
-            [
-                ("tws_nav_first", gtk.STOCK_GOTO_TOP, _('_First'), None,
-                 _('Scroll to first line with added trailing white space'),
-                 self._tws_nav_first_acb),
-                ("tws_nav_prev", gtk.STOCK_GO_UP, _('_Prev'), None,
-                 _('Scroll to previous line with added trailing white space'),
-                 self._tws_nav_prev_acb),
-                ("tws_nav_next", gtk.STOCK_GO_DOWN, _('_Next'), None,
-                 _('Scroll to next line with added trailing white space'),
-                 self._tws_nav_next_acb),
-                ("tws_nav_last", gtk.STOCK_GOTO_BOTTOM, _('_Last'), None,
-                 _('Scroll to last line with added trailing white space'),
-                 self._tws_nav_last_acb),
-            ])
-        self.tws_nav_buttonbox = gutils.ActionHButtonBox([self._action_group],
-            ["tws_nav_first", "tws_nav_prev", "tws_nav_next", "tws_nav_last"])
+    def get_action_button_box(self, a_name_list):
+        return gutils.ActionHButtonBox([self._action_group], action_name_list=a_name_list)
+    def get_action_button_list(self, a_name_list):
+        return gutils.ActionButtonList([self._action_group], action_name_list=a_name_list)
     def _tws_nav_first_acb(self, _action):
-        self.scroll_to_iter(self.get_buffer().get_tws_first_iter(), 0.01, True)
+        self.view.scroll_to_iter(self.get_tws_first_iter(), 0.01, True)
     def _tws_nav_prev_acb(self, _action):
-        self.scroll_to_iter(self.get_buffer().get_tws_prev_iter(), 0.01, True)
+        self.view.scroll_to_iter(self.get_tws_prev_iter(), 0.01, True)
     def _tws_nav_next_acb(self, _action):
-        self.scroll_to_iter(self.get_buffer().get_tws_next_iter(), 0.01, True)
+        self.view.scroll_to_iter(self.get_tws_next_iter(), 0.01, True)
     def _tws_nav_last_acb(self, _action):
-        self.scroll_to_iter(self.get_buffer().get_tws_last_iter(), 0.01, True)
+        self.view.scroll_to_iter(self.get_tws_last_iter(), 0.01, True)
+    def get_tws_nav_button_box(self):
+        a_name_list = ["tws_nav_first", "tws_nav_prev", "tws_nav_next", "tws_nav_last"]
+        return self.get_action_button_box(action_name_list=a_name_list)
 
-class DiffTextWidget(gtk.VBox):
-    def __init__(self, diff_view):
-        gtk.VBox.__init__(self)
-        self.diff_view = diff_view
-        self.pack_start(gutils.wrap_in_scrolled_window(self.diff_view))
-        self._tws_nav_buttons_packed = False
-        buffer = self.diff_view.get_buffer()
-        buffer.register_tws_change_cb(self._tws_change_cb)
-        buffer.set_contents()
+class ForFileDialog(dialogue.AmodalDialog):
+    class Widget(TextWidget):
+        def __init__(self, filepath, patchname=None):
+            self.filepath = filepath
+            self.patchname = patchname
+            TextWidget.__init__(self)
+        def _get_diff_text(self):
+            diff = ifce.PM.get_file_diff(self.filepath, self.patchname)
+            return str(diff)
+    def __init__(self, filepath, patchname):
+        if patchname is None:
+            patchname = ifce.PM.get_top_patch_for_file(filepath)
+        assert patchname is not None
+        title = _('diff: "{0}" in "{1}": {2}').format(filepath, patchname, os.getcwd())
+        flags = gtk.DIALOG_DESTROY_WITH_PARENT
+        dialogue.AmodalDialog.__init__(self, title, None, flags, ())
+        self.widget = self.Widget(filepath, patchname)
+        self.vbox.pack_start(self.widget, expand=True, fill=True)
+        self.action_area.pack_end(self.widget.tws_display, expand=False, fill=False)
+        for button in self.widget.get_action_button_list(["diff_save", "diff_save_as", "diff_refresh"]).list:
+            self.action_area.pack_start(button)
+        self.add_buttons(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
+        self.connect("response", self._close_cb)
         self.show_all()
-    def _tws_change_cb(self, new_count):
-        if self._tws_nav_buttons_packed and not new_count:
-            self.remove(self.diff_view.tws_nav_buttonbox)
-            self.diff_view.set_cursor_visible(False)
-            self._tws_nav_buttons_packed = False
-        elif not self._tws_nav_buttons_packed and new_count:
-            self.pack_start(self.diff_view.tws_nav_buttonbox, expand=False, fill=True)
-            self.diff_view.set_cursor_visible(True)
-            self._tws_nav_buttons_packed = True
+    def _close_cb(self, dialog, response_id):
+        dialog.destroy()
 
-class ScmDiffTextBuffer(DiffTextBuffer):
-    def __init__(self, file_list=None, fromrev=None, torev=None, table=None):
-        DiffTextBuffer.__init__(self, file_list=file_list, table=table)
+def launch_external_diff(file_a, file_b):
+    extdiff = options.get('diff', 'extdiff')
+    if not extdiff:
+        return cmd_result.Result(cmd_result.WARNING, _('No external diff viewer is defined.\n'))
+    try:
+        runext.run_cmd_in_bgnd([extdiff, file_a, file_b])
+    except OSError as edata:
+        return cmd_result.Result(cmd_result.ERROR, _('Error lanuching external viewer "{0}": {1}\n').format(extdiff, edata.strerror))
+    return cmd_result.Result(cmd_result.OK, '')
+
+def launch_reconciliation_tool(file_a, file_b, file_c):
+    reconciler = options.get('reconcile', 'tool')
+    if not reconciler:
+        return cmd_result.Result(cmd_result.WARNING, _('No reconciliation tool is defined.\n'))
+    try:
+        runext.run_cmd_in_bgnd([reconciler, file_a, file_b, file_c])
+    except OSError as edata:
+        return cmd_result.Result(cmd_result.ERROR, _('Error lanuching reconciliation tool "{0}": {1}\n').format(reconciler, edata.strerror))
+    return cmd_result.Result(cmd_result.OK, '')
+
+class DiffDisplay(TextWidget):
+    def __init__(self, diffplus):
+        self.diffplus = diffplus
+        TextWidget.__init__(self)
+        self.tws_nav_buttonbox.pack_start(self.tws_display, expand=False)
+        self.tws_nav_buttonbox.reorder_child(self.tws_display, 0)
+    def _get_diff_text(self):
+        return str(self.diffplus)
+    def update(self, diffplus):
+        self.diffplus = diffplus
+        self.set_contents()
+
+class DiffNotebook(gtk.Notebook):
+    class TWSDisplay(TextWidget.TwsLineCountDisplay):
+        LABEL = _('File(s) that add TWS: ')
+    def __init__(self, num_strip_levels=1):
+        gtk.Notebook.__init__(self)
+        self.diff_pluses = []
+        self.num_strip_levels = num_strip_levels
+        self.tws_display = self.TWSDisplay()
+        self.tws_display.set_value(0)
+        self.set_scrollable(True)
+        self.popup_enable()
+        self.diff_displays = {}
+        self.update()
+    @staticmethod
+    def _make_file_label(filepath, file_icon):
+        hbox = gtk.HBox()
+        icon = file_icon
+        hbox.pack_start(gtk.image_new_from_stock(icon, gtk.ICON_SIZE_MENU), expand=False)
+        label = gtk.Label(filepath)
+        label.set_alignment(0, 0)
+        label.set_padding(4, 0)
+        hbox.pack_start(label, expand=True)
+        hbox.show_all()
+        return hbox
+    @staticmethod
+    def _file_icon_for_condition(condition):
+        if not condition:
+            return icons.STOCK_FILE_PROBLEM
+        return gtk.STOCK_FILE
+    def _populate_pages(self):
+        existing = set([fpath for fpath in self.diff_displays])
+        num_tws_files = 0
+        for diffplus in self.diff_pluses:
+            filepath = diffplus.get_file_path(self.num_strip_levels)
+            if diffplus.report_trailing_whitespace():
+                file_icon = self._file_icon_for_condition(False)
+                num_tws_files += 1
+            else:
+                file_icon = self._file_icon_for_condition(True)
+            tab_label = self._make_file_label(filepath, file_icon)
+            menu_label = self._make_file_label(filepath, file_icon)
+            if filepath in existing:
+                self.diff_displays[filepath].update(diffplus)
+                self.set_tab_label(self.diff_displays[filepath], tab_label)
+                self.set_menu_label(self.diff_displays[filepath], menu_label)
+                existing.remove(filepath)
+            else:
+                self.diff_displays[filepath] = DiffDisplay(diffplus)
+                self.append_page_menu(self.diff_displays[filepath], tab_label, menu_label)
+        for gone in existing:
+            gonedd = self.diff_displays.pop(gone)
+            pnum = self.page_num(gonedd)
+            self.remove_page(pnum)
+        self.tws_display.set_value(num_tws_files)
+    def update(self):
+        self.diff_pluses = self.get_diff_pluses()
+        self._populate_pages()
+    def get_diff_pluses(self):
+        diff_text = self._get_diff_text()
+        epatch = patchlib.Patch.parse_text(diff_text)
+        return epatch.diff_pluses
+    def __str__(self):
+        string = ''
+        for diff_plus in self.diff_pluses:
+            string += str(diff_plus)
+        return string
+
+class ScmDiffTextWidget(DiffNotebook, FileAndRefreshActions):
+    def __init__(self, file_list=None, fromrev=None, torev=None):
+        self._file_list = file_list
         self._fromrev = fromrev
         self._torev = torev
+        DiffNotebook.__init__(self)
+        FileAndRefreshActions.__init__(self)
         if not torev:
             self.a_name_list = ["diff_save", "diff_save_as", "diff_refresh"]
         else:
@@ -266,17 +429,10 @@ class ScmDiffTextBuffer(DiffTextBuffer):
         except cmd_result.Failure as failure:
             dialogue.report_failure(failure)
             return failure.result.stdout
-
-class ScmDiffTextView(DiffTextView):
-    def __init__(self, file_list=None, fromrev=None, torev=None):
-        buffer = ScmDiffTextBuffer(file_list, fromrev=fromrev, torev=torev)
-        DiffTextView.__init__(self, buffer=buffer)
-
-class ScmDiffTextWidget(DiffTextWidget):
-    def __init__(self, file_list=None, fromrev=None, torev=None):
-        diff_view = ScmDiffTextView(file_list=file_list, fromrev=fromrev,
-                                    torev=torev)
-        DiffTextWidget.__init__(self, diff_view=diff_view)
+    def _refresh_acb(self, _action):
+        self.update()
+    def _get_text_to_save(self):
+        return str(self)
 
 class ScmDiffTextDialog(dialogue.AmodalDialog):
     def __init__(self, parent, file_list=None, fromrev=None, torev=None):
@@ -309,7 +465,7 @@ class ScmDiffTextDialog(dialogue.AmodalDialog):
                 dtw = ScmDiffTextWidget(file_list, fromrev=parent, torev=torev)
                 vbox.pack_start(dtw)
                 hbox = gtk.HBox()
-                tws_display = dtw.diff_view.get_buffer().tws_display
+                tws_display = dtw.tws_display
                 hbox.pack_start(tws_display, expand=False, fill=False)
                 abb = dtw.diff_view.get_buffer().get_action_button_box()
                 hbox.pack_start(abb, expand=False, fill=False)
@@ -324,9 +480,9 @@ class ScmDiffTextDialog(dialogue.AmodalDialog):
                 frev = parents[0]
             dtw = ScmDiffTextWidget(file_list, fromrev=frev, torev=torev)
             self.vbox.pack_start(dtw)
-            tws_display = dtw.diff_view.get_buffer().tws_display
+            tws_display = dtw.tws_display
             self.action_area.pack_end(tws_display, expand=False, fill=False)
-            for button in dtw.diff_view.get_buffer().diff_buttons.list:
+            for button in dtw.diff_buttons.list:
                 self.action_area.pack_start(button)
         self.add_buttons(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
         self.connect("response", self._close_cb)
@@ -334,10 +490,12 @@ class ScmDiffTextDialog(dialogue.AmodalDialog):
     def _close_cb(self, dialog, response_id):
         dialog.destroy()
 
-class PmDiffTextBuffer(DiffTextBuffer):
-    def __init__(self, file_list=None, patch=None, table=None):
-        DiffTextBuffer.__init__(self, file_list=file_list, table=table)
+class PmDiffTextWidget(DiffNotebook, FileAndRefreshActions):
+    def __init__(self, file_list=None, patch=None):
+        self._file_list = file_list
         self._patch = patch
+        DiffNotebook.__init__(self)
+        FileAndRefreshActions.__init__(self)
         if not patch:
             self.a_name_list = ["diff_save", "diff_save_as", "diff_refresh"]
         else:
@@ -350,16 +508,10 @@ class PmDiffTextBuffer(DiffTextBuffer):
         except cmd_result.Failure as failure:
             dialogue.report_failure(failure)
             return failure.result.stdout
-
-class PmDiffTextView(DiffTextView):
-    def __init__(self, file_list=None, patch=None):
-        buffer = PmDiffTextBuffer(file_list, patch=patch)
-        DiffTextView.__init__(self, buffer=buffer)
-
-class PmDiffTextWidget(DiffTextWidget):
-    def __init__(self, file_list=None, patch=None):
-        diff_view = PmDiffTextView(file_list=file_list, patch=patch)
-        DiffTextWidget.__init__(self, diff_view=diff_view)
+    def _refresh_acb(self, _action):
+        self.update()
+    def _get_text_to_save(self):
+        return str(self)
 
 class PmDiffTextDialog(dialogue.AmodalDialog):
     def __init__(self, parent, file_list=None, patch=None):
@@ -373,9 +525,9 @@ class PmDiffTextDialog(dialogue.AmodalDialog):
         self.set_title(title)
         dtw = PmDiffTextWidget(file_list, patch=patch)
         self.vbox.pack_start(dtw)
-        tws_display = dtw.diff_view.get_buffer().tws_display
+        tws_display = dtw.tws_display
         self.action_area.pack_end(tws_display, expand=False, fill=False)
-        for button in dtw.diff_view.get_buffer().diff_buttons.list:
+        for button in dtw.diff_buttons.list:
             self.action_area.pack_start(button)
         self.add_buttons(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
         self.connect("response", self._close_cb)
@@ -383,11 +535,12 @@ class PmDiffTextDialog(dialogue.AmodalDialog):
     def _close_cb(self, dialog, response_id):
         dialog.destroy()
 
-class IncomingDiffTextBuffer(DiffTextBuffer):
-    def __init__(self, rev, path=None, table=None):
-        DiffTextBuffer.__init__(self, table=table)
+class IncomingDiffTextWidget(DiffNotebook, FileAndRefreshActions):
+    def __init__(self, rev, path=None):
         self._path = path
         self._rev = rev
+        DiffNotebook.__init__(self)
+        FileAndRefreshActions.__init__(self)
         self.a_name_list = ["diff_save", "diff_save_as"]
         self.diff_buttons = gutils.ActionButtonList([self._action_group], self.a_name_list)
     def _get_diff_text(self):
@@ -396,16 +549,10 @@ class IncomingDiffTextBuffer(DiffTextBuffer):
         except cmd_result.Failure as failure:
             dialogue.report_failure(failure)
             return failure.result.stdout
-
-class IncomingDiffTextView(DiffTextView):
-    def __init__(self, rev, path=None):
-        buffer = IncomingDiffTextBuffer(rev=rev, path=path)
-        DiffTextView.__init__(self, buffer=buffer)
-
-class IncomingDiffTextWidget(DiffTextWidget):
-    def __init__(self, rev, path=None):
-        diff_view = IncomingDiffTextView(rev=rev, path=path)
-        DiffTextWidget.__init__(self, diff_view=diff_view)
+    def _refresh_acb(self, _action):
+        self.update()
+    def _get_text_to_save(self):
+        return str(self)
 
 class IncomingDiffTextDialog(dialogue.AmodalDialog):
     def __init__(self, parent, rev, path=None):
@@ -418,9 +565,9 @@ class IncomingDiffTextDialog(dialogue.AmodalDialog):
         dialogue.AmodalDialog.__init__(self, title, parent, flags, ())
         dtw = IncomingDiffTextWidget(rev=rev, path=path)
         self.vbox.pack_start(dtw)
-        tws_display = dtw.diff_view.get_buffer().tws_display
+        tws_display = dtw.tws_display
         self.action_area.pack_end(tws_display, expand=False, fill=False)
-        for button in dtw.diff_view.get_buffer().diff_buttons.list:
+        for button in dtw.diff_buttons.list:
             self.action_area.pack_start(button)
         self.add_buttons(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
         self.connect("response", self._close_cb)

@@ -34,6 +34,7 @@ STOCK_APPLIED = 'gwsmhg_stock_applied'
 STOCK_BRANCH = 'gwsmhg_stock_branch'
 STOCK_COMMIT = 'gwsmhg_stock_commit'
 STOCK_DIFF = 'gwsmhg_stock_diff'
+STOCK_FILE_PROBLEM = 'gwsmhg_stock_file_problem'
 STOCK_FINISH_PATCH = 'gwsmhg_stock_finish_patch'
 STOCK_FOLD_PATCH = 'gwsmhg_stock_fold_patch'
 STOCK_IMPORT_PATCH = 'gwsmhg_stock_import_patch'
@@ -51,6 +52,7 @@ _STOCK_ITEMS_OWN_PNG = [
     (STOCK_BRANCH, 'Branch', 0, 0, None),
     (STOCK_COMMIT, 'Commit', 0, 0, None),
     (STOCK_DIFF, 'Diff', 0, 0, None),
+    (STOCK_FILE_PROBLEM, 'File Problem', 0, 0, None),
     (STOCK_FINISH_PATCH, 'Finish', 0, 0, None),
     (STOCK_FOLD_PATCH, 'Fold', 0, 0, None),
     (STOCK_IMPORT_PATCH, 'Import)', 0, 0, None),
@@ -165,4 +167,3 @@ for _item in _STOCK_ALIAS_LIST:
     _FACTORY.add(_item.name, _STYLE.lookup_icon_set(_item.alias))
 
 gtk.stock_add([(item.name, item.text, 0, 0, None) for item in _STOCK_ALIAS_LIST])
-
