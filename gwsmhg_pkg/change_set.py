@@ -19,7 +19,7 @@ from gwsmhg_pkg import ifce, cmd_result, gutils, utils, icons, file_tree, diff
 from gwsmhg_pkg import text_edit, ws_event, dialogue, table, actions
 from gwsmhg_pkg import tlview
 
-CSRow = collections.namedtuple('CSRow', ['Rev', 'Node', 'Age', 'Tags', 'Branches', 'Author', 'Description'])
+CSRow = collections.namedtuple('CSRow', [_('Rev'), _('Node'), _('Age'), _('Tags'), _('Branches'), _('Author'), _('Description')])
 
 LOG_MODEL_DESCR = CSRow(
     Rev=gobject.TYPE_INT,
@@ -56,7 +56,7 @@ def safe_escape(string):
     return _BASE_ENTITIES_RE.sub(
         lambda m: '&%s;' % _BASE_ENTITIES[m.group(0)[0]], string)
 
-_MARKUP_COLOURS = {'Tags' : 'yellow', 'Branches' : 'cyan'}
+_MARKUP_COLOURS = {_('Tags') : 'yellow', _('Branches') : 'cyan'}
 
 def cs_description_crf(_column, cell, model, model_iter, user_data):
     mcols, colours = user_data
@@ -70,10 +70,10 @@ def cs_description_crf(_column, cell, model, model_iter, user_data):
     cell.set_property('markup', markup)
 
 def cs_description_column(model_descr, extras):
-    mcols = tuple(tlview.model_col(model_descr, x) for x in ('Description',) + extras)
+    mcols = tuple(tlview.model_col(model_descr, x) for x in (_('Description'),) + extras)
     cols = tuple(_MARKUP_COLOURS[x] for x in extras)
     return tlview.Column(
-        title='Description',
+        title=_('Description'),
         properties={'expand' : False, 'resizable' : True},
         cells=[
             tlview.Cell(
@@ -101,10 +101,10 @@ LOG_TABLE_DESCR = tlview.ViewTemplate(
     },
     selection_mode=gtk.SELECTION_SINGLE,
     columns=[
-        cs_table_column(LOG_MODEL_DESCR, 'Rev'),
-        cs_table_column(LOG_MODEL_DESCR, 'Age'),
-        cs_description_column(LOG_MODEL_DESCR, ('Tags', 'Branches')),
-        cs_table_column(LOG_MODEL_DESCR, 'Author'),
+        cs_table_column(LOG_MODEL_DESCR, _('Rev')),
+        cs_table_column(LOG_MODEL_DESCR, _('Age')),
+        cs_description_column(LOG_MODEL_DESCR, (_('Tags'), _('Branches'))),
+        cs_table_column(LOG_MODEL_DESCR, _('Author')),
     ]
 )
 
@@ -138,22 +138,22 @@ class ChangeSetTable(table.MapManagedTable):
                                        scroll_bar=scroll_bar)
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.UNIQUE_SELN,
             [
-                ("cs_summary", gtk.STOCK_INFO, "Summary", None,
-                 "View a summary of the selected change set", self._view_cs_summary_acb),
+                ("cs_summary", gtk.STOCK_INFO, _('Summary'), None,
+                 _('View a summary of the selected change set'), self._view_cs_summary_acb),
             ])
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC + actions.Condns.UNIQUE_SELN,
             [
-                ("cs_update_ws_to", gtk.STOCK_JUMP_TO, "Update To", None,
-                 "Update the work space to the selected change set",
+                ("cs_update_ws_to", gtk.STOCK_JUMP_TO, _('Update To'), None,
+                 _('Update the work space to the selected change set'),
                  self._update_ws_to_cs_acb),
-                ("cs_merge_ws_with", icons.STOCK_MERGE, "Merge With", None,
-                 "Merge the work space with the selected change set",
+                ("cs_merge_ws_with", icons.STOCK_MERGE, _('Merge With'), None,
+                 _('Merge the work space with the selected change set'),
                  self._merge_ws_with_cs_acb),
-                ("cs_backout", icons.STOCK_BACKOUT, "Backout", None,
-                 "Backout the selected change set",
+                ("cs_backout", icons.STOCK_BACKOUT, _('Backout'), None,
+                 _('Backout the selected change set'),
                  self._backout_cs_acb),
-                ("cs_tag_selected", icons.STOCK_TAG, "Tag", None,
-                 "Tag the selected change set",
+                ("cs_tag_selected", icons.STOCK_TAG, _('Tag'), None,
+                 _('Tag the selected change set'),
                  self._tag_cs_acb),
             ])
         self.cwd_merge_id = [self.ui_manager.add_ui_from_string(CS_TABLE_BASIC_UI_DESCR)]
@@ -206,7 +206,7 @@ class ChangeSetTable(table.MapManagedTable):
             dialogue.report_any_problems(result)
     def _backout_cs_acb(self, _action):
         rev = str(self.get_selected_key())
-        descr = self.get_selected_key_by_label('Description')
+        descr = self.get_selected_key_by_label(_('Description'))
         self.show_busy()
         BackoutDialog(rev=rev, descr=descr)
         self.unshow_busy()
@@ -280,14 +280,14 @@ class SearchableChangeSetTable(ChangeSetTable):
         ChangeSetTable.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
         if rev:
             if prefix:
-                self._search = gutils.LabelledEntry(prefix + ': Find Rev/Tag/Node Id:')
+                self._search = gutils.LabelledEntry(prefix + _(': Find Rev/Tag/Node Id:'))
             else:
-                self._search = gutils.LabelledEntry('Find Rev/Tag/Node Id:')
+                self._search = gutils.LabelledEntry(_('Find Rev/Tag/Node Id:'))
         else:
             if prefix:
-                self._search = gutils.LabelledEntry(prefix + ': Find Tag/Node Id:')
+                self._search = gutils.LabelledEntry(prefix + _(': Find Tag/Node Id:'))
             else:
-                self._search = gutils.LabelledEntry('Find Tag/Node Id:')
+                self._search = gutils.LabelledEntry(_('Find Tag/Node Id:'))
         self._search.entry.connect('activate', self._search_entry_cb)
         self.header.lhs.pack_start(self._search, expand=True, fill=True)
     def _search_entry_cb(self, entry):
@@ -299,7 +299,7 @@ class SearchableChangeSetTable(ChangeSetTable):
         except cmd_result.Failure as failure:
             dialogue.report_failure(failure)
     def _select_and_scroll_to_rev(self, rev):
-        self.select_and_scroll_to_row_with_key_value(key='Rev', key_value=rev)
+        self.select_and_scroll_to_row_with_key_value(key=_('Rev'), key_value=rev)
     def _fetch_rev(self, revarg):
         assert True, 'define in child'
         return (self, revarg)
@@ -307,7 +307,7 @@ class SearchableChangeSetTable(ChangeSetTable):
 class HistoryTable(SearchableChangeSetTable):
     @staticmethod
     def search_equal_func(model, column, key, model_iter, _data=None):
-        text = model.get_labelled_value(model_iter, label='Description')
+        text = model.get_labelled_value(model_iter, label=_('Description'))
         return text.find(key) == -1
     def __init__(self, busy_indicator=None, size_req=None):
         SearchableChangeSetTable.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
@@ -317,9 +317,9 @@ class HistoryTable(SearchableChangeSetTable):
         self.add_conditional_actions(actions.Condns.IN_REPO,
             [
                 ('cs_next_tranch', gtk.STOCK_GO_FORWARD, '', None,
-                 'Load the next tranche of change sets', self._cs_next_tranche_acb),
+                 _('Load the next tranche of change sets'), self._cs_next_tranche_acb),
                 ('cs_load_all', gtk.STOCK_GOTO_LAST, '', None,
-                 'Load all of the remaining change sets', self._cs_load_all_acb),
+                 _('Load all of the remaining change sets'), self._cs_load_all_acb),
             ])
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR))
@@ -331,7 +331,7 @@ class HistoryTable(SearchableChangeSetTable):
     def _oldest_loaded_rev(self):
         if len(self.model) == 0:
             return 0
-        return int(self.model[-1][self.model.get_col('Rev')])
+        return int(self.model[-1][self.model.get_col(_('Rev'))])
     def _fetch_rev(self, revarg):
         return ifce.SCM.get_rev(revarg)
     def _fetch_contents(self):
@@ -341,7 +341,7 @@ class HistoryTable(SearchableChangeSetTable):
             dialogue.report_failure(failure)
             return []
     def _select_and_scroll_to_rev(self, rev):
-        while not self.select_and_scroll_to_row_with_key_value(key='Rev', key_value=rev):
+        while not self.select_and_scroll_to_row_with_key_value(key=_('Rev'), key_value=rev):
             self._append_contents(torev=rev)
     def _append_contents(self, torev=None):
         self.show_busy()
@@ -398,7 +398,7 @@ class ParentsTable(ChangeSetTable):
             self.hide()
         return parents
 
-TagRow = collections.namedtuple('TagRow', ['Tag', 'Scope', 'Rev', 'Branches', 'Age', 'Author', 'Description'])
+TagRow = collections.namedtuple('TagRow', [_('Tag'), _('Scope'), _('Rev'), _('Branches'), _('Age'), _('Author'), _('Description')])
 
 TAGS_MODEL_DESCR = TagRow(
     Tag=gobject.TYPE_STRING,
@@ -417,11 +417,11 @@ def cs_tag_crf(_column, cell, model, model_iter, mcols):
     cell.set_property('markup', markup)
 
 def cs_tag_column(model_descr):
-    mcols = ( tlview.model_col(model_descr, 'Tag'),
-              tlview.model_col(model_descr, 'Scope'),
+    mcols = ( tlview.model_col(model_descr, _('Tag')),
+              tlview.model_col(model_descr, _('Scope')),
             )
     return tlview.Column(
-        title='Tag',
+        title=_('Tag'),
         properties={'expand' : False, 'resizable' : True},
         cells=[
             tlview.Cell(
@@ -450,10 +450,10 @@ TAGS_TABLE_DESCR = tlview.ViewTemplate(
     selection_mode=gtk.SELECTION_SINGLE,
     columns=[
         cs_tag_column(TAGS_MODEL_DESCR),
-        cs_table_column(TAGS_MODEL_DESCR, 'Rev'),
-        cs_table_column(TAGS_MODEL_DESCR, 'Age'),
-        cs_description_column(TAGS_MODEL_DESCR, ('Branches',)),
-        cs_table_column(TAGS_MODEL_DESCR, 'Author'),
+        cs_table_column(TAGS_MODEL_DESCR, _('Rev')),
+        cs_table_column(TAGS_MODEL_DESCR, _('Age')),
+        cs_description_column(TAGS_MODEL_DESCR, (_('Branches'),)),
+        cs_table_column(TAGS_MODEL_DESCR, _('Author')),
     ]
 )
 
@@ -481,11 +481,11 @@ class TagsTable(ChangeSetTable):
                                 size_req=size_req)
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC + actions.Condns.UNIQUE_SELN,
             [
-                ("cs_remove_selected_tag", icons.STOCK_REMOVE, "Remove", None,
-                 "Remove the selected tag from the repository",
+                ("cs_remove_selected_tag", icons.STOCK_REMOVE, _('Remove'), None,
+                 _('Remove the selected tag from the repository'),
                  self._remove_tag_cs_acb),
-                ("cs_move_selected_tag", icons.STOCK_MOVE, "Move", None,
-                 "Move the selected tag to another change set",
+                ("cs_move_selected_tag", icons.STOCK_MOVE, _('Move'), None,
+                 _('Move the selected tag to another change set'),
                  self._move_tag_cs_acb),
             ])
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR))
@@ -493,7 +493,7 @@ class TagsTable(ChangeSetTable):
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(TAG_TABLE_UI_DESCR))
     def _remove_tag_cs_acb(self, _action=None):
         tag = self.get_selected_key()
-        local = self.get_selected_key_by_label('Scope')
+        local = self.get_selected_key_by_label(_('Scope'))
         self.show_busy()
         RemoveTagDialog(tag=tag, local=local).run()
         self.unshow_busy()
@@ -509,7 +509,7 @@ class TagsTable(ChangeSetTable):
             dialogue.report_failure(failure)
             return []
 
-BranchRow = collections.namedtuple('BranchRow', ['Branch', 'Rev', 'Tags', 'Age', 'Author', 'Description'])
+BranchRow = collections.namedtuple('BranchRow', [_('Branch'), _('Rev'), _('Tags'), _('Age'), _('Author'), _('Description')])
 
 BRANCHES_MODEL_DESCR = BranchRow(
     Branch=gobject.TYPE_STRING,
@@ -529,11 +529,11 @@ BRANCHES_TABLE_DESCR = tlview.ViewTemplate(
     },
     selection_mode=gtk.SELECTION_SINGLE,
     columns=[
-        cs_table_column(BRANCHES_MODEL_DESCR, 'Branch'),
-        cs_table_column(BRANCHES_MODEL_DESCR, 'Rev'),
-        cs_table_column(BRANCHES_MODEL_DESCR, 'Age'),
-        cs_description_column(BRANCHES_MODEL_DESCR, ('Tags',)),
-        cs_table_column(BRANCHES_MODEL_DESCR, 'Author'),
+        cs_table_column(BRANCHES_MODEL_DESCR, _('Branch')),
+        cs_table_column(BRANCHES_MODEL_DESCR, _('Rev')),
+        cs_table_column(BRANCHES_MODEL_DESCR, _('Age')),
+        cs_description_column(BRANCHES_MODEL_DESCR, (_('Tags'),)),
+        cs_table_column(BRANCHES_MODEL_DESCR, _('Author')),
     ]
 )
 
@@ -578,7 +578,7 @@ class SelectTable(table.TableWithAGandUI):
 
 class SelectDialog(dialogue.Dialog):
     def __init__(self, ptype, title, size=(640, 240), parent=None):
-        dialogue.Dialog.__init__(self, title="gwsmg: Select %s" % title, parent=parent,
+        dialogue.Dialog.__init__(self, title=_('gwsmg: Select %s') % title, parent=parent,
                                  flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                                  buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
                                           gtk.STOCK_OK, gtk.RESPONSE_OK)
@@ -602,7 +602,7 @@ TAG_MSG_UI_DESCR = \
 '''
 
 class TagMessageWidget(gtk.VBox):
-    def __init__(self, label="Message (optional)"):
+    def __init__(self, label=_('Message (optional)')):
         gtk.VBox.__init__(self)
         self.view = text_edit.SummaryView()
         self.view.ui_manager.add_ui_from_string(TAG_MSG_UI_DESCR)
@@ -621,8 +621,8 @@ class TagMessageWidget(gtk.VBox):
 class SetTagDialog(dialogue.ReadTextAndToggleDialog):
     def __init__(self, rev=None, parent=None):
         self._rev = rev
-        dialogue.ReadTextAndToggleDialog.__init__(self, title="gwsmhg: Set Tag",
-            prompt="Tag:", toggle_prompt="Local", toggle_state=False, parent=parent)
+        dialogue.ReadTextAndToggleDialog.__init__(self, title=_('gwsmhg: Set Tag'),
+            prompt=_('Tag:'), toggle_prompt=_('Local'), toggle_state=False, parent=parent)
         self.message = TagMessageWidget()
         self.vbox.add(self.message)
         self.connect("response", self._response_cb)
@@ -658,8 +658,8 @@ class RemoveTagDialog(dialogue.ReadTextDialog):
     def __init__(self, tag=None, local=False, parent=None):
         self._tag = tag
         self._local = local
-        dialogue.ReadTextDialog.__init__(self, title='gwsmhg: Remove Tag',
-            prompt='Removing Tag: ', suggestion=tag, parent=parent)
+        dialogue.ReadTextDialog.__init__(self, title=_('gwsmhg: Remove Tag'),
+            prompt=_('Removing Tag: '), suggestion=tag, parent=parent)
         self.entry.set_editable(False)
         self.message = TagMessageWidget()
         self.vbox.add(self.message)
@@ -681,10 +681,10 @@ class RemoveTagDialog(dialogue.ReadTextDialog):
 class MoveTagDialog(dialogue.ReadTextDialog):
     def __init__(self, tag=None, parent=None):
         self._tag = tag
-        dialogue.ReadTextDialog.__init__(self, title="gwsmhg: Move Tag",
-            prompt='Move Tag: ', suggestion=tag, parent=parent)
+        dialogue.ReadTextDialog.__init__(self, title=_('gwsmhg: Move Tag'),
+            prompt=_('Move Tag: '), suggestion=tag, parent=parent)
         self.entry.set_editable(False)
-        self._select_widget = ChangeSetSelectWidget(label="To Change Set:",
+        self._select_widget = ChangeSetSelectWidget(label=_('To Change Set:'),
             busy_indicator=self, discard_toggle=False)
         self.vbox.pack_start(self._select_widget)
         self.message = TagMessageWidget()
@@ -706,7 +706,7 @@ class MoveTagDialog(dialogue.ReadTextDialog):
             dialogue.report_any_problems(result)
             self.destroy()
 
-TagListRow = collections.namedtuple('TagListRow', ['Tag'])
+TagListRow = collections.namedtuple('TagListRow', [_('Tag')])
 
 TAG_LIST_MODEL_DESCR = TagListRow(Tag=gobject.TYPE_STRING)
 
@@ -719,11 +719,11 @@ TAG_LIST_TABLE_DESCR = tlview.ViewTemplate(
     },
     selection_mode=gtk.SELECTION_SINGLE,
     columns=[
-        cs_table_column(TAG_LIST_MODEL_DESCR, 'Tag'),
+        cs_table_column(TAG_LIST_MODEL_DESCR, _('Tag')),
     ]
 )   
 
-BranchListRow = collections.namedtuple('BranchListRow', ['Branch'])
+BranchListRow = collections.namedtuple('BranchListRow', [_('Branch')])
 
 BRANCH_LIST_MODEL_DESCR = BranchListRow(Branch=gobject.TYPE_STRING)
 
@@ -736,22 +736,22 @@ BRANCH_LIST_TABLE_DESCR = tlview.ViewTemplate(
     },
     selection_mode=gtk.SELECTION_SINGLE,
     columns=[
-        cs_table_column(BRANCH_LIST_MODEL_DESCR, 'Branch'),
+        cs_table_column(BRANCH_LIST_MODEL_DESCR, _('Branch')),
     ]
 )
 
 class ChangeSetSelectWidget(gtk.VBox, dialogue.BusyIndicatorUser):
-    def __init__(self, busy_indicator, label="Change Set:", discard_toggle=False):
+    def __init__(self, busy_indicator, label=_('Change Set:'), discard_toggle=False):
         gtk.VBox.__init__(self)
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
         hbox = gtk.HBox()
-        self._tags_button = gtk.Button(label="Browse _Tags")
+        self._tags_button = gtk.Button(label=_('Browse _Tags'))
         self._tags_button.connect("clicked", self._browse_tags_cb)
-        self._branches_button = gtk.Button(label="Browse _Branches")
+        self._branches_button = gtk.Button(label=_('Browse _Branches'))
         self._branches_button.connect("clicked", self._browse_branches_cb)
-        self._heads_button = gtk.Button(label="Browse _Heads")
+        self._heads_button = gtk.Button(label=_('Browse _Heads'))
         self._heads_button.connect("clicked", self._browse_heads_cb)
-        self._history_button = gtk.Button(label="Browse H_istory")
+        self._history_button = gtk.Button(label=_('Browse H_istory'))
         self._history_button.connect("clicked", self._browse_history_cb)
         for button in self._tags_button, self._branches_button, self._heads_button, self._history_button:
             hbox.pack_start(button, expand=True, fill=False)
@@ -763,7 +763,7 @@ class ChangeSetSelectWidget(gtk.VBox, dialogue.BusyIndicatorUser):
         self._entry.connect("activate", self._entry_cb)
         hbox.pack_start(self._entry, expand=True, fill=True)
         if discard_toggle:
-            self._discard_toggle = gtk.CheckButton('Discard local changes')
+            self._discard_toggle = gtk.CheckButton(_('Discard local changes'))
             self._discard_toggle.set_active(False)
             hbox.pack_start(self._discard_toggle, expand=False, fill=False)
         else:
@@ -781,17 +781,17 @@ class ChangeSetSelectWidget(gtk.VBox, dialogue.BusyIndicatorUser):
     def _browse_tags_cb(self, button=None):
         ptype = PrecisType(ifce.SCM.get_tags_list_for_table,
                            TAG_LIST_MODEL_DESCR, TAG_LIST_TABLE_DESCR)
-        self._browse_change_set(ptype, 'Tags', size=(160, 320))
+        self._browse_change_set(ptype, _('Tags'), size=(160, 320))
     def _browse_branches_cb(self, button=None):
         ptype = PrecisType(ifce.SCM.get_branches_list_for_table,
                            TAG_LIST_MODEL_DESCR, TAG_LIST_TABLE_DESCR)
-        self._browse_change_set(ptype, 'Branches', size=(160, 320))
+        self._browse_change_set(ptype, _('Branches'), size=(160, 320))
     def _browse_heads_cb(self, button=None):
         ptype = PrecisType(ifce.SCM.get_heads_data)
-        self._browse_change_set(ptype, 'Heads', size=(640, 480))
+        self._browse_change_set(ptype, _('Heads'), size=(640, 480))
     def _browse_history_cb(self, button=None):
         ptype = PrecisType(ifce.SCM.get_history_data)
-        self._browse_change_set(ptype, 'History', size=(640, 480))
+        self._browse_change_set(ptype, _('History'), size=(640, 480))
     def _entry_cb(self, entry=None):
         self.response(gtk.RESPONSE_OK)
     def get_change_set(self):
@@ -803,7 +803,7 @@ class ChangeSetSelectWidget(gtk.VBox, dialogue.BusyIndicatorUser):
 
 class ChangeSetSelectDialog(dialogue.Dialog):
     def __init__(self, discard_toggle=False, parent=None):
-        title = "gwsmg: Select Change Set: %s" % utils.path_rel_home(os.getcwd())
+        title = _('gwsmg: Select Change Set: %s') % utils.path_rel_home(os.getcwd())
         dialogue.Dialog.__init__(self, title=title, parent=parent,
                                  flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                                  buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
@@ -854,17 +854,17 @@ class FileTreeView(file_tree.FileTreeView):
         self.set_headers_visible(False)
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.SELN,
             [
-                ("scm_diff_files_selection", icons.STOCK_DIFF, "_Diff", None,
-                 "Display the diff for selected file(s)", self._diff_selected_files_acb),
-                ("scm_extdiff_files_selection", icons.STOCK_DIFF, "E_xtdiff", None,
-                 "Launch extdiff for selected file(s)", self._extdiff_selected_files_acb),
+                ("scm_diff_files_selection", icons.STOCK_DIFF, _('_Diff'), None,
+                 _('Display the diff for selected file(s)'), self._diff_selected_files_acb),
+                ("scm_extdiff_files_selection", icons.STOCK_DIFF, _('E_xtdiff'), None,
+                 _('Launch extdiff for selected file(s)'), self._extdiff_selected_files_acb),
             ])
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NO_SELN,
             [
-                ("scm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
-                 "Display the diff for all changes", self._diff_all_files_acb),
-                ("scm_extdiff_files_all", icons.STOCK_DIFF, "E_xtdiff", None,
-                 "Launch extdiff for all changes", self._extdiff_all_files_acb),
+                ("scm_diff_files_all", icons.STOCK_DIFF, _('_Diff'), None,
+                 _('Display the diff for all changes'), self._diff_all_files_acb),
+                ("scm_extdiff_files_all", icons.STOCK_DIFF, _('E_xtdiff'), None,
+                 _('Launch extdiff for all changes'), self._extdiff_all_files_acb),
             ])
         self.set_visibility_for_condns(actions.Condns.DONT_CARE, False)
         if not ifce.SCM.get_extension_enabled("extdiff"):
@@ -896,18 +896,18 @@ class ChangeSetSummaryDialog(dialogue.AmodalDialog):
                                        flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                                        buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE))
         self._rev = rev
-        self.set_title('gwsmg: Change Set: %s : %s' % (rev, utils.cwd_rel_home()))
+        self.set_title(_('gwsmg: Change Set: %s : %s') % (rev, utils.cwd_rel_home()))
         summary = self.get_change_set_summary()
-        self._add_labelled_texts([("Precis:", summary['PRECIS'])])
-        self._add_labelled_texts([("Revision:", summary['REV']), ("Node:", summary['NODE'])])
-        self._add_labelled_texts([("Date:", summary['DATE']), ("Age:", summary['AGE'])])
-        self._add_labelled_texts([("Author:", summary['AUTHOR']), ("Email:", summary['EMAIL'])])
-        self._add_labelled_texts([("Tags:", summary['TAGS'])])
-        self._add_labelled_texts([("Branches:", summary['BRANCHES'])])
+        self._add_labelled_texts([(_('Precis:'), summary['PRECIS'])])
+        self._add_labelled_texts([(_('Revision:'), summary['REV']), (_('Node:'), summary['NODE'])])
+        self._add_labelled_texts([(_('Date:'), summary['DATE']), (_('Age:'), summary['AGE'])])
+        self._add_labelled_texts([(_('Author:'), summary['AUTHOR']), (_('Email:'), summary['EMAIL'])])
+        self._add_labelled_texts([(_('Tags:'), summary['TAGS'])])
+        self._add_labelled_texts([(_('Branches:'), summary['BRANCHES'])])
         vpaned1 = gtk.VPaned()
         self.vbox.pack_start(vpaned1)
         vbox = gtk.VBox()
-        self._add_label("Description:", vbox)
+        self._add_label(_('Description:'), vbox)
         cdv = gtk.TextView()
         cdv.set_editable(False)
         cdv.set_cursor_visible(False)
@@ -916,12 +916,12 @@ class ChangeSetSummaryDialog(dialogue.AmodalDialog):
         vpaned1.add1(vbox)
         vpaned2 = gtk.VPaned()
         vbox = gtk.VBox()
-        self._add_label("File(s):", vbox)
+        self._add_label(_('File(s):'), vbox)
         self.ftv = self.get_file_tree_view()
         vbox.pack_start(gutils.wrap_in_scrolled_window(self.ftv), expand=True)
         vpaned2.add1(vbox)
         vbox = gtk.VBox()
-        self._add_label("Parent(s):", vbox)
+        self._add_label(_('Parent(s):'), vbox)
         ptv = self.get_parents_view()
         vbox.pack_start(ptv, expand=True)
         vpaned2.add2(vbox)
@@ -963,22 +963,22 @@ class ChangeSetSummaryDialog(dialogue.AmodalDialog):
 class BackoutDialog(dialogue.ReadTextAndToggleDialog):
     def __init__(self, rev=None, descr='', parent=None):
         self._rev = rev
-        dialogue.ReadTextAndToggleDialog.__init__(self, title='gwsmhg: Backout',
-            prompt='Backing Out: ', suggestion='%s: %s' % (rev, descr), parent=parent,
-            toggle_prompt='Auto Merge', toggle_state=False)
+        dialogue.ReadTextAndToggleDialog.__init__(self, title=_('gwsmhg: Backout'),
+            prompt=_('Backing Out: '), suggestion='%s: %s' % (rev, descr), parent=parent,
+            toggle_prompt=_('Auto Merge'), toggle_state=False)
         self.entry.set_editable(False)
         self._radio_labels = []
         self._parent_revs = []
         parents_data = ifce.SCM.get_parents_data(rev)
         if len(parents_data) > 1:
             for data in parents_data:
-                rev = str(data[tlview.model_col(LOG_MODEL_DESCR, 'Rev')])
-                descr = data[tlview.model_col(LOG_MODEL_DESCR, 'Description')]
+                rev = str(data[tlview.model_col(LOG_MODEL_DESCR, _('Rev'))])
+                descr = data[tlview.model_col(LOG_MODEL_DESCR, _('Description'))]
                 self._radio_labels.append('%s: %s' % (rev, descr))
                 self._parent_revs.append(rev)
-            self._radio_buttons = gutils.RadioButtonFramedVBox(title='Choose Parent', labels=self._radio_labels)
+            self._radio_buttons = gutils.RadioButtonFramedVBox(title=_('Choose Parent'), labels=self._radio_labels)
             self.vbox.add(self._radio_buttons)
-        self.message = TagMessageWidget(label="Message")
+        self.message = TagMessageWidget(label=_('Message'))
         self.vbox.add(self.message)
         self.connect("response", self._response_cb)
         self.show_all()

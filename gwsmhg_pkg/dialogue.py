@@ -147,56 +147,56 @@ def _form_question(result, clarification):
 def ask_force_refresh_or_cancel(result, clarification=None, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
     if result.eflags & cmd_result.SUGGEST_REFRESH:
-        buttons += ("_Refresh and Retry", RESPONSE_REFRESH)
+        buttons += (_('_Refresh and Retry'), RESPONSE_REFRESH)
     if result.eflags & cmd_result.SUGGEST_FORCE:
-        buttons += ("_Force", RESPONSE_FORCE)
+        buttons += (_('_Force'), RESPONSE_FORCE)
     question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
 def ask_force_or_cancel(result, clarification=None, parent=None):
-    buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, "_Force", RESPONSE_FORCE)
+    buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, _('_Force'), RESPONSE_FORCE)
     question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
 def ask_merge_discard_or_cancel(result, clarification=None, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
     if result.eflags & cmd_result.SUGGEST_MERGE:
-        buttons += ("_Merge", RESPONSE_MERGE)
+        buttons += (_('_Merge'), RESPONSE_MERGE)
     if result.eflags & cmd_result.SUGGEST_DISCARD:
-        buttons += ("_Discard Changes", RESPONSE_DISCARD)
+        buttons += (_('_Discard Changes'), RESPONSE_DISCARD)
     question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
 def ask_recover_or_cancel(result, clarification=None, parent=None):
-    buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, "_Recover", RESPONSE_RECOVER)
+    buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, _('_Recover'), RESPONSE_RECOVER)
     question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
 def ask_edit_force_or_cancel(result, clarification=None, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
     if result.eflags & cmd_result.SUGGEST_EDIT:
-        buttons += ("_Edit", RESPONSE_EDIT)
+        buttons += (_('_Edit'), RESPONSE_EDIT)
     if result.eflags & cmd_result.SUGGEST_FORCE:
-        buttons += ("_Force", RESPONSE_FORCE)
+        buttons += (_('_Force'), RESPONSE_FORCE)
     question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
 def ask_rename_force_or_cancel(result, clarification=None, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
     if result.eflags & cmd_result.SUGGEST_RENAME:
-        buttons += ("_Rename", RESPONSE_RENAME)
+        buttons += (_('_Rename'), RESPONSE_RENAME)
     if result.eflags & cmd_result.SUGGEST_FORCE:
-        buttons += ("_Force", RESPONSE_FORCE)
+        buttons += (_('_Force'), RESPONSE_FORCE)
     question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
 def ask_rename_force_or_skip(result, clarification=None, parent=None):
     buttons = ()
     if result.eflags & cmd_result.SUGGEST_RENAME:
-        buttons += ("_Rename", RESPONSE_RENAME)
+        buttons += (_('_Rename'), RESPONSE_RENAME)
     if result.eflags & cmd_result.SUGGEST_FORCE:
-        buttons += ("_Force", RESPONSE_FORCE)
-    buttons += ("_Skip", RESPONSE_SKIP, "Skip _All", RESPONSE_SKIP_ALL)
+        buttons += (_('_Force'), RESPONSE_FORCE)
+    buttons += (_('_Skip'), RESPONSE_SKIP, _('Skip _All'), RESPONSE_SKIP_ALL)
     question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
@@ -283,7 +283,7 @@ def report_failure(failure, parent=None):
         inform_user(os.linesep.join(result[1:]), parent, gtk.MESSAGE_ERROR)
 
 _REPORT_REQUEST_MSG = \
-'''
+_('''
 Please report this problem by either:
   submitting a bug report at <https://sourceforge.net/tracker/?group_id=258223&atid=1127211>
 or:
@@ -291,7 +291,7 @@ or:
 and including a copy of the details below this message.
 
 Thank you.
-'''
+''')
 
 def report_exception(exc_data, parent=None):
     import traceback
@@ -300,7 +300,7 @@ def report_exception(exc_data, parent=None):
                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                            type=gtk.MESSAGE_ERROR, buttons=gtk.BUTTONS_CLOSE,
                            message_format=_REPORT_REQUEST_MSG)
-    dialog.set_title('gwsmhg: Unexpected Exception')
+    dialog.set_title(_('gwsmhg: Unexpected Exception'))
     dialog.format_secondary_text(msg)
     dialog.run()
     dialog.destroy()

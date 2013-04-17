@@ -141,7 +141,7 @@ class BaseInterface:
         self._name_envars = DEFAULT_NAME_EVARS
         self._email_envars = DEFAULT_EMAIL_VARS
     def _map_cmd_result(self, result, ignore_err_re=None):
-        assert False, "Must be defined in child"
+        assert False, _('Must be defined in child')
     def _run_cmd_on_console(self, cmd, input_text=None, ignore_err_re=None):
         result = utils.run_cmd_in_console(cmd, ifce.log, input_text)
         return self._map_cmd_result(result, ignore_err_re=ignore_err_re)
@@ -149,7 +149,7 @@ class BaseInterface:
         return serr.strip() in ['(found dead inotify server socket; removing it)',
             '(inotify: received response from incompatible server version 1)']
     def get_extensions(self):
-        result = utils.run_cmd("hg showconfig extensions")
+        result = utils.run_cmd(_('hg showconfig extensions'))
         extens = []
         for line in result.stdout.splitlines():
             preeq, posteq = line.split('=')
@@ -164,10 +164,10 @@ class BaseInterface:
             return result.stdout.strip()
         name = utils.get_first_in_envar(self._name_envars)
         if not name:
-            name = "UNKNOWN"
+            name = _('UNKNOWN')
         email = utils.get_first_in_envar(self._email_envars)
         if not email:
-            email = "UNKNOWN"
+            email = _('UNKNOWN')
         return "%s <%s>" % (name, email)
     def get_status_row_data(self):
         return (self.status_deco_map, self.extra_info_sep)
@@ -245,13 +245,13 @@ class BaseInterface:
             return result
     def do_delete_files(self, file_list):
         if ifce.log:
-            ifce.log.start_cmd('Deleting: %s' % utils.file_list_to_string(file_list))
+            ifce.log.start_cmd(_('Deleting: %s') % utils.file_list_to_string(file_list))
         serr = ""
         for filename in file_list:
             try:
                 os.remove(filename)
                 if ifce.log:
-                    ifce.log.append_stdout(('Deleted: %s\n') % filename)
+                    ifce.log.append_stdout((_('Deleted: %s\n')) % filename)
             except os.error as value:
                 errmsg = ('%s: "%s"\n') % (value[1], filename)
                 serr += errmsg

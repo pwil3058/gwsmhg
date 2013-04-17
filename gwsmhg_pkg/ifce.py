@@ -68,5 +68,5 @@ def chdir(newdir=None):
     new_wd = os.getcwd()
     if term:
         term.set_cwd(new_wd)
-    log.append_entry("New Working Directory: %s" % new_wd)
+    log.append_entry(_('New Working Directory: %s') % new_wd)
     return cmd_result.Result(cmd_result.OK, "", "")

@@ -26,7 +26,7 @@ from gwsmhg_pkg import table
 from gwsmhg_pkg import urlops
 from gwsmhg_pkg import tlview
 
-PARow = collections.namedtuple('PARow', ['Alias', 'Path'])
+PARow = collections.namedtuple('PARow', [_('Alias'), _('Path')])
 
 PATH_ALIAS_MODEL_DESCR = PARow(Alias=gobject.TYPE_STRING, Path=gobject.TYPE_STRING)
 
@@ -40,7 +40,7 @@ PATH_ALIAS_TABLE_DESCR = tlview.ViewTemplate(
     selection_mode=gtk.SELECTION_SINGLE,
     columns=[
         tlview.Column(
-            title='Alias',
+            title=_('Alias'),
             properties={'expand': False, 'resizable' : True},
             cells=[
                 tlview.Cell(
@@ -51,12 +51,12 @@ PATH_ALIAS_TABLE_DESCR = tlview.ViewTemplate(
                     ),
                     properties={'editable' : True},
                     renderer=None,
-                    attributes = {'text' : tlview.model_col(PATH_ALIAS_MODEL_DESCR, 'Alias')}
+                    attributes = {'text' : tlview.model_col(PATH_ALIAS_MODEL_DESCR, _('Alias'))}
                 ),
             ],
         ),
         tlview.Column(
-            title='Path',
+            title=_('Path'),
             properties={'expand': False, 'resizable' : True},
             cells=[
                 tlview.Cell(
@@ -67,7 +67,7 @@ PATH_ALIAS_TABLE_DESCR = tlview.ViewTemplate(
                     ),
                     properties={'editable' : False},
                     renderer=None,
-                    attributes = {'text' : tlview.model_col(PATH_ALIAS_MODEL_DESCR, 'Path')}
+                    attributes = {'text' : tlview.model_col(PATH_ALIAS_MODEL_DESCR, _('Path'))}
                 ),
             ],
         ),
@@ -136,9 +136,9 @@ class AliasPathTable(table.Table):
         if self._extant_path(path):
             model_iter = self.model.get_iter_first()
             while model_iter:
-                if self._same_paths(self.model.get_labelled_value(model_iter, 'Path'), path):
+                if self._same_paths(self.model.get_labelled_value(model_iter, _('Path')), path):
                     if alias:
-                        self.model.set_labelled_value(model_iter, 'Alias', alias)
+                        self.model.set_labelled_value(model_iter, _('Alias'), alias)
                     return
                 model_iter = self.model.iter_next(model_iter)
             if not alias:
@@ -150,7 +150,7 @@ class AliasPathTable(table.Table):
         ap_list = self.get_contents()
         self._write_list_to_file(ap_list)
     def get_selected_ap(self):
-        data = self.get_selected_data_by_label(['Path', 'Alias'])
+        data = self.get_selected_data_by_label([_('Path'), _('Alias')])
         if not data:
             return False
         return data[0]
@@ -172,7 +172,7 @@ class WSPathTable(AliasPathTable):
 
 class PathSelectDialog(dialogue.Dialog):
     def __init__(self, create_table, label, parent=None):
-        dialogue.Dialog.__init__(self, title="gwsmg: Select %s" % label, parent=parent,
+        dialogue.Dialog.__init__(self, title=_('gwsmg: Select %s') % label, parent=parent,
                                  flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                                  buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
                                           gtk.STOCK_OK, gtk.RESPONSE_OK)
@@ -187,7 +187,7 @@ class PathSelectDialog(dialogue.Dialog):
         self._path.child.set_width_chars(32)
         self._path.child.connect("activate", self._path_cb)
         hbox.pack_start(self._path, expand=True, fill=True)
-        self._browse_button = gtk.Button(label="_Browse")
+        self._browse_button = gtk.Button(label=_('_Browse'))
         self._browse_button.connect("clicked", self._browse_cb)
         hbox.pack_start(self._browse_button, expand=False, fill=False)
         self.vbox.pack_start(hbox, expand=False, fill=False)
@@ -201,7 +201,7 @@ class PathSelectDialog(dialogue.Dialog):
     def _path_cb(self, entry=None):
         self.response(gtk.RESPONSE_OK)
     def _browse_cb(self, button=None):
-        dirname = dialogue.ask_dir_name("gwsmhg: Browse for Directory", existing=True, parent=self)
+        dirname = dialogue.ask_dir_name(_('gwsmhg: Browse for Directory'), existing=True, parent=self)
         if dirname:
             self._path.set_text(utils.path_rel_home(dirname))
     def get_path(self):
@@ -210,7 +210,7 @@ class PathSelectDialog(dialogue.Dialog):
 class WSOpenDialog(PathSelectDialog):
     def __init__(self, parent=None):
         PathSelectDialog.__init__(self, create_table=WSPathTable,
-            label="Workspace/Directory", parent=parent)
+            label=_('Workspace/Directory'), parent=parent)
 
 class RepoPathTable(AliasPathTable):
     def __init__(self):
@@ -243,14 +243,14 @@ class RepoPathTable(AliasPathTable):
 class RepoSelectDialog(PathSelectDialog):
     def __init__(self, parent=None):
         PathSelectDialog.__init__(self, create_table=RepoPathTable,
-            label="Repository", parent=parent)
+            label=_('Repository'), parent=parent)
         hbox = gtk.HBox()
-        hbox.pack_start(gtk.Label("As:"))
+        hbox.pack_start(gtk.Label(_('As:')))
         self._target = gutils.EntryWithHistory()
         self._target.set_width_chars(32)
         self._target.connect("activate", self._target_cb)
         hbox.pack_start(self._target, expand=True, fill=True)
-        self._default_button = gtk.Button(label="_Default")
+        self._default_button = gtk.Button(label=_('_Default'))
         self._default_button.connect("clicked", self._default_cb)
         hbox.pack_start(self._default_button, expand=False, fill=False)
         self.vbox.pack_start(hbox, expand=False, fill=False)
@@ -366,7 +366,7 @@ EDITOR_GLOB_TABLE_DESCR = tlview.ViewTemplate(
     selection_mode=gtk.SELECTION_MULTIPLE,
     columns=[
         tlview.Column(
-            title='File Pattern(s)',
+            title=_('File Pattern(s)'),
             properties={'expand' : True},
             cells=[
                 tlview.Cell(
@@ -382,7 +382,7 @@ EDITOR_GLOB_TABLE_DESCR = tlview.ViewTemplate(
             ],
         ),
         tlview.Column(
-            title='Editor Command',
+            title=_('Editor Command'),
             properties={'expand' : True},
             cells=[
                 tlview.Cell(
@@ -414,7 +414,7 @@ class EditorAllocationTable(table.Table):
 
 class EditorAllocationDialog(dialogue.Dialog):
     def __init__(self, edeff=EDITOR_GLOB_FILE_NAME, parent=None):
-        dialogue.Dialog.__init__(self, title='gwsmg: Editor Allocation', parent=parent,
+        dialogue.Dialog.__init__(self, title=_('gwsmg: Editor Allocation'), parent=parent,
                                  flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                                  buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE,
                                           gtk.STOCK_OK, gtk.RESPONSE_OK)

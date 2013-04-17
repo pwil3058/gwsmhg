@@ -22,11 +22,12 @@ import getopt
 
 import gtk
 
+from gwsmhg_pkg import i18n
 from gwsmhg_pkg import ifce, hg_mq_ifce, gwsm, dialogue
 
 def usage():
     """Print the program's usage message"""
-    print("Usage: gwsmhg [dir]")
+    print(_('Usage: gwsmhg [dir]'))
 
 # read required directory from the command line
 try:

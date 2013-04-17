@@ -220,7 +220,7 @@ _VIEW_TEMPLATE = tlview.ViewTemplate(
     selection_mode=gtk.SELECTION_SINGLE,
     columns=[
         tlview.Column(
-            title='Patch List',
+            title=_('Patch List'),
             properties={'expand': False, 'resizable' : True},
             cells=[
                 tlview.Cell(
@@ -249,10 +249,10 @@ _VIEW_TEMPLATE = tlview.ViewTemplate(
 )
 
 _finish_empty_msg_prompt = '\n'.join(
-    ["Do you wish to:",
-     "\tcancel,",
-     "\tedit the description and retry, or",
-     "\tforce the finish operation?"
+    [_('Do you wish to:'),
+     _('\tcancel,'),
+     _('\tedit the description and retry, or'),
+     _('\tforce the finish operation?')
     ])
 
 class List(table.TableWithAGandUI):
@@ -268,119 +268,119 @@ class List(table.TableWithAGandUI):
                                         model_class=Store)
         self.add_conditional_actions(Condns.APPLIED,
             [
-                ("pm_pop_to_patch", icons.STOCK_POP_PATCH, "QPop To", None,
-                 "Pop to the selected patch", self.do_pop_to),
-                ("pm_finish_to", icons.STOCK_FINISH_PATCH, "QFinish To", None,
-                 "Move patches up to the selected patch into main repository", self.do_finish_to),
+                ("pm_pop_to_patch", icons.STOCK_POP_PATCH, _('QPop To'), None,
+                 _('Pop to the selected patch'), self.do_pop_to),
+                ("pm_finish_to", icons.STOCK_FINISH_PATCH, _('QFinish To'), None,
+                 _('Move patches up to the selected patch into main repository'), self.do_finish_to),
             ])
         self.add_conditional_actions(Condns.SELN,
             [
-                ("pm_edit_patch_descr", gtk.STOCK_EDIT, "Description", None,
-                 "Edit the selected patch's description", self.do_edit_description),
-                ("pm_view_patch_files", gtk.STOCK_FILE, "Files", None,
-                 "Show files affected by the selected patch", self.show_files),
-                ("pm_view_patch_diff", icons.STOCK_DIFF, "Diff", None,
-                 "Show diff for the selected patch", self.show_diff_acb),
-                ("pm_rename_patch", None, "QRename", None,
-                 "Rename the selected patch", self.do_rename),
+                ("pm_edit_patch_descr", gtk.STOCK_EDIT, _('Description'), None,
+                 _('Edit the selected patch\'s description'), self.do_edit_description),
+                ("pm_view_patch_files", gtk.STOCK_FILE, _('Files'), None,
+                 _('Show files affected by the selected patch'), self.show_files),
+                ("pm_view_patch_diff", icons.STOCK_DIFF, _('Diff'), None,
+                 _('Show diff for the selected patch'), self.show_diff_acb),
+                ("pm_rename_patch", None, _('QRename'), None,
+                 _('Rename the selected patch'), self.do_rename),
                 ("pm_set_patch_guards", icons.STOCK_QGUARD, None, None,
-                 "Set guards on the selected patch", self.do_set_guards),
+                 _('Set guards on the selected patch'), self.do_set_guards),
             ])
         self.add_conditional_actions(Condns.UNAPPLIED,
             [
                 ("pm_delete_patch", gtk.STOCK_DELETE, "QDelete", None,
-                 "Delete the selected patch", self.do_delete),
+                 _('Delete the selected patch'), self.do_delete),
                 ("pm_push_to", icons.STOCK_PUSH_PATCH, "QPush To", None,
-                 "Push to the selected patch", self.do_push_to),
+                 _('Push to the selected patch'), self.do_push_to),
                 ("pm_fold", icons.STOCK_FOLD_PATCH, "QFold", None,
-                 "Fold the selected patch into the top patch", self.do_fold),
+                 _('Fold the selected patch into the top patch'), self.do_fold),
                 ("pm_fold_to", icons.STOCK_FOLD_PATCH, "QFold To", None,
-                 "Fold patches up to the selected patch into the top patch", self.do_fold_to),
-                ("pm_duplicate", gtk.STOCK_COPY, "Duplicate", None,
-                 "Duplicate the selected patch behind the top patch", self.do_duplicate),
+                 _('Fold patches up to the selected patch into the top patch'), self.do_fold_to),
+                ("pm_duplicate", gtk.STOCK_COPY, _('Duplicate'), None,
+                 _('Duplicate the selected patch behind the top patch'), self.do_duplicate),
             ])
         self.add_conditional_actions(Condns.UNAPPLIED + Condns.INTERDIFF,
             [
                 ("pm_interdiff", gtk.STOCK_PASTE, "Interdiff", None,
-                 'Place the "interdiff" of the selected patch and the top patch behind the top patch', self.do_interdiff),
+                 _('Place the "interdiff" of the selected patch and the top patch behind the top patch'), self.do_interdiff),
             ])
         self.add_conditional_actions(Condns.PUSH_POSSIBLE,
             [
                 ("pm_push", icons.STOCK_PUSH_PATCH, "QPush", None,
-                 "Apply the next unapplied patch", self.do_push),
+                 _('Apply the next unapplied patch'), self.do_push),
                 ("pm_push_all", icons.STOCK_PUSH_PATCH, "QPush All", None,
-                 "Apply all remaining unapplied patches", self.do_push_all),
+                 _('Apply all remaining unapplied patches'), self.do_push_all),
             ])
         self.add_conditional_actions(Condns.POP_POSSIBLE,
             [
                 ("pm_pop", icons.STOCK_POP_PATCH, "QPop", None,
-                 "Pop the top applied patch", self.do_pop),
+                 _('Pop the top applied patch'), self.do_pop),
                 ("pm_pop_all", icons.STOCK_POP_PATCH, "QPop All", None,
-                 "Pop all remaining applied patches", self.do_pop_all),
+                 _('Pop all remaining applied patches'), self.do_pop_all),
                 ("pm_refresh_top_patch", icons.STOCK_QREFRESH, None, None,
-                 "Refresh the top patch", self.do_refresh),
+                 _('Refresh the top patch'), self.do_refresh),
             ])
         self.add_conditional_actions(Condns.IN_PGND,
             [
-                ("menu_patches", None, "_Patches"),
-                ("menu_patches_ws", None, "_Workspace Update"),
-                ("refresh_patch_list", gtk.STOCK_REFRESH, "Update Patch List", None,
-                 "Refresh/update the patch list display", self._update_list_cb),
-                ("pm_import_patch_series", icons.STOCK_IMPORT_PATCH, "QImport Patch Series", None,
-                 "Import an external patch (mq/quilt style) series", self.do_import_external_patch_series),
+                ("menu_patches", None, _('_Patches')),
+                ("menu_patches_ws", None, _('_Workspace Update')),
+                ("refresh_patch_list", gtk.STOCK_REFRESH, _('Update Patch List'), None,
+                 _('Refresh/update the patch list display'), self._update_list_cb),
+                ("pm_import_patch_series", icons.STOCK_IMPORT_PATCH, _('QImport Patch Series'), None,
+                 _('Import an external patch (mq/quilt style) series'), self.do_import_external_patch_series),
                 ("pm_select_guards", icons.STOCK_QSELECT, None, None,
-                 "Select which guards are in force", self.do_select_guards),
+                 _('Select which guards are in force'), self.do_select_guards),
             ])
         self.add_conditional_actions(Condns.IN_REPO,
             [
-                ("menu_patch_list", None, "Patch _List"),
+                ("menu_patch_list", None, _('Patch _List')),
                 ("pm_new", icons.STOCK_QNEW, None, None,
-                 "Create a new patch", self.do_new_patch),
+                 _('Create a new patch'), self.do_new_patch),
                 ("pm_import_external_patch", icons.STOCK_IMPORT_PATCH, "QImport", None,
-                 "Import an external patch", self.do_import_external_patch),
+                 _('Import an external patch'), self.do_import_external_patch),
             ])
         self.add_conditional_actions(Condns.WS_UPDATE_MERGE_READY,
             [
                 ("pm_push_merge", icons.STOCK_QPUSH_MERGE, None, None,
-                 "Apply the next unapplied patch merging with equivalent saved patch", self.do_push_merge),
+                 _('Apply the next unapplied patch merging with equivalent saved patch'), self.do_push_merge),
                 ("pm_push_all_with_merge", icons.STOCK_QPUSH_MERGE_ALL, None, None,
-                 "Apply all remaining unapplied patches with \"merge\" option enabled", self.do_push_all_with_merge),
+                 _('Apply all remaining unapplied patches with "merge" option enabled'), self.do_push_all_with_merge),
             ])
         self.add_conditional_actions(Condns.WS_UPDATE_QSAVE_READY,
             [
-                ("save_queue_state_for_update", None, "QSave For Update", None,
-                 "Save the queue state prepatory to update", self.do_save_queue_state_for_update),
+                ("save_queue_state_for_update", None, _('QSave For Update'), None,
+                 _('Save the queue state prepatory to update'), self.do_save_queue_state_for_update),
             ])
         self.add_conditional_actions(Condns.WS_UPDATE_READY,
             [
-                ("pm_update_workspace", None, "Update Workspace", None,
-                 "Update the workspace to the repository tip", self.do_update_workspace),
+                ("pm_update_workspace", None, _('Update Workspace'), None,
+                 _('Update the workspace to the repository tip'), self.do_update_workspace),
             ])
         self.add_conditional_actions(Condns.WS_UPDATE_TO_READY,
             [
-                ("pm_update_workspace_to", None, "Update Workspace To", None,
-                 "Update the workspace to a specified revision", self.do_update_workspace_to),
+                ("pm_update_workspace_to", None, _('Update Workspace To'), None,
+                 _('Update the workspace to a specified revision'), self.do_update_workspace_to),
             ])
         self.add_conditional_actions(Condns.WS_UPDATE_PULL_READY,
             [
-                ("pm_pull_to_repository", None, "Pull To Workspace", None,
-                 "Pull to the repository from the default remote path", self.do_pull_to_repository),
+                ("pm_pull_to_repository", None, _('Pull To Workspace'), None,
+                 _('Pull to the repository from the default remote path'), self.do_pull_to_repository),
             ])
         self.add_conditional_actions(Condns.WS_UPDATE_CLEAN_UP_READY,
             [
-                ("pm_clean_up_after_update", gtk.STOCK_CLEAR, "Clean Up", None,
-                 "Clean up left over heads after repostory and patch series update", self.do_clean_up_after_update),
+                ("pm_clean_up_after_update", gtk.STOCK_CLEAR, _('Clean Up'), None,
+                 _('Clean up left over heads after repostory and patch series update'), self.do_clean_up_after_update),
             ])
         toggle_data = list(range(4))
         toggle_data[gutils.TOC_NAME] = "auto_refresh_patch_list"
-        toggle_data[gutils.TOC_LABEL] = "Auto Update"
+        toggle_data[gutils.TOC_LABEL] = _('Auto Update')
         toggle_data[gutils.TOC_TOOLTIP] = "Enable/disable automatic updating of the patch list"
         toggle_data[gutils.TOC_STOCK_ID] = gtk.STOCK_REFRESH
         self.toc = gutils.TimeOutController(toggle_data, function=self._update_list_cb, is_on=False)
         self.add_conditional_action(Condns.DONT_CARE, self.toc.toggle_action)
         self.ui_manager.add_ui_from_string(_UI_DESCR)
         self.header.lhs.pack_start(self.ui_manager.get_widget('/patch_list_menubar'), expand=True, fill=True)
-        self.seln.connect("changed", self._selection_changed_cb)
+        self.seln.connect('changed', self._selection_changed_cb)
         self.add_notification_cb(ws_event.CHANGE_WD, self._repopulate_list_cb)
         self.add_notification_cb(ws_event.PATCH_CHANGES, self._update_list_cb)
         self.repopulate_list()
@@ -515,7 +515,7 @@ class List(table.TableWithAGandUI):
                 if is_ok:
                     break
                 dummyres = cmd_result.Result(eflags=cmd_result.SUGGEST_ALL,
-                    stdout = '"%s" has an empty description.' % next_patch,
+                    stdout = _('"%s" has an empty description.') % next_patch,
                     stderr = '')
                 ans = dialogue.ask_edit_force_or_cancel(dummyres, clarification=_finish_empty_msg_prompt, parent=None)
                 if ans == gtk.RESPONSE_CANCEL:
@@ -548,7 +548,7 @@ class List(table.TableWithAGandUI):
         dialog.show()
     def do_rename(self, _action=None):
         patch = self.get_selected_patch()
-        dialog = dialogue.ReadTextDialog("Rename Patch: %s" % patch, "New Name:", patch)
+        dialog = dialogue.ReadTextDialog(_('Rename Patch: %s') % patch, _('New Name:'), patch)
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
             new_name = dialog.entry.get_text()
@@ -564,7 +564,7 @@ class List(table.TableWithAGandUI):
     def do_set_guards(self, _action=None):
         patch = self.get_selected_patch()
         cguards = ' '.join(ifce.PM.get_patch_guards(patch))
-        dialog = dialogue.ReadTextDialog("Set Guards: %s" % patch, "Guards:", cguards)
+        dialog = dialogue.ReadTextDialog(_('Set Guards: %s') % patch, _('Guards:'), cguards)
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
             guards = dialog.entry.get_text()
@@ -577,7 +577,7 @@ class List(table.TableWithAGandUI):
             dialog.destroy()
     def do_select_guards(self, _action=None):
         cselected_guards = ' '.join(ifce.PM.get_selected_guards())
-        dialog = dialogue.ReadTextDialog("Select Guards: %s" % os.getcwd(), "Guards:", cselected_guards)
+        dialog = dialogue.ReadTextDialog(_('Select Guards: %s') % os.getcwd(), _('Guards:'), cselected_guards)
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
             selected_guards = dialog.entry.get_text()
@@ -590,7 +590,7 @@ class List(table.TableWithAGandUI):
             dialog.destroy()
     def do_delete(self, _action=None):
         patch = self.get_selected_patch()
-        if dialogue.ask_ok_cancel('Confirm delete "%s" patch?' % patch):
+        if dialogue.ask_ok_cancel(_('Confirm delete "%s" patch?') % patch):
             self.show_busy()
             result = ifce.PM.do_delete_patch(patch)
             self.unshow_busy()
@@ -781,7 +781,7 @@ class List(table.TableWithAGandUI):
         if not ifce.PM.get_enabled():
             dialogue.report_any_problems(ifce.PM.not_enabled_response)
             return
-        patch_file_name = dialogue.ask_file_name("Select patch file to be imported")
+        patch_file_name = dialogue.ask_file_name(_('Select patch file to be imported'))
         if not patch_file_name:
             return
         force = False
@@ -791,7 +791,7 @@ class List(table.TableWithAGandUI):
             result = ifce.PM.do_import_patch(patch_file_name, patch_name, force)
             self.unshow_busy()
             if result.eflags & cmd_result.SUGGEST_FORCE_OR_RENAME:
-                ans = dialogue.ask_rename_force_or_cancel(result, clarification='Force import of patch, rename patch or cancel import?')
+                ans = dialogue.ask_rename_force_or_cancel(result, clarification=_('Force import of patch, rename patch or cancel import?'))
                 if ans == gtk.RESPONSE_CANCEL:
                     return
                 elif ans == dialogue.RESPONSE_FORCE:
@@ -800,7 +800,7 @@ class List(table.TableWithAGandUI):
                 elif ans == dialogue.RESPONSE_RENAME:
                     if not patch_name:
                         patch_name = os.path.basename(patch_file_name)
-                    patch_name = dialogue.get_modified_string("Rename Patch", "New Name :", patch_name)
+                    patch_name = dialogue.get_modified_string(_('Rename Patch'), _('New Name :'), patch_name)
                     continue
             dialogue.report_any_problems(result)
             break
@@ -808,12 +808,12 @@ class List(table.TableWithAGandUI):
         if not ifce.PM.get_enabled():
             dialogue.report_any_problems(ifce.PM.not_enabled_response)
             return
-        patch_series_dir = dialogue.ask_dir_name("Select patch series to be imported")
+        patch_series_dir = dialogue.ask_dir_name(_('Select patch series to be imported'))
         if not patch_series_dir:
             return
         series_fn = os.sep.join([patch_series_dir, "series"])
         if (not os.path.exists(series_fn) and os.path.isfile(series_fn)):
-            dialogue.report_any_problems(cmd_result.Result(cmd_result.ERROR, "", "Series file not found."))
+            dialogue.report_any_problems(cmd_result.Result(cmd_result.ERROR, "", _('Series file not found.')))
             return
         sfobj = open(series_fn, 'r')
         series = sfobj.readlines()
@@ -835,7 +835,7 @@ class List(table.TableWithAGandUI):
                 result = ifce.PM.do_import_patch(patch_file_name, patch_name, force)
                 self.unshow_busy()
                 if result.eflags & cmd_result.SUGGEST_FORCE_OR_RENAME:
-                    ans = dialogue.ask_rename_force_or_skip(result, clarification='Force import of patch, rename patch or skip patch?')
+                    ans = dialogue.ask_rename_force_or_skip(result, clarification=_('Force import of patch, rename patch or skip patch?'))
                     if ans == dialogue.RESPONSE_SKIP_ALL:
                         index = len(series)
                         break
@@ -847,7 +847,7 @@ class List(table.TableWithAGandUI):
                     elif ans == dialogue.RESPONSE_RENAME:
                         if not patch_name:
                             patch_name = base_name
-                        patch_name = dialogue.get_modified_string("Rename Patch", "New Name :", patch_name)
+                        patch_name = dialogue.get_modified_string(_('Rename Patch'), _('New Name :'), patch_name)
                         continue
                 dialogue.report_any_problems(result)
                 break
@@ -885,18 +885,18 @@ class GenericPatchDescrEditDialog(dialogue.AmodalDialog):
     def __init__(self, get_summary, set_summary, parent, patch=None):
         flags = gtk.DIALOG_DESTROY_WITH_PARENT
         dialogue.AmodalDialog.__init__(self, None, parent, flags, None)
-        self.set_title('"%s" Description: %s' % (patch, utils.cwd_rel_home()))
+        self.set_title(_('"%s" Description: %s') % (patch, utils.cwd_rel_home()))
         self.edit_descr_widget = PatchDescrEditWidget(get_summary, set_summary,
                                                       patch)
         self.vbox.pack_start(self.edit_descr_widget)
         self.action_area.pack_start(self.edit_descr_widget.get_save_button())
         self.add_button(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
-        self.connect("response", self._handle_response_cb)
+        self.connect('response', self._handle_response_cb)
         self.set_focus_child(self.edit_descr_widget.view)
     def _handle_response_cb(self, dialog, response_id):
         if response_id == gtk.RESPONSE_CLOSE:
             if self.edit_descr_widget.view.get_buffer().get_modified():
-                qtn = '\n'.join(["Unsaved changes to summary will be lost.", "Close anyway?"])
+                qtn = '\n'.join([_('Unsaved changes to summary will be lost.'), _('Close anyway?')])
                 if dialogue.ask_yes_no(qtn):
                     self.destroy()
             else:
@@ -910,7 +910,7 @@ class PatchDescrEditDialog(GenericPatchDescrEditDialog):
             parent=parent, patch=patch)
 
 class DuplicatePatchDialog(dialogue.Dialog):
-    def __init__(self, patch, parent, verb="Duplicate"):
+    def __init__(self, patch, parent, verb=_('Duplicate')):
         flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
         title = '%s "%s": %s' % (verb, patch, utils.path_rel_home(os.getcwd()))
         dialogue.Dialog.__init__(self, title, parent, flags,
@@ -918,8 +918,8 @@ class DuplicatePatchDialog(dialogue.Dialog):
                                   gtk.STOCK_OK, gtk.RESPONSE_OK))
         hbox = gtk.HBox()
         vbox = gtk.VBox()
-        vbox.pack_start(gtk.Label('%s Patch:' % verb))
-        vbox.pack_start(gtk.Label(' As Patch Named:'))
+        vbox.pack_start(gtk.Label(_('%s Patch:') % verb))
+        vbox.pack_start(gtk.Label(_(' As Patch Named:')))
         hbox.pack_start(vbox, fill=False, expand=False)
         vbox = gtk.VBox()
         entry = gtk.Entry()
@@ -945,7 +945,7 @@ class DuplicatePatchDialog(dialogue.Dialog):
         return self.edit_descr_widget.view.get_msg()
 
 class NewPatchDialog(dialogue.Dialog):
-    def __init__(self, parent, objname="Patch"):
+    def __init__(self, parent, objname=_('Patch')):
         flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
         title = 'New %s: %s -- gwsmhg' % (objname, utils.path_rel_home(os.getcwd()))
         dialogue.Dialog.__init__(self, title, parent, flags,
@@ -954,7 +954,7 @@ class NewPatchDialog(dialogue.Dialog):
         if not parent:
             self.set_icon_from_file(icons.APP_ICON_FILE)
         self.hbox = gtk.HBox()
-        self.hbox.pack_start(gtk.Label('New %s Name:' % objname), fill=False, expand=False)
+        self.hbox.pack_start(gtk.Label(_('New %s Name:') % objname), fill=False, expand=False)
         self.new_name_entry = gtk.Entry()
         self.new_name_entry.set_width_chars(32)
         self.hbox.pack_start(self.new_name_entry)

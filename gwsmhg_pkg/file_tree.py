@@ -70,8 +70,8 @@ class FileTreeStore(tlview.TreeStore):
         self.view = view
         self._populate_all = populate_all
         self._auto_expand = auto_expand
-        self.show_hidden_action = gtk.ToggleAction('show_hidden_files', 'Show Hidden Files',
-                                                   'Show/hide ignored files and those beginning with "."', None)
+        self.show_hidden_action = gtk.ToggleAction('show_hidden_files', _('Show Hidden Files'),
+                                                   _('Show/hide ignored files and those beginning with "."'), None)
         self.show_hidden_action.set_active(show_hidden)
         self.show_hidden_action.connect('toggled', self._toggle_show_hidden_cb)
         self.show_hidden_action.set_menu_item_type(gtk.CheckMenuItem)
@@ -215,7 +215,7 @@ class FileTreeStore(tlview.TreeStore):
         if parent_iter is not None:
             self._insert_place_holder_if_needed(parent_iter)
     def _get_file_db(self):
-        assert 0, '_get_file_db() must be defined in descendants'
+        assert 0, _('_get_file_db() must be defined in descendants')
     def repopulate(self):
         self._file_db = self._get_file_db()
         self.clear()
@@ -244,7 +244,7 @@ _VIEW_TEMPLATE = tlview.ViewTemplate(
     selection_mode=gtk.SELECTION_MULTIPLE,
     columns=[
         tlview.Column(
-            title='File Name',
+            title=_('File Name'),
             properties={},
             cells=[
                 tlview.Cell(
@@ -352,8 +352,8 @@ class FileTreeView(_ViewWithActionGroups):
         self._refresh_interval = 60000 # milliseconds
         self.connect("row-expanded", model.on_row_expanded_cb)
         self.connect("row-collapsed", model.on_row_collapsed_cb)
-        self.auto_refresh_action = gtk.ToggleAction("auto_refresh_files", "Auto Refresh",
-                                                   "Automatically/periodically refresh file display", None)
+        self.auto_refresh_action = gtk.ToggleAction("auto_refresh_files", _('Auto Refresh'),
+                                                   _('Automatically/periodically refresh file display'), None)
         self.auto_refresh_action.set_active(auto_refresh)
         self.auto_refresh_action.connect("toggled", self._toggle_auto_refresh_cb)
         self.auto_refresh_action.set_menu_item_type(gtk.CheckMenuItem)
@@ -361,8 +361,8 @@ class FileTreeView(_ViewWithActionGroups):
         self.add_conditional_action(actions.Condns.DONT_CARE, self.auto_refresh_action)
         self.add_conditional_actions(actions.Condns.DONT_CARE,
             [
-                ("refresh_files", gtk.STOCK_REFRESH, "_Refresh", None,
-                 "Refresh/update the file tree display", self.update_tree),
+                ("refresh_files", gtk.STOCK_REFRESH, _('_Refresh'), None,
+                 _('Refresh/update the file tree display'), self.update_tree),
             ])
         self.cwd_merge_id = self.ui_manager.add_ui_from_string(UI_DESCR)
         self.connect("key_press_event", self._key_press_cb)
@@ -448,15 +448,15 @@ class CwdFileTreeView(FileTreeView):
             auto_refresh=auto_refresh, show_status=show_status)
         self.add_conditional_actions(actions.Condns.SELN,
             [
-                ("edit_files", gtk.STOCK_EDIT, "_Edit", None,
-                 "Edit the selected file(s)", self.edit_selected_files_acb),
-                ("delete_files", gtk.STOCK_DELETE, "_Delete", None,
-                 "Delete the selected file(s) from the repository", self.delete_selected_files_acb),
+                ("edit_files", gtk.STOCK_EDIT, _('_Edit'), None,
+                 _('Edit the selected file(s)'), self.edit_selected_files_acb),
+                ("delete_files", gtk.STOCK_DELETE, _('_Delete'), None,
+                 _('Delete the selected file(s) from the repository'), self.delete_selected_files_acb),
             ])
         self.add_conditional_actions(actions.Condns.DONT_CARE,
             [
-                ("new_file", gtk.STOCK_NEW, "_New", None,
-                 "Create a new file and open for editing", self.create_new_file_acb),
+                ("new_file", gtk.STOCK_NEW, _('_New'), None,
+                 _('Create a new file and open for editing'), self.create_new_file_acb),
             ])
         self.cwd_merge_id = self.ui_manager.add_ui_from_string(CWD_UI_DESCR)
     def _edit_named_files_extern(self, file_list):
@@ -472,7 +472,7 @@ class CwdFileTreeView(FileTreeView):
             self._edit_named_files_extern([new_file_name])
         return result
     def create_new_file_acb(self, _menu_item):
-        dialog = gtk.FileChooserDialog("New File", dialogue.main_window,
+        dialog = gtk.FileChooserDialog(_('New File'), dialogue.main_window,
                                        gtk.FILE_CHOOSER_ACTION_SAVE,
                                        (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
                                         gtk.STOCK_OK, gtk.RESPONSE_OK))
@@ -492,13 +492,13 @@ class CwdFileTreeView(FileTreeView):
             dialog.destroy()
     def delete_files(self, file_list):
         if ifce.log:
-            ifce.log.start_cmd('Deleting: %s' % utils.file_list_to_string(file_list))
+            ifce.log.start_cmd(_('Deleting: {0}').format(utils.file_list_to_string(file_list)))
         serr = ""
         for filename in file_list:
             try:
                 os.remove(filename)
                 if ifce.log:
-                    ifce.log.append_stdout(("Deleted: %s" + os.linesep) % filename)
+                    ifce.log.append_stdout(_('Deleted: {0}\n').format(filename))
             except os.error as value:
                 errmsg = ("%s: %s" + os.linesep) % (value[1], filename)
                 serr += errmsg
@@ -511,7 +511,7 @@ class CwdFileTreeView(FileTreeView):
             return cmd_result.Result(cmd_result.ERROR, "", serr)
         return cmd_result.Result(cmd_result.OK, "", "")
     def _delete_named_files(self, file_list, ask=True):
-        if not ask or dialogue.confirm_list_action(file_list, 'About to be deleted. OK?'):
+        if not ask or dialogue.confirm_list_action(file_list, _('About to be deleted. OK?')):
             self.show_busy()
             result = self.delete_files(file_list)
             self.unshow_busy()
@@ -522,8 +522,8 @@ class CwdFileTreeView(FileTreeView):
 class ScmCwdFileTreeStore(CwdFileTreeStore):
     def __init__(self, show_hidden=False):
         CwdFileTreeStore.__init__(self, show_hidden=show_hidden)
-        self.hide_clean_action = gtk.ToggleAction('hide_clean_files', 'Hide Clean Files',
-                                                   'Show/hide "clean" files', None)
+        self.hide_clean_action = gtk.ToggleAction('hide_clean_files', _('Hide Clean Files'),
+                                                   _('Show/hide "clean" files'), None)
         self.hide_clean_action.set_active(False)
         self.hide_clean_action.connect('toggled', self._toggle_hide_clean_cb)
         self.hide_clean_action.set_menu_item_type(gtk.CheckMenuItem)
@@ -606,56 +606,56 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         self.add_conditional_action(actions.Condns.DONT_CARE, model.hide_clean_action)
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.SELN,
             [
-                ("scm_remove_files", gtk.STOCK_REMOVE, "_Remove", None,
-                 "Remove the selected file(s) from the repository", self.remove_selected_files_acb),
-                ("scm_add_files", gtk.STOCK_ADD, "_Add", None,
-                 "Add the selected file(s) to the repository", self.add_selected_files_to_repo_acb),
-                ("scm_copy_files_selection", gtk.STOCK_COPY, "_Copy", None,
-                 "Copy the selected file(s)", self.copy_selected_files_acb),
-                ("scm_diff_files_selection", icons.STOCK_DIFF, "_Diff", None,
-                 "Display the diff for selected file(s)", self.diff_selected_files_acb),
-                ("scm_extdiff_files_selection", icons.STOCK_DIFF, "E_xtdiff", None,
-                 "Launch extdiff for selected file(s)", self.extdiff_selected_files_acb),
-                ("scm_move_files_selection", icons.STOCK_RENAME, "_Move/Rename", None,
-                 "Move the selected file(s)", self.move_selected_files_acb),
+                ("scm_remove_files", gtk.STOCK_REMOVE, _('_Remove'), None,
+                 _('Remove the selected file(s) from the repository'), self.remove_selected_files_acb),
+                ("scm_add_files", gtk.STOCK_ADD, _('_Add'), None,
+                 _('Add the selected file(s) to the repository'), self.add_selected_files_to_repo_acb),
+                ("scm_copy_files_selection", gtk.STOCK_COPY, _('_Copy'), None,
+                 _('Copy the selected file(s)'), self.copy_selected_files_acb),
+                ("scm_diff_files_selection", icons.STOCK_DIFF, _('_Diff'), None,
+                 _('Display the diff for selected file(s)'), self.diff_selected_files_acb),
+                ("scm_extdiff_files_selection", icons.STOCK_DIFF, _('E_xtdiff'), None,
+                 _('Launch extdiff for selected file(s)'), self.extdiff_selected_files_acb),
+                ("scm_move_files_selection", icons.STOCK_RENAME, _('_Move/Rename'), None,
+                 _('Move the selected file(s)'), self.move_selected_files_acb),
             ])
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC + actions.Condns.SELN,
             [
-                ("scm_resolve_files_selection", icons.STOCK_RESOLVE, "Re_solve", None,
-                 "Resolve merge conflicts in the selected file(s)", self.resolve_selected_files_acb),
-               ("scm_mark_resolved_files_selection", icons.STOCK_MARK_RESOLVE, "_Mark Resolved", None,
-                 "Mark the selected file(s) as having had merge conflict resolved", self.mark_resolved_selected_files_acb),
-                ("scm_mark_unresolved_files_selection", icons.STOCK_MARK_UNRESOLVE, "Mark _Unresolved", None,
-                 "Mark the selected file(s) as having unresolved merge conflicts", self.mark_unresolved_selected_files_acb),
-                ("scm_revert_files_selection", icons.STOCK_REVERT, "Rever_t", None,
-                 "Revert changes in the selected file(s)", self.revert_selected_files_acb),
-                ("scm_commit_files_selection", icons.STOCK_COMMIT, "_Commit", None,
-                 "Commit changes for selected file(s)", self.commit_selected_files_acb),
+                ("scm_resolve_files_selection", icons.STOCK_RESOLVE, _('Re_solve'), None,
+                 _('Resolve merge conflicts in the selected file(s)'), self.resolve_selected_files_acb),
+               ("scm_mark_resolved_files_selection", icons.STOCK_MARK_RESOLVE, _('_Mark Resolved'), None,
+                 _('Mark the selected file(s) as having had merge conflict resolved'), self.mark_resolved_selected_files_acb),
+                ("scm_mark_unresolved_files_selection", icons.STOCK_MARK_UNRESOLVE, _('Mark _Unresolved'), None,
+                 _('Mark the selected file(s) as having unresolved merge conflicts'), self.mark_unresolved_selected_files_acb),
+                ("scm_revert_files_selection", icons.STOCK_REVERT, _('Rever_t'), None,
+                 _('Revert changes in the selected file(s)'), self.revert_selected_files_acb),
+                ("scm_commit_files_selection", icons.STOCK_COMMIT, _('_Commit'), None,
+                 _('Commit changes for selected file(s)'), self.commit_selected_files_acb),
             ])
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.UNIQUE_SELN,
            [
-                ("scm_rename_file", icons.STOCK_RENAME, "Re_name/Move", None,
-                 "Rename/move the selected file", self.move_selected_files_acb),
+                ("scm_rename_file", icons.STOCK_RENAME, _('Re_name/Move'), None,
+                 _('Rename/move the selected file'), self.move_selected_files_acb),
             ])
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NO_SELN,
             [
-                ("scm_add_files_all", gtk.STOCK_ADD, "_Add all", None,
-                 "Add all files to the repository", self.add_all_files_to_repo_acb),
-                ("scm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
-                 "Display the diff for all changes", self.diff_selected_files_acb),
-                ("scm_extdiff_files_all", icons.STOCK_DIFF, "E_xtdiff", None,
-                 "Launch extdiff for all changes", self.extdiff_selected_files_acb),
+                ("scm_add_files_all", gtk.STOCK_ADD, _('_Add all'), None,
+                 _('Add all files to the repository'), self.add_all_files_to_repo_acb),
+                ("scm_diff_files_all", icons.STOCK_DIFF, _('_Diff'), None,
+                 _('Display the diff for all changes'), self.diff_selected_files_acb),
+                ("scm_extdiff_files_all", icons.STOCK_DIFF, _('E_xtdiff'), None,
+                 _('Launch extdiff for all changes'), self.extdiff_selected_files_acb),
             ])
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC + actions.Condns.NO_SELN,
             [
-                ("scm_revert_files_all", icons.STOCK_REVERT, "Rever_t", None,
-                 "Revert all changes in working directory", self.revert_all_files_acb),
-                ("scm_commit_files_all", icons.STOCK_COMMIT, "_Commit", None,
-                 "Commit all changes", self.commit_all_changes_acb),
+                ("scm_revert_files_all", icons.STOCK_REVERT, _('Rever_t'), None,
+                 _('Revert all changes in working directory'), self.revert_all_files_acb),
+                ("scm_commit_files_all", icons.STOCK_COMMIT, _('_Commit'), None,
+                 _('Commit all changes'), self.commit_all_changes_acb),
             ])
         self.add_conditional_actions(actions.Condns.DONT_CARE,
             [
-                ("menu_files", None, "_Files"),
+                ("menu_files", None, _('_Files')),
             ])
         self.cwd_merge_id = self.ui_manager.add_ui_from_string(SCM_CWD_UI_DESCR)
         if not ifce.SCM.get_extension_enabled("extdiff"):
@@ -687,7 +687,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
     def get_scm_name(self):
         return ifce.SCM.name
     def _remove_named_files(self, file_list, ask=True):
-        if not ask or dialogue.confirm_list_action(file_list, 'About to be removed. OK?'):
+        if not ask or dialogue.confirm_list_action(file_list, _('About to be removed. OK?')):
             self.show_busy()
             result = ifce.SCM.do_remove_files(file_list)
             self.unshow_busy()
@@ -714,7 +714,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         if result.eflags != cmd_result.OK:
             dialogue.report_any_problems(result)
             return
-        if dialogue.confirm_list_action('\n'.join(result[1:]).splitlines(), 'About to be actioned. OK?'):
+        if dialogue.confirm_list_action('\n'.join(result[1:]).splitlines(), _('About to be actioned. OK?')):
             self.show_busy()
             result = operation([], dry_run=False)
             self.unshow_busy()
@@ -735,7 +735,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             mode = gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER
         else:
             mode = gtk.FILE_CHOOSER_ACTION_SAVE
-        dialog = gtk.FileChooserDialog("Target", dialogue.main_window, mode,
+        dialog = gtk.FileChooserDialog(_('Target'), dialogue.main_window, mode,
                                        (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
         dialog.set_default_response(gtk.RESPONSE_OK)
         if mode == gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER:
@@ -756,7 +756,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         elif reqop == "m":
             operation = ifce.SCM.do_move_files
         else:
-            assert False, "Invalid operation requested"
+            assert False, _('Invalid operation requested')
         response, target = self._get_target(file_list)
         if response == gtk.RESPONSE_OK:
             force = False
@@ -766,7 +766,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                     result = operation(file_list, target, force=force, dry_run=True)
                     self.unshow_busy()
                     if cmd_result.is_less_than_error(result):
-                        is_ok = dialogue.confirm_list_action(result.stdout.splitlines(), 'About to be actioned. OK?')
+                        is_ok = dialogue.confirm_list_action(result.stdout.splitlines(), _('About to be actioned. OK?'))
                         break
                     elif not force and cmd_result.suggests_force(result):
                         is_ok = force = _check_if_force(result)
@@ -823,9 +823,9 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             self.unshow_busy()
             if result.eflags == cmd_result.OK:
                 if result.stdout:
-                    is_ok = dialogue.confirm_list_action(result.stdout.splitlines(), 'About to be actioned. OK?')
+                    is_ok = dialogue.confirm_list_action(result.stdout.splitlines(), _('About to be actioned. OK?'))
                 else:
-                    dialogue.inform_user('Nothing to revert')
+                    dialogue.inform_user(_('Nothing to revert'))
                     return
             else:
                 dialogue.report_any_problems(result)
@@ -920,24 +920,24 @@ class ScmCommitFileTreeView(FileTreeView):
         self.set_headers_visible(False)
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.SELN,
             [
-                ("scmch_remove_files", gtk.STOCK_DELETE, "_Remove", None,
-                 "Remove the selected files from the change set", self._remove_selected_files_acb),
-                ("scm_diff_files_selection", icons.STOCK_DIFF, "_Diff", None,
-                 "Display the diff for selected file(s)", self._diff_selected_files_acb),
-                ("scm_extdiff_files_selection", icons.STOCK_DIFF, "E_xtdiff", None,
-                 "Launch extdiff for the selected file(s)", self._extdiff_selected_files_acb),
+                ("scmch_remove_files", gtk.STOCK_DELETE, _('_Remove'), None,
+                 _('Remove the selected files from the change set'), self._remove_selected_files_acb),
+                ("scm_diff_files_selection", icons.STOCK_DIFF, _('_Diff'), None,
+                 _('Display the diff for selected file(s)'), self._diff_selected_files_acb),
+                ("scm_extdiff_files_selection", icons.STOCK_DIFF, _('E_xtdiff'), None,
+                 _('Launch extdiff for the selected file(s)'), self._extdiff_selected_files_acb),
             ])
         self.add_conditional_actions(actions.Condns.IN_REPO,
             [
-                ("scmch_undo_remove_files", gtk.STOCK_UNDO, "_Undo", None,
-                 "Undo the last remove", self._undo_last_remove_acb),
+                ("scmch_undo_remove_files", gtk.STOCK_UNDO, _('_Undo'), None,
+                 _('Undo the last remove'), self._undo_last_remove_acb),
             ])
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NO_SELN,
             [
-                ("scm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
-                 "Display the diff for all changes", self._diff_all_files_acb),
-                ("scm_extdiff_files_all", icons.STOCK_DIFF, "E_xtdiff", None,
-                 "Launch etxdiff for all changes", self._extdiff_all_files_acb),
+                ("scm_diff_files_all", icons.STOCK_DIFF, _('_Diff'), None,
+                 _('Display the diff for all changes'), self._diff_all_files_acb),
+                ("scm_extdiff_files_all", icons.STOCK_DIFF, _('E_xtdiff'), None,
+                 _('Launch etxdiff for all changes'), self._extdiff_all_files_acb),
             ])
         self.scm_change_merge_id = self.ui_manager.add_ui_from_string(SCM_CHANGE_UI_DESCR)
         self.get_conditional_action("scmch_undo_remove_files").set_sensitive(False)
@@ -1009,7 +1009,7 @@ class ScmCommitWidget(gtk.VPaned, ws_event.Listener):
                                            file_mask=file_mask)
         vbox = gtk.VBox()
         hbox = gtk.HBox()
-        hbox.pack_start(gtk.Label("Files"), fill=True, expand=False)
+        hbox.pack_start(gtk.Label(_('Files')), fill=True, expand=False)
         toolbar = self.files.ui_manager.get_widget("/files_refresh_toolbar")
         toolbar.set_style(gtk.TOOLBAR_BOTH)
         toolbar.set_orientation(gtk.ORIENTATION_HORIZONTAL)
@@ -1037,7 +1037,7 @@ class ScmCommitDialog(dialogue.AmodalDialog):
         dialogue.AmodalDialog.__init__(self, None, parent, flags,
                                        (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
                                        gtk.STOCK_OK, gtk.RESPONSE_OK))
-        self.set_title('Commit Changes: %s' % utils.cwd_rel_home())
+        self.set_title(_('Commit Changes: %s') % utils.cwd_rel_home())
         self.commit_widget = ScmCommitWidget(busy_indicator=self, file_mask=filelist)
         self.vbox.pack_start(self.commit_widget)
         self.connect('response', self._handle_response_cb)
@@ -1061,7 +1061,7 @@ class ScmCommitDialog(dialogue.AmodalDialog):
             if self.commit_widget.view.get_auto_save():
                 self._finish_up()
             else:
-                qtn = 'Unsaved changes to summary will be lost.\n\nCancel anyway?'
+                qtn = _('Unsaved changes to summary will be lost.\n\nCancel anyway?')
                 if dialogue.ask_yes_no(qtn):
                     self._finish_up()
         else:
@@ -1112,21 +1112,21 @@ class PatchFileTreeView(CwdFileTreeView):
              auto_refresh=False, show_status=True)
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.SELN,
             [
-                ("pm_diff_files_selection", icons.STOCK_DIFF, "_Diff", None,
-                 "Display the diff for selected file(s)", self.diff_selected_files_acb),
-                ("pm_extdiff_files_selection", icons.STOCK_DIFF, "E_xtdiff", None,
-                 "Launch extdiff for selected file(s)", self.extdiff_selected_files_acb),
+                ("pm_diff_files_selection", icons.STOCK_DIFF, _('_Diff'), None,
+                 _('Display the diff for selected file(s)'), self.diff_selected_files_acb),
+                ("pm_extdiff_files_selection", icons.STOCK_DIFF, _('E_xtdiff'), None,
+                 _('Launch extdiff for selected file(s)'), self.extdiff_selected_files_acb),
             ])
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NO_SELN,
             [
-                ("pm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
-                 "Display the diff for all changes", self.diff_all_files_acb),
-                ("pm_extdiff_files_all", icons.STOCK_DIFF, "E_xtdiff", None,
-                 "Launch extdiff for all changes", self.extdiff_all_files_acb),
+                ("pm_diff_files_all", icons.STOCK_DIFF, _('_Diff'), None,
+                 _('Display the diff for all changes'), self.diff_all_files_acb),
+                ("pm_extdiff_files_all", icons.STOCK_DIFF, _('E_xtdiff'), None,
+                 _('Launch extdiff for all changes'), self.extdiff_all_files_acb),
             ])
         self.add_conditional_actions(actions.Condns.IN_REPO,
             [
-                ("menu_files", None, "_Files"),
+                ("menu_files", None, _('_Files')),
             ])
         if not ifce.SCM.get_extension_enabled("extdiff") or not ifce.PM.get_patch_is_applied(self._patch):
             self.get_conditional_action("pm_extdiff_files_selection").set_visible(False)
@@ -1211,36 +1211,36 @@ class TopPatchFileTreeView(CwdFileTreeView):
         self.move_conditional_action('new_file', actions.Condns.IN_REPO + actions.Condns.PMIC)
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.PMIC + actions.Condns.SELN,
             [
-                ("pm_remove_files", gtk.STOCK_REMOVE, "_Remove", None,
-                 "Remove the selected file(s) from the patch", self.remove_selected_files_acb),
-                ("pm_copy_files_selection", gtk.STOCK_COPY, "_Copy", None,
-                 "Copy the selected file(s)", self.copy_selected_files_acb),
-                ("pm_diff_files_selection", icons.STOCK_DIFF, "_Diff", None,
-                 "Display the diff for selected file(s)", self.diff_selected_files_acb),
-                ("pm_extdiff_files_selection", icons.STOCK_DIFF, "E_xtdiff", None,
-                 "Launch extdiff for selected file(s)", self.extdiff_selected_files_acb),
-                ("pm_move_files_selection", gtk.STOCK_PASTE, "_Move/Rename", None,
-                 "Move the selected file(s)", self.move_selected_files_acb),
-                ("pm_revert_files_selection", gtk.STOCK_UNDO, "Rever_t", None,
-                 "Revert changes in the selected file(s)", self.revert_selected_files_acb),
+                ("pm_remove_files", gtk.STOCK_REMOVE, _('_Remove'), None,
+                 _('Remove the selected file(s) from the patch'), self.remove_selected_files_acb),
+                ("pm_copy_files_selection", gtk.STOCK_COPY, _('_Copy'), None,
+                 _('Copy the selected file(s)'), self.copy_selected_files_acb),
+                ("pm_diff_files_selection", icons.STOCK_DIFF, _('_Diff'), None,
+                 _('Display the diff for selected file(s)'), self.diff_selected_files_acb),
+                ("pm_extdiff_files_selection", icons.STOCK_DIFF, _('E_xtdiff'), None,
+                 _('Launch extdiff for selected file(s)'), self.extdiff_selected_files_acb),
+                ("pm_move_files_selection", gtk.STOCK_PASTE, _('_Move/Rename'), None,
+                 _('Move the selected file(s)'), self.move_selected_files_acb),
+                ("pm_revert_files_selection", gtk.STOCK_UNDO, _('Rever_t'), None,
+                 _('Revert changes in the selected file(s)'), self.revert_selected_files_acb),
             ])
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.PMIC + actions.Condns.UNIQUE_SELN,
             [
-                ("pm_rename_file", gtk.STOCK_PASTE, "Re_name/Move", None,
-                 "Rename/move the selected file", self.move_selected_files_acb),
+                ("pm_rename_file", gtk.STOCK_PASTE, _('Re_name/Move'), None,
+                 _('Rename/move the selected file'), self.move_selected_files_acb),
             ])
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.PMIC + actions.Condns.NO_SELN,
             [
-                ("pm_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
-                 "Display the diff for all changes", self.diff_all_files_acb),
-                ("pm_extdiff_files_all", icons.STOCK_DIFF, "E_xtdiff", None,
-                 "Launch extdiff for all changes", self.extdiff_all_files_acb),
-                ("pm_revert_files_all", gtk.STOCK_UNDO, "Rever_t", None,
-                 "Revert all changes in working directory", self.revert_all_files_acb),
+                ("pm_diff_files_all", icons.STOCK_DIFF, _('_Diff'), None,
+                 _('Display the diff for all changes'), self.diff_all_files_acb),
+                ("pm_extdiff_files_all", icons.STOCK_DIFF, _('E_xtdiff'), None,
+                 _('Launch extdiff for all changes'), self.extdiff_all_files_acb),
+                ("pm_revert_files_all", gtk.STOCK_UNDO, _('Rever_t'), None,
+                 _('Revert all changes in working directory'), self.revert_all_files_acb),
             ])
         self.add_conditional_actions(actions.Condns.IN_REPO,
             [
-                ("menu_files", None, "_Files"),
+                ("menu_files", None, _('_Files')),
             ])
         model.show_hidden_action.set_visible(False)
         model.show_hidden_action.set_sensitive(False)
@@ -1261,7 +1261,7 @@ class TopPatchFileTreeView(CwdFileTreeView):
     def delete_files(self, file_list):
         return ifce.PM.do_delete_files(file_list)
     def _remove_named_files(self, file_list, ask=True):
-        if not ask or dialogue.confirm_list_action(file_list, 'About to be removed. OK?'):
+        if not ask or dialogue.confirm_list_action(file_list, _('About to be removed. OK?')):
             self.show_busy()
             result = ifce.PM.do_remove_files(file_list)
             self.unshow_busy()
@@ -1280,7 +1280,7 @@ class TopPatchFileTreeView(CwdFileTreeView):
             mode = gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER
         else:
             mode = gtk.FILE_CHOOSER_ACTION_SAVE
-        dialog = gtk.FileChooserDialog("Target", dialogue.main_window, mode,
+        dialog = gtk.FileChooserDialog(_('Target'), dialogue.main_window, mode,
                                        (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
         dialog.set_default_response(gtk.RESPONSE_OK)
         if mode == gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER:
@@ -1311,7 +1311,7 @@ class TopPatchFileTreeView(CwdFileTreeView):
                                                 dry_run=True)
                     self.unshow_busy()
                     if result.eflags == cmd_result.OK:
-                        is_ok = dialogue.confirm_list_action(result.stdout.splitlines(), 'About to be actioned. OK?')
+                        is_ok = dialogue.confirm_list_action(result.stdout.splitlines(), _('About to be actioned. OK?'))
                         break
                     elif not force and cmd_result.suggests_force(result):
                         is_ok = force = _check_if_force(result)
@@ -1358,9 +1358,9 @@ class TopPatchFileTreeView(CwdFileTreeView):
             self.unshow_busy()
             if result.eflags == cmd_result.OK:
                 if result.stdout:
-                    is_ok = dialogue.confirm_list_action(result.stdout.splitlines(), 'About to be actioned. OK?')
+                    is_ok = dialogue.confirm_list_action(result.stdout.splitlines(), _('About to be actioned. OK?'))
                 else:
-                    dialogue.inform_user('Nothing to revert')
+                    dialogue.inform_user(_('Nothing to revert'))
                     return
             else:
                 dialogue.report_any_problems(result)

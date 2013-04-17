@@ -41,12 +41,12 @@ class SummaryBuffer(gwsmhg_pkg.sourceview.SourceBuffer):
         self.action_group = gtk.ActionGroup("summary")
         self.action_group.add_actions(
             [
-                ("summary_ack", None, "_Ack", None,
-                 "Insert Acked-by tag at cursor position", self._insert_ack_acb),
-                ("summary_sign_off", None, "_Sign Off", None,
-                 "Insert Signed-off-by tag at cursor position", self._insert_sign_off_acb),
-                ("summary_author", None, "A_uthor", None,
-                 "Insert Author tag at cursor position", self._insert_author_acb),
+                ("summary_ack", None, _('_Ack'), None,
+                 _('Insert Acked-by tag at cursor position'), self._insert_ack_acb),
+                ("summary_sign_off", None, _('_Sign Off'), None,
+                 _('Insert Signed-off-by tag at cursor position'), self._insert_sign_off_acb),
+                ("summary_author", None, _('A_uthor'), None,
+                 _('Insert Author tag at cursor position'), self._insert_author_acb),
             ])
     def _insert_sign_off_acb(self, _action=None):
         data = ifce.SCM.get_author_name_and_email()
@@ -97,21 +97,21 @@ class ChangeSummaryBuffer(SummaryBuffer):
             self.save_summary(content="")
         self.action_group.add_actions(
             [
-                ("menu_summary", None, "_Summary"),
-                ("change_summary_save", gtk.STOCK_SAVE, "_Save", "",
-                 "Save commit summary", self._save_summary_acb),
-                ("change_summary_save_as", gtk.STOCK_SAVE_AS, "S_ave as", "",
-                 "Save commit summary to a file", self.save_summary_as),
-                ("change_summary_load", gtk.STOCK_REVERT_TO_SAVED, "_Revert", "",
-                 "Load summary from saved file", self._load_summary_acb),
-                ("change_summary_load_from", gtk.STOCK_REVERT_TO_SAVED, "_Load from", "",
-                 "Load summary from a file", self.load_summary_from),
-                ("change_summary_insert_from", gtk.STOCK_PASTE, "_Insert from", "",
-                 "Insert contents of a file at cursor position", self.insert_summary_from),
+                ("menu_summary", None, _('_Summary')),
+                ("change_summary_save", gtk.STOCK_SAVE, _('_Save'), "",
+                 _('Save commit summary'), self._save_summary_acb),
+                ("change_summary_save_as", gtk.STOCK_SAVE_AS, _('S_ave as'), "",
+                 _('Save commit summary to a file'), self.save_summary_as),
+                ("change_summary_load", gtk.STOCK_REVERT_TO_SAVED, _('_Revert'), "",
+                 _('Load summary from saved file'), self._load_summary_acb),
+                ("change_summary_load_from", gtk.STOCK_REVERT_TO_SAVED, _('_Load from'), "",
+                 _('Load summary from a file'), self.load_summary_from),
+                ("change_summary_insert_from", gtk.STOCK_PASTE, _('_Insert from'), "",
+                 _('Insert contents of a file at cursor position'), self.insert_summary_from),
             ])
         self.save_toggle_action = gtk.ToggleAction(
-                "summary_toggle_auto_save", "Auto Sa_ve",
-                "Automatically/periodically save summary to file", gtk.STOCK_SAVE
+                "summary_toggle_auto_save", _('Auto Sa_ve'),
+                _('Automatically/periodically save summary to file'), gtk.STOCK_SAVE
             )
         self.save_toggle_action.connect("toggled", self._toggle_auto_save_acb)
         self.save_toggle_action.set_active(auto_save)
@@ -133,19 +133,19 @@ class ChangeSummaryBuffer(SummaryBuffer):
             self._save_file_name = file_name
             self.set_modified(False)
         except IOError:
-            dialogue.alert_user('Save failed!')
+            dialogue.alert_user(_('Save failed!'))
     def _save_summary_acb(self, _action=None):
         self.save_summary()
     def save_summary_as(self, _action=None):
-        fname = dialogue.ask_file_name("Enter file name", existing=False, suggestion=self._save_file_name)
+        fname = dialogue.ask_file_name(_('Enter file name'), existing=False, suggestion=self._save_file_name)
         if fname and os.path.exists(fname) and not utils.samefile(fname, self._save_file_name):
             if not utils.samefile(fname, ifce.SCM.get_default_commit_save_file()):
-                if not dialogue.ask_ok_cancel(os.linesep.join([fname, "\nFile exists. Overwrite?"])):
+                if not dialogue.ask_ok_cancel(os.linesep.join([fname, _('\nFile exists. Overwrite?')])):
                     return
         self.save_summary(file_name=fname)
     def _ok_to_overwrite_summary(self):
         if self.get_char_count():
-            return dialogue.ask_ok_cancel("Buffer contents will be destroyed. Continue?")
+            return dialogue.ask_ok_cancel(_('Buffer contents will be destroyed. Continue?'))
         return True
     def load_summary(self, file_name=None, already_checked=False):
         if not already_checked and not self._ok_to_overwrite_summary():
@@ -158,22 +158,22 @@ class ChangeSummaryBuffer(SummaryBuffer):
             self._save_file_name = file_name
             self.set_modified(False)
         except IOError:
-            dialogue.alert_user('Load from file failed!')
+            dialogue.alert_user(_('Load from file failed!'))
     def _load_summary_acb(self, _action=None):
         self.load_summary()
     def load_summary_from(self, _action=None):
         if not self._ok_to_overwrite_summary():
             return
-        fname = dialogue.ask_file_name("Enter file name", existing=True)
+        fname = dialogue.ask_file_name(_('Enter file name'), existing=True)
         self.load_summary(file_name=fname, already_checked=True)
     def insert_summary_from(self, _action=None):
-        file_name = dialogue.ask_file_name("Enter file name", existing=True)
+        file_name = dialogue.ask_file_name(_('Enter file name'), existing=True)
         try:
             text = open(file_name, 'rb').read()
             self.insert_at_cursor(utils.make_utf8_compliant(text))
             self.set_modified(True)
         except IOError:
-            dialogue.alert_user('Insert at cursor from file failed!')
+            dialogue.alert_user(_('Insert at cursor from file failed!'))
     def get_auto_save(self):
         return self.save_toggle_action.get_active()
     def set_auto_save(self, active=True):
@@ -232,19 +232,19 @@ class NewPatchSummaryBuffer(SummaryBuffer):
         SummaryBuffer.__init__(self, table=table)
         self.action_group.add_actions(
             [
-                ("menu_summary", None, "_Description"),
-                ("patch_summary_insert_from", gtk.STOCK_PASTE, "_Insert from", "",
-                 "Insert contents of a file at cursor position", self._insert_summary_from_acb),
+                ("menu_summary", None, _('_Description')),
+                ("patch_summary_insert_from", gtk.STOCK_PASTE, _('_Insert from'), "",
+                 _('Insert contents of a file at cursor position'), self._insert_summary_from_acb),
             ])
     def _insert_summary_from_acb(self, _action=None):
-        file_name = dialogue.ask_file_name("Enter file name", existing=True)
+        file_name = dialogue.ask_file_name(_('Enter file name'), existing=True)
         if file_name is not None:
             try:
                 text = open(file_name, 'rb').read()
                 self.insert_at_cursor(utils.make_utf8_compliant(text))
                 self.set_modified(True)
             except IOError:
-                dialogue.alert_user('Insert at cursor from file failed!')
+                dialogue.alert_user(_('Insert at cursor from file failed!'))
 
 class PatchSummaryBuffer(NewPatchSummaryBuffer):
     def __init__(self, get_summary, set_summary, patch=None, table=None):
@@ -256,10 +256,10 @@ class PatchSummaryBuffer(NewPatchSummaryBuffer):
         NewPatchSummaryBuffer.__init__(self, table=table)
         self.action_group.add_actions(
             [
-                ("patch_summary_save", gtk.STOCK_SAVE, "_Save", "",
-                 "Save commit summary", self._save_summary_acb),
-                ("patch_summary_load", gtk.STOCK_REVERT_TO_SAVED, "_Reload", "",
-                 "Load summary from saved file", self._load_summary_acb),
+                ("patch_summary_save", gtk.STOCK_SAVE, _('_Save'), "",
+                 _('Save commit summary'), self._save_summary_acb),
+                ("patch_summary_load", gtk.STOCK_REVERT_TO_SAVED, _('_Reload'), "",
+                 _('Load summary from saved file'), self._load_summary_acb),
             ])
     def _save_summary_acb(self, _action=None):
         text = self.get_text(self.get_start_iter(), self.get_end_iter())
@@ -270,7 +270,7 @@ class PatchSummaryBuffer(NewPatchSummaryBuffer):
             self.set_modified(False)
     def _ok_to_overwrite_summary(self):
         if self.get_char_count() and self.get_modified():
-            return dialogue.ask_ok_cancel("Buffer contents will be destroyed. Continue?")
+            return dialogue.ask_ok_cancel(_('Buffer contents will be destroyed. Continue?'))
         return True
     def load_summary(self):
         try:

@@ -94,9 +94,9 @@ class TreeStore(Model, gtk.TreeStore):
         Model.__init__(self, descr)
         gtk.TreeStore.__init__(*[self] + list(descr))
     def insert_contents(self, rows):
-        assert True, "append_contents(%s) must be defined in child" % rows
+        assert True, _('append_contents(%s) must be defined in child') % rows
     def set_contents(self, rows):
-        assert True, "set_contents(%s) must be defined in child" % rows
+        assert True, _('set_contents(%s) must be defined in child') % rows
 
 ViewTemplate = collections.namedtuple('ViewTemplate', ['properties', 'selection_mode', 'columns'])
 #properties is a dictionary: {property_name: value, ...}

@@ -18,7 +18,7 @@ from gwsmhg_pkg import dialogue, gutils, cmd_result, change_set, icons
 from gwsmhg_pkg import file_tree, diff, ws_event, ifce, utils, actions, table
 from gwsmhg_pkg import tlview
 
-PathRow = collections.namedtuple('PathRow', ['Alias', 'Path'])
+PathRow = collections.namedtuple('PathRow', [_('Alias'), _('Path')])
 
 PATH_PRECIS_MODEL_DESCR = PathRow(
     Alias=gobject.TYPE_STRING,
@@ -35,7 +35,7 @@ PATH_PRECIS_TABLE_DESCR = tlview.ViewTemplate(
     selection_mode=gtk.SELECTION_SINGLE,
     columns=[
         tlview.Column(
-            title='Alias',
+            title=_('Alias'),
             properties={'expand': False, 'resizable' : True},
             cells=[
                 tlview.Cell(
@@ -46,12 +46,12 @@ PATH_PRECIS_TABLE_DESCR = tlview.ViewTemplate(
                     ),
                     properties={'editable' : False},
                     renderer=None,
-                    attributes = {'text' : tlview.model_col(PATH_PRECIS_MODEL_DESCR, 'Alias')}
+                    attributes = {'text' : tlview.model_col(PATH_PRECIS_MODEL_DESCR, _('Alias'))}
                 ),
             ],
         ),
         tlview.Column(
-            title='Path',
+            title=_('Path'),
             properties={'expand': False, 'resizable' : True},
             cells=[
                 tlview.Cell(
@@ -62,7 +62,7 @@ PATH_PRECIS_TABLE_DESCR = tlview.ViewTemplate(
                     ),
                     properties={'editable' : False},
                     renderer=None,
-                    attributes = {'text' : tlview.model_col(PATH_PRECIS_MODEL_DESCR, 'Path')}
+                    attributes = {'text' : tlview.model_col(PATH_PRECIS_MODEL_DESCR, _('Path'))}
                 ),
             ],
         ),
@@ -98,23 +98,23 @@ class PathTable(table.MapManagedTable):
                                        popup='/table_popup')
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.UNIQUE_SELN,
             [
-                ("remote_repo_mgmt", gtk.STOCK_EXECUTE, "Manage", None,
-                 "Open remote management for selected repository",
+                ("remote_repo_mgmt", gtk.STOCK_EXECUTE, _('Manage'), None,
+                 _('Open remote management for selected repository'),
                  self._manage_repo_acb),
-                ("view_incoming_from_path", gtk.STOCK_INFO, "Incoming", None,
-                 "View the incoming change sets available to pull from the selected path",
+                ("view_incoming_from_path", gtk.STOCK_INFO, _('Incoming'), None,
+                 _('View the incoming change sets available to pull from the selected path'),
                  self._view_incoming_acb),
-                ("view_outgoing_to_path", gtk.STOCK_INFO, "Outgoing", None,
-                 "View the outgoing change sets ready to push to the selected path",
+                ("view_outgoing_to_path", gtk.STOCK_INFO, _('Outgoing'), None,
+                 _('View the outgoing change sets ready to push to the selected path'),
                  self._view_outgoing_acb),
-                ("pull_from_path", gtk.STOCK_EXECUTE, "Pull", None,
-                 "Pull all available change sets from the selected path",
+                ("pull_from_path", gtk.STOCK_EXECUTE, _('Pull'), None,
+                 _('Pull all available change sets from the selected path'),
                  self._pull_from_acb),
             ])
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC + actions.Condns.UNIQUE_SELN,
             [
-                ("push_to_path", gtk.STOCK_EXECUTE, "Push", None,
-                 "Push all available change sets to the selected path",
+                ("push_to_path", gtk.STOCK_EXECUTE, _('Push'), None,
+                 _('Push all available change sets to the selected path'),
                  self._push_to_acb),
             ])
         self.cwd_merge_id = [self.ui_manager.add_ui_from_string(PATH_TABLE_UI_DESCR)]
@@ -124,9 +124,9 @@ class PathTable(table.MapManagedTable):
     def _fetch_contents(self):
         return ifce.SCM.get_path_table_data()
     def get_selected_path_alias(self):
-        return self.get_selected_key_by_label('Alias')
+        return self.get_selected_key_by_label(_('Alias'))
     def get_selected_path(self):
-        return self.get_selected_key_by_label('Path')
+        return self.get_selected_key_by_label(_('Path'))
     def _manage_repo_acb(self, _action):
         alias, path = self.get_selected_data()[0]
         self.show_busy()
@@ -215,7 +215,7 @@ class IncomingFileTreeView(file_tree.FileTreeView):
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NO_SELN,
             [
                 ("incoming_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
-                 "Display the diff for all changes", self._diff_all_files_acb),
+                 _('Display the diff for all changes'), self._diff_all_files_acb),
             ])
         self.set_visibility_for_condns(actions.Condns.DONT_CARE, False)
         self.scm_change_merge_id = self.ui_manager.add_ui_from_string(INCOMING_CS_FILES_UI_DESCR)
@@ -231,7 +231,7 @@ class IncomingCSSummaryDialog(change_set.ChangeSetSummaryDialog):
     def __init__(self, rev, path, parent=None):
         self._path = path
         change_set.ChangeSetSummaryDialog.__init__(self, rev=rev, parent=parent)
-        self.set_title("gwsmg: Change Set: %s : %s" % (rev, path))
+        self.set_title(_('gwsmg: Change Set: %s : %s') % (rev, path))
     def get_change_set_summary(self):
         return ifce.SCM.get_incoming_change_set_summary(self._rev, self._path)
     def get_file_tree_view(self):
@@ -260,24 +260,24 @@ class IncomingTable(change_set.SearchableChangeSetTable):
         self._path = path
         change_set.SearchableChangeSetTable.__init__(self, busy_indicator=busy_indicator,
                                                      size_req = (640, 120),
-                                                     prefix = "Incoming", rev=False)
+                                                     prefix = _('Incoming'), rev=False)
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.UNIQUE_SELN,
            [
-                ("cs_pull_to", gtk.STOCK_EXECUTE, "Pull To", None,
-                 "Pull up to the selected change set", self._pull_to_cs_acb),
+                ("cs_pull_to", gtk.STOCK_EXECUTE, _('Pull To'), None,
+                 _('Pull up to the selected change set'), self._pull_to_cs_acb),
             ])
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(INCOMING_TABLE_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(change_set.CS_TABLE_REFRESH_UI_DESCR))
     def _fetch_rev(self, revarg):
         return ifce.SCM.get_incoming_rev(revarg)
     def _pull_to_cs_acb(self, _action):
-        rev = self.get_selected_key_by_label("Node")
+        rev = self.get_selected_key_by_label(_('Node'))
         self.show_busy()
         ifce.SCM.do_pull_from(rev=rev, source=self._path)
         self.refresh_contents()
         self.unshow_busy()
     def _view_cs_summary_acb(self, _action):
-        rev = self.get_selected_key_by_label("Node")
+        rev = self.get_selected_key_by_label(_('Node'))
         self.show_busy()
         dialog = IncomingCSSummaryDialog(rev, self._path)
         self.unshow_busy()
@@ -310,11 +310,11 @@ class OutgoingTable(change_set.SearchableChangeSetTable):
         self._path = path
         change_set.SearchableChangeSetTable.__init__(self, busy_indicator=busy_indicator,
                                                      size_req = (640, 120),
-                                                     prefix = "Outgoing")
+                                                     prefix = _('Outgoing'))
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC + actions.Condns.UNIQUE_SELN,
             [
-                ("cs_push_to", gtk.STOCK_EXECUTE, "Push To", None,
-                 "Push up to the selected change set", self._push_to_cs_acb),
+                ("cs_push_to", gtk.STOCK_EXECUTE, _('Push To'), None,
+                 _('Push up to the selected change set'), self._push_to_cs_acb),
             ])
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(OUTGOING_TABLE_UI_DESCR))
         self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(change_set.CS_TABLE_REFRESH_UI_DESCR))
@@ -350,12 +350,12 @@ class PathCSDialog(dialogue.AmodalDialog):
 
 class IncomingCSDialog(PathCSDialog):
     def __init__(self, path):
-        PathCSDialog.__init__(self, path=path, title="Incoming To",
+        PathCSDialog.__init__(self, path=path, title=_('Incoming To'),
                               table_type=IncomingTable)
 
 class OutgoingCSDialog(PathCSDialog):
     def __init__(self, path):
-        PathCSDialog.__init__(self, path=path, title="Outgoing From",
+        PathCSDialog.__init__(self, path=path, title=_('Outgoing From'),
                               table_type=OutgoingTable)
 
 class PathSelectTable(table.TableWithAGandUI):
@@ -368,13 +368,13 @@ class PathSelectTable(table.TableWithAGandUI):
     def _fetch_contents(self):
         return ifce.SCM.get_path_table_data()
     def get_selected_path_alias(self):
-        return self.get_selected_key_by_label('Alias')
+        return self.get_selected_key_by_label(_('Alias'))
     def get_selected_path(self):
-        return self.get_selected_key_by_label('Path')
+        return self.get_selected_key_by_label(_('Path'))
 
 class PullDialog(dialogue.Dialog):
     def __init__(self, parent=None):
-        dialogue.Dialog.__init__(self, title="gwsmg: Pull From (Up To)", parent=parent,
+        dialogue.Dialog.__init__(self, title=_('gwsmg: Pull From (Up To)'), parent=parent,
                                  flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                                  buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
                                           gtk.STOCK_OK, gtk.RESPONSE_OK)
@@ -383,23 +383,23 @@ class PullDialog(dialogue.Dialog):
         self.path_table = PathSelectTable()
         self.path_table.seln.connect("changed", self._selection_cb)
         hbox.pack_start(self.path_table)
-        self._select_button = gtk.Button(label="_Select")
+        self._select_button = gtk.Button(label=_('_Select'))
         self._select_button.connect("clicked", self._select_cb)
         hbox.pack_start(self._select_button, expand=False, fill=False)
         self.vbox.pack_start(hbox)
         hbox = gtk.HBox()
-        hbox.pack_start(gtk.Label("Path:"))
+        hbox.pack_start(gtk.Label(_('Path:')))
         self._path = gutils.EntryWithHistory()
         self._path.set_width_chars(32)
         self._path.set_text("default")
         self._path.connect("activate", self._path_cb)
         hbox.pack_start(self._path, expand=True, fill=True)
-        self._browse_path_button = gtk.Button(label="_Browse")
+        self._browse_path_button = gtk.Button(label=_('_Browse'))
         self._browse_path_button.connect("clicked", self._browse_path_cb)
         hbox.pack_start(self._browse_path_button, expand=False, fill=False)
         self.vbox.pack_start(hbox, expand=False, fill=False)
         hbox = gtk.HBox()
-        self._upto_toggle = gtk.CheckButton(label="Up To Revision:")
+        self._upto_toggle = gtk.CheckButton(label=_('Up To Revision:'))
         self._upto_toggle.connect("toggled", self._toggle_cb)
         hbox.pack_start(self._upto_toggle, expand=False, fill=False)
         self._revision = gutils.EntryWithHistory()
@@ -407,7 +407,7 @@ class PullDialog(dialogue.Dialog):
         self._revision.set_sensitive(self._upto_toggle.get_active())
         self._revision.connect("activate", self._revision_cb)
         hbox.pack_start(self._revision, expand=True, fill=True)
-        self._incoming_button = gtk.Button(label="_Incoming")
+        self._incoming_button = gtk.Button(label=_('_Incoming'))
         self._incoming_button.connect("clicked", self._incoming_cb)
         self._incoming_button.set_sensitive(self._upto_toggle.get_active())
         hbox.pack_start(self._incoming_button, expand=False, fill=False)
@@ -427,7 +427,7 @@ class PullDialog(dialogue.Dialog):
     def _revision_cb(self, entry=None):
         self.response(gtk.RESPONSE_OK)
     def _browse_path_cb(self, button=None):
-        dirname = dialogue.ask_dir_name("gwsmhg: Browse for Path", existing=True, parent=self)
+        dirname = dialogue.ask_dir_name(_('gwsmhg: Browse for Path'), existing=True, parent=self)
         if dirname:
             self._path.set_text(dirname)
     def _get_incoming_data(self):
@@ -438,7 +438,7 @@ class PullDialog(dialogue.Dialog):
             return []
     def _incoming_cb(self, button=None):
         self.show_busy()
-        title = "Choose Revision"
+        title = _('Choose Revision')
         ptype = change_set.PrecisType(get_data=self._get_incoming_data)
         dialog = change_set.SelectDialog(ptype=ptype, title=title, parent=self)
         self.unshow_busy()
@@ -479,22 +479,22 @@ class RemoteRepoManagementWidget(gtk.VBox, actions.AGandUIManager, dialogue.Busy
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
         self._path = path
         hbox = gtk.HBox()
-        hbox.pack_start(gutils.LabelledText(label="Path:", text=path, min_chars=52))
-        hbox.pack_start(gutils.LabelledText(label="Alias:", text=alias, min_chars=12))
+        hbox.pack_start(gutils.LabelledText(label=_('Path:'), text=path, min_chars=52))
+        hbox.pack_start(gutils.LabelledText(label=_('Alias:'), text=alias, min_chars=12))
         self.pack_start(hbox, expand=False)
         self.ui_manager.add_ui_from_string(REMOTE_MGMT_UI_DESCR)
         self.add_conditional_actions(actions.Condns.IN_REPO,
             [
-                ("path_refresh_remote", gtk.STOCK_REFRESH, "_Refresh", None,
-                 "Refresh remote repository date", self._refresh_data_acb),
-                ("path_remote_pull", icons.STOCK_PULL, "Pull", "",
-                 "Pull all available changes from  remote repository",
+                ("path_refresh_remote", gtk.STOCK_REFRESH, _('_Refresh'), None,
+                 _('Refresh remote repository date'), self._refresh_data_acb),
+                ("path_remote_pull", icons.STOCK_PULL, _('Pull'), "",
+                 _('Pull all available changes from  remote repository'),
                  self._pull_repo_acb),
             ])
         self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC,
             [
-                ("path_remote_push", icons.STOCK_PUSH, "Push", "",
-                 "Push all available changes to remote repository",
+                ("path_remote_push", icons.STOCK_PUSH, _('Push'), '',
+                 _('Push all available changes to remote repository'),
                  self._push_repo_acb),
             ])
         self._tool_bar = self.ui_manager.get_widget("/remote_toolbar")
@@ -528,7 +528,7 @@ class RemoteRepoManagementDialog(dialogue.AmodalDialog):
                                        flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                                        buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE))
         self._path = path
-        self.set_title('gwsmg: Remote(%s): %s (%s)' % (utils.cwd_rel_home(), utils.path_rel_home(path), alias))
+        self.set_title(_('gwsmg: Remote(%s): %s (%s)') % (utils.cwd_rel_home(), utils.path_rel_home(path), alias))
         self._manager = RemoteRepoManagementWidget(path=path, alias=alias, busy_indicator=self)
         self.vbox.pack_start(self._manager)
         self.show_all()

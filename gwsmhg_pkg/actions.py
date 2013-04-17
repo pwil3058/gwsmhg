@@ -111,14 +111,14 @@ class ConditionalActions:
                 return action
         return None
     def __str__(self):
-        string = 'ConditionalActions({0})\n'.format(self.name)
+        string = _('ConditionalActions({0})\n').format(self.name)
         for condns, group in self.groups.items():
             name = group.get_name()
             member_names = '['
             for member_name in [action.get_name() for action in group.list_actions()]:
                 member_names += '{0}, '.format(member_name)
             member_names += ']'
-            string += '\tGroup({0:x},{1}): {2}\n'.format(condns, name, member_names)
+            string += _('\tGroup({0:x},{1}): {2}\n').format(condns, name, member_names)
         return string
 
 class_indep_ags = ConditionalActions('class_indep')

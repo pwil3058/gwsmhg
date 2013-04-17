@@ -115,7 +115,7 @@ def create_file(name, console=None):
         except (IOError, OSError) as msg:
             return cmd_result.Result(cmd_result.ERROR, '', '"%s": %s' % (name, msg))
     else:
-        return cmd_result.Result(cmd_result.WARNING, '', '"%s": file already exists' % name)
+        return cmd_result.Result(cmd_result.WARNING, '', _('"%s": file already exists') % name)
 
 
 def run_cmd(cmd, input_text=None):

@@ -96,9 +96,9 @@ class ConsoleLog(gtk.VBox, dialogue.BusyIndicatorUser):
         self.ui_manager.insert_action_group(self._action_group, -1)
         self._action_group.add_actions(
             [
-                ("console_log_clear", gtk.STOCK_CLEAR, "_Clear", None,
-                 "Clear the console log", self._clear_acb),
-                ("menu_console", None, "_Console"),
+                ("console_log_clear", gtk.STOCK_CLEAR, _('_Clear'), None,
+                 _('Clear the console log'), self._clear_acb),
+                ("menu_console", None, _('_Console')),
             ])
         self.change_summary_merge_id = self.ui_manager.add_ui_from_string(CONSOLE_LOG_UI_DESCR)
         self._menubar = self.ui_manager.get_widget("/console_log_menubar")
@@ -106,10 +106,10 @@ class ConsoleLog(gtk.VBox, dialogue.BusyIndicatorUser):
         hbox.pack_start(self._menubar, expand=False)
         cmd_entry = gutils.EntryWithHistory()
         if runentry:
-            hbox.pack_start(gtk.Label("Run: "), expand=False)
+            hbox.pack_start(gtk.Label(_('Run: ')), expand=False)
             cmd_entry.connect("activate", self._cmd_entry_cb)
         else:
-            hbox.pack_start(gtk.Label(": hg "), expand=False)
+            hbox.pack_start(gtk.Label(_(': hg ')), expand=False)
             cmd_entry.connect("activate", self._hg_cmd_entry_cb)
         hbox.pack_start(cmd_entry, expand=True, fill=True)
         self.pack_start(hbox, expand=False)

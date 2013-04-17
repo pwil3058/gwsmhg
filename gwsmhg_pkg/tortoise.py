@@ -76,46 +76,46 @@ def _tortoise_tool_bgnd_acb(action):
         dialogue.report_any_problems(cmd_result.Result(cmd_result.ERROR, '"%s" failed' % cmd, ''))
 
 actions.add_class_indep_actions(actions.Condns.DONT_CARE, [
-        ('gwsm_tortoise', None, '_Tortoise Tools'),
-        ('tortoise_recovery', icons.STOCK_RECOVERY, 'Recovery', '',
-         'Launch tortoise "recovery" tool', _tortoise_tool_modal_acb),
-        ('tortoise_userconfig', icons.STOCK_CONFIG, 'Userconfig', '',
-         'Launch tortoise "userconfig" tool', _tortoise_tool_bgnd_acb),
+        ('gwsm_tortoise', None, _('_Tortoise Tools')),
+        ('tortoise_recovery', icons.STOCK_RECOVERY, _('Recovery'), '',
+         _('Launch tortoise "recovery" tool'), _tortoise_tool_modal_acb),
+        ('tortoise_userconfig', icons.STOCK_CONFIG, _('Userconfig'), '',
+         _('Launch tortoise "userconfig" tool'), _tortoise_tool_bgnd_acb),
     ])
 
 actions.add_class_indep_actions(actions.Condns.NOT_IN_REPO, [
-        ('tortoise_clone', icons.STOCK_CLONE, 'Clone', '',
-         'Launch tortoise "clone" tool', _tortoise_tool_modal_acb),
-        ('tortoise_init', icons.STOCK_INIT,'Init','',
-         'Launch tortoise "init" tool', _tortoise_tool_modal_acb),
+        ('tortoise_clone', icons.STOCK_CLONE, _('Clone'), '',
+         _('Launch tortoise "clone" tool'), _tortoise_tool_modal_acb),
+        ('tortoise_init', icons.STOCK_INIT,_('Init'),'',
+         _('Launch tortoise "init" tool'), _tortoise_tool_modal_acb),
     ])
 
 actions.add_class_indep_actions(actions.Condns.IN_REPO, [
-        ('tortoise_datamine', gtk.STOCK_EXECUTE, 'Datamine', '',
-         'Launch tortoise "datamine" tool', _tortoise_tool_bgnd_acb),
-        ('tortoise_guess', icons.STOCK_GUESS, 'Guess', '',
-         'Launch tortoise "guess" tool', _tortoise_tool_bgnd_acb),
-        ('tortoise_log', icons.STOCK_LOG, 'Log', '',
-         'Launch tortoise "log" tool', _tortoise_tool_modal_acb),
-        ('tortoise_repoconfig', icons.STOCK_CONFIG, 'Repoconfig', '',
-         'Launch tortoise "repoconfig" tool', _tortoise_tool_modal_acb),
-        ('tortoise_serve', icons.STOCK_SERVE, 'Serve', '',
-         'Launch tortoise "serve" tool', _tortoise_tool_modal_acb),
-        ('tortoise_shelve', icons.STOCK_SHELVE, 'Shelve', '',
-         'Launch tortoise "shelve" tool', _tortoise_tool_modal_acb),
+        ('tortoise_datamine', gtk.STOCK_EXECUTE, _('Datamine'), '',
+         _('Launch tortoise "datamine" tool'), _tortoise_tool_bgnd_acb),
+        ('tortoise_guess', icons.STOCK_GUESS, _('Guess'), '',
+         _('Launch tortoise "guess" tool'), _tortoise_tool_bgnd_acb),
+        ('tortoise_log', icons.STOCK_LOG, _('Log'), '',
+         _('Launch tortoise "log" tool'), _tortoise_tool_modal_acb),
+        ('tortoise_repoconfig', icons.STOCK_CONFIG, _('Repoconfig'), '',
+         _('Launch tortoise "repoconfig" tool'), _tortoise_tool_modal_acb),
+        ('tortoise_serve', icons.STOCK_SERVE, _('Serve'), '',
+         _('Launch tortoise "serve" tool'), _tortoise_tool_modal_acb),
+        ('tortoise_shelve', icons.STOCK_SHELVE, _('Shelve'), '',
+         _('Launch tortoise "shelve" tool'), _tortoise_tool_modal_acb),
     ])
 
 actions.add_class_indep_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC, [
-        ('tortoise_commit', icons.STOCK_COMMIT, 'Commit', '',
-         'Launch tortoise "commit" tool', _tortoise_tool_modal_acb),
-        ('tortoise_merge', icons.STOCK_MERGE, 'Merge', '',
-         'Launch tortoise "merge" tool', _tortoise_tool_modal_acb),
-        ('tortoise_status', icons.STOCK_STATUS, 'Status', '',
-         'Launch tortoise "status" tool', _tortoise_tool_modal_acb),
-        ('tortoise_synch', icons.STOCK_SYNCH, 'Synch', '',
-         'Launch tortoise "synch" tool', _tortoise_tool_modal_acb),
-        ('tortoise_update', icons.STOCK_UPDATE, 'Update', '',
-         'Launch tortoise "update" tool', _tortoise_tool_modal_acb),
+        ('tortoise_commit', icons.STOCK_COMMIT, _('Commit'), '',
+         _('Launch tortoise "commit" tool'), _tortoise_tool_modal_acb),
+        ('tortoise_merge', icons.STOCK_MERGE, _('Merge'), '',
+         _('Launch tortoise "merge" tool'), _tortoise_tool_modal_acb),
+        ('tortoise_status', icons.STOCK_STATUS, _('Status'), '',
+         _('Launch tortoise "status" tool'), _tortoise_tool_modal_acb),
+        ('tortoise_synch', icons.STOCK_SYNCH, _('Synch'), '',
+         _('Launch tortoise "synch" tool'), _tortoise_tool_modal_acb),
+        ('tortoise_update', icons.STOCK_UPDATE, _('Update'), '',
+         _('Launch tortoise "update" tool'), _tortoise_tool_modal_acb),
     ])
 
 FILES_UI_DESCR = \
@@ -131,20 +131,20 @@ FILES_UI_DESCR = \
 </ui>
 '''
 
-FILE_MENU = gtk.Action("tortoise_files_menu", "_Tortoise", None, None)
+FILE_MENU = gtk.Action("tortoise_files_menu", _('_Tortoise'), None, None)
 
 FILE_GROUP_PARTIAL_ACTIONS = {
     actions.Condns.IN_REPO + actions.Condns.UNIQUE_SELN: \
     [
-        ('tortoise_rename', icons.STOCK_RENAME, 'Rename', '',
-         'Launch tortoise "rename" tool'),
+        ('tortoise_rename', icons.STOCK_RENAME, _('Rename'), '',
+         _('Launch tortoise "rename" tool')),
     ], \
     actions.Condns.IN_REPO + actions.Condns.NOT_PMIC + actions.Condns.SELN: \
     [
-        ('tortoise_commit', icons.STOCK_COMMIT, 'Commit', '',
-         'Launch tortoise "commit" tool'),
-        ('tortoise_status', icons.STOCK_STATUS, 'Status', '',
-         'Launch tortoise "status" tool'),
+        ('tortoise_commit', icons.STOCK_COMMIT, _('Commit'), '',
+         _('Launch tortoise "commit" tool')),
+        ('tortoise_status', icons.STOCK_STATUS, _('Status'), '',
+         _('Launch tortoise "status" tool')),
     ],
 }
 
