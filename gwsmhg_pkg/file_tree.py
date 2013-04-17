@@ -15,6 +15,8 @@
 
 import os, os.path, gtk, gobject, collections
 
+from gwsmhg_pkg import patchlib
+
 from gwsmhg_pkg import ifce, utils, text_edit, cmd_result, diff, gutils
 from gwsmhg_pkg import tortoise, icons, ws_event, dialogue, tlview
 from gwsmhg_pkg import actions, fsdb, hg_mq_ifce
@@ -870,21 +872,30 @@ class ScmCwdFilesWidget(gtk.VBox):
         self.show_all()
 
 class ScmCommitFileTreeStore(FileTreeStore):
+    class TWSDisplay(diff.TextWidget.TwsLineCountDisplay):
+        LABEL = _('File(s) that add TWS: ')
     def __init__(self, show_hidden=True, view=None, file_mask=None):
         if file_mask is None:
             self._file_mask = []
         else:
             self._file_mask = file_mask
+        self.tws_display = self.TWSDisplay()
+        self.tws_display.set_value(0)
         FileTreeStore.__init__(self, show_hidden=show_hidden, populate_all=True,
                                auto_expand=True, view=view)
         self.repopulate()
     def set_file_mask(self, file_mask):
         self._file_mask = file_mask
+        self.set_tws_file_count()
         self.update()
     def get_file_mask(self):
         return self._file_mask
     def _get_file_db(self):
         return ifce.SCM.get_commit_file_db(self._file_mask)
+    def set_tws_file_count(self):
+        diff_text = ifce.SCM.get_diff_for_files(self._file_mask)
+        epatch = patchlib.Patch.parse_text(diff_text)
+        self.tws_display.set_value(len(epatch.report_trailing_whitespace()))
 
 SCM_CHANGE_UI_DESCR = \
 '''
@@ -1034,14 +1045,16 @@ class ScmCommitWidget(gtk.VPaned, ws_event.Listener):
 class ScmCommitDialog(dialogue.AmodalDialog):
     def __init__(self, parent, filelist=None):
         flags = gtk.DIALOG_DESTROY_WITH_PARENT
-        dialogue.AmodalDialog.__init__(self, None, parent, flags,
-                                       (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                                       gtk.STOCK_OK, gtk.RESPONSE_OK))
+        dialogue.AmodalDialog.__init__(self, None, parent, flags)
         self.set_title(_('Commit Changes: %s') % utils.cwd_rel_home())
         self.commit_widget = ScmCommitWidget(busy_indicator=self, file_mask=filelist)
         self.vbox.pack_start(self.commit_widget)
-        self.connect('response', self._handle_response_cb)
         self.set_focus_child(self.commit_widget.view)
+        tws_display = self.commit_widget.files.model.tws_display
+        self.action_area.pack_end(tws_display, expand=False, fill=False)
+        self.add_buttons(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                       gtk.STOCK_OK, gtk.RESPONSE_OK)
+        self.connect('response', self._handle_response_cb)
     def get_mesg_and_files(self):
         return (self.commit_widget.get_msg(), self.commit_widget.get_file_mask())
     def update_files(self):
