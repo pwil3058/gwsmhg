@@ -315,8 +315,10 @@ class FilePathPlus(object):
 class Preamble(_Lines):
     subtypes = list()
     @staticmethod
-    def get_preamble_at(lines, index, raise_if_malformed):
+    def get_preamble_at(lines, index, raise_if_malformed, exclude_subtypes_in=set()):
         for subtype in Preamble.subtypes:
+            if subtype in exclude_subtypes_in:
+                continue
             preamble, next_index = subtype.get_preamble_at(lines, index, raise_if_malformed)
             if preamble is not None:
                 return (preamble, next_index)
@@ -417,7 +419,7 @@ class DiffPreamble(Preamble):
     @staticmethod
     def get_preamble_at(lines, index, raise_if_malformed):
         match = DiffPreamble.CRE.match(lines[index])
-        if not match:
+        if not match or (match.group(1) and match.group(1).find('--git') != -1):
             return (None, index)
         file1 = match.group(3) if match.group(3) else match.group(4)
         file2 = match.group(6) if match.group(6) else match.group(7)
@@ -456,9 +458,12 @@ class Preambles(list):
     @staticmethod
     def get_preambles_at(lines, index, raise_if_malformed):
         preambles = Preambles()
+        # make sure we don't get more than one preeample of the same type
+        already_seen = set()
         while index < len(lines):
-            preamble, index = Preamble.get_preamble_at(lines, index, raise_if_malformed)
+            preamble, index = Preamble.get_preamble_at(lines, index, raise_if_malformed, exclude_subtypes_in=already_seen)
             if preamble:
+                already_seen.add(type(preamble))
                 preambles.append(preamble)
             else:
                 break
@@ -983,8 +988,11 @@ class Patch(object):
         return patch
     @staticmethod
     def parse_text(text, num_strip_levels=0):
-        '''Parse text and return a Patch instance.  Handle
-        possibility that it's an email text.'''
+        '''Parse text and return a Patch instance.'''
+        return Patch.parse_lines(text.splitlines(True), num_strip_levels=num_strip_levels)
+    @staticmethod
+    def parse_email_text(text, num_strip_levels=0):
+        '''Parse email text and return a Patch instance.'''
         msg = email.message_from_string(text)
         subject = msg.get('Subject')
         if subject:
@@ -992,7 +1000,7 @@ class Patch(object):
             text = re.sub('\r\n', os.linesep, msg.get_payload())
         else:
             text = msg.get_payload()
-        patch = Patch.parse_lines(text.splitlines(True), num_strip_levels=num_strip_levels)
+        patch = parse_text(text, num_strip_levels=num_strip_levels)
         if subject:
             descr = patch.get_description()
             patch.set_description('\n'.join([subject, descr]))
@@ -1001,6 +1009,12 @@ class Patch(object):
     def parse_text_file(filepath, num_strip_levels=0):
         '''Parse a text file and return a Patch instance.'''
         patch = Patch.parse_text(open(filepath).read(), num_strip_levels=num_strip_levels)
+        patch.source_name = filepath
+        return patch
+    @staticmethod
+    def parse_email_file(filepath, num_strip_levels=0):
+        '''Parse a text file and return a Patch instance.'''
+        patch = Patch.parse_email_text(open(filepath).read(), num_strip_levels=num_strip_levels)
         patch.source_name = filepath
         return patch
     def __init__(self, num_strip_levels=0):
