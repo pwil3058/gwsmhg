@@ -21,6 +21,8 @@ import os
 
 from gwsmhg_pkg import console, ws_event, cmd_result, terminal
 
+from gwsmhg_pkg import recollect
+
 log = None
 
 def init(ifce_module):
@@ -66,6 +68,7 @@ def chdir(newdir=None):
         in_valid_repo = False
     ws_event.notify_events(ws_event.CHANGE_WD)
     new_wd = os.getcwd()
+    recollect.set("gwsmhg", "last_wd", new_wd)
     if term:
         term.set_cwd(new_wd)
     log.append_entry(_('New Working Directory: %s\n') % new_wd)

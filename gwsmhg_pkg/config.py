@@ -464,6 +464,12 @@ class EditorAllocationDialog(dialogue.Dialog):
             self._table.apply_changes()
         self.destroy()
 
+def change_repository_cb(_widget, repo):
+    dialogue.show_busy()
+    result = ifce.chdir(repo)
+    dialogue.unshow_busy()
+    dialogue.report_any_problems(result)
+
 def auto_update_cb(_arg=None):
     if dialogue.is_busy():
         return
@@ -478,12 +484,6 @@ AUTO_UPDATE = gutils.RefreshController(
     ),
     function=auto_update_cb, is_on=True, interval=10000
 )
-
-def change_repository_cb(_widget, repo):
-    dialogue.show_busy()
-    result = ifce.chdir(repo)
-    dialogue.unshow_busy()
-    dialogue.report_any_problems(result)
 
 actions.CLASS_INDEP_AGS[actions.AC_DONT_CARE].add_action(AUTO_UPDATE.toggle_action)
 
