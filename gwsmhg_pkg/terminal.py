@@ -29,6 +29,7 @@ try:
             self._vte.set_size_request(200, 50)
             self._vte.set_scrollback_lines(-1)
             self._vte.show()
+            self._vte.connect('button_press_event', self._button_press_cb)
             scrbar = gtk.VScrollbar(self._vte.get_adjustment())
             scrbar.show()
             self.pack_start(self._vte)
@@ -37,5 +38,21 @@ try:
             self._pid = self._vte.fork_command()
         def set_cwd(self, path):
             self._vte.feed_child("cd %s\n" % path)
+        def _button_press_cb(self, widget, event):
+            if event.type == gtk.gdk.BUTTON_PRESS:
+                if event.button == 3:
+                    menu = gtk.Menu()
+                    copy_item = gtk.MenuItem(label=_('Copy'))
+                    copy_item.set_sensitive(widget.get_has_selection())
+                    copy_item.connect_object('activate', vte.Terminal.copy_clipboard, widget)
+                    paste_item = gtk.MenuItem(label=_('Paste'))
+                    paste_item.set_sensitive(gtk.Clipboard().wait_is_text_available())
+                    paste_item.connect_object('activate', vte.Terminal.paste_clipboard, widget)
+                    menu.append(copy_item)
+                    menu.append(paste_item)
+                    menu.show_all()
+                    menu.popup(None, None, None, event.button, event.time)
+                    return True
+            return False
 except ImportError:
     AVAILABLE = False
