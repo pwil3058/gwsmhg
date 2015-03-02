@@ -97,6 +97,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, ws_actions.AGandUIManager):
         if tortoise.IS_AVAILABLE:
             self.ui_manager.add_ui_from_string(tortoise.TORTOISE_HGTK_UI)
         self._menubar = self.ui_manager.get_widget("/gwsm_menubar")
+        self._menubar.insert(config.WorkspacesMenu(), 1)
         self._rhs_menubar = self.ui_manager.get_widget("/gwsm_right_side_menubar")
         self._toolbar = self.ui_manager.get_widget("/gwsm_toolbar")
         self._toolbar.set_style(gtk.TOOLBAR_BOTH)

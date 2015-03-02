@@ -28,6 +28,7 @@ from gwsmhg_pkg import gutils
 from gwsmhg_pkg import tlview
 from gwsmhg_pkg import table
 from gwsmhg_pkg import actions
+from gwsmhg_pkg import ifce
 from gwsmhg_pkg import ws_event
 
 SAVED_WKSPCE_FILE_NAME = os.sep.join([config_data.CONFIG_DIR_NAME, "workspaces"])
@@ -478,4 +479,30 @@ AUTO_UPDATE = gutils.RefreshController(
     function=auto_update_cb, is_on=True, interval=10000
 )
 
+def change_repository_cb(_widget, repo):
+    dialogue.show_busy()
+    result = ifce.chdir(repo)
+    dialogue.unshow_busy()
+    dialogue.report_any_problems(result)
+
 actions.CLASS_INDEP_AGS[actions.AC_DONT_CARE].add_action(AUTO_UPDATE.toggle_action)
+
+class WorkspacesMenu(gtk.MenuItem):
+    def __init__(self, label=_("Workspaces")):
+        gtk.MenuItem.__init__(self, label)
+        self.set_submenu(gtk.Menu())
+        self.connect("enter_notify_event", self._enter_notify_even_cb)
+    def _build_submenu(self):
+        _menu = gtk.Menu()
+        repos = WSPathTable._fetch_contents()
+        repos.sort()
+        for repo in repos:
+            label = "{0.Alias}:->({0.Path})".format(repo)
+            _menu_item = gtk.MenuItem(label)
+            _menu_item.connect("activate", change_repository_cb, os.path.expanduser(repo.Path))
+            _menu_item.show()
+            _menu.append(_menu_item)
+        return _menu
+    def _enter_notify_even_cb(self, widget, _event):
+        widget.remove_submenu()
+        widget.set_submenu(self._build_submenu())
