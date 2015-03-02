@@ -86,6 +86,19 @@ class Tree(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialog
         def update_iter_row_tuple(self, fsobj_iter, to_tuple):
             for label in ["style", "foreground", "status", "related_file_str", "icon"]:
                 self.set_value_named(fsobj_iter, label, getattr(to_tuple, label))
+        def _get_file_paths(self, fsobj_iter, path_list):
+            while fsobj_iter != None:
+                if not self.get_value_named(fsobj_iter, "is_dir"):
+                    path_list.append(self.fs_path(fsobj_iter))
+                else:
+                    child_iter = self.iter_children(fsobj_iter)
+                    if child_iter != None:
+                        self._get_file_paths(child_iter, path_list)
+                fsobj_iter = self.iter_next(fsobj_iter)
+        def get_file_paths(self):
+            path_list = []
+            self._get_file_paths(self.get_iter_first(), path_list)
+            return path_list
     # This is not a method but a function within the Tree namespace
     def _format_file_name_crcb(_column, cell_renderer, store, tree_iter, _arg=None):
         name = store.get_value_named(tree_iter, "name")
@@ -375,6 +388,8 @@ class Tree(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialog
             for subdir in subdirs:
                 filepaths += self.get_filepaths_in_dir(os.path.join(dirname, subdir.name), recursive)
         return filepaths
+    def get_file_paths(self):
+        return self.model.get_file_paths()
 
 CWD_UI_DESCR = \
 '''
@@ -999,13 +1014,7 @@ class ScmCommitWidget(gtk.VPaned, ws_event.Listener):
         # TreeView of files in change set
         self.files = ScmCommitFileTreeView(busy_indicator=busy_indicator, show_hidden=True, file_mask=file_mask)
         vbox = gtk.VBox()
-        hbox = gtk.HBox()
-        hbox.pack_start(gtk.Label(_('Files')), fill=True, expand=False)
-        toolbar = self.files.ui_manager.get_widget("/files_refresh_toolbar")
-        toolbar.set_style(gtk.TOOLBAR_BOTH)
-        toolbar.set_orientation(gtk.ORIENTATION_HORIZONTAL)
-        hbox.pack_end(toolbar, fill=False, expand=False)
-        vbox.pack_start(hbox, expand=False)
+        vbox.pack_start(gtk.Label(_('Files')), expand=False)
         x, y = self.files.tree_to_widget_coords(480, 240)
         self.files.set_size_request(x, y)
         vbox.pack_start(gutils.wrap_in_scrolled_window(self.files))
@@ -1031,7 +1040,7 @@ class ScmCommitDialog(dialogue.AmodalDialog):
         self.commit_widget = ScmCommitWidget(busy_indicator=self, file_mask=filelist)
         self.vbox.pack_start(self.commit_widget)
         self.set_focus_child(self.commit_widget.summary_widget.view)
-        tws_display = self.commit_widget.files.model.tws_display
+        tws_display = self.commit_widget.files.tws_display
         self.action_area.pack_end(tws_display, expand=False, fill=False)
         self.add_buttons(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
                                        gtk.STOCK_OK, gtk.RESPONSE_OK)
