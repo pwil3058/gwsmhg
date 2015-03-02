@@ -23,7 +23,6 @@ from gwsmhg_pkg import cmd_result
 from gwsmhg_pkg import patchlib
 
 from gwsmhg_pkg import dialogue
-from gwsmhg_pkg import sourceview
 from gwsmhg_pkg import textview
 from gwsmhg_pkg import ifce
 from gwsmhg_pkg import gutils
