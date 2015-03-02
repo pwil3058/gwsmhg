@@ -22,6 +22,7 @@ import gtk
 
 from gwsmhg_pkg import gutils
 from gwsmhg_pkg import actions
+from gwsmhg_pkg import ws_actions
 from gwsmhg_pkg import tlview
 from gwsmhg_pkg import icons
 from gwsmhg_pkg import dialogue
@@ -41,6 +42,7 @@ TABLE_STATES = \
     [ALWAYS_ON, MODIFIED, NOT_MODIFIED, SELECTION, NO_SELECTION,
      UNIQUE_SELECTION]
 
+# TODO: modify this code to use the new actions model
 class Table(gtk.VBox):
     def __init__(self, model_descr, table_descr, size_req=None):
         gtk.VBox.__init__(self)
@@ -134,7 +136,7 @@ class Table(gtk.VBox):
         columns = self.model.get_cols(labels)
         return self.get_selected_data(columns)
 
-class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorUser):
+class TableWithAGandUI(gtk.VBox, ws_actions.AGandUIManager, dialogue.BusyIndicatorUser):
     def __init__(self, model_descr, table_descr, popup=None, scroll_bar=True,
                  busy_indicator=None, size_req=None, model_class=Model):
         assert issubclass(model_class, Model)
@@ -145,7 +147,7 @@ class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorU
         self.pack_start(self.header, expand=False)
         self.model = model_class(model_descr)
         self.view = tlview.View(table_descr, self.model)
-        actions.AGandUIManager.__init__(self, self.view.get_selection())
+        ws_actions.AGandUIManager.__init__(self, selection=self.view.get_selection(), popup=popup)
         if size_req:
             self.view.set_size_request(size_req[0], size_req[1])
         if scroll_bar:
@@ -154,6 +156,11 @@ class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorU
             self.pack_start(self.view)
         self.view.connect("button_press_event", self._handle_button_press_cb)
         self.view.connect("key_press_event", self._handle_key_press_cb)
+    @property
+    def seln(self):
+        return self.view.get_selection()
+    def populate_action_groups(self):
+        pass
     def _handle_button_press_cb(self, widget, event):
         if event.type == gtk.gdk.BUTTON_PRESS:
             if event.button == 3 and self._popup:
@@ -161,12 +168,12 @@ class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorU
                 menu.popup(None, None, None, event.button, event.time)
                 return True
             elif event.button == 2:
-                self.seln.unselect_all()
+                self.view.get_selection().unselect_all()
                 return True
         return False
     def _handle_key_press_cb(self, widget, event):
         if event.keyval == gtk.gdk.keyval_from_name('Escape'):
-            self.seln.unselect_all()
+            self.view.get_selection().unselect_all()
             return True
         return False
     def _fetch_contents(self):
@@ -174,7 +181,7 @@ class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorU
     def _set_contents(self):
         self.model.set_contents(self._fetch_contents())
         self.view.columns_autosize()
-        self.seln.unselect_all()
+        self.view.get_selection().unselect_all()
     def set_contents(self):
         self.show_busy()
         self._set_contents()
@@ -195,7 +202,7 @@ class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorU
         for key in selected_keys:
             model_iter = self.model.get_row_with_key_value(key_value=key)
             if model_iter is not None:
-                self.seln.select_iter(model_iter)
+                self.view.get_selection().select_iter(model_iter)
         if visible_range is not None:
             middle_iter = self.model.get_row_with_key_value(key_value=middle_key)
             if middle_iter is not None:
@@ -205,7 +212,7 @@ class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorU
     def get_contents(self):
         return self.model.get_contents()
     def get_selected_data(self, columns=None):
-        store, selected_rows = self.seln.get_selected_rows()
+        store, selected_rows = self.view.get_selection().get_selected_rows()
         if not columns:
             columns = list(range(store.get_n_columns()))
         result = []
@@ -215,7 +222,7 @@ class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorU
             result.append(store.get_values(model_iter, columns))
         return result
     def get_selected_keys(self, keycol=0):
-        store, selected_rows = self.seln.get_selected_rows()
+        store, selected_rows = self.view.get_selection().get_selected_rows()
         keys = []
         for row in selected_rows:
             model_iter = store.get_iter(row)
@@ -239,10 +246,12 @@ class TableWithAGandUI(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorU
         model_iter = self.model.get_row_with_key_value(key_value, key)
         if not model_iter:
             return False
-        self.seln.select_iter(model_iter)
+        self.view.get_selection().select_iter(model_iter)
         path = self.model.get_path(model_iter)
         self.view.scroll_to_cell(path, use_align=True, row_align=0.5)
         return True
+    def _refresh_contents_acb(self, _action):
+        self.refresh_contents()
 
 _NEEDS_RESET = 123
 
@@ -256,13 +265,15 @@ class MapManagedTable(TableWithAGandUI, gutils.MappedManager):
                                   scroll_bar=scroll_bar)
         gutils.MappedManager.__init__(self)
         self._needs_refresh = True
-        self.add_conditional_actions(actions.Condns.IN_REPO,
+        from gwsmhg_pkg import ws_event
+        self.add_notification_cb(ws_event.CHANGE_WD, self.reset_contents_if_mapped)
+    def populate_action_groups(self):
+        TableWithAGandUI.populate_action_groups(self)
+        self.action_groups[ws_actions.AC_IN_REPO].add_actions(
             [
                 ("table_refresh_contents", gtk.STOCK_REFRESH, _('Refresh'), None,
                  _('Refresh the tables contents'), self._refresh_contents_acb),
             ])
-        from gwsmhg_pkg import ws_event
-        self.add_notification_cb(ws_event.CHANGE_WD, self.reset_contents_if_mapped)
     def map_action(self):
         if self._needs_refresh:
             self.show_busy()

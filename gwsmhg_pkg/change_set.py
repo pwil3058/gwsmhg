@@ -16,7 +16,7 @@
 import collections, gtk, gobject, os
 
 from gwsmhg_pkg import ifce, cmd_result, gutils, utils, icons, file_tree, diff
-from gwsmhg_pkg import text_edit, ws_event, dialogue, table, actions
+from gwsmhg_pkg import text_edit, ws_event, dialogue, table, actions, ws_actions
 from gwsmhg_pkg import tlview
 
 CSRow = collections.namedtuple('CSRow', [_('Rev'), _('Node'), _('Age'), _('Tags'), _('Branches'), _('Author'), _('Description')])
@@ -108,22 +108,21 @@ LOG_TABLE_DESCR = tlview.ViewTemplate(
     ]
 )
 
-CS_TABLE_BASIC_UI_DESCR = \
-'''
-<ui>
-  <popup name="table_popup">
-    <placeholder name="top">
-      <menuitem action="cs_summary"/>
-    </placeholder>
-    <separator/>
-    <placeholder name="middle"/>
-    <separator/>
-    <placeholder name="bottom"/>
-  </popup>
-</ui>
-'''
-
 class ChangeSetTable(table.MapManagedTable):
+    UI_DESCR = \
+        '''
+        <ui>
+          <popup name="table_popup">
+            <placeholder name="top">
+              <menuitem action="cs_summary"/>
+            </placeholder>
+            <separator/>
+            <placeholder name="middle"/>
+            <separator/>
+            <placeholder name="bottom"/>
+          </popup>
+        </ui>
+        '''
     def __init__(self, model_descr = None,
                  table_descr = None, popup='/table_popup',
                  scroll_bar=True, busy_indicator=None, size_req=None):
@@ -136,12 +135,15 @@ class ChangeSetTable(table.MapManagedTable):
                                        busy_indicator=busy_indicator,
                                        size_req=size_req,
                                        scroll_bar=scroll_bar)
-        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.UNIQUE_SELN,
+        self.add_notification_cb(ws_event.REPO_MOD|ws_event.PATCH_CHANGES, self.refresh_contents_if_mapped)
+    def populate_action_groups(self):
+        table.MapManagedTable.populate_action_groups(self)
+        self.action_groups[ws_actions.AC_IN_REPO + actions.AC_SELN_UNIQUE].add_actions(
             [
                 ("cs_summary", gtk.STOCK_INFO, _('Summary'), None,
                  _('View a summary of the selected change set'), self._view_cs_summary_acb),
             ])
-        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC + actions.Condns.UNIQUE_SELN,
+        self.action_groups[ws_actions.AC_IN_REPO + ws_actions.AC_NOT_PMIC + actions.AC_SELN_UNIQUE].add_actions(
             [
                 ("cs_update_ws_to", gtk.STOCK_JUMP_TO, _('Update To'), None,
                  _('Update the work space to the selected change set'),
@@ -156,8 +158,6 @@ class ChangeSetTable(table.MapManagedTable):
                  _('Tag the selected change set'),
                  self._tag_cs_acb),
             ])
-        self.cwd_merge_id = [self.ui_manager.add_ui_from_string(CS_TABLE_BASIC_UI_DESCR)]
-        self.add_notification_cb(ws_event.REPO_MOD|ws_event.PATCH_CHANGES, self.refresh_contents_if_mapped)
     def _view_cs_summary_acb(self, _):
         rev = self.get_selected_key()
         self.show_busy()
@@ -266,8 +266,8 @@ CS_TABLE_TAG_UI_DESCR = \
 class HeadsTable(ChangeSetTable):
     def __init__(self, busy_indicator=None, size_req=None):
         ChangeSetTable.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
-        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR))
-        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR))
+        self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR)
+        self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR)
     def _fetch_contents(self):
         try:
             return ifce.SCM.get_heads_data()
@@ -314,17 +314,17 @@ class HistoryTable(SearchableChangeSetTable):
         self.view.set_search_equal_func(HistoryTable.search_equal_func)
         self._default_max = 8192
         self._current_max = self._default_max
-        self.add_conditional_actions(actions.Condns.IN_REPO,
+        self.action_groups[ws_actions.AC_IN_REPO].add_actions(
             [
                 ('cs_next_tranch', gtk.STOCK_GO_FORWARD, '', None,
                  _('Load the next tranche of change sets'), self._cs_next_tranche_acb),
                 ('cs_load_all', gtk.STOCK_GOTO_LAST, '', None,
                  _('Load all of the remaining change sets'), self._cs_load_all_acb),
             ])
-        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR))
-        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR))
-        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_TAG_UI_DESCR))
-        self._button_box = self.create_action_button_box(['cs_next_tranch', 'cs_load_all'],
+        self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR)
+        self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR)
+        self.ui_manager.add_ui_from_string(CS_TABLE_TAG_UI_DESCR)
+        self._button_box = self.action_groups.create_action_button_box(['cs_next_tranch', 'cs_load_all'],
                                                          expand=False)
         self.header.rhs.pack_start(gtk.VSeparator(), expand=True)
         self.header.rhs.pack_end(self._button_box, expand=False)
@@ -479,7 +479,12 @@ class TagsTable(ChangeSetTable):
                                 table_descr = TAGS_TABLE_DESCR,
                                 busy_indicator=busy_indicator,
                                 size_req=size_req)
-        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC + actions.Condns.UNIQUE_SELN,
+        self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR)
+        self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR)
+        self.ui_manager.add_ui_from_string(TAG_TABLE_UI_DESCR)
+    def populate_action_groups(self):
+        ChangeSetTable.populate_action_groups(self)
+        self.action_groups[ws_actions.AC_IN_REPO + ws_actions.AC_NOT_PMIC + actions.AC_SELN_UNIQUE].add_actions(
             [
                 ("cs_remove_selected_tag", icons.STOCK_REMOVE, _('Remove'), None,
                  _('Remove the selected tag from the repository'),
@@ -488,9 +493,6 @@ class TagsTable(ChangeSetTable):
                  _('Move the selected tag to another change set'),
                  self._move_tag_cs_acb),
             ])
-        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR))
-        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR))
-        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(TAG_TABLE_UI_DESCR))
     def _remove_tag_cs_acb(self, _action=None):
         tag = self.get_selected_key()
         local = self.get_selected_key_by_label(_('Scope'))
@@ -543,9 +545,9 @@ class BranchesTable(ChangeSetTable):
                                 table_descr = BRANCHES_TABLE_DESCR,
                                 busy_indicator=busy_indicator,
                                 size_req=size_req)
-        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR))
-        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR))
-        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(CS_TABLE_TAG_UI_DESCR))
+        self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR)
+        self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR)
+        self.ui_manager.add_ui_from_string(CS_TABLE_TAG_UI_DESCR)
     def _fetch_contents(self):
         try:
             return ifce.SCM.get_branches_data()
@@ -721,7 +723,7 @@ TAG_LIST_TABLE_DESCR = tlview.ViewTemplate(
     columns=[
         cs_table_column(TAG_LIST_MODEL_DESCR, _('Tag')),
     ]
-)   
+)
 
 BranchListRow = collections.namedtuple('BranchListRow', [_('Branch')])
 
@@ -852,21 +854,21 @@ class FileTreeView(file_tree.FileTreeView):
                                         auto_refresh=False, show_status=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.set_headers_visible(False)
-        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.SELN,
+        self.action_groups[ws_actions.AC_IN_REPO + actions.AC_SELN_MADE].add_actions(
             [
                 ("scm_diff_files_selection", icons.STOCK_DIFF, _('_Diff'), None,
                  _('Display the diff for selected file(s)'), self._diff_selected_files_acb),
                 ("scm_extdiff_files_selection", icons.STOCK_DIFF, _('E_xtdiff'), None,
                  _('Launch extdiff for selected file(s)'), self._extdiff_selected_files_acb),
             ])
-        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NO_SELN,
+        self.action_groups[ws_actions.AC_IN_REPO + actions.AC_SELN_NONE].add_actions(
             [
                 ("scm_diff_files_all", icons.STOCK_DIFF, _('_Diff'), None,
                  _('Display the diff for all changes'), self._diff_all_files_acb),
                 ("scm_extdiff_files_all", icons.STOCK_DIFF, _('E_xtdiff'), None,
                  _('Launch extdiff for all changes'), self._extdiff_all_files_acb),
             ])
-        self.set_visibility_for_condns(actions.Condns.DONT_CARE, False)
+        self.set_visibility_for_condns(actions.AC_DONT_CARE, False)
         if not ifce.SCM.get_extension_enabled("extdiff"):
             self.get_conditional_action("scm_extdiff_files_selection").set_visible(False)
             self.get_conditional_action("scm_extdiff_files_all").set_visible(False)
@@ -999,4 +1001,3 @@ class BackoutDialog(dialogue.ReadTextAndToggleDialog):
             dialogue.main_window.unshow_busy()
             dialogue.report_any_problems(result)
             self.destroy()
-

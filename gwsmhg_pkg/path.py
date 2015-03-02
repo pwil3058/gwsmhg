@@ -15,7 +15,7 @@
 
 import gtk, gobject, os, collections
 from gwsmhg_pkg import dialogue, gutils, cmd_result, change_set, icons
-from gwsmhg_pkg import file_tree, diff, ws_event, ifce, utils, actions, table
+from gwsmhg_pkg import file_tree, diff, ws_event, ifce, utils, actions, ws_actions, table
 from gwsmhg_pkg import tlview
 
 PathRow = collections.namedtuple('PathRow', [_('Alias'), _('Path')])
@@ -69,34 +69,38 @@ PATH_PRECIS_TABLE_DESCR = tlview.ViewTemplate(
     ]
 )
 
-PATH_TABLE_UI_DESCR = \
-'''
-<ui>
-  <popup name="table_popup">
-  	<menuitem action="remote_repo_mgmt"/>
-    <separator/>
-    <placeholder name="top">
-      <menuitem action="view_incoming_from_path"/>
-      <menuitem action="pull_from_path"/>
-    </placeholder>
-    <separator/>
-    <placeholder name="middle">
-      <menuitem action="view_outgoing_to_path"/>
-      <menuitem action="push_to_path"/>
-    </placeholder>
-    <separator/>
-    <placeholder name="bottom"/>
-  </popup>
-</ui>
-'''
-
 class PathTable(table.MapManagedTable):
+    UI_DESCR = \
+        '''
+        <ui>
+          <popup name="table_popup">
+            <menuitem action="remote_repo_mgmt"/>
+            <separator/>
+            <placeholder name="top">
+              <menuitem action="view_incoming_from_path"/>
+              <menuitem action="pull_from_path"/>
+            </placeholder>
+            <separator/>
+            <placeholder name="middle">
+              <menuitem action="view_outgoing_to_path"/>
+              <menuitem action="push_to_path"/>
+            </placeholder>
+            <separator/>
+            <placeholder name="bottom"/>
+          </popup>
+        </ui>
+        '''
     def __init__(self, busy_indicator=None):
         table.MapManagedTable.__init__(self, model_descr=PATH_PRECIS_MODEL_DESCR,
                                        table_descr=PATH_PRECIS_TABLE_DESCR,
                                        busy_indicator=busy_indicator,
                                        popup='/table_popup')
-        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.UNIQUE_SELN,
+        self.ui_manager.add_ui_from_string(change_set.CS_TABLE_REFRESH_UI_DESCR)
+        self.add_notification_cb(ws_event.REPO_HGRC, self.refresh_contents_if_mapped)
+        self.show_all()
+    def populate_action_groups(self):
+        table.MapManagedTable.populate_action_groups(self)
+        self.action_groups[ws_actions.AC_IN_REPO + actions.AC_SELN_UNIQUE].add_actions(
             [
                 ("remote_repo_mgmt", gtk.STOCK_EXECUTE, _('Manage'), None,
                  _('Open remote management for selected repository'),
@@ -111,16 +115,12 @@ class PathTable(table.MapManagedTable):
                  _('Pull all available change sets from the selected path'),
                  self._pull_from_acb),
             ])
-        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC + actions.Condns.UNIQUE_SELN,
+        self.action_groups[ws_actions.AC_IN_REPO + ws_actions.AC_NOT_PMIC + actions.AC_SELN_UNIQUE].add_actions(
             [
                 ("push_to_path", gtk.STOCK_EXECUTE, _('Push'), None,
                  _('Push all available change sets to the selected path'),
                  self._push_to_acb),
             ])
-        self.cwd_merge_id = [self.ui_manager.add_ui_from_string(PATH_TABLE_UI_DESCR)]
-        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(change_set.CS_TABLE_REFRESH_UI_DESCR))
-        self.add_notification_cb(ws_event.REPO_HGRC, self.refresh_contents_if_mapped)
-        self.show_all()
     def _fetch_contents(self):
         return ifce.SCM.get_path_table_data()
     def get_selected_path_alias(self):
@@ -212,12 +212,12 @@ class IncomingFileTreeView(file_tree.FileTreeView):
             auto_refresh=False, show_status=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.set_headers_visible(False)
-        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NO_SELN,
+        self.action_groups[ws_actions.AC_IN_REPO + actions.AC_SELN_NONE].add_actions(
             [
                 ("incoming_diff_files_all", icons.STOCK_DIFF, "_Diff", None,
                  _('Display the diff for all changes'), self._diff_all_files_acb),
             ])
-        self.set_visibility_for_condns(actions.Condns.DONT_CARE, False)
+        self.set_visibility_for_condns(actions.AC_DONT_CARE, False)
         self.scm_change_merge_id = self.ui_manager.add_ui_from_string(INCOMING_CS_FILES_UI_DESCR)
     def _diff_all_files_acb(self, _action=None):
         parent = dialogue.main_window
@@ -261,13 +261,13 @@ class IncomingTable(change_set.SearchableChangeSetTable):
         change_set.SearchableChangeSetTable.__init__(self, busy_indicator=busy_indicator,
                                                      size_req = (640, 120),
                                                      prefix = _('Incoming'), rev=False)
-        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.UNIQUE_SELN,
+        self.action_groups[ws_actions.AC_IN_REPO + actions.AC_SELN_UNIQUE].add_actions(
            [
                 ("cs_pull_to", gtk.STOCK_EXECUTE, _('Pull To'), None,
                  _('Pull up to the selected change set'), self._pull_to_cs_acb),
             ])
-        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(INCOMING_TABLE_UI_DESCR))
-        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(change_set.CS_TABLE_REFRESH_UI_DESCR))
+        self.ui_manager.add_ui_from_string(INCOMING_TABLE_UI_DESCR)
+        self.ui_manager.add_ui_from_string(change_set.CS_TABLE_REFRESH_UI_DESCR)
     def _fetch_rev(self, revarg):
         return ifce.SCM.get_incoming_rev(revarg)
     def _pull_to_cs_acb(self, _action):
@@ -311,13 +311,13 @@ class OutgoingTable(change_set.SearchableChangeSetTable):
         change_set.SearchableChangeSetTable.__init__(self, busy_indicator=busy_indicator,
                                                      size_req = (640, 120),
                                                      prefix = _('Outgoing'))
-        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC + actions.Condns.UNIQUE_SELN,
+        self.action_groups[ws_actions.AC_IN_REPO + ws_actions.AC_NOT_PMIC + actions.AC_SELN_UNIQUE].add_actions(
             [
                 ("cs_push_to", gtk.STOCK_EXECUTE, _('Push To'), None,
                  _('Push up to the selected change set'), self._push_to_cs_acb),
             ])
-        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(OUTGOING_TABLE_UI_DESCR))
-        self.cwd_merge_id.append(self.ui_manager.add_ui_from_string(change_set.CS_TABLE_REFRESH_UI_DESCR))
+        self.ui_manager.add_ui_from_string(OUTGOING_TABLE_UI_DESCR)
+        self.ui_manager.add_ui_from_string(change_set.CS_TABLE_REFRESH_UI_DESCR)
     def _fetch_rev(self, revarg):
         return ifce.SCM.get_outgoing_rev(revarg)
     def _push_to_cs_acb(self, _action):
@@ -459,44 +459,28 @@ class PullDialog(dialogue.Dialog):
         else:
             return None
 
-REMOTE_MGMT_UI_DESCR = \
-'''
-<ui>
-  <menubar name="remote_menubar">
-  </menubar>
-  <toolbar name="remote_toolbar">
-    <toolitem name="Refresh" action="path_refresh_remote"/>
-    <toolitem name="Push" action="path_remote_push"/>
-    <toolitem name="Pull" action="path_remote_pull"/>
-  </toolbar>
-</ui>
-'''
-
-class RemoteRepoManagementWidget(gtk.VBox, actions.AGandUIManager, dialogue.BusyIndicatorUser):
+class RemoteRepoManagementWidget(gtk.VBox, ws_actions.AGandUIManager, dialogue.BusyIndicatorUser):
+    UI_DESCR = \
+        '''
+        <ui>
+          <menubar name="remote_menubar">
+          </menubar>
+          <toolbar name="remote_toolbar">
+            <toolitem name="Refresh" action="path_refresh_remote"/>
+            <toolitem name="Push" action="path_remote_push"/>
+            <toolitem name="Pull" action="path_remote_pull"/>
+          </toolbar>
+        </ui>
+        '''
     def __init__(self, path, alias, busy_indicator=None):
         gtk.VBox.__init__(self)
-        actions.AGandUIManager.__init__(self)
+        ws_actions.AGandUIManager.__init__(self)
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
         self._path = path
         hbox = gtk.HBox()
         hbox.pack_start(gutils.LabelledText(label=_('Path:'), text=path, min_chars=52))
         hbox.pack_start(gutils.LabelledText(label=_('Alias:'), text=alias, min_chars=12))
         self.pack_start(hbox, expand=False)
-        self.ui_manager.add_ui_from_string(REMOTE_MGMT_UI_DESCR)
-        self.add_conditional_actions(actions.Condns.IN_REPO,
-            [
-                ("path_refresh_remote", gtk.STOCK_REFRESH, _('_Refresh'), None,
-                 _('Refresh remote repository date'), self._refresh_data_acb),
-                ("path_remote_pull", icons.STOCK_PULL, _('Pull'), "",
-                 _('Pull all available changes from  remote repository'),
-                 self._pull_repo_acb),
-            ])
-        self.add_conditional_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC,
-            [
-                ("path_remote_push", icons.STOCK_PUSH, _('Push'), '',
-                 _('Push all available changes to remote repository'),
-                 self._push_repo_acb),
-            ])
         self._tool_bar = self.ui_manager.get_widget("/remote_toolbar")
         self._tool_bar.set_style(gtk.TOOLBAR_BOTH)
         self.pack_start(self._tool_bar, expand=False)
@@ -506,6 +490,21 @@ class RemoteRepoManagementWidget(gtk.VBox, actions.AGandUIManager, dialogue.Busy
         vpane.add1(self._incoming)
         vpane.add2(self._outgoing)
         self.pack_start(vpane)
+    def populate_action_groups(self):
+        self.action_groups[ws_actions.AC_IN_REPO].add_actions(
+            [
+                ("path_refresh_remote", gtk.STOCK_REFRESH, _('_Refresh'), None,
+                 _('Refresh remote repository date'), self._refresh_data_acb),
+                ("path_remote_pull", icons.STOCK_PULL, _('Pull'), "",
+                 _('Pull all available changes from  remote repository'),
+                 self._pull_repo_acb),
+            ])
+        self.action_groups[ws_actions.AC_IN_REPO + ws_actions.AC_NOT_PMIC].add_actions(
+            [
+                ("path_remote_push", icons.STOCK_PUSH, _('Push'), '',
+                 _('Push all available changes to remote repository'),
+                 self._push_repo_acb),
+            ])
     def _refresh_data_acb(self, _action=None):
         self._incoming.refresh_contents()
         self._outgoing.refresh_contents()

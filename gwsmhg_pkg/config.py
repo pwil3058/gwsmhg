@@ -33,7 +33,7 @@ PATH_ALIAS_MODEL_DESCR = PARow(Alias=gobject.TYPE_STRING, Path=gobject.TYPE_STRI
 PATH_ALIAS_TABLE_DESCR = tlview.ViewTemplate(
     properties={
         'enable-grid-lines' : False,
-        'reorderable' : False, 
+        'reorderable' : False,
         'rules_hint' : False,
         'headers-visible' : True,
     },
@@ -157,12 +157,12 @@ class AliasPathTable(table.Table):
     def _handle_button_press_cb(self, widget, event):
         if event.type == gtk.gdk.BUTTON_PRESS:
             if event.button == 2:
-                self.seln.unselect_all()
+                self.view.get_selection().unselect_all()
                 return True
         return False
     def _key_press_cb(self, widget, event):
         if event.keyval == _KEYVAL_ESCAPE:
-            self.seln.unselect_all()
+            self.view.get_selection().unselect_all()
             return True
         return False
 
@@ -192,8 +192,8 @@ class PathSelectDialog(dialogue.Dialog):
         hbox.pack_start(self._browse_button, expand=False, fill=False)
         self.vbox.pack_start(hbox, expand=False, fill=False)
         self.show_all()
-        self.ap_table.seln.unselect_all()
-        self.ap_table.seln.connect("changed", self._selection_cb)
+        self.ap_table.view.get_selection().unselect_all()
+        self.ap_table.view.get_selection().connect("changed", self._selection_cb)
     def _selection_cb(self, _selection=None):
         alpth = self.ap_table.get_selected_ap()
         if alpth:
@@ -418,7 +418,7 @@ class EditorAllocationDialog(dialogue.Dialog):
                                  flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                                  buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE,
                                           gtk.STOCK_OK, gtk.RESPONSE_OK)
-                                )    
+                                )
         self._table = EditorAllocationTable(edeff=edeff)
         self._buttons = gutils.ActionHButtonBox(list(self._table.action_groups.values()))
         self.vbox.pack_start(self._table)
@@ -430,4 +430,3 @@ class EditorAllocationDialog(dialogue.Dialog):
         if response_id == gtk.RESPONSE_OK:
             self._table.apply_changes()
         self.destroy()
-

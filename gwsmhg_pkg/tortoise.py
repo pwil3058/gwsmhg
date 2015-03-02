@@ -14,7 +14,14 @@
 ### Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import gtk
-from gwsmhg_pkg import utils, dialogue, icons, ws_event, actions, cmd_result
+
+from gwsmhg_pkg import utils
+from gwsmhg_pkg import dialogue
+from gwsmhg_pkg import icons
+from gwsmhg_pkg import ws_event
+from gwsmhg_pkg import actions
+from gwsmhg_pkg import ws_actions
+from gwsmhg_pkg import cmd_result
 
 TORTOISE_HGTK_UI = \
 '''
@@ -75,7 +82,7 @@ def _tortoise_tool_bgnd_acb(action):
     if not utils.run_cmd_in_bgnd(cmd):
         dialogue.report_any_problems(cmd_result.Result(cmd_result.ERROR, '"%s" failed' % cmd, ''))
 
-actions.add_class_indep_actions(actions.Condns.DONT_CARE, [
+actions.CLASS_INDEP_AGS[actions.AC_DONT_CARE].add_actions( [
         ('gwsm_tortoise', None, _('_Tortoise Tools')),
         ('tortoise_recovery', icons.STOCK_RECOVERY, _('Recovery'), '',
          _('Launch tortoise "recovery" tool'), _tortoise_tool_modal_acb),
@@ -83,14 +90,14 @@ actions.add_class_indep_actions(actions.Condns.DONT_CARE, [
          _('Launch tortoise "userconfig" tool'), _tortoise_tool_bgnd_acb),
     ])
 
-actions.add_class_indep_actions(actions.Condns.NOT_IN_REPO, [
+actions.CLASS_INDEP_AGS[ws_actions.AC_NOT_IN_REPO].add_actions( [
         ('tortoise_clone', icons.STOCK_CLONE, _('Clone'), '',
          _('Launch tortoise "clone" tool'), _tortoise_tool_modal_acb),
         ('tortoise_init', icons.STOCK_INIT,_('Init'),'',
          _('Launch tortoise "init" tool'), _tortoise_tool_modal_acb),
     ])
 
-actions.add_class_indep_actions(actions.Condns.IN_REPO, [
+actions.CLASS_INDEP_AGS[ws_actions.AC_IN_REPO].add_actions( [
         ('tortoise_datamine', gtk.STOCK_EXECUTE, _('Datamine'), '',
          _('Launch tortoise "datamine" tool'), _tortoise_tool_bgnd_acb),
         ('tortoise_guess', icons.STOCK_GUESS, _('Guess'), '',
@@ -105,7 +112,7 @@ actions.add_class_indep_actions(actions.Condns.IN_REPO, [
          _('Launch tortoise "shelve" tool'), _tortoise_tool_modal_acb),
     ])
 
-actions.add_class_indep_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC, [
+actions.CLASS_INDEP_AGS[ws_actions.AC_IN_REPO + ws_actions.AC_NOT_PMIC].add_actions( [
         ('tortoise_commit', icons.STOCK_COMMIT, _('Commit'), '',
          _('Launch tortoise "commit" tool'), _tortoise_tool_modal_acb),
         ('tortoise_merge', icons.STOCK_MERGE, _('Merge'), '',
@@ -134,12 +141,12 @@ FILES_UI_DESCR = \
 FILE_MENU = gtk.Action("tortoise_files_menu", _('_Tortoise'), None, None)
 
 FILE_GROUP_PARTIAL_ACTIONS = {
-    actions.Condns.IN_REPO + actions.Condns.UNIQUE_SELN: \
+    ws_actions.AC_IN_REPO + actions.AC_SELN_UNIQUE: \
     [
         ('tortoise_rename', icons.STOCK_RENAME, _('Rename'), '',
          _('Launch tortoise "rename" tool')),
     ], \
-    actions.Condns.IN_REPO + actions.Condns.NOT_PMIC + actions.Condns.SELN: \
+    ws_actions.AC_IN_REPO + ws_actions.AC_NOT_PMIC + actions.AC_SELN_MADE: \
     [
         ('tortoise_commit', icons.STOCK_COMMIT, _('Commit'), '',
          _('Launch tortoise "commit" tool')),

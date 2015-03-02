@@ -14,7 +14,7 @@
 ### Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import os, gtk, sys
-from gwsmhg_pkg import dialogue, icons, ifce, actions, change_set, file_tree
+from gwsmhg_pkg import dialogue, icons, ifce, actions, ws_actions, change_set, file_tree
 from gwsmhg_pkg import path, cmd_result, diff, config, tortoise
 from gwsmhg_pkg import ws_event, patch_mgr, utils
 
@@ -65,7 +65,7 @@ GWSM_UI_DESCR = \
 </ui>
 '''
 
-class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
+class gwsm(gtk.Window, dialogue.BusyIndicator, ws_actions.AGandUIManager):
     def __init__(self, dir_specified):
         gtk.Window.__init__(self, gtk.WINDOW_TOPLEVEL)
         self.set_icon_from_file(icons.APP_ICON_FILE)
@@ -91,78 +91,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
                 sys.exit()
             open_dialog.show_busy()
         dialogue.init(self)
-        actions.AGandUIManager.__init__(self)
-        actions.add_class_indep_actions(actions.Condns.DONT_CARE,
-            [
-                ("gwsm_working_directory", None, _('_Working Directory')),
-                ("gwsm_configuration", None, _('_Configuration')),
-                ("gwsm_change_wd", gtk.STOCK_OPEN, _('_Open'), "",
-                 _('Change current working directory'), self._change_wd_acb),
-                ("gwsm_config_editors", gtk.STOCK_PREFERENCES, _('_Editor Allocation'), "",
-                 _('Allocate editors to file types'), self._config_editors_acb),
-                ("gwsm_quit", gtk.STOCK_QUIT, _('_Quit'), "",
-                 _('Quit'), self._quit),
-            ])
-        actions.add_class_indep_actions(actions.Condns.NOT_IN_REPO,
-            [
-                ("gwsm_init_wd", icons.STOCK_INIT, _('_Initialise'), "",
-                 _('Initialise the current working directory'), self._init_wd_acb),
-                ("gwsm_clone_repo_in_wd", icons.STOCK_CLONE, _('_Clone'), "",
-                 _('Clone a repository cd into the resultant working directory'),
-                 self._clone_repo_acb),
-            ])
-        actions.add_class_indep_actions(actions.Condns.IN_REPO,
-            [
-                ('gwsm_repo_menu', None, _('_Repository')),
-                ("gwsm_diff_ws", icons.STOCK_DIFF, _('Diff'), "",
-                 _('View diff(s) for the current working directory'),
-                 self._diff_ws_acb),
-                ("gwsm_pull_repo", icons.STOCK_PULL, _('Pull'), "",
-                 _('Pull all available changes from the default path'),
-                 self._pull_repo_acb),
-                ("gwsm_verify_repo", icons.STOCK_VERIFY, _('Verify'), "",
-                 _('Verify the integrity of the repository'),
-                 self._verify_repo_acb),
-                ('gwsm_edit_repo_config', icons.STOCK_EDIT, _('Edit _Configuration'), '',
-                 _('Edit the repository configuration file'),
-                 self._edit_repo_config_acb),
-                ("gwsm_refresh_ws", icons.STOCK_SYNCH, _('Refresh'), "",
-                 _('Refresh the displayed data. Useful after external actions change workspace/repository state.'),
-                 self._refresh_displayed_data_acb),
-            ])
-        actions.add_class_indep_actions(actions.Condns.IN_REPO + actions.Condns.NOT_PMIC,
-            [
-                ("gwsm_revert_ws", icons.STOCK_REVERT, _('Revert'), "",
-                 _('Revert all changes in the current working directory'),
-                 self._revert_ws_acb),
-                ("gwsm_commit_ws", icons.STOCK_COMMIT, _('Commit'), "",
-                 _('Commit all changes in the current working directory'),
-                 self._commit_ws_acb),
-                ("gwsm_tag_ws", icons.STOCK_TAG, _('Tag'), "",
-                 _('Tag the parent of the current working directory'),
-                 self._tag_ws_acb),
-                ("gwsm_branch_ws", icons.STOCK_BRANCH, _('Branch'), "",
-                 _('Set the branch for the current working directory'),
-                 self._branch_ws_acb),
-                ('gwsm_merge_ws', icons.STOCK_MERGE, _('Merge'), '',
-                 _('Merge the current working directory with default alternative head'),
-                 self._merge_ws_acb),
-                ('gwsm_resolve_ws', icons.STOCK_RESOLVE, None, '',
-                 _('Resolve any unresolve merge conflicts in the current working directory'),
-                 self._resolve_ws_acb),
-                ("gwsm_checkout_ws", icons.STOCK_CHECKOUT, _('Checkout'), "",
-                 _('Check out a different revision in the current working directory'),
-                 self._checkout_ws_acb),
-                ("gwsm_update_ws", icons.STOCK_UPDATE, _('Update'), "",
-                 _('Update the current working directory to the tip of the current branch'),
-                 self._update_ws_acb),
-                ("gwsm_push_repo", icons.STOCK_PUSH, _('Push'), "",
-                 _('Push all available changes to the default path'),
-                 self._push_repo_acb),
-                ("gwsm_rollback_repo", icons.STOCK_ROLLBACK, _('Rollback'), "",
-                 _('Roll back the last transaction'),
-                 self._rollback_repo_acb),
-            ])
+        ws_actions.AGandUIManager.__init__(self)
         self.ui_manager.add_ui_from_string(GWSM_UI_DESCR)
         if tortoise.IS_AVAILABLE:
             self.ui_manager.add_ui_from_string(tortoise.TORTOISE_HGTK_UI)
@@ -211,11 +140,83 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, actions.AGandUIManager):
         self.add(vbox)
         self.show_all()
         self._update_title()
-        self._parent_table.seln.unselect_all()
+        self._parent_table.view.get_selection().unselect_all()
         self.add_notification_cb(ws_event.CHANGE_WD, self._reset_after_cd)
         if open_dialog:
             open_dialog.unshow_busy()
             open_dialog.destroy()
+    def populate_action_groups(self):
+        actions.CLASS_INDEP_AGS[actions.AC_DONT_CARE].add_actions(
+            [
+                ("gwsm_working_directory", None, _('_Working Directory')),
+                ("gwsm_configuration", None, _('_Configuration')),
+                ("gwsm_change_wd", gtk.STOCK_OPEN, _('_Open'), "",
+                 _('Change current working directory'), self._change_wd_acb),
+                ("gwsm_config_editors", gtk.STOCK_PREFERENCES, _('_Editor Allocation'), "",
+                 _('Allocate editors to file types'), self._config_editors_acb),
+                ("gwsm_quit", gtk.STOCK_QUIT, _('_Quit'), "",
+                 _('Quit'), self._quit),
+            ])
+        actions.CLASS_INDEP_AGS[ws_actions.AC_NOT_IN_REPO].add_actions(
+            [
+                ("gwsm_init_wd", icons.STOCK_INIT, _('_Initialise'), "",
+                 _('Initialise the current working directory'), self._init_wd_acb),
+                ("gwsm_clone_repo_in_wd", icons.STOCK_CLONE, _('_Clone'), "",
+                 _('Clone a repository cd into the resultant working directory'),
+                 self._clone_repo_acb),
+            ])
+        actions.CLASS_INDEP_AGS[ws_actions.AC_IN_REPO].add_actions(
+            [
+                ('gwsm_repo_menu', None, _('_Repository')),
+                ("gwsm_diff_ws", icons.STOCK_DIFF, _('Diff'), "",
+                 _('View diff(s) for the current working directory'),
+                 self._diff_ws_acb),
+                ("gwsm_pull_repo", icons.STOCK_PULL, _('Pull'), "",
+                 _('Pull all available changes from the default path'),
+                 self._pull_repo_acb),
+                ("gwsm_verify_repo", icons.STOCK_VERIFY, _('Verify'), "",
+                 _('Verify the integrity of the repository'),
+                 self._verify_repo_acb),
+                ('gwsm_edit_repo_config', icons.STOCK_EDIT, _('Edit _Configuration'), '',
+                 _('Edit the repository configuration file'),
+                 self._edit_repo_config_acb),
+                ("gwsm_refresh_ws", icons.STOCK_SYNCH, _('Refresh'), "",
+                 _('Refresh the displayed data. Useful after external actions change workspace/repository state.'),
+                 self._refresh_displayed_data_acb),
+            ])
+        actions.CLASS_INDEP_AGS[ws_actions.AC_IN_REPO + ws_actions.AC_NOT_PMIC].add_actions(
+            [
+                ("gwsm_revert_ws", icons.STOCK_REVERT, _('Revert'), "",
+                 _('Revert all changes in the current working directory'),
+                 self._revert_ws_acb),
+                ("gwsm_commit_ws", icons.STOCK_COMMIT, _('Commit'), "",
+                 _('Commit all changes in the current working directory'),
+                 self._commit_ws_acb),
+                ("gwsm_tag_ws", icons.STOCK_TAG, _('Tag'), "",
+                 _('Tag the parent of the current working directory'),
+                 self._tag_ws_acb),
+                ("gwsm_branch_ws", icons.STOCK_BRANCH, _('Branch'), "",
+                 _('Set the branch for the current working directory'),
+                 self._branch_ws_acb),
+                ('gwsm_merge_ws', icons.STOCK_MERGE, _('Merge'), '',
+                 _('Merge the current working directory with default alternative head'),
+                 self._merge_ws_acb),
+                ('gwsm_resolve_ws', icons.STOCK_RESOLVE, None, '',
+                 _('Resolve any unresolve merge conflicts in the current working directory'),
+                 self._resolve_ws_acb),
+                ("gwsm_checkout_ws", icons.STOCK_CHECKOUT, _('Checkout'), "",
+                 _('Check out a different revision in the current working directory'),
+                 self._checkout_ws_acb),
+                ("gwsm_update_ws", icons.STOCK_UPDATE, _('Update'), "",
+                 _('Update the current working directory to the tip of the current branch'),
+                 self._update_ws_acb),
+                ("gwsm_push_repo", icons.STOCK_PUSH, _('Push'), "",
+                 _('Push all available changes to the default path'),
+                 self._push_repo_acb),
+                ("gwsm_rollback_repo", icons.STOCK_ROLLBACK, _('Rollback'), "",
+                 _('Roll back the last transaction'),
+                 self._rollback_repo_acb),
+            ])
     def _quit(self, _widget):
         gtk.main_quit()
     def _update_title(self):
