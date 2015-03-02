@@ -13,83 +13,217 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-import os, os.path, gtk, gobject, collections
+import gtk
+import gobject
+import collections
+import os
+import os.path
+
+from gwsmhg_pkg import utils
+from gwsmhg_pkg import cmd_result
+from gwsmhg_pkg import fsdb
+
+from gwsmhg_pkg import tlview
+from gwsmhg_pkg import gutils
+from gwsmhg_pkg import ifce
+from gwsmhg_pkg import actions
+from gwsmhg_pkg import ws_actions
+from gwsmhg_pkg import dialogue
+from gwsmhg_pkg import ws_event
+from gwsmhg_pkg import icons
+from gwsmhg_pkg import text_edit
+from gwsmhg_pkg import diff
+from gwsmhg_pkg import tortoise
 
 from gwsmhg_pkg import patchlib
+from gwsmhg_pkg import hg_mq_ifce
 
-from gwsmhg_pkg import ifce, utils, text_edit, cmd_result, diff, gutils
-from gwsmhg_pkg import tortoise, icons, ws_event, dialogue
-from gwsmhg_pkg import tlview
-from gwsmhg_pkg import actions, ws_actions, fsdb, hg_mq_ifce
-
-class FileTreeModel(tlview.NamedTreeStore):
-    Row = collections.namedtuple('Row', ['name', 'is_dir', 'style', 'foreground', 'icon', 'status', 'related_file'])
-    types = Row(
-        name=gobject.TYPE_STRING,
-        is_dir=gobject.TYPE_BOOLEAN,
-        style=gobject.TYPE_INT,
-        foreground=gobject.TYPE_STRING,
-        icon=gobject.TYPE_STRING,
-        status=gobject.TYPE_STRING,
-        related_file=gobject.TYPE_STRING
+class Tree(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialogue.BusyIndicatorUser):
+    class Model(tlview.TreeView.Model):
+        Row = collections.namedtuple('Row', ['name', 'is_dir', 'style', 'foreground', 'icon', 'status', 'related_file_str'])
+        types = Row(
+            name=gobject.TYPE_STRING,
+            is_dir=gobject.TYPE_BOOLEAN,
+            style=gobject.TYPE_INT,
+            foreground=gobject.TYPE_STRING,
+            icon=gobject.TYPE_STRING,
+            status=gobject.TYPE_STRING,
+            related_file_str=gobject.TYPE_STRING
+        )
+        def insert_place_holder(self, dir_iter):
+            self.append(dir_iter)
+        def insert_place_holder_if_needed(self, dir_iter):
+            if self.iter_n_children(dir_iter) == 0:
+                self.insert_place_holder(dir_iter)
+        def recursive_remove(self, fsobj_iter):
+            child_iter = self.iter_children(fsobj_iter)
+            if child_iter != None:
+                while self.recursive_remove(child_iter):
+                    pass
+            return self.remove(fsobj_iter)
+        def remove_place_holder(self, dir_iter):
+            child_iter = self.iter_children(dir_iter)
+            if child_iter and self.get_value_named(child_iter, "name") is None:
+                self.remove(child_iter)
+        def fs_path(self, fsobj_iter):
+            if fsobj_iter is None:
+                return None
+            parent_iter = self.iter_parent(fsobj_iter)
+            name = self.get_value_named(fsobj_iter, "name")
+            if parent_iter is None:
+                return name
+            else:
+                if name is None:
+                    return os.path.join(self.fs_path(parent_iter), '')
+                return os.path.join(self.fs_path(parent_iter), name)
+        def on_row_expanded_cb(self, view, dir_iter, _dummy):
+            if not view._populate_all:
+                view._update_dir(self.fs_path(dir_iter), dir_iter)
+                if self.iter_n_children(dir_iter) > 1:
+                    self.remove_place_holder(dir_iter)
+        def on_row_collapsed_cb(self, _view, dir_iter, _dummy):
+            self.insert_place_holder_if_needed(dir_iter)
+        def update_iter_row_tuple(self, fsobj_iter, to_tuple):
+            for label in ["style", "foreground", "status", "related_file_str", "icon"]:
+                self.set_value_named(fsobj_iter, label, getattr(to_tuple, label))
+    # This is not a method but a function within the Tree namespace
+    def _format_file_name_crcb(_column, cell_renderer, store, tree_iter, _arg=None):
+        name = store.get_value_named(tree_iter, "name")
+        if name is None:
+            cell_renderer.set_property("text", _("<empty>"))
+            return
+        name += store.get_value_named(tree_iter, "related_file_str")
+        cell_renderer.set_property("text", name)
+    specification = tlview.ViewSpec(
+        properties={"headers-visible" : False},
+        selection_mode=gtk.SELECTION_MULTIPLE,
+        columns=[
+            tlview.ColumnSpec(
+                title=_("File Name"),
+                properties={},
+                cells=[
+                    tlview.CellSpec(
+                        cell_renderer_spec=tlview.CellRendererSpec(
+                            cell_renderer=gtk.CellRendererPixbuf,
+                            expand=False,
+                            start=True
+                        ),
+                        properties={},
+                        cell_data_function_spec=None,
+                        attributes={"stock-id" : Model.col_index("icon")}
+                    ),
+                    tlview.CellSpec(
+                        cell_renderer_spec=tlview.CellRendererSpec(
+                            cell_renderer=gtk.CellRendererText,
+                            expand=False,
+                            start=True
+                        ),
+                        properties={},
+                        cell_data_function_spec=None,
+                        attributes={"text" : Model.col_index("status"), "style" : Model.col_index("style"), "foreground" : Model.col_index("foreground")}
+                    ),
+                    tlview.CellSpec(
+                        cell_renderer_spec=tlview.CellRendererSpec(
+                            cell_renderer=gtk.CellRendererText,
+                            expand=False,
+                            start=True
+                        ),
+                        properties={},
+                        cell_data_function_spec=tlview.CellDataFunctionSpec(function=_format_file_name_crcb, user_data=None),
+                        attributes={"style" : Model.col_index("style"), "foreground" : Model.col_index("foreground")}
+                    )
+                ]
+            )
+        ]
     )
-
-_NAME = FileTreeModel.col_index('name')
-_IS_DIR = FileTreeModel.col_index('is_dir')
-_STYLE = FileTreeModel.col_index('style')
-_FOREGROUND = FileTreeModel.col_index('foreground')
-_ICON = FileTreeModel.col_index('icon')
-_STATUS = FileTreeModel.col_index('status')
-_ORIGIN = FileTreeModel.col_index('related_file')
-
-_FILE_ICON = {True : gtk.STOCK_DIRECTORY, False : gtk.STOCK_FILE}
-
-def _get_status_deco(status=None):
-    try:
-        return ifce.SCM.status_deco_map[status]
-    except:
-        return ifce.SCM.status_deco_map[None]
-
-def _generate_row_tuple(data, isdir=None):
-    deco = _get_status_deco(data.status)
-    row = FileTreeModel.Row(
-        name=data.name,
-        is_dir=isdir,
-        icon=_FILE_ICON[isdir],
-        status=data.status,
-        related_file=data.related_file,
-        style=deco.style,
-        foreground=deco.foreground
-    )
-    return row
-
-class FileTreeStore(FileTreeModel):
-    def __init__(self):
-        FileTreeModel.__init__(self)
+    KEYVAL_c = gtk.gdk.keyval_from_name('c')
+    KEYVAL_C = gtk.gdk.keyval_from_name('C')
+    KEYVAL_ESCAPE = gtk.gdk.keyval_from_name('Escape')
+    AUTO_EXPAND = False
+    @staticmethod
+    def _get_related_file_str(data):
+        if data.related_file:
+            if isinstance(data.related_file, str):
+                return " <- " + data.related_file
+            else:
+                return " {0} {1}".format(data.related_file.relation, data.related_file.path)
+        return ""
+    @staticmethod
+    def _handle_button_press_cb(widget, event):
+        if event.type == gtk.gdk.BUTTON_PRESS:
+            if event.button == 3:
+                menu = self.ui_manager.get_widget('/files_popup')
+                menu.popup(None, None, None, event.button, event.time)
+                return True
+            elif event.button == 2:
+                widget.get_selection().unselect_all()
+                return True
+        return False
+    @staticmethod
+    def _handle_key_press_cb(widget, event):
+        if event.state & gtk.gdk.CONTROL_MASK:
+            if event.keyval in [Tree.KEYVAL_c, Tree.KEYVAL_C]:
+                widget.add_selected_files_to_clipboard()
+                return True
+        elif event.keyval == Tree.KEYVAL_ESCAPE:
+            widget.get_selection().unselect_all()
+            return True
+        return False
+    @staticmethod
+    def search_equal_func(model, column, key, model_iter, _data=None):
+        text = model.fs_path(model_iter)
+        return text.find(key) == -1
+    _FILE_ICON = {True : gtk.STOCK_DIRECTORY, False : gtk.STOCK_FILE}
+    @classmethod
+    def _get_status_deco(cls, status=None):
+        try:
+            return ifce.SCM.status_deco_map[status]
+        except:
+            return ifce.SCM.status_deco_map[None]
+    @classmethod
+    def _generate_row_tuple(cls, data, isdir):
+        deco = cls._get_status_deco(data.status)
+        row = cls.Model.Row(
+            name=data.name,
+            is_dir=isdir,
+            icon=cls._FILE_ICON[isdir],
+            status=data.status,
+            related_file_str=cls._get_related_file_str(data),
+            style=deco.style,
+            foreground=deco.foreground
+        )
+        return row
+    def __init__(self, show_hidden=False, busy_indicator=None, model=None, show_status=True):
+        dialogue.BusyIndicatorUser.__init__(self, busy_indicator=busy_indicator)
         self._file_db = None
-        # If 'view' this isn't set explicitly it will be set automatically
-        # when any row is expanded
-        self.view = None
-        self._populate_all = False
-        self._auto_expand = False
+        ws_event.Listener.__init__(self)
         self.show_hidden_action = gtk.ToggleAction('show_hidden_files', _('Show Hidden Files'),
                                                    _('Show/hide ignored files and those beginning with "."'), None)
-        self.show_hidden_action.set_active(False)
+        self.show_hidden_action.set_active(show_hidden)
         self.show_hidden_action.connect('toggled', self._toggle_show_hidden_cb)
         self.show_hidden_action.set_menu_item_type(gtk.CheckMenuItem)
         self.show_hidden_action.set_tool_item_type(gtk.ToggleToolButton)
+        tlview.TreeView.__init__(self, model=model)
+        if not show_status:
+            pass # TODO: hide the status column
+        self.set_search_equal_func(self.search_equal_func)
+        ws_actions.AGandUIManager.__init__(self, selection=self.get_selection(), popup='/files_popup')
+        self.connect("row-expanded", self.model.on_row_expanded_cb)
+        self.connect("row-collapsed", self.model.on_row_collapsed_cb)
+        self.connect("button_press_event", self._handle_button_press_cb)
+        self.connect("key_press_event", self._handle_key_press_cb)
+        self.get_selection().set_select_function(self._dirs_not_selectable, full=True)
+        self.repopulate()
+    def populate_action_groups(self):
+        self.action_groups[actions.AC_DONT_CARE].add_action(self.show_hidden_action)
+        self.action_groups[actions.AC_DONT_CARE].add_actions(
+            [
+                ('refresh_files', gtk.STOCK_REFRESH, _('_Refresh Files'), None,
+                 _('Refresh/update the file tree display'), self.update),
+            ])
     @property
-    def populate_all(self):
-        return self._populate_all
-    @populate_all.setter
-    def populate_all(self, new_value):
-        self._populate_all = new_value
-    @property
-    def auto_expand(self):
-        return self._auto_expand
-    @auto_expand.setter
-    def auto_expand(self, new_value):
-        self._auto_expand = new_value
+    def _populate_all(self):
+        return self.AUTO_EXPAND
     @property
     def show_hidden(self):
         return self.show_hidden_action.get_active()
@@ -97,246 +231,160 @@ class FileTreeStore(FileTreeModel):
     def show_hidden(self, new_value):
         self.show_hidden_action.set_active(new_value)
         self._update_dir('', None)
-    def set_view(self, view):
-        self.view = view
-        if self._expand_new_rows():
-            self.view.expand_all()
-    def _expand_new_rows(self):
-        return self._auto_expand and self.view is not None
-    def _row_expanded(self, dir_iter):
-        # if view isn't set then assume that we aren't connexted to a view
-        # so the row can't be expanded
-        if self.view is None:
-            return False
-        else:
-            return self.view.row_expanded(self.get_path(dir_iter))
-    def _update_iter_row_tuple(self, fsobj_iter, to_tuple):
-        for index in [_STYLE, _FOREGROUND, _STATUS, _ORIGIN]:
-            self.set_value(fsobj_iter, index, to_tuple[index])
+    def _dirs_not_selectable(self, selection, model, path, is_selected, _arg=None):
+        if not is_selected:
+            return not model.get_value_named(model.get_iter(path), 'is_dir')
+        return True
     def _toggle_show_hidden_cb(self, toggleaction):
+        self.show_busy()
         self._update_dir('', None)
-    def fs_path(self, fsobj_iter):
-        if fsobj_iter is None:
-            return None
-        parent_iter = self.iter_parent(fsobj_iter)
-        name = self.get_value(fsobj_iter, _NAME)
-        if parent_iter is None:
-            return name
-        else:
-            if name is None:
-                return os.path.join(self.fs_path(parent_iter), '')
-            return os.path.join(self.fs_path(parent_iter), name)
-    def fs_path_list(self, iter_list):
-        return [self.fs_path(fsobj_iter) for fsobj_iter in iter_list]
-    def _get_file_paths(self, fsobj_iter, path_list):
-        while fsobj_iter != None:
-            if not self.get_value(fsobj_iter, _IS_DIR):
-                path_list.append(self.fs_path(fsobj_iter))
-            else:
-                child_iter = self.iter_children(fsobj_iter)
-                if child_iter != None:
-                    self._get_file_paths(child_iter, path_list)
-            fsobj_iter = self.iter_next(fsobj_iter)
-    def get_file_paths(self):
-        path_list = []
-        self._get_file_paths(self.get_iter_first(), path_list)
-        return path_list
-    def _recursive_remove(self, fsobj_iter):
-        child_iter = self.iter_children(fsobj_iter)
-        if child_iter != None:
-            while self._recursive_remove(child_iter):
-                pass
-        return self.remove(fsobj_iter)
-    def _remove_place_holder(self, dir_iter):
-        child_iter = self.iter_children(dir_iter)
-        if child_iter and self.get_value(child_iter, _NAME) is None:
-            self.remove(child_iter)
-    def _insert_place_holder(self, dir_iter):
-        self.append(dir_iter)
-    def _insert_place_holder_if_needed(self, dir_iter):
-        if self.iter_n_children(dir_iter) == 0:
-            self._insert_place_holder(dir_iter)
+        self.unshow_busy()
     def _get_dir_contents(self, dirpath):
-        if self._file_db is None:
-            return ((), ())
         return self._file_db.dir_contents(dirpath, self.show_hidden_action.get_active())
+    def _row_expanded(self, dir_iter):
+        return self.row_expanded(self.model.get_path(dir_iter))
     def _populate(self, dirpath, parent_iter):
         dirs, files = self._get_dir_contents(dirpath)
         for dirdata in dirs:
-            row_tuple = _generate_row_tuple(dirdata, True)
-            dir_iter = self.append(parent_iter, row_tuple)
+            row_tuple = self._generate_row_tuple(dirdata, True)
+            dir_iter = self.model.append(parent_iter, row_tuple)
             if self._populate_all:
                 self._populate(os.path.join(dirpath, dirdata.name), dir_iter)
-                if self._expand_new_rows():
-                    self.view.expand_row(self.get_path(dir_iter), True)
+                if self.AUTO_EXPAND:
+                    self.expand_row(self.model.get_path(dir_iter), True)
             else:
-                self._insert_place_holder(dir_iter)
+                self.model.insert_place_holder(dir_iter)
         for filedata in files:
-            row_tuple = _generate_row_tuple(filedata, False)
-            dummy = self.append(parent_iter, row_tuple)
+            row_tuple = self._generate_row_tuple(filedata, False)
+            dummy = self.model.append(parent_iter, row_tuple)
         if parent_iter is not None:
-            self._insert_place_holder_if_needed(parent_iter)
+            self.model.insert_place_holder_if_needed(parent_iter)
+    def get_iter_for_filepath(self, filepath):
+        pathparts = fsdb.split_path(filepath)
+        child_iter = self.model.get_iter_first()
+        for index in range(len(pathparts) - 1):
+            while child_iter is not None:
+                if self.model.get_value_named(child_iter, 'name') == pathparts[index]:
+                    tpath = self.model.get_path(child_iter)
+                    if not self.row_expanded(tpath):
+                        self.expand_row(tpath, False)
+                    child_iter = self.model.iter_children(child_iter)
+                    break
+                child_iter = self.model.iter_next(child_iter)
+        while child_iter is not None:
+            if self.model.get_value_named(child_iter, 'name') == pathparts[-1]:
+                return child_iter
+            child_iter = self.model.iter_next(child_iter)
+        return None
+    def select_filepaths(self, filepaths):
+        seln = self.get_selection()
+        seln.unselect_all()
+        for filepath in filepaths:
+            seln.select_iter(self.get_iter_for_filepath(filepath))
     def _update_dir(self, dirpath, parent_iter=None):
+        changed = False
         if parent_iter is None:
-            child_iter = self.get_iter_first()
+            child_iter = self.model.get_iter_first()
         else:
-            child_iter = self.iter_children(parent_iter)
+            child_iter = self.model.iter_children(parent_iter)
             if child_iter:
-                if self.get_value(child_iter, _NAME) is None:
-                    child_iter = self.iter_next(child_iter)
+                if self.model.get_value_named(child_iter, "name") is None:
+                    child_iter = self.model.iter_next(child_iter)
         dirs, files = self._get_dir_contents(dirpath)
         dead_entries = []
         for dirdata in dirs:
-            row_tuple = _generate_row_tuple(dirdata, True)
-            while (child_iter is not None) and self.get_value(child_iter, _IS_DIR) and (self.get_value(child_iter, _NAME) < dirdata.name):
+            row_tuple = self._generate_row_tuple(dirdata, True)
+            while (child_iter is not None) and self.model.get_value_named(child_iter, 'is_dir') and (self.model.get_value_named(child_iter, 'name') < dirdata.name):
                 dead_entries.append(child_iter)
-                child_iter = self.iter_next(child_iter)
+                child_iter = self.model.iter_next(child_iter)
             if child_iter is None:
-                dir_iter = self.append(parent_iter, row_tuple)
+                dir_iter = self.model.append(parent_iter, row_tuple)
+                changed = True
                 if self._populate_all:
                     self._update_dir(os.path.join(dirpath, dirdata.name), dir_iter)
-                    if self._expand_new_rows():
-                        self.view.expand_row(self.get_path(dir_iter), True)
+                    if self.AUTO_EXPAND:
+                        self.expand_row(self.model.get_path(dir_iter), True)
                 else:
-                    self._insert_place_holder(dir_iter)
+                    self.model.insert_place_holder(dir_iter)
                 continue
-            name = self.get_value(child_iter, _NAME)
-            if (not self.get_value(child_iter, _IS_DIR)) or (name > dirdata.name):
-                dir_iter = self.insert_before(parent_iter, child_iter, row_tuple)
+            name = self.model.get_value_named(child_iter, "name")
+            if (not self.model.get_value_named(child_iter, "is_dir")) or (name > dirdata.name):
+                dir_iter = self.model.insert_before(parent_iter, child_iter, row_tuple)
+                changed = True
                 if self._populate_all:
                     self._update_dir(os.path.join(dirpath, dirdata.name), dir_iter)
-                    if self._expand_new_rows():
-                        self.view.expand_row(self.get_path(dir_iter), True)
+                    if self.AUTO_EXPAND:
+                        self.expand_row(self.model.get_path(dir_iter), True)
                 else:
-                    self._insert_place_holder(dir_iter)
+                    self.model.insert_place_holder(dir_iter)
                 continue
-            self._update_iter_row_tuple(child_iter, row_tuple)
+            changed |= self.model.get_value_named(child_iter, "icon") != row_tuple.icon
+            self.model.update_iter_row_tuple(child_iter, row_tuple)
             if self._populate_all or self._row_expanded(child_iter):
-                self._update_dir(os.path.join(dirpath, name), child_iter)
-            child_iter = self.iter_next(child_iter)
-        while (child_iter is not None) and self.get_value(child_iter, _IS_DIR):
+                changed |= self._update_dir(os.path.join(dirpath, name), child_iter)
+            child_iter = self.model.iter_next(child_iter)
+        while (child_iter is not None) and self.model.get_value_named(child_iter, 'is_dir'):
             dead_entries.append(child_iter)
-            child_iter = self.iter_next(child_iter)
+            child_iter = self.model.iter_next(child_iter)
         for filedata in files:
-            row_tuple = _generate_row_tuple(filedata, False)
-            while (child_iter is not None) and (self.get_value(child_iter, _NAME) < filedata.name):
+            row_tuple = self._generate_row_tuple(filedata, False)
+            while (child_iter is not None) and (self.model.get_value_named(child_iter, 'name') < filedata.name):
                 dead_entries.append(child_iter)
-                child_iter = self.iter_next(child_iter)
+                child_iter = self.model.iter_next(child_iter)
             if child_iter is None:
-                dummy = self.append(parent_iter, row_tuple)
+                dummy = self.model.append(parent_iter, row_tuple)
+                changed = True
                 continue
-            if self.get_value(child_iter, _NAME) > filedata.name:
-                dummy = self.insert_before(parent_iter, child_iter, row_tuple)
+            if self.model.get_value_named(child_iter, "name") > filedata.name:
+                dummy = self.model.insert_before(parent_iter, child_iter, row_tuple)
+                changed = True
                 continue
-            self._update_iter_row_tuple(child_iter, row_tuple)
-            child_iter = self.iter_next(child_iter)
+            changed |= self.model.get_value_named(child_iter, "icon") != row_tuple.icon
+            self.model.update_iter_row_tuple(child_iter, row_tuple)
+            child_iter = self.model.iter_next(child_iter)
         while child_iter is not None:
             dead_entries.append(child_iter)
-            child_iter = self.iter_next(child_iter)
+            child_iter = self.model.iter_next(child_iter)
+        changed |= len(dead_entries) > 0
         for dead_entry in dead_entries:
-            self._recursive_remove(dead_entry)
+            self.model.recursive_remove(dead_entry)
         if parent_iter is not None:
-            self._insert_place_holder_if_needed(parent_iter)
+            self.model.insert_place_holder_if_needed(parent_iter)
+        return changed
     def _get_file_db(self):
-        assert 0, _('_get_file_db() must be defined in descendants')
-    def repopulate(self):
+        assert False, '_get_file_db() must be defined in descendants'
+    def repopulate(self, _arg=None):
+        self.show_busy()
         self._file_db = self._get_file_db()
-        self.clear()
-        self._populate('', self.get_iter_first())
-    def update(self):
+        self.model.clear()
+        self._populate('', self.model.get_iter_first())
+        self.unshow_busy()
+    def update(self, _arg=None):
+        self.show_busy()
         self._file_db = self._get_file_db()
         self._update_dir('', None)
-    def on_row_expanded_cb(self, view, dir_iter, dummy):
-        self.view = view
-        if not self._populate_all:
-            self._update_dir(self.fs_path(dir_iter), dir_iter)
-            if self.iter_n_children(dir_iter) > 1:
-                self._remove_place_holder(dir_iter)
-    def on_row_collapsed_cb(self, view, dir_iter, dummy):
-        self._insert_place_holder_if_needed(dir_iter)
-
-def _format_file_name_crcb(_column, cell_renderer, store, tree_iter, _arg=None):
-    name = store.get_value(tree_iter, _NAME)
-    xinfo = store.get_value(tree_iter, _ORIGIN)
-    if xinfo:
-        name += ' <- %s' % xinfo
-    cell_renderer.set_property('text', name)
-
-_VIEW_TEMPLATE = tlview.ViewSpec(
-    properties={'headers-visible' : False},
-    selection_mode=gtk.SELECTION_MULTIPLE,
-    columns=[
-        tlview.ColumnSpec(
-            title=_('File Name'),
-            properties={},
-            cells=[
-                tlview.CellSpec(
-                    cell_renderer_spec=tlview.CellRendererSpec(
-                        cell_renderer=gtk.CellRendererPixbuf,
-                        expand=False,
-                        start=True
-                    ),
-                    properties={},
-                    cell_data_function_spec=None,
-                    attributes={'stock-id' : _ICON}
-                ),
-                tlview.CellSpec(
-                    cell_renderer_spec=tlview.CellRendererSpec(
-                        cell_renderer=gtk.CellRendererText,
-                        expand=False,
-                        start=True
-                    ),
-                    properties={},
-                    cell_data_function_spec=None,
-                    attributes={'text' : _STATUS, 'style' : _STYLE, 'foreground' : _FOREGROUND}
-                ),
-                tlview.CellSpec(
-                    cell_renderer_spec=tlview.CellRendererSpec(
-                        cell_renderer=gtk.CellRendererText,
-                        expand=False,
-                        start=True
-                    ),
-                    properties={},
-                    cell_data_function_spec=tlview.CellDataFunctionSpec(function=_format_file_name_crcb, user_data=None),
-                    attributes={'style' : _STYLE, 'foreground' : _FOREGROUND}
-                )
-            ]
-        )
-    ]
-)
-
-class CwdFileTreeStore(FileTreeStore):
-    def __init__(self):
-        FileTreeStore.__init__(self)
-        self._os_file_db = fsdb.OsFileDb()
-    def _get_file_db(self):
-        return self._os_file_db
-
-class _ViewWithActionGroups(tlview.View, dialogue.BusyIndicatorUser,
-                            ws_actions.AGandUIManager):
-    def __init__(self, busy_indicator, model=None):
-        tlview.View.__init__(self, model)
-        dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
-        ws_actions.AGandUIManager.__init__(self, self.get_selection())
-        self.connect('button_press_event', self._handle_button_press_cb)
-    def populate_action_groups(self):
-        self.action_groups[actions.AC_DONT_CARE].add_action(self.get_model().show_hidden_action)
-    def _handle_button_press_cb(self, widget, event):
-        if event.type == gtk.gdk.BUTTON_PRESS:
-            if event.button == 3:
-                menu = self.ui_manager.get_widget('/files_popup')
-                menu.popup(None, None, None, event.button, event.time)
-                return True
-            elif event.button == 2:
-                self.get_selection().unselect_all()
-                return True
-        return False
+        self.unshow_busy()
+    def get_selected_files(self):
+        store, selection = self.get_selection().get_selected_rows()
+        return [store.fs_path(store.get_iter(x)) for x in selection]
+    def add_selected_files_to_clipboard(self, clipboard=None):
+        if not clipboard:
+            clipboard = gtk.clipboard_get(gtk.gdk.SELECTION_CLIPBOARD)
+        sel = utils.file_list_to_string(self.get_selected_files())
+        clipboard.set_text(sel)
+    def get_filepaths_in_dir(self, dirname, show_hidden=True, recursive=True):
+        subdirs, files = self._file_db.dir_contents(dirname, show_hidden=show_hidden)
+        filepaths = [os.path.join(dirname, fdata.name) for fdata in files]
+        if recursive:
+            for subdir in subdirs:
+                filepaths += self.get_filepaths_in_dir(os.path.join(dirname, subdir.name), recursive)
+        return filepaths
 
 _KEYVAL_c = gtk.gdk.keyval_from_name('c')
 _KEYVAL_C = gtk.gdk.keyval_from_name('C')
 _KEYVAL_ESCAPE = gtk.gdk.keyval_from_name('Escape')
 
-class FileTreeView(_ViewWithActionGroups):
+class FileTreeView(Tree):
     UI_DESCR = \
     '''
     <ui>
@@ -364,39 +412,25 @@ class FileTreeView(_ViewWithActionGroups):
       </toolbar>
     </ui>
     '''
-    specification = _VIEW_TEMPLATE
-    Model = FileTreeStore
-    def __init__(self, busy_indicator, model=None, auto_refresh=False,
-                 show_hidden=False, show_status=False):
-        if model is None:
-            model = FileTreeStore()
-        model.show_hidden = show_hidden
+    def __init__(self, busy_indicator, model=None, auto_refresh=False, show_hidden=False, show_status=False):
         self.auto_refresh_action = gtk.ToggleAction("auto_refresh_files", _('Auto Refresh'),
                                                    _('Automatically/periodically refresh file display'), None)
         self.auto_refresh_action.set_active(auto_refresh)
         self.auto_refresh_action.connect("toggled", self._toggle_auto_refresh_cb)
         self.auto_refresh_action.set_menu_item_type(gtk.CheckMenuItem)
         self.auto_refresh_action.set_tool_item_type(gtk.ToggleToolButton)
-        _ViewWithActionGroups.__init__(self, busy_indicator, model=model)
-        if not show_status:
-            pass # TODO: hide the status column
-        model.set_view(self)
+        self._os_file_db = fsdb.OsFileDb()
+        Tree.__init__(self, busy_indicator=busy_indicator, model=model, show_hidden=show_hidden, show_status=show_status)
         self._refresh_interval = 60000 # milliseconds
-        self.connect("row-expanded", model.on_row_expanded_cb)
-        self.connect("row-collapsed", model.on_row_collapsed_cb)
-        self.connect("key_press_event", self._key_press_cb)
+        self.connect("row-expanded", self.model.on_row_expanded_cb)
+        self.connect("row-collapsed", self.model.on_row_collapsed_cb)
         self._toggle_auto_refresh_cb()
     def populate_action_groups(self):
-        _ViewWithActionGroups.populate_action_groups(self)
+        Tree.populate_action_groups(self)
         self.action_groups[actions.AC_DONT_CARE].add_action(self.auto_refresh_action)
-        self.action_groups[actions.AC_DONT_CARE].add_actions(
-            [
-                ("refresh_files", gtk.STOCK_REFRESH, _('_Refresh'), None,
-                 _('Refresh/update the file tree display'), self.update_tree),
-            ])
     def _do_auto_refresh(self):
         if self.auto_refresh_action.get_active():
-            self.update_tree()
+            self.update()
             return True
         else:
             return False
@@ -409,31 +443,8 @@ class FileTreeView(_ViewWithActionGroups):
         model = self.get_model()
         if model.set_show_hidden(show_hidden):
             model.update()
-    def get_selected_files(self):
-        store, selection = self.get_selection().get_selected_rows()
-        return [store.fs_path(store.get_iter(x)) for x in selection]
-    def add_selected_files_to_clipboard(self, clipboard=None):
-        if not clipboard:
-            clipboard = gtk.clipboard_get()
-        sel = utils.file_list_to_string(self.get_selected_files())
-        clipboard.set_text(sel)
-    def _key_press_cb(self, widget, event):
-        if event.state & gtk.gdk.CONTROL_MASK:
-            if event.keyval in [_KEYVAL_c, _KEYVAL_C]:
-                self.add_selected_files_to_clipboard()
-                return True
-        elif event.keyval == _KEYVAL_ESCAPE:
-            self.get_selection().unselect_all()
-            return True
-        return False
-    def repopulate_tree(self):
-        self.show_busy()
-        self.get_model().repopulate()
-        self.unshow_busy()
-    def update_tree(self, _action=None):
-        self.show_busy()
-        self.get_model().update()
-        self.unshow_busy()
+    def _get_file_db(self):
+        return self._os_file_db
 
 CWD_UI_DESCR = \
 '''
@@ -467,14 +478,8 @@ CWD_UI_DESCR = \
 '''
 
 class CwdFileTreeView(FileTreeView):
-    Model = CwdFileTreeStore
-    def __init__(self, busy_indicator, model=None, auto_refresh=False,
-                 show_hidden=False, show_status=False):
-        if not model:
-            model = CwdFileTreeStore()
-        model.show_hidden = show_hidden
-        FileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
-            auto_refresh=auto_refresh, show_status=show_status)
+    def __init__(self, busy_indicator, model=None, auto_refresh=False, show_hidden=False, show_status=False):
+        FileTreeView.__init__(self, busy_indicator=busy_indicator, model=model, auto_refresh=auto_refresh, show_hidden=show_hidden, show_status=show_status)
         self.ui_manager.add_ui_from_string(CWD_UI_DESCR)
     def populate_action_groups(self):
         FileTreeView.populate_action_groups(self)
@@ -550,34 +555,6 @@ class CwdFileTreeView(FileTreeView):
     def delete_selected_files_acb(self, _menu_item):
         self._delete_named_files(self.get_selected_files())
 
-class ScmCwdFileTreeStore(CwdFileTreeStore):
-    def __init__(self):
-        CwdFileTreeStore.__init__(self)
-        self.hide_clean_action = gtk.ToggleAction('hide_clean_files', _('Hide Clean Files'),
-                                                   _('Show/hide "clean" files'), None)
-        self.hide_clean_action.set_active(False)
-        self.hide_clean_action.connect('toggled', self._toggle_hide_clean_cb)
-        self.hide_clean_action.set_menu_item_type(gtk.CheckMenuItem)
-        self.hide_clean_action.set_tool_item_type(gtk.ToggleToolButton)
-    def _get_file_db(self):
-        if ifce.in_valid_repo:
-            self.populate_all = True
-            return ifce.SCM.get_ws_file_db()
-        else:
-            self.populate_all = False
-            return self._os_file_db
-    def _toggle_hide_clean_cb(self, toggleaction):
-        self._update_dir('', None)
-    def _get_dir_contents(self, dirpath):
-        if self._file_db is None:
-            return ((), ())
-        show_hidden = self.show_hidden_action.get_active()
-        if not show_hidden and self.hide_clean_action.get_active():
-            dirs, files = self._file_db.dir_contents(dirpath, show_hidden)
-            return ([ncd for ncd in dirs if ncd.status != hg_mq_ifce.FSTATUS_CLEAN],
-                    [ncf for ncf in files if ncf.status != hg_mq_ifce.FSTATUS_CLEAN])
-        return self._file_db.dir_contents(dirpath, show_hidden)
-
 SCM_CWD_UI_DESCR = \
 '''
 <ui>
@@ -630,13 +607,15 @@ def _check_if_force(result):
     return dialogue.ask_force_or_cancel(result) == dialogue.Response.FORCE
 
 class ScmCwdFileTreeView(CwdFileTreeView):
-    Model = ScmCwdFileTreeStore
-    def __init__(self, busy_indicator, auto_refresh=False, show_hidden=False):
-        model = ScmCwdFileTreeStore()
-        model.show_hidden = show_hidden
-        CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
-            auto_refresh=auto_refresh, show_status=True)
-        self.add_notification_cb(ws_event.CHECKOUT|ws_event.FILE_CHANGES, self.update_tree),
+    def __init__(self, busy_indicator=None, auto_refresh=False, show_hidden=False):
+        self.hide_clean_action = gtk.ToggleAction('hide_clean_files', _('Hide Clean Files'),
+                                                   _('Show/hide "clean" files'), None)
+        self.hide_clean_action.set_active(False)
+        self.hide_clean_action.connect('toggled', self._toggle_hide_clean_cb)
+        self.hide_clean_action.set_menu_item_type(gtk.CheckMenuItem)
+        self.hide_clean_action.set_tool_item_type(gtk.ToggleToolButton)
+        CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=None, auto_refresh=auto_refresh, show_hidden=show_hidden, show_status=True)
+        self.add_notification_cb(ws_event.CHECKOUT|ws_event.FILE_CHANGES, self.update),
         self.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir),
         self.ui_manager.add_ui_from_string(SCM_CWD_UI_DESCR)
         if not ifce.SCM.get_extension_enabled("extdiff"):
@@ -651,10 +630,10 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                 self.action_groups[condition].add_actions( action_list)
             self.ui_manager.add_ui_from_string(tortoise.FILES_UI_DESCR)
         self.init_action_states()
-        model.repopulate()
+        self.repopulate()
     def populate_action_groups(self):
         CwdFileTreeView.populate_action_groups(self)
-        self.action_groups[actions.AC_DONT_CARE].add_action(self.get_model().hide_clean_action)
+        self.action_groups[actions.AC_DONT_CARE].add_action(self.hide_clean_action)
         self.action_groups[ws_actions.AC_IN_REPO + actions.AC_SELN_MADE].add_actions(
             [
                 ("scm_remove_files", gtk.STOCK_REMOVE, _('_Remove'), None,
@@ -708,9 +687,12 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             [
                 ("menu_files", None, _('_Files')),
             ])
+    @property
+    def _populate_all(self):
+        return ifce.in_valid_repo
     def update_for_chdir(self):
         self.show_busy()
-        self.repopulate_tree()
+        self.repopulate()
         self.unshow_busy()
     def _tortoise_tool_acb(self, action=None):
         tortoise.run_tool_for_files(action, self.get_selected_files())
@@ -878,6 +860,22 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         self.revert_named_files(self.get_selected_files())
     def revert_all_files_acb(self, _action=None):
         self.revert_named_files([])
+    def _get_file_db(self):
+        if ifce.in_valid_repo:
+            return ifce.SCM.get_ws_file_db()
+        else:
+            return self._os_file_db
+    def _toggle_hide_clean_cb(self, toggleaction):
+        self._update_dir('', None)
+    def _get_dir_contents(self, dirpath):
+        if self._file_db is None:
+            return ((), ())
+        show_hidden = self.show_hidden_action.get_active()
+        if not show_hidden and self.hide_clean_action.get_active():
+            dirs, files = self._file_db.dir_contents(dirpath, show_hidden)
+            return ([ncd for ncd in dirs if ncd.status != hg_mq_ifce.FSTATUS_CLEAN],
+                    [ncf for ncf in files if ncf.status != hg_mq_ifce.FSTATUS_CLEAN])
+        return self._file_db.dir_contents(dirpath, show_hidden)
 
 class ScmCwdFilesWidget(gtk.VBox):
     def __init__(self, busy_indicator=None, auto_refresh=False, show_hidden=False):
@@ -906,31 +904,6 @@ class ScmCwdFilesWidget(gtk.VBox):
         self.pack_start(hbox, expand=False)
         self.show_all()
 
-class ScmCommitFileTreeStore(FileTreeStore):
-    class TWSDisplay(diff.TextWidget.TwsLineCountDisplay):
-        LABEL = _('File(s) that add TWS: ')
-    def __init__(self):
-        self._file_mask = []
-        self.tws_display = self.TWSDisplay()
-        self.tws_display.set_value(0)
-        FileTreeStore.__init__(self)
-        self.populate_all = True
-        self.auto_expand = True
-        self.show_hidden = True
-        self.repopulate()
-    def set_file_mask(self, file_mask):
-        self._file_mask = file_mask
-        self.set_tws_file_count()
-        self.update()
-    def get_file_mask(self):
-        return self._file_mask
-    def _get_file_db(self):
-        return ifce.SCM.get_commit_file_db(self._file_mask)
-    def set_tws_file_count(self):
-        diff_text = ifce.SCM.get_commit_diff(self._file_mask)
-        epatch = patchlib.Patch.parse_text(diff_text)
-        self.tws_display.set_value(len(epatch.report_trailing_whitespace()))
-
 SCM_CHANGE_UI_DESCR = \
 '''
 <ui>
@@ -956,15 +929,15 @@ SCM_CHANGE_UI_DESCR = \
 '''
 
 class ScmCommitFileTreeView(FileTreeView):
-    Model = ScmCommitFileTreeStore
+    class TWSDisplay(diff.TextWidget.TwsLineCountDisplay):
+        LABEL = _('File(s) that add TWS: ')
+    AUTO_EXPAND = True
     def __init__(self, busy_indicator, auto_refresh=False, show_hidden=True, file_mask=None):
         self.removeds = []
-        model = ScmCommitFileTreeStore()
-        model.show_hidden = show_hidden
-        model.set_file_mask(file_mask)
-        FileTreeView.__init__(self, model=model, busy_indicator=busy_indicator,
-                              auto_refresh=auto_refresh, show_status=True)
-        self.model.set_view(self)
+        self._file_mask = [] if file_mask is None else file_mask
+        self.tws_display = self.TWSDisplay()
+        self.tws_display.set_value(0)
+        FileTreeView.__init__(self, busy_indicator=busy_indicator, auto_refresh=auto_refresh, show_hidden=show_hidden, show_status=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.set_headers_visible(False)
         self.scm_change_merge_id = self.ui_manager.add_ui_from_string(SCM_CHANGE_UI_DESCR)
@@ -995,46 +968,54 @@ class ScmCommitFileTreeView(FileTreeView):
                 ("scm_extdiff_files_all", icons.STOCK_DIFF, _('E_xtdiff'), None,
                  _('Launch etxdiff for all changes'), self._extdiff_all_files_acb),
             ])
-    def set_file_mask(self, file_mask):
-        self.model.set_file_mask(file_mask)
-    def get_file_mask(self):
-        return self.model.get_file_mask()
     def _remove_selected_files_acb(self, _menu_item):
         self.show_busy()
-        file_mask = self.model.get_file_mask()
-        if not file_mask:
-            file_mask = self.model.get_file_paths()
+        file_mask = self.file_mask if self.file_mask else self.get_file_paths()
         selected_files = self.get_selected_files()
         for sel_file in selected_files:
             del file_mask[file_mask.index(sel_file)]
-        self.model.set_file_mask(file_mask)
+        self.file_mask = file_mask
         self.removeds.append(selected_files)
         self.action_groups.get_action("scmch_undo_remove_files").set_sensitive(True)
         self.unshow_busy()
-        self.update_tree()
+        self.update()
     def _undo_last_remove_acb(self, _menu_item):
         self.show_busy()
         restore_files = self.removeds[-1]
         del self.removeds[-1]
         self.action_groups.get_action("scmch_undo_remove_files").set_sensitive(len(self.removeds) > 0)
-        file_mask = self.model.get_file_mask()
+        file_mask = self.file_mask
         for res_file in restore_files:
             file_mask.append(res_file)
-        self.model.set_file_mask(file_mask)
+        self.file_mask = file_mask
         self.unshow_busy()
-        self.update_tree()
+        self.update()
     def _diff_selected_files_acb(self, _action=None):
         parent = dialogue.main_window
         dialog = diff.ScmDiffTextDialog(parent=parent, file_list=self.get_selected_files())
         dialog.show()
     def _diff_all_files_acb(self, _action=None):
         parent = dialogue.main_window
-        dialog = diff.ScmDiffTextDialog(parent=parent, file_list=self.get_file_mask())
+        dialog = diff.ScmDiffTextDialog(parent=parent, file_list=self.file_mask)
         dialog.show()
     def _extdiff_selected_files_acb(self, _action=None):
         ifce.SCM.launch_extdiff_for_ws(file_list=self.get_selected_files())
     def _extdiff_all_files_acb(self, _action=None):
-        ifce.SCM.launch_extdiff_for_ws(file_list=self.get_file_mask())
+        ifce.SCM.launch_extdiff_for_ws(file_list=self.file_mask)
+    @property
+    def file_mask(self):
+        return self._file_mask
+    @file_mask.setter
+    def file_mask(self, file_mask):
+        self._file_mask = file_mask
+        self.set_tws_file_count()
+        self.update()
+    def _get_file_db(self):
+        return ifce.SCM.get_commit_file_db(self._file_mask)
+    def set_tws_file_count(self):
+        diff_text = ifce.SCM.get_commit_diff(self._file_mask)
+        epatch = patchlib.Patch.parse_text(diff_text)
+        self.tws_display.set_value(len(epatch.report_trailing_whitespace()))
 
 class ScmCommitWidget(gtk.VPaned, ws_event.Listener):
     class SummaryWidget(text_edit.MessageWidget):
@@ -1097,10 +1078,11 @@ class ScmCommitWidget(gtk.VPaned, ws_event.Listener):
         self.set_focus_child(self.summary_widget.view)
     def get_msg(self):
         return self.summary_widget.get_contents()
-    def get_file_mask(self):
-        return self.files.get_file_mask()
+    @property
+    def file_mask(self):
+        return self.files.file_mask
     def do_commit(self):
-        result = ifce.SCM.do_commit_change(self.get_msg(), self.get_file_mask())
+        result = ifce.SCM.do_commit_change(self.get_msg(), self.file_mask)
         dialogue.report_any_problems(result)
         return cmd_result.is_less_than_error(result[0])
 
@@ -1118,9 +1100,9 @@ class ScmCommitDialog(dialogue.AmodalDialog):
                                        gtk.STOCK_OK, gtk.RESPONSE_OK)
         self.connect('response', self._handle_response_cb)
     def get_mesg_and_files(self):
-        return (self.commit_widget.get_msg(), self.commit_widget.get_file_mask())
+        return (self.commit_widget.get_msg(), self.commit_widget.file_mask)
     def update_files(self):
-        self.commit_widget.files.update_tree()
+        self.commit_widget.files.update()
     def _finish_up(self, clear_save=False):
         self.show_busy()
         self.commit_widget.summary_widget.finish_up(clear_save)
@@ -1142,14 +1124,12 @@ class ScmCommitDialog(dialogue.AmodalDialog):
         else:
             self._finish_up()
 
-class PatchFileTreeStore(FileTreeStore):
-    def __init__(self):
-        self._patch = None
-        FileTreeStore.__init__(self)
-        self.show_hidden = True
-        self.populate_all = True
-        self.auto_expand = True
+class GenericPatchFileTreeView(CwdFileTreeView):
+    AUTO_EXPAND = True
+    def __init__(self, patch=None, busy_indicator=None, model=None, auto_refresh=False, show_status=True):
+        self._patch = patch
         self._null_file_db = fsdb.NullFileDb()
+        CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model, auto_refresh=auto_refresh, show_status=show_status)
     @property
     def patch(self):
         return self._patch
@@ -1162,8 +1142,6 @@ class PatchFileTreeStore(FileTreeStore):
             return ifce.PM.get_patch_file_db(self._patch)
         else:
             return self._null_file_db
-    def repopulate(self):
-        FileTreeStore.repopulate(self)
 
 PATCH_FILES_UI_DESCR = \
 '''
@@ -1187,26 +1165,21 @@ PATCH_FILES_UI_DESCR = \
 </ui>
 '''
 
-class PatchFileTreeView(CwdFileTreeView):
-    Model = PatchFileTreeStore
-    def __init__(self, busy_indicator, patch=None):
-        self._patch = patch
-        model = PatchFileTreeStore()
-        model.patch = patch
-        CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
-             auto_refresh=False, show_status=True)
+class PatchFileTreeView(GenericPatchFileTreeView):
+    def __init__(self, busy_indicator=None, patch=None, model=None):
+        GenericPatchFileTreeView.__init__(self, patch=patch, busy_indicator=busy_indicator, model=model, auto_refresh=False, show_status=True)
         if not ifce.SCM.get_extension_enabled("extdiff") or not ifce.PM.get_patch_is_applied(self._patch):
             self.action_groups.get_action("pm_extdiff_files_selection").set_visible(False)
             self.action_groups.get_action("pm_extdiff_files_all").set_visible(False)
-        model.show_hidden_action.set_visible(False)
-        model.show_hidden_action.set_sensitive(False)
+        self.show_hidden_action.set_visible(False)
+        self.show_hidden_action.set_sensitive(False)
         self.action_groups.get_action("new_file").set_visible(False)
         self.action_groups.get_action("edit_files").set_visible(False)
         self.action_groups.get_action("delete_files").set_visible(False)
-        model.repopulate()
+        self.repopulate()
         self.ui_manager.add_ui_from_string(PATCH_FILES_UI_DESCR)
     def populate_action_groups(self):
-        CwdFileTreeView.populate_action_groups(self)
+        GenericPatchFileTreeView.populate_action_groups(self)
         self.action_groups[ws_actions.AC_IN_REPO + actions.AC_SELN_MADE].add_actions(
             [
                 ("pm_diff_files_selection", icons.STOCK_DIFF, _('_Diff'), None,
@@ -1290,24 +1263,21 @@ PM_FILES_UI_DESCR = \
 </ui>
 '''
 
-class TopPatchFileTreeView(CwdFileTreeView):
-    Model = PatchFileTreeStore
-    def __init__(self, busy_indicator, auto_refresh=False):
-        model = PatchFileTreeStore()
-        CwdFileTreeView.__init__(self, busy_indicator=busy_indicator,
-            model=model, auto_refresh=auto_refresh, show_status=True)
-        model.show_hidden_action.set_visible(False)
-        model.show_hidden_action.set_sensitive(False)
+class TopPatchFileTreeView(GenericPatchFileTreeView):
+    def __init__(self, auto_refresh=False, busy_indicator=None):
+        GenericPatchFileTreeView.__init__(self, model=None, auto_refresh=auto_refresh, show_status=True, busy_indicator=busy_indicator)
+        self.show_hidden_action.set_visible(False)
+        self.show_hidden_action.set_sensitive(False)
         if not ifce.SCM.get_extension_enabled("extdiff"):
             self.action_groups.get_action("pm_extdiff_files_selection").set_visible(False)
             self.action_groups.get_action("pm_extdiff_files_all").set_visible(False)
-        model.repopulate()
+        self.repopulate()
         self.ui_manager.add_ui_from_string(PM_FILES_UI_DESCR)
-        self.add_notification_cb(ws_event.CHECKOUT|ws_event.CHANGE_WD, self.repopulate_tree)
-        self.add_notification_cb(ws_event.FILE_CHANGES, self.update_tree)
+        self.add_notification_cb(ws_event.CHECKOUT|ws_event.CHANGE_WD, self.repopulate)
+        self.add_notification_cb(ws_event.FILE_CHANGES, self.update)
         self.init_action_states()
     def populate_action_groups(self):
-        CwdFileTreeView.populate_action_groups(self)
+        GenericPatchFileTreeView.populate_action_groups(self)
         self.action_groups.move_action(ws_actions.AC_IN_REPO + ws_actions.AC_PMIC, "new_file")
         self.action_groups[ws_actions.AC_IN_REPO + ws_actions.AC_PMIC + actions.AC_SELN_MADE].add_actions(
             [
@@ -1343,7 +1313,7 @@ class TopPatchFileTreeView(CwdFileTreeView):
                 ("menu_files", None, _('_Files')),
             ])
     def create_new_file(self, new_file_name, open_for_edit=False):
-        result = CwdFileTreeView.create_new_file(self, new_file_name, open_for_edit)
+        result = GenericPatchFileTreeView.create_new_file(self, new_file_name, open_for_edit)
         if not result[0]:
             result = ifce.PM.do_add_files([new_file_name])
             dialogue.report_any_problems(result)

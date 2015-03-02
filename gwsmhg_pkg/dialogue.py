@@ -77,6 +77,8 @@ class BusyIndicatorUser:
             self._busy_indicator.unshow_busy()
         else:
             unshow_busy()
+    def set_busy_indicator(self, busy_indicator=None):
+        self._busy_indicator = busy_indicator
 
 class Dialog(gtk.Dialog, BusyIndicator):
     def __init__(self, title=None, parent=None, flags=0, buttons=None):

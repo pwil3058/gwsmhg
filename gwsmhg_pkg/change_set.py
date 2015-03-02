@@ -821,14 +821,6 @@ class ChangeSetSelectDialog(dialogue.Dialog):
     def get_discard(self):
         return self._widget.get_discard()
 
-class FileTreeStore(file_tree.FileTreeStore):
-    def __init__(self, rev):
-        self._rev = rev
-        file_tree.FileTreeStore.__init__(self, show_hidden=True, populate_all=True, auto_expand=True)
-        self.repopulate()
-    def _get_file_db(self):
-        return ifce.SCM.get_change_set_files_db(self._rev)
-
 CHANGE_SET_FILES_UI_DESCR = \
 '''
 <ui>
@@ -847,12 +839,10 @@ CHANGE_SET_FILES_UI_DESCR = \
 '''
 
 class FileTreeView(file_tree.FileTreeView):
+    AUTO_EXPAND = True
     def __init__(self, rev, busy_indicator):
         self._rev = rev
-        model = FileTreeStore(rev)
-        file_tree.FileTreeView.__init__(self, model=model,
-                                        busy_indicator=busy_indicator,
-                                        auto_refresh=False, show_status=True)
+        file_tree.FileTreeView.__init__(self, busy_indicator=busy_indicator, auto_refresh=False, show_status=True, show_hidden=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.set_headers_visible(False)
         self.action_groups[ws_actions.AC_IN_REPO + actions.AC_SELN_MADE].add_actions(
@@ -892,6 +882,8 @@ class FileTreeView(file_tree.FileTreeView):
         ifce.SCM.launch_extdiff_for_changeset(self._rev, self.get_selected_files())
     def _extdiff_all_files_acb(self, _action=None):
         ifce.SCM.launch_extdiff_for_changeset(self._rev)
+    def _get_file_db(self):
+        return ifce.SCM.get_change_set_files_db(self._rev)
 
 class ChangeSetSummaryDialog(dialogue.AmodalDialog):
     def __init__(self, rev, parent=None):

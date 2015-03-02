@@ -176,15 +176,6 @@ class IncomingParentsTable(change_set.ChangeSetTable):
             dialogue.report_failure(failure)
             return []
 
-class IncomingFileTreeStore(file_tree.FileTreeStore):
-    def __init__(self, rev, path):
-        self._rev = rev
-        self._path = path
-        file_tree.FileTreeStore.__init__(self, show_hidden=True, populate_all=True, auto_expand=True)
-        self.repopulate()
-    def _get_file_db(self):
-        return ifce.SCM.get_incoming_change_set_files_db(self._rev)
-
 INCOMING_CS_FILES_UI_DESCR = \
 '''
 <ui>
@@ -199,12 +190,11 @@ INCOMING_CS_FILES_UI_DESCR = \
 '''
 
 class IncomingFileTreeView(file_tree.FileTreeView):
+    AUTO_EXPAND = True
     def __init__(self, rev, path, busy_indicator):
         self._rev = rev
         self._path = path
-        model = IncomingFileTreeStore(rev, path)
-        file_tree.FileTreeView.__init__(self, model=model, busy_indicator=busy_indicator,
-            auto_refresh=False, show_status=True)
+        file_tree.FileTreeView.__init__(self, busy_indicator=busy_indicator, auto_refresh=False, show_status=True, show_hidden=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.set_headers_visible(False)
         self.action_groups[ws_actions.AC_IN_REPO + actions.AC_SELN_NONE].add_actions(
@@ -221,6 +211,8 @@ class IncomingFileTreeView(file_tree.FileTreeView):
                                              rev=self._rev, path=self._path)
         self.unshow_busy()
         dialog.show()
+    def _get_file_db(self):
+        return ifce.SCM.get_incoming_change_set_files_db(self._rev)
 
 class IncomingCSSummaryDialog(change_set.ChangeSetSummaryDialog):
     def __init__(self, rev, path, parent=None):

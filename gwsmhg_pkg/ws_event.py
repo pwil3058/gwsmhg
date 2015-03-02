@@ -71,10 +71,13 @@ def del_notification_cb(cb_token):
     Argument:
     cb_token -- the token that specifies the callback to be cancelled.
     """
-    index = _NOTIFICATION_CBS.index(cb_token)
-    if index >= 0:
-        del _NOTIFICATION_CBS[index]
-
+    # this may have already been done as there are two invocation
+    # paths - so we need to check
+    try:
+        index = _NOTIFICATION_CBS.index(cb_token)
+	del _NOTIFICATION_CBS[index]
+    except ValueError:
+        pass
 
 def notify_events(events, data=None):
     """
@@ -127,4 +130,3 @@ class Listener(gobject.GObject):
         """Remove all of my callbacks from the notification database"""
         for cb_token in self._listener_cbs:
             del_notification_cb(cb_token)
-
