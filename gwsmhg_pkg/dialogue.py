@@ -15,38 +15,68 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-import gtk, os
-from gwsmhg_pkg import cmd_result, icons, ws_event
+import gtk
+import os
+
+from gwsmhg_pkg import cmd_result
+
+from gwsmhg_pkg import icons
+from gwsmhg_pkg import ws_event
 from gwsmhg_pkg import gutils
 
 main_window = None
+
+def show_busy():
+    if main_window is not None:
+        main_window.show_busy()
+
+def unshow_busy():
+    if main_window is not None:
+        main_window.unshow_busy()
+
+def is_busy():
+    return main_window is None or main_window.is_busy
 
 def init(window):
     global main_window
     main_window = window
 
 class BusyIndicator:
-    def __init__(self):
-        pass
+    def __init__(self, parent=None):
+        self.parent_indicator = parent
+        self._count = 0
     def show_busy(self):
-        if self.window:
+        if self.parent:
+            self.parent.show_busy()
+        self._count += 1
+        if self._count == 1 and self.window:
             self.window.set_cursor(gtk.gdk.Cursor(gtk.gdk.WATCH))
             while gtk.events_pending():
                 gtk.main_iteration()
     def unshow_busy(self):
-        if self.window:
+        if self.parent:
+            self.parent.unshow_busy()
+        self._count -= 1
+        assert self._count >= 0
+        if self._count == 0 and self.window:
             self.window.set_cursor(None)
+    @property
+    def is_busy(self):
+        return self._count > 0
 
 class BusyIndicatorUser:
-    def __init__(self, busy_indicator):
-        if busy_indicator:
-            self._busy_indicator = busy_indicator
-        else:
-            self._busy_indicator = main_window
+    def __init__(self, busy_indicator=None):
+        self._busy_indicator = busy_indicator
     def show_busy(self):
-        self._busy_indicator.show_busy()
+        if self._busy_indicator is not None:
+            self._busy_indicator.show_busy()
+        else:
+            show_busy()
     def unshow_busy(self):
-        self._busy_indicator.unshow_busy()
+        if self._busy_indicator is not None:
+            self._busy_indicator.unshow_busy()
+        else:
+            unshow_busy()
 
 class Dialog(gtk.Dialog, BusyIndicator):
     def __init__(self, title=None, parent=None, flags=0, buttons=None):
@@ -127,17 +157,17 @@ def ask_yes_no(question, parent=None):
 def confirm_list_action(alist, question, parent=None):
     return ask_ok_cancel('\n'.join(alist + ['\n', question]), parent)
 
-RESPONSE_SKIP = 1
-RESPONSE_SKIP_ALL = 2
-
-RESPONSE_FORCE = 3
-RESPONSE_REFRESH = 4
-RESPONSE_RECOVER = 5
-RESPONSE_RENAME = 6
-RESPONSE_DISCARD = 7
-RESPONSE_EDIT = 8
-RESPONSE_MERGE = 9
-RESPONSE_OVERWRITE = 10
+class Response(object):
+    SKIP = 1
+    SKIP_ALL = 2
+    FORCE = 3
+    REFRESH = 4
+    RECOVER = 5
+    RENAME = 6
+    DISCARD = 7
+    EDIT = 8
+    MERGE = 9
+    OVERWRITE = 10
 
 def _form_question(result, clarification):
     if clarification:
@@ -148,65 +178,65 @@ def _form_question(result, clarification):
 def ask_force_refresh_or_cancel(result, clarification=None, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
     if result.ecode & cmd_result.SUGGEST_REFRESH:
-        buttons += (_('_Refresh and Retry'), RESPONSE_REFRESH)
+        buttons += (_('_Refresh and Retry'), Response.REFRESH)
     if result.ecode & cmd_result.SUGGEST_FORCE:
-        buttons += (_('_Force'), RESPONSE_FORCE)
+        buttons += (_('_Force'), Response.FORCE)
     question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
 def ask_force_or_cancel(result, clarification=None, parent=None):
-    buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, _('_Force'), RESPONSE_FORCE)
+    buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, _('_Force'), Response.FORCE)
     question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
 def ask_merge_discard_or_cancel(result, clarification=None, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
     if result.ecode & cmd_result.SUGGEST_MERGE:
-        buttons += (_('_Merge'), RESPONSE_MERGE)
+        buttons += (_('_Merge'), Response.MERGE)
     if result.ecode & cmd_result.SUGGEST_DISCARD:
-        buttons += (_('_Discard Changes'), RESPONSE_DISCARD)
+        buttons += (_('_Discard Changes'), Response.DISCARD)
     question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
 def ask_recover_or_cancel(result, clarification=None, parent=None):
-    buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, _('_Recover'), RESPONSE_RECOVER)
+    buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, _('_Recover'), Response.RECOVER)
     question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
 def ask_edit_force_or_cancel(result, clarification=None, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
     if result.ecode & cmd_result.SUGGEST_EDIT:
-        buttons += (_('_Edit'), RESPONSE_EDIT)
+        buttons += (_('_Edit'), Response.EDIT)
     if result.ecode & cmd_result.SUGGEST_FORCE:
-        buttons += (_('_Force'), RESPONSE_FORCE)
+        buttons += (_('_Force'), Response.FORCE)
     question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
 def ask_rename_force_or_cancel(result, clarification=None, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
     if result.ecode & cmd_result.SUGGEST_RENAME:
-        buttons += (_('_Rename'), RESPONSE_RENAME)
+        buttons += (_('_Rename'), Response.RENAME)
     if result.ecode & cmd_result.SUGGEST_FORCE:
-        buttons += (_('_Force'), RESPONSE_FORCE)
+        buttons += (_('_Force'), Response.FORCE)
     question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
 def ask_rename_force_or_skip(result, clarification=None, parent=None):
     buttons = ()
     if result.ecode & cmd_result.SUGGEST_RENAME:
-        buttons += (_('_Rename'), RESPONSE_RENAME)
+        buttons += (_('_Rename'), Response.RENAME)
     if result.ecode & cmd_result.SUGGEST_FORCE:
-        buttons += (_('_Force'), RESPONSE_FORCE)
-    buttons += (_('_Skip'), RESPONSE_SKIP, _('Skip _All'), RESPONSE_SKIP_ALL)
+        buttons += (_('_Force'), Response.FORCE)
+    buttons += (_('_Skip'), Response.SKIP, _('Skip _All'), Response.SKIP_ALL)
     question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
 def ask_rename_overwrite_or_cancel(result, clarification=None, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
     if result.ecode & cmd_result.SUGGEST_RENAME:
-        buttons += (_('_Rename'), RESPONSE_RENAME)
+        buttons += (_('_Rename'), Response.RENAME)
     if result.ecode & cmd_result.SUGGEST_OVERWRITE:
-        buttons += (_('_Overwrite'), RESPONSE_OVERWRITE)
+        buttons += (_('_Overwrite'), Response.OVERWRITE)
     question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
@@ -228,11 +258,13 @@ def ask_file_name(prompt, suggestion=None, existing=True, parent=None):
             dirname, basename = os.path.split(suggestion)
             if dirname:
                 dialog.set_current_folder(dirname)
+            else:
+                dialog.set_current_folder(os.getcwd())
             if basename:
                 dialog.set_current_name(basename)
     response = dialog.run()
     if response == gtk.RESPONSE_OK:
-        new_file_name = dialog.get_filename()
+        new_file_name = os.path.relpath(dialog.get_filename())
     else:
         new_file_name = None
     dialog.destroy()
@@ -258,7 +290,7 @@ def ask_dir_name(prompt, suggestion=None, existing=True, parent=None):
                 dialog.set_current_folder(dirname)
     response = dialog.run()
     if response == gtk.RESPONSE_OK:
-        new_dir_name = dialog.get_filename()
+        new_dir_name = os.path.relpath(dialog.get_filename())
     else:
         new_dir_name = None
     dialog.destroy()

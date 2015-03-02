@@ -627,7 +627,7 @@ SCM_CWD_UI_DESCR = \
 </ui>
 '''
 def _check_if_force(result):
-    return dialogue.ask_force_or_cancel(result) == dialogue.RESPONSE_FORCE
+    return dialogue.ask_force_or_cancel(result) == dialogue.Response.FORCE
 
 class ScmCwdFileTreeView(CwdFileTreeView):
     Model = ScmCwdFileTreeStore

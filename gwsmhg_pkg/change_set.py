@@ -161,17 +161,17 @@ class ChangeSetTableView(table.MapManagedTableView):
         if result[0] & cmd_result.SUGGEST_MERGE_OR_DISCARD:
             question = os.linesep.join(result[1:])
             ans = dialogue.ask_merge_discard_or_cancel(question, result[0])
-            if ans == dialogue.RESPONSE_DISCARD:
+            if ans == dialogue.Response.DISCARD:
                 self.show_busy()
                 result = ifce.SCM.do_update_workspace(rev=rev, discard=True)
                 self.unshow_busy()
                 dialogue.report_any_problems(result)
-            elif ans == dialogue.RESPONSE_MERGE:
+            elif ans == dialogue.Response.MERGE:
                 self.show_busy()
                 result = ifce.SCM.do_merge_workspace(rev=rev, force=False)
                 self.unshow_busy()
                 if result[0] & cmd_result.SUGGEST_FORCE:
-                    if dialogue.ask_force_or_cancel(result) == dialogue.RESPONSE_FORCE:
+                    if dialogue.ask_force_or_cancel(result) == dialogue.Response.FORCE:
                         self.show_busy()
                         result = ifce.SCM.do_merge_workspace(rev=rev, force=True)
                         self.unshow_busy()
@@ -186,7 +186,7 @@ class ChangeSetTableView(table.MapManagedTableView):
         result = ifce.SCM.do_merge_workspace(rev=rev)
         self.unshow_busy()
         if result[0] & cmd_result.SUGGEST_FORCE:
-            if dialogue.ask_force_or_cancel(result) == dialogue.RESPONSE_FORCE:
+            if dialogue.ask_force_or_cancel(result) == dialogue.Response.FORCE:
                 self.show_busy()
                 result = ifce.SCM.do_merge_workspace(rev=rev, force=True)
                 self.unshow_busy()
@@ -645,10 +645,10 @@ class SetTagDialog(dialogue.ReadTextAndToggleDialog):
             self.unshow_busy()
             if result[0] & cmd_result.SUGGEST_FORCE:
                 ans = dialogue.ask_rename_force_or_cancel(result)
-                if ans == dialogue.RESPONSE_RENAME:
+                if ans == dialogue.Response.RENAME:
                     self.show()
                     return
-                if ans == dialogue.RESPONSE_FORCE:
+                if ans == dialogue.Response.FORCE:
                     self.show_busy()
                     result = ifce.SCM.do_set_tag(tag=tag, local=local, msg=msg,
                                                  rev=self._rev, force=True)

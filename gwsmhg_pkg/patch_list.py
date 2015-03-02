@@ -414,7 +414,7 @@ class ListView(table.TableView):
         self.unshow_busy()
         if result.ecode != cmd_result.OK:
             if result.ecode & cmd_result.SUGGEST_RECOVER:
-                if dialogue.ask_recover_or_cancel(result) == dialogue.RESPONSE_RECOVER:
+                if dialogue.ask_recover_or_cancel(result) == dialogue.Response.RECOVER:
                     self.show_busy()
                     result = ifce.PM.do_recover_interrupted_refresh()
                     if result.ecode == cmd_result.OK:
@@ -433,10 +433,10 @@ class ListView(table.TableView):
                     ans = dialogue.ask_force_refresh_or_cancel(result)
                     if ans == gtk.RESPONSE_CANCEL:
                         return False
-                    elif ans == dialogue.RESPONSE_REFRESH:
+                    elif ans == dialogue.Response.REFRESH:
                         self.do_refresh(notify=False)
                         continue
-                    elif ans == dialogue.RESPONSE_FORCE:
+                    elif ans == dialogue.Response.FORCE:
                         self.show_busy()
                         result = ifce.PM.do_pop_to(force=True)
                         self.unshow_busy()
@@ -463,10 +463,10 @@ class ListView(table.TableView):
                     ans = dialogue.ask_force_refresh_or_cancel(result, parent=None)
                     if ans == gtk.RESPONSE_CANCEL:
                         return False
-                    if ans == dialogue.RESPONSE_REFRESH:
+                    if ans == dialogue.Response.REFRESH:
                         self.do_refresh(notify=False)
                         continue
-                    elif ans == dialogue.RESPONSE_FORCE:
+                    elif ans == dialogue.Response.FORCE:
                         self.show_busy()
                         result = ifce.PM.do_push_to(force=True, merge=merge)
                         self.unshow_busy()
@@ -505,7 +505,7 @@ class ListView(table.TableView):
                 ans = dialogue.ask_edit_force_or_cancel(dummyres, clarification=_finish_empty_msg_prompt, parent=None)
                 if ans == gtk.RESPONSE_CANCEL:
                     return
-                elif ans == dialogue.RESPONSE_FORCE:
+                elif ans == dialogue.Response.FORCE:
                     break
                 self.do_edit_description_wait(next_patch)
             self.show_busy()
@@ -619,7 +619,7 @@ class ListView(table.TableView):
         result = ifce.PM.do_import_patch(old_pfname, duplicate_patch_name)
         self.unshow_busy()
         if result.ecode == cmd_result.ERROR_SUGGEST_FORCE:
-            if dialogue.ask_force_refresh_or_cancel(result) == dialogue.RESPONSE_FORCE:
+            if dialogue.ask_force_refresh_or_cancel(result) == dialogue.Response.FORCE:
                 self.show_busy()
                 result = ifce.PM.do_import_patch(old_pfname, duplicate_patch_name, force=True)
                 self.unshow_busy()
@@ -662,7 +662,7 @@ class ListView(table.TableView):
         result = ifce.PM.do_import_patch(temp_pfname, interdiff_patch_name)
         self.unshow_busy()
         if result.ecode == cmd_result.ERROR_SUGGEST_FORCE:
-            if dialogue.ask_force_refresh_or_cancel(result) == dialogue.RESPONSE_FORCE:
+            if dialogue.ask_force_refresh_or_cancel(result) == dialogue.Response.FORCE:
                 self.show_busy()
                 result = ifce.PM.do_import_patch(temp_pfname, interdiff_patch_name, force=True)
                 self.unshow_busy()
@@ -753,9 +753,9 @@ class ListView(table.TableView):
                 ans = dialogue.ask_force_refresh_or_cancel(result, parent=None)
                 if ans == gtk.RESPONSE_CANCEL:
                     return
-                if ans == dialogue.RESPONSE_REFRESH:
+                if ans == dialogue.Response.REFRESH:
                     self.do_refresh(notify=False)
-                elif ans == dialogue.RESPONSE_FORCE:
+                elif ans == dialogue.Response.FORCE:
                     force = True
             else:
                 dialogue.report_any_problems(result)
@@ -782,10 +782,10 @@ class ListView(table.TableView):
                 ans = dialogue.ask_rename_force_or_cancel(result, clarification=_('Force import of patch, rename patch or cancel import?'))
                 if ans == gtk.RESPONSE_CANCEL:
                     return
-                elif ans == dialogue.RESPONSE_FORCE:
+                elif ans == dialogue.Response.FORCE:
                     force = True
                     continue
-                elif ans == dialogue.RESPONSE_RENAME:
+                elif ans == dialogue.Response.RENAME:
                     if not patch_name:
                         patch_name = os.path.basename(patch_file_name)
                     patch_name = dialogue.get_modified_string(_('Rename Patch'), _('New Name :'), patch_name)
@@ -824,15 +824,15 @@ class ListView(table.TableView):
                 self.unshow_busy()
                 if result.ecode & cmd_result.SUGGEST_FORCE_OR_RENAME:
                     ans = dialogue.ask_rename_force_or_skip(result, clarification=_('Force import of patch, rename patch or skip patch?'))
-                    if ans == dialogue.RESPONSE_SKIP_ALL:
+                    if ans == dialogue.Response.SKIP_ALL:
                         index = len(series)
                         break
-                    elif ans == dialogue.RESPONSE_SKIP:
+                    elif ans == dialogue.Response.SKIP:
                         break
-                    elif ans == dialogue.RESPONSE_FORCE:
+                    elif ans == dialogue.Response.FORCE:
                         force = True
                         continue
-                    elif ans == dialogue.RESPONSE_RENAME:
+                    elif ans == dialogue.Response.RENAME:
                         if not patch_name:
                             patch_name = base_name
                         patch_name = dialogue.get_modified_string(_('Rename Patch'), _('New Name :'), patch_name)
@@ -869,9 +869,9 @@ def do_export_named_patch(parent, patchname, suggestion=None, busy_indicator=Non
             resp = dialogue.ask_force_refresh_absorb_or_cancel(result, clarification=None)
             if resp == gtk.RESPONSE_CANCEL:
                 return
-            elif resp == dialogue.RESPONSE_FORCE:
+            elif resp == dialogue.Response.FORCE:
                 force = True
-            elif resp == dialogue.RESPONSE_REFRESH:
+            elif resp == dialogue.Response.REFRESH:
                 refresh_tried = True
                 dialogue.show_busy()
                 result = ifce.PM.do_refresh_patch()
@@ -882,9 +882,9 @@ def do_export_named_patch(parent, patchname, suggestion=None, busy_indicator=Non
             resp = dialogue.ask_rename_overwrite_or_cancel(result, clarification=None)
             if resp == gtk.RESPONSE_CANCEL:
                 return
-            elif resp == dialogue.RESPONSE_OVERWRITE:
+            elif resp == dialogue.Response.OVERWRITE:
                 overwrite = True
-            elif resp == dialogue.RESPONSE_RENAME:
+            elif resp == dialogue.Response.RENAME:
                 export_filename = dialogue.ask_file_name(PROMPT, suggestion=export_filename, existing=False)
                 if export_filename is None:
                     return
