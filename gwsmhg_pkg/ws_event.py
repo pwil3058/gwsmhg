@@ -75,7 +75,7 @@ def del_notification_cb(cb_token):
     # paths - so we need to check
     try:
         index = _NOTIFICATION_CBS.index(cb_token)
-	del _NOTIFICATION_CBS[index]
+        del _NOTIFICATION_CBS[index]
     except ValueError:
         pass
 

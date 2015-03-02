@@ -246,11 +246,7 @@ class ListView(table.TableView):
     def __init__(self, busy_indicator=None, size_req=None):
         self.last_import_dir = None
         table.TableView.__init__(self, busy_indicator=None, size_req=size_req)
-        toggle_data = list(range(4))
-        toggle_data[gutils.TOC_NAME] = "auto_refresh_patch_list"
-        toggle_data[gutils.TOC_LABEL] = _('Auto Update')
-        toggle_data[gutils.TOC_TOOLTIP] = "Enable/disable automatic updating of the patch list"
-        toggle_data[gutils.TOC_STOCK_ID] = gtk.STOCK_REFRESH
+        toggle_data = gutils.TimeOutController.ToggleData(name="auto_refresh_patch_list", label=_('Auto Update'), tooltip="Enable/disable automatic updating of the patch list", stock_id=gtk.STOCK_REFRESH)
         self.toc = gutils.TimeOutController(toggle_data, function=self._update_list_cb, is_on=False)
         self.action_groups[actions.AC_DONT_CARE].add_action(self.toc.toggle_action)
         self.ui_manager.add_ui_from_string(_UI_DESCR)

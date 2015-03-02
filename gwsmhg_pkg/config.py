@@ -27,6 +27,8 @@ from gwsmhg_pkg import dialogue
 from gwsmhg_pkg import gutils
 from gwsmhg_pkg import tlview
 from gwsmhg_pkg import table
+from gwsmhg_pkg import actions
+from gwsmhg_pkg import ws_event
 
 SAVED_WKSPCE_FILE_NAME = os.sep.join([config_data.CONFIG_DIR_NAME, "workspaces"])
 SAVED_REPO_FILE_NAME = os.sep.join([config_data.CONFIG_DIR_NAME, "repositories"])
@@ -460,3 +462,20 @@ class EditorAllocationDialog(dialogue.Dialog):
         if response_id == gtk.RESPONSE_OK:
             self._table.apply_changes()
         self.destroy()
+
+def auto_update_cb(_arg=None):
+    if dialogue.is_busy():
+        return
+    ws_event.notify_events(ws_event.AUTO_UPDATE)
+
+AUTO_UPDATE = gutils.RefreshController(
+    toggle_data=gutils.RefreshController.ToggleData(
+        name='config_auto_update',
+        label=_('Auto Update'),
+        tooltip=_('Enable/disable automatic updating of displayed data'),
+        stock_id=gtk.STOCK_REFRESH
+    ),
+    function=auto_update_cb, is_on=True, interval=10000
+)
+
+actions.CLASS_INDEP_AGS[actions.AC_DONT_CARE].add_action(AUTO_UPDATE.toggle_action)

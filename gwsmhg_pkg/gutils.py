@@ -13,7 +13,9 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-import gtk, gobject
+import collections
+import gtk
+import gobject
 
 def pygtk_version_ge(version):
     for index in range(len(version)):
@@ -64,7 +66,7 @@ class RadioButtonFramedVBox(gtk.Frame):
                 return index
         return None
 
-class PopupUser:
+class PopupUser(object):
     def __init__(self):
         self._gtk_window = None
     def _get_gtk_window(self):
@@ -183,12 +185,14 @@ class ActionButton(gtk.Button):
     def __init__(self, action, use_underline=True):
         label = action.get_property("label")
         stock_id = action.get_property("stock-id")
-        if label is "":
+        if label is not None:
             # Empty (NB not None) label means use image only
             gtk.Button.__init__(self, use_underline=use_underline)
             image = gtk.Image()
             image.set_from_stock(stock_id, gtk.ICON_SIZE_BUTTON)
-            self.add(image)
+            self.set_image(image)
+            if label:
+                self.set_label(label)
         else:
             gtk.Button.__init__(self, stock=stock_id, label=label, use_underline=use_underline)
         set_widget_tooltip_text(self, action.get_property("tooltip"))
@@ -222,17 +226,18 @@ class ActionHButtonBox(gtk.HBox):
         for button in self.button_list.list:
             self.pack_start(button, expand, fill, padding)
 
-TOC_NAME, TOC_LABEL, TOC_TOOLTIP, TOC_STOCK_ID = list(range(4))
-
 class TimeOutController():
+    ToggleData = collections.namedtuple('ToggleData', ['name', 'label', 'tooltip', 'stock_id'])
     def __init__(self, toggle_data, function=None, is_on=True, interval=10000):
         self._interval = abs(interval)
         self._timeout_id = None
         self._function = function
         self.toggle_action = gtk.ToggleAction(
-                toggle_data[TOC_NAME], toggle_data[TOC_LABEL],
-                toggle_data[TOC_TOOLTIP], toggle_data[TOC_STOCK_ID]
+                toggle_data.name, toggle_data.label,
+                toggle_data.tooltip, toggle_data.stock_id
             )
+        self.toggle_action.set_menu_item_type(gtk.CheckMenuItem)
+        self.toggle_action.set_tool_item_type(gtk.ToggleToolButton)
         self.toggle_action.connect("toggled", self._toggle_acb)
         self.toggle_action.set_active(is_on)
         self._toggle_acb()
@@ -265,7 +270,7 @@ class TimeOutController():
             self.toggle_action.set_active(active)
         self.restart_cycle()
 
-TOC_DEFAULT_REFRESH_TD = ["auto_refresh_toggle", _('Auto _Refresh'), _('Turn data auto refresh on/off'), gtk.STOCK_REFRESH]
+TOC_DEFAULT_REFRESH_TD = TimeOutController.ToggleData("auto_refresh_toggle", _('Auto _Refresh'), _('Turn data auto refresh on/off'), gtk.STOCK_REFRESH)
 
 class RefreshController(TimeOutController):
     def __init__(self, toggle_data=None, function=None, is_on=True, interval=10000):
@@ -273,7 +278,7 @@ class RefreshController(TimeOutController):
             toggle_data = TOC_DEFAULT_REFRESH_TD
         TimeOutController.__init__(self, toggle_data, function=function, is_on=is_on, interval=interval)
 
-TOC_DEFAULT_SAVE_TD = ["auto_save_toggle", _('Auto _Save'), _('Turn data auto save on/off'), gtk.STOCK_SAVE]
+TOC_DEFAULT_SAVE_TD = TimeOutController.ToggleData("auto_save_toggle", _('Auto _Save'), _('Turn data auto save on/off'), gtk.STOCK_SAVE)
 
 class SaveController(TimeOutController):
     def __init__(self, toggle_data=None, function=None, is_on=True, interval=10000):

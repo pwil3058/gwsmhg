@@ -151,11 +151,7 @@ class Tree(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialog
     @staticmethod
     def _handle_button_press_cb(widget, event):
         if event.type == gtk.gdk.BUTTON_PRESS:
-            if event.button == 3:
-                menu = self.ui_manager.get_widget('/files_popup')
-                menu.popup(None, None, None, event.button, event.time)
-                return True
-            elif event.button == 2:
+            if event.button == 2:
                 widget.get_selection().unselect_all()
                 return True
         return False
@@ -207,7 +203,7 @@ class Tree(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialog
         if not show_status:
             pass # TODO: hide the status column
         self.set_search_equal_func(self.search_equal_func)
-        ws_actions.AGandUIManager.__init__(self, selection=self.get_selection(), popup='/files_popup')
+        ws_actions.AGandUIManager.__init__(self, selection=self.get_selection(), popup="/files_popup")
         self.connect("row-expanded", self.model.on_row_expanded_cb)
         self.connect("row-collapsed", self.model.on_row_collapsed_cb)
         self.connect("button_press_event", self._handle_button_press_cb)
@@ -380,72 +376,6 @@ class Tree(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialog
                 filepaths += self.get_filepaths_in_dir(os.path.join(dirname, subdir.name), recursive)
         return filepaths
 
-_KEYVAL_c = gtk.gdk.keyval_from_name('c')
-_KEYVAL_C = gtk.gdk.keyval_from_name('C')
-_KEYVAL_ESCAPE = gtk.gdk.keyval_from_name('Escape')
-
-class FileTreeView(Tree):
-    UI_DESCR = \
-    '''
-    <ui>
-      <popup name="files_popup">
-        <placeholder name="selection_indifferent"/>
-        <separator/>
-        <placeholder name="selection"/>
-        <separator/>
-        <placeholder name="selection_not_patched"/>
-        <separator/>
-        <placeholder name="unique_selection"/>
-        <separator/>
-        <placeholder name="no_selection"/>
-        <separator/>
-        <placeholder name="no_selection_not_patched"/>
-        <separator/>
-      </popup>
-      <toolbar name="files_housekeeping_toolbar">
-        <toolitem action="refresh_files"/>
-        <separator/>
-        <toolitem action="show_hidden_files"/>
-      </toolbar>
-      <toolbar name="files_refresh_toolbar">
-        <toolitem action="refresh_files"/>
-      </toolbar>
-    </ui>
-    '''
-    def __init__(self, busy_indicator, model=None, auto_refresh=False, show_hidden=False, show_status=False):
-        self.auto_refresh_action = gtk.ToggleAction("auto_refresh_files", _('Auto Refresh'),
-                                                   _('Automatically/periodically refresh file display'), None)
-        self.auto_refresh_action.set_active(auto_refresh)
-        self.auto_refresh_action.connect("toggled", self._toggle_auto_refresh_cb)
-        self.auto_refresh_action.set_menu_item_type(gtk.CheckMenuItem)
-        self.auto_refresh_action.set_tool_item_type(gtk.ToggleToolButton)
-        self._os_file_db = fsdb.OsFileDb()
-        Tree.__init__(self, busy_indicator=busy_indicator, model=model, show_hidden=show_hidden, show_status=show_status)
-        self._refresh_interval = 60000 # milliseconds
-        self.connect("row-expanded", self.model.on_row_expanded_cb)
-        self.connect("row-collapsed", self.model.on_row_collapsed_cb)
-        self._toggle_auto_refresh_cb()
-    def populate_action_groups(self):
-        Tree.populate_action_groups(self)
-        self.action_groups[actions.AC_DONT_CARE].add_action(self.auto_refresh_action)
-    def _do_auto_refresh(self):
-        if self.auto_refresh_action.get_active():
-            self.update()
-            return True
-        else:
-            return False
-    def _toggle_auto_refresh_cb(self, action=None):
-        if self.auto_refresh_action.get_active():
-            gobject.timeout_add(self._refresh_interval, self._do_auto_refresh)
-    def set_refresh_interval(self, refresh_interval):
-        self._refresh_interval = refresh_interval
-    def set_show_hidden(self, show_hidden):
-        model = self.get_model()
-        if model.set_show_hidden(show_hidden):
-            model.update()
-    def _get_file_db(self):
-        return self._os_file_db
-
 CWD_UI_DESCR = \
 '''
 <ui>
@@ -477,12 +407,13 @@ CWD_UI_DESCR = \
 </ui>
 '''
 
-class CwdFileTreeView(FileTreeView):
-    def __init__(self, busy_indicator, model=None, auto_refresh=False, show_hidden=False, show_status=False):
-        FileTreeView.__init__(self, busy_indicator=busy_indicator, model=model, auto_refresh=auto_refresh, show_hidden=show_hidden, show_status=show_status)
+class CwdFileTreeView(Tree):
+    def __init__(self, busy_indicator, model=None, show_hidden=False, show_status=False):
+        self._os_file_db = fsdb.OsSnapshotFileDb()
+        Tree.__init__(self, busy_indicator=busy_indicator, model=model, show_hidden=show_hidden, show_status=show_status)
         self.ui_manager.add_ui_from_string(CWD_UI_DESCR)
     def populate_action_groups(self):
-        FileTreeView.populate_action_groups(self)
+        Tree.populate_action_groups(self)
         self.action_groups[actions.AC_SELN_MADE].add_actions(
             [
                 ("edit_files", gtk.STOCK_EDIT, _('_Edit'), None,
@@ -554,6 +485,8 @@ class CwdFileTreeView(FileTreeView):
             dialogue.report_any_problems(result)
     def delete_selected_files_acb(self, _menu_item):
         self._delete_named_files(self.get_selected_files())
+    def _get_file_db(self):
+        return self._os_file_db
 
 SCM_CWD_UI_DESCR = \
 '''
@@ -607,16 +540,17 @@ def _check_if_force(result):
     return dialogue.ask_force_or_cancel(result) == dialogue.Response.FORCE
 
 class ScmCwdFileTreeView(CwdFileTreeView):
-    def __init__(self, busy_indicator=None, auto_refresh=False, show_hidden=False):
+    def __init__(self, busy_indicator=None, show_hidden=False):
         self.hide_clean_action = gtk.ToggleAction('hide_clean_files', _('Hide Clean Files'),
                                                    _('Show/hide "clean" files'), None)
         self.hide_clean_action.set_active(False)
         self.hide_clean_action.connect('toggled', self._toggle_hide_clean_cb)
         self.hide_clean_action.set_menu_item_type(gtk.CheckMenuItem)
         self.hide_clean_action.set_tool_item_type(gtk.ToggleToolButton)
-        CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=None, auto_refresh=auto_refresh, show_hidden=show_hidden, show_status=True)
+        CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=None, show_hidden=show_hidden, show_status=True)
         self.add_notification_cb(ws_event.CHECKOUT|ws_event.FILE_CHANGES, self.update),
         self.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir),
+        self.add_notification_cb(ws_event.AUTO_UPDATE, self.auto_update)
         self.ui_manager.add_ui_from_string(SCM_CWD_UI_DESCR)
         if not ifce.SCM.get_extension_enabled("extdiff"):
             self.get_conditional_action("scm_extdiff_files_selection").set_visible(False)
@@ -631,6 +565,9 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             self.ui_manager.add_ui_from_string(tortoise.FILES_UI_DESCR)
         self.init_action_states()
         self.repopulate()
+    def auto_update(self, _arg=None):
+        if not self._file_db.is_current():
+            ws_event.notify_events(ws_event.FILE_CHANGES)
     def populate_action_groups(self):
         CwdFileTreeView.populate_action_groups(self)
         self.action_groups[actions.AC_DONT_CARE].add_action(self.hide_clean_action)
@@ -878,11 +815,10 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         return self._file_db.dir_contents(dirpath, show_hidden)
 
 class ScmCwdFilesWidget(gtk.VBox):
-    def __init__(self, busy_indicator=None, auto_refresh=False, show_hidden=False):
+    def __init__(self, busy_indicator=None, show_hidden=False):
         gtk.VBox.__init__(self)
         # file tree view wrapped in scrolled window
-        self.file_tree = ScmCwdFileTreeView(busy_indicator=busy_indicator,
-            auto_refresh=auto_refresh, show_hidden=show_hidden)
+        self.file_tree = ScmCwdFileTreeView(busy_indicator=busy_indicator, show_hidden=show_hidden)
         scw = gtk.ScrolledWindow()
         scw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
         self.file_tree.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
@@ -895,7 +831,7 @@ class ScmCwdFilesWidget(gtk.VBox):
         self.pack_start(scw, expand=True, fill=True)
         # Mode selectors
         hbox = gtk.HBox()
-        for action_name in ["auto_refresh_files", "show_hidden_files"]:
+        for action_name in ["show_hidden_files", "hide_clean_files"]:
             button = gtk.CheckButton()
             action = self.file_tree.action_groups.get_action(action_name)
             action.connect_proxy(button)
@@ -928,16 +864,16 @@ SCM_CHANGE_UI_DESCR = \
 </ui>
 '''
 
-class ScmCommitFileTreeView(FileTreeView):
+class ScmCommitFileTreeView(Tree):
     class TWSDisplay(diff.TextWidget.TwsLineCountDisplay):
         LABEL = _('File(s) that add TWS: ')
     AUTO_EXPAND = True
-    def __init__(self, busy_indicator, auto_refresh=False, show_hidden=True, file_mask=None):
+    def __init__(self, busy_indicator, show_hidden=True, file_mask=None):
         self.removeds = []
         self._file_mask = [] if file_mask is None else file_mask
         self.tws_display = self.TWSDisplay()
         self.tws_display.set_value(0)
-        FileTreeView.__init__(self, busy_indicator=busy_indicator, auto_refresh=auto_refresh, show_hidden=show_hidden, show_status=True)
+        Tree.__init__(self, busy_indicator=busy_indicator, show_hidden=show_hidden, show_status=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.set_headers_visible(False)
         self.scm_change_merge_id = self.ui_manager.add_ui_from_string(SCM_CHANGE_UI_DESCR)
@@ -945,8 +881,12 @@ class ScmCommitFileTreeView(FileTreeView):
         if not ifce.SCM.get_extension_enabled("extdiff"):
             self.action_groups.get_action("scm_extdiff_files_selection").set_visible(False)
             self.action_groups.get_action("scm_extdiff_files_all").set_visible(False)
+        self.add_notification_cb(ws_event.AUTO_UPDATE, self.auto_update)
+    def auto_update(self, _arg=None):
+        if not self._file_db.is_current():
+            self.update()
     def populate_action_groups(self):
-        FileTreeView.populate_action_groups(self)
+        Tree.populate_action_groups(self)
         self.action_groups[ws_actions.AC_IN_REPO + actions.AC_SELN_MADE].add_actions(
             [
                 ("scmch_remove_files", gtk.STOCK_DELETE, _('_Remove'), None,
@@ -1057,10 +997,7 @@ class ScmCommitWidget(gtk.VPaned, ws_event.Listener):
         self.summary_widget = self.SummaryWidget()
         self.add1(self.summary_widget)
         # TreeView of files in change set
-        self.files = ScmCommitFileTreeView(busy_indicator=busy_indicator,
-                                           auto_refresh=False,
-                                           show_hidden=True,
-                                           file_mask=file_mask)
+        self.files = ScmCommitFileTreeView(busy_indicator=busy_indicator, show_hidden=True, file_mask=file_mask)
         vbox = gtk.VBox()
         hbox = gtk.HBox()
         hbox.pack_start(gtk.Label(_('Files')), fill=True, expand=False)
@@ -1126,10 +1063,10 @@ class ScmCommitDialog(dialogue.AmodalDialog):
 
 class GenericPatchFileTreeView(CwdFileTreeView):
     AUTO_EXPAND = True
-    def __init__(self, patch=None, busy_indicator=None, model=None, auto_refresh=False, show_status=True):
+    def __init__(self, patch=None, busy_indicator=None, model=None, show_status=True):
         self._patch = patch
         self._null_file_db = fsdb.NullFileDb()
-        CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model, auto_refresh=auto_refresh, show_status=show_status)
+        CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model, show_status=show_status)
     @property
     def patch(self):
         return self._patch
@@ -1167,7 +1104,7 @@ PATCH_FILES_UI_DESCR = \
 
 class PatchFileTreeView(GenericPatchFileTreeView):
     def __init__(self, busy_indicator=None, patch=None, model=None):
-        GenericPatchFileTreeView.__init__(self, patch=patch, busy_indicator=busy_indicator, model=model, auto_refresh=False, show_status=True)
+        GenericPatchFileTreeView.__init__(self, patch=patch, busy_indicator=busy_indicator, model=model, show_status=True)
         if not ifce.SCM.get_extension_enabled("extdiff") or not ifce.PM.get_patch_is_applied(self._patch):
             self.action_groups.get_action("pm_extdiff_files_selection").set_visible(False)
             self.action_groups.get_action("pm_extdiff_files_all").set_visible(False)
@@ -1236,7 +1173,6 @@ PM_FILES_UI_DESCR = \
       <menuitem action="new_file"/>
       <menuitem action="refresh_files"/>
       <separator/>
-      <menuitem action="auto_refresh_files"/>
     </menu>
   </menubar>
   <popup name="files_popup">
@@ -1264,8 +1200,8 @@ PM_FILES_UI_DESCR = \
 '''
 
 class TopPatchFileTreeView(GenericPatchFileTreeView):
-    def __init__(self, auto_refresh=False, busy_indicator=None):
-        GenericPatchFileTreeView.__init__(self, model=None, auto_refresh=auto_refresh, show_status=True, busy_indicator=busy_indicator)
+    def __init__(self, busy_indicator=None):
+        GenericPatchFileTreeView.__init__(self, model=None, show_status=True, busy_indicator=busy_indicator)
         self.show_hidden_action.set_visible(False)
         self.show_hidden_action.set_sensitive(False)
         if not ifce.SCM.get_extension_enabled("extdiff"):

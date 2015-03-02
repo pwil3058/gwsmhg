@@ -14,6 +14,8 @@
 ### Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import os, os.path, tempfile, pango, re, time, collections
+import hashlib
+
 from gwsmhg_pkg import ifce, utils, cmd_result, putils, ws_event, const, fsdb
 from gwsmhg_pkg import patchlib
 from gwsmhg_pkg import runext
@@ -37,6 +39,14 @@ FSTATUS_MODIFIED_SET = set([FSTATUS_MODIFIED, FSTATUS_ADDED, FSTATUS_REMOVED,
                            FSTATUS_MISSING, FSTATUS_UNRESOLVED])
 
 class ScmDir(fsdb.GenDir):
+    @staticmethod
+    def map_patchlib_status(status):
+        if status == patchlib.FilePathPlus.ADDED:
+            return FSTATUS_ADDED
+        elif status == patchlib.FilePathPlus.DELETED:
+            return FSTATUS_REMOVED
+        else:
+            return FSTATUS_MODIFIED
     def __init__(self):
         fsdb.GenDir.__init__(self)
     def _new_dir(self):
@@ -62,32 +72,70 @@ class ScmDir(fsdb.GenDir):
             return fdata.name[0] == '.' or fdata.status == FSTATUS_IGNORED
         return False
 
-class ScmFileDb(fsdb.GenFileDb):
+class ScmFileDb(fsdb.GenSnapshotFileDb):
     DIR_TYPE = ScmDir
-    @staticmethod
-    def map_patchlib_status(status):
-        if status == patchlib.FilePathPlus.ADDED:
-            return FSTATUS_ADDED
-        elif status == patchlib.FilePathPlus.DELETED:
-            return FSTATUS_REMOVED
-        else:
-            return FSTATUS_MODIFIED
-    def __init__(self, file_list, unresolved_file_list=list()):
-        fsdb.GenFileDb.__init__(self)
-        lfile_list = len(file_list)
+    def __init__(self, file_list_cmd, unresolved_file_list_cmd):
+        fsdb.GenSnapshotFileDb.__init__(self)
+        self._file_list_cmd = file_list_cmd
+        self._unresolved_file_list_cmd = unresolved_file_list_cmd
+        file_list = self._get_file_list(self.tree_hash)
+        unresolved_file_list = self._get_unresolved_file_list(self.tree_hash)
         index = 0
-        while index < lfile_list:
+        while index < len(file_list):
             item = file_list[index]
             index += 1
             if isinstance(item, patchlib.FilePathPlus):
                 parts = fsdb.split_path(item.path)
-                status = ScmFileDb.map_patchlib_status(item.status)
+                status = DIR_TYPE.map_patchlib_status(item.status)
                 self.base_dir.add_file(parts, status, item.expath)
             else:
                 filename = item[2:]
                 status = item[0]
                 related_file = None
-                if status == FSTATUS_ADDED and index < lfile_list:
+                if status == FSTATUS_ADDED and index < len(file_list):
+                    if file_list[index][0] == FSTATUS_ORIGIN:
+                        related_file = file_list[index][2:]
+                        index += 1
+                elif filename in unresolved_file_list:
+                    status = FSTATUS_UNRESOLVED
+                parts = fsdb.split_path(filename)
+                self.base_dir.add_file(parts, status, related_file)
+    def _get_file_list(self, h):
+        result = runext.run_cmd(self._file_list_cmd)
+        h.update(result.stdout)
+        return result.stdout.splitlines()
+    def _get_unresolved_file_list(self, h):
+        ret = []
+        result = runext.run_cmd(self._unresolved_file_list_cmd)
+        if result.ecode == 0:
+            for line in result.stdout.splitlines():
+                if line[0] == FSTATUS_UNRESOLVED:
+                    h.update(line)
+                    ret.append(line)
+        return ret
+    def _get_current_tree_hash(self):
+        h = hashlib.sha1()
+        self._get_file_list(h)
+        self._get_unresolved_file_list(h)
+        return h
+
+class PatchFileDb(fsdb.GenFileDb):
+    DIR_TYPE = ScmDir
+    def __init__(self, file_list, unresolved_file_list=list()):
+        fsdb.GenFileDb.__init__(self)
+        index = 0
+        while index < len(file_list):
+            item = file_list[index]
+            index += 1
+            if isinstance(item, patchlib.FilePathPlus):
+                parts = fsdb.split_path(item.path)
+                status = DIR_TYPE.map_patchlib_status(item.status)
+                self.base_dir.add_file(parts, status, item.expath)
+            else:
+                filename = item[2:]
+                status = item[0]
+                related_file = None
+                if status == FSTATUS_ADDED and index < len(file_list):
                     if file_list[index][0] == FSTATUS_ORIGIN:
                         related_file = file_list[index][2:]
                         index += 1
@@ -326,7 +374,8 @@ class SCMInterface(BaseInterface):
         cmd = 'hg log --template "{rev}" -r qbase'
         result = runext.run_cmd(cmd)
         return result.stdout if result.ecode == 0 and result.stdout else None
-    def _get_qparent(self):
+    @staticmethod
+    def _get_qparent():
         cmd = 'hg log --template "{rev}" -r qparent'
         result = runext.run_cmd(cmd)
         return result.stdout if result.ecode == 0 and result.stdout else None
@@ -342,7 +391,8 @@ class SCMInterface(BaseInterface):
         if result.ecode:
             raise cmd_result.Failure(result)
         return result.stdout.splitlines()
-    def _unresolved_file_list(self,  fspath_list=None):
+    @staticmethod
+    def _unresolved_file_list(fspath_list=None):
         cmd = 'hg resolve --list'
         if fspath_list:
             cmd += ' %s' % utils.file_list_to_string(fspath_list)
@@ -355,17 +405,17 @@ class SCMInterface(BaseInterface):
         qprev = self._get_qparent()
         if qprev is not None:
             cmd += ' --rev %s' % qprev
-        result = runext.run_cmd(cmd)
-        scm_file_db = ScmFileDb(result.stdout.splitlines(), self._unresolved_file_list())
+        scm_file_db = ScmFileDb(cmd, "hg resolve --list")
         scm_file_db.decorate_dirs()
         return scm_file_db
     def get_commit_file_db(self, fspath_list=None):
         cmd = 'hg status -mardC'
+        urfl_cmd = 'hg resolve --list'
         if fspath_list:
-            cmd += ' %s' % utils.file_list_to_string(fspath_list)
-        result = runext.run_cmd(cmd)
-        scm_file_db = ScmFileDb(result.stdout.splitlines(), self._unresolved_file_list())
-        return scm_file_db
+            flstr = utils.file_list_to_string(fspath_list)
+            cmd += ' %s' % flstr
+            urfl_cmd += ' %s' % flstr
+        return ScmFileDb(cmd, urfl_cmd)
     def get_commit_diff(self, fspath_list=None):
         cmd = 'hg diff --git'
         if fspath_list:
@@ -399,7 +449,7 @@ class SCMInterface(BaseInterface):
         parents = self.get_parents(rev)
         template = '{files}\\n{file_adds}\\n{file_dels}\\n'
         cmd = 'hg log --template "%s" --rev %s' % (template, rev)
-        cs_file_db = ScmFileDb([])
+        cs_file_db = PatchFileDb([])
         result = runext.run_cmd(cmd)
         if result.ecode:
             return cs_file_db
@@ -504,7 +554,7 @@ class SCMInterface(BaseInterface):
         cmd = 'hg -q incoming --template "%s" -nl 1 --rev %s' % (template, rev)
         if path:
             cmd += ' "%s"' % path
-        cs_file_db = ScmFileDb([])
+        cs_file_db = PatchFileDb([])
         result = runext.run_cmd(cmd)
         if result.ecode:
             return cs_file_db
@@ -991,17 +1041,17 @@ class PMInterface(BaseInterface):
         return None
     def get_patch_file_db(self, patch=None):
         if not self.get_enabled():
-            return ScmFileDb([])
+            return PatchFileDb([])
         if patch and not self.get_patch_is_applied(patch):
             pfn = self.get_patch_file_name(patch)
             try:
-                return ScmFileDb(putils.get_patch_files_plus(pfn))
+                return PatchFileDb(putils.get_patch_files_plus(pfn))
             except:
-                return ScmFileDb([])
+                return PatchFileDb([])
         top = self.get_top_patch()
         if not top:
             # either we're not in an mq playground or no patches are applied
-            return ScmFileDb([])
+            return PatchFileDb([])
         cmd = 'hg status -mardC'
         if patch:
             parent = self.get_parent(patch)
@@ -1009,7 +1059,7 @@ class PMInterface(BaseInterface):
         else:
             parent = self.get_parent(top)
             cmd += ' --rev %s' % parent
-        return ScmFileDb(runext.run_cmd(cmd).stdout.splitlines())
+        return PatchFileDb(runext.run_cmd(cmd).stdout.splitlines())
     def get_in_progress(self):
         if not self.get_enabled():
             return False

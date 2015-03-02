@@ -19,11 +19,10 @@ from gwsmhg_pkg import gutils, file_tree
 from gwsmhg_pkg import patch_list
 
 class TopPatchFilesWidget(gtk.VBox):
-    def __init__(self, busy_indicator, auto_refresh=False):
+    def __init__(self, busy_indicator):
         gtk.VBox.__init__(self)
         # file tree view wrapped in scrolled window
-        self.file_tree = file_tree.TopPatchFileTreeView(busy_indicator=busy_indicator,
-            auto_refresh=auto_refresh)
+        self.file_tree = file_tree.TopPatchFileTreeView(busy_indicator=busy_indicator)
         scw = gtk.ScrolledWindow()
         scw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
         self.file_tree.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
@@ -39,8 +38,7 @@ class TopPatchFilesWidget(gtk.VBox):
 class PatchManagementWidget(gtk.VBox):
     def __init__(self, busy_indicator=None):
         gtk.VBox.__init__(self)
-        self._file_tree = TopPatchFilesWidget(busy_indicator=busy_indicator,
-            auto_refresh=False)
+        self._file_tree = TopPatchFilesWidget(busy_indicator=busy_indicator)
         self._patch_list = patch_list.List(busy_indicator=busy_indicator)
         self._menu_bar = self._patch_list.ui_manager.get_widget("/patches_menubar")
         self._tool_bar = self._patch_list.ui_manager.get_widget("/patches_toolbar")

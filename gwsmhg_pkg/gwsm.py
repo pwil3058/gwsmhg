@@ -60,6 +60,7 @@ GWSM_UI_DESCR = \
   <menubar name="gwsm_right_side_menubar">
     <menu name="gwsm_config" action="gwsm_configuration">
       <menuitem action="gwsm_config_editors"/>
+      <menuitem action='config_auto_update'/>
     </menu>
   </menubar>
 </ui>
