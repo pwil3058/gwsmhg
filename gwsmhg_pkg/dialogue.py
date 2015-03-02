@@ -137,6 +137,7 @@ RESPONSE_RENAME = 6
 RESPONSE_DISCARD = 7
 RESPONSE_EDIT = 8
 RESPONSE_MERGE = 9
+RESPONSE_OVERWRITE = 10
 
 def _form_question(result, clarification):
     if clarification:
@@ -197,6 +198,15 @@ def ask_rename_force_or_skip(result, clarification=None, parent=None):
     if result.eflags & cmd_result.SUGGEST_FORCE:
         buttons += (_('_Force'), RESPONSE_FORCE)
     buttons += (_('_Skip'), RESPONSE_SKIP, _('Skip _All'), RESPONSE_SKIP_ALL)
+    question = _form_question(result, clarification)
+    return ask_question(question, parent, buttons)
+
+def ask_rename_overwrite_or_cancel(result, clarification=None, parent=None):
+    buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
+    if result.eflags & cmd_result.SUGGEST_RENAME:
+        buttons += (_('_Rename'), RESPONSE_RENAME)
+    if result.eflags & cmd_result.SUGGEST_OVERWRITE:
+        buttons += (_('_Overwrite'), RESPONSE_OVERWRITE)
     question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
@@ -313,7 +323,7 @@ class CancelOKDialog(Dialog):
 
 class ReadTextDialog(CancelOKDialog):
     def __init__(self, title=None, prompt=None, suggestion="", parent=None):
-        CancelOKDialog.__init__(self, title, parent) 
+        CancelOKDialog.__init__(self, title, parent)
         self.hbox = gtk.HBox()
         self.vbox.add(self.hbox)
         self.hbox.show()

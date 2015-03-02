@@ -22,7 +22,8 @@ to update their displayed/cached data
 
 import gobject
 
-_NFLAGS = 16
+_NFLAGS = 17
+AUTO_UPDATE, \
 FILE_ADD, \
 FILE_DEL, \
 FILE_MOD, \
@@ -47,7 +48,6 @@ FILE_CHANGES = FILE_ADD | FILE_DEL | FILE_MOD | FILE_HGIGNORE
 PATCH_CHANGES = PATCH_PUSH | PATCH_POP | PATCH_CREATE | PATCH_DELETE | PATCH_MODIFY
 
 _NOTIFICATION_CBS = []
-
 
 def add_notification_cb(events, callback):
     """

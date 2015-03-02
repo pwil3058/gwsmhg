@@ -18,3 +18,13 @@ APPLIED = "+"
 APPLIED_NEEDS_REFRESH = "?"
 TOP_PATCH = "="
 TOP_PATCH_NEEDS_REFRESH = "!"
+
+class PatchState(object):
+    UNAPPLIED = ' '
+    APPLIED_REFRESHED = '+'
+    APPLIED_NEEDS_REFRESH = '?'
+    APPLIED_UNREFRESHABLE = '!'
+
+class FileData:
+    class Validity(object):
+        REFRESHED, NEEDS_REFRESH, UNREFRESHABLE = range(3)

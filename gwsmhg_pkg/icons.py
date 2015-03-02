@@ -31,6 +31,8 @@ APP_ICON = 'gwsmhg'
 APP_ICON_FILE = os.path.join(os.path.dirname(_libdir), APP_ICON + os.extsep + 'png')
 
 STOCK_APPLIED = 'gwsmhg_stock_applied'
+STOCK_APPLIED_NEEDS_REFRESH = 'gwsmhg_stock_applied_needs_refresh'
+STOCK_APPLIED_UNREFRESHABLE = 'gwsmhg_stock_applied_unrefreshable'
 STOCK_BRANCH = 'gwsmhg_stock_branch'
 STOCK_COMMIT = 'gwsmhg_stock_commit'
 STOCK_DIFF = 'gwsmhg_stock_diff'
@@ -49,6 +51,8 @@ STOCK_TAG = 'gwsmhg_stock_tag'
 
 _STOCK_ITEMS_OWN_PNG = [
     (STOCK_APPLIED, 'Applied', 0, 0, None),
+    (STOCK_APPLIED_NEEDS_REFRESH, _('Applied (needs refresh)'), 0, 0, None),
+    (STOCK_APPLIED_UNREFRESHABLE, _('Applied (unrefreshable)'), 0, 0, None),
     (STOCK_BRANCH, 'Branch', 0, 0, None),
     (STOCK_COMMIT, 'Commit', 0, 0, None),
     (STOCK_DIFF, 'Diff', 0, 0, None),

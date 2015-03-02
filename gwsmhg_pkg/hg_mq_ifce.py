@@ -829,7 +829,7 @@ class SCMInterface(BaseInterface):
         result = self._run_cmd_on_console(cmd)
         if cmd_result.is_less_than_error(result.eflags):
             ws_event.notify_events(ws_event.REPO_MOD)
-        return result        
+        return result
     def do_set_branch(self, branch, force=False):
         cmd = 'hg branch'
         if force:
@@ -1183,6 +1183,19 @@ class PMInterface(BaseInterface):
         else:
             pfn = self.get_patch_file_name(self.get_top_patch())
         return putils.get_patch_descr(pfn)
+    def get_textpatch(self, patch):
+        if not patch:
+            patch = self.get_top_patch()
+        pfn = self.get_patch_file_name(patch)
+        epatch = putils.get_epatch(pfn)
+        is_applied = patch in self.get_applied_patches()
+        if not is_applied:
+            epatch.state = const.PatchState.APPLIED_REFRESHED
+        else:
+            epatch.state = const.PatchState.UNAPPLIED
+        for diff_plus in epatch.diff_pluses:
+            diff_plus.validity = None
+        return epatch
     def do_set_patch_description(self, patch, descr):
         pfn = self.get_patch_file_name(patch)
         ifce.log.start_cmd("set description for: %s" %patch)
@@ -1234,6 +1247,23 @@ class PMInterface(BaseInterface):
         result = self._run_cmd_on_console('hg qfold %s' % patch)
         ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.PATCH_DELETE)
         return result
+    def do_export_patch_as(self, patchname, export_filename, force=False, overwrite=False):
+        textpatch = self.get_textpatch(patchname)
+        if not force:
+            if textpatch.state == const.PatchState.APPLIED_NEEDS_REFRESH:
+                return cmd_result.Result(cmd_result.ERROR_SUGGEST_FORCE_OR_REFRESH, "", _('Patch needs to be refreshed.\n'))
+            elif textpatch.state == const.PatchState.APPLIED_UNREFRESHABLE:
+                return cmd_result.Result(cmd_result.ERROR_SUGGEST_FORCE, "", _('Patch needs to be refreshed but has problems which prevent refresh.\n'))
+        if not export_filename:
+            export_filename = utils.convert_patchname_to_filename(patch.name)
+        if not overwrite and os.path.exists(export_filename):
+            emsg = _('{0}: file already exists.\n').format(export_filename)
+            return cmd_result.Result(cmd_result.ERROR | cmd_result.SUGGEST_OVERWRITE_OR_RENAME, "", emsg)
+        try:
+            open(export_filename, 'wb').write(str(textpatch))
+        except IOError as edata:
+            return cmd_result.Result(cmd_result.ERROR, "", str(edata) + '\n')
+        return cmd_result.Result(cmd_result.OK, "", "")
     def do_import_patch(self, patch_file_name, as_patch_name=None, force=False):
         cmd = 'hg qimport'
         if as_patch_name:

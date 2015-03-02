@@ -36,6 +36,13 @@ def get_patch_descr(path):
         return ''
     return get_patch_descr_fm_text(buf)
 
+def get_epatch(path):
+    try:
+        buf = utils.get_file_contents(path)
+    except IOError:
+        return None
+    return patchlib.Patch.parse_text(buf)
+
 def get_patch_hdr_fm_text(text, omit_diffstat=False):
     obj = patchlib.Patch.parse_text(text)
     if omit_diffstat:

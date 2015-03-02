@@ -36,6 +36,7 @@ from gwsmhg_pkg import path
 from gwsmhg_pkg import change_set
 from gwsmhg_pkg import actions
 from gwsmhg_pkg import table
+from gwsmhg_pkg import patch_view
 
 Row = collections.namedtuple('Row',    ['name', 'icon', 'markup'])
 
@@ -138,6 +139,7 @@ _UI_DESCR = \
     <separator/>
     <placeholder name="applied_indifferent">
       <menuitem action="pm_edit_patch_descr"/>
+      <menuitem action="pm_patch_view"/>
       <menuitem action="pm_view_patch_files"/>
       <menuitem action="pm_view_patch_diff"/>
       <menuitem action="pm_rename_patch"/>
@@ -277,6 +279,8 @@ class List(table.TableWithAGandUI):
             [
                 ("pm_edit_patch_descr", gtk.STOCK_EDIT, _('Description'), None,
                  _('Edit the selected patch\'s description'), self.do_edit_description),
+                ("pm_patch_view", icons.STOCK_DIFF, _('Details'), None,
+                 _('View the selected patch\'s details'), self.do_view_selected_patch),
                 ("pm_view_patch_files", gtk.STOCK_FILE, _('Files'), None,
                  _('Show files affected by the selected patch'), self.show_files),
                 ("pm_view_patch_diff", icons.STOCK_DIFF, _('Diff'), None,
@@ -538,6 +542,9 @@ class List(table.TableWithAGandUI):
     def do_edit_description(self, _action=None):
         patch = self.get_selected_patch()
         PatchDescrEditDialog(patch, parent=None).show()
+    def do_view_selected_patch(self, action=None):
+        patchname = self.get_selected_patch()
+        patch_view.Dialogue(patchname).show()
     def show_files(self, _action=None):
         patch = self.get_selected_patch()
         dialog = file_tree.PatchFilesDialog(patch=patch)
@@ -852,6 +859,51 @@ class List(table.TableWithAGandUI):
                 dialogue.report_any_problems(result)
                 break
             index += 1
+
+def do_export_named_patch(parent, patchname, suggestion=None, busy_indicator=None):
+    if not suggestion:
+        suggestion = utils.convert_patchname_to_filename(patchname)
+    if busy_indicator is None:
+        busy_indicator = dialogue.main_window
+    PROMPT = _('Export as ...')
+    export_filename = dialogue.ask_file_name(PROMPT, suggestion=suggestion, existing=False)
+    if export_filename is None:
+        return
+    force = False
+    overwrite = False
+    refresh_tried = False
+    while True:
+        busy_indicator.show_busy()
+        result = ifce.PM.do_export_patch_as(patchname, export_filename, force=force, overwrite=overwrite)
+        busy_indicator.unshow_busy()
+        if refresh_tried:
+            result = cmd_result.turn_off_flags(result, cmd_result.SUGGEST_REFRESH)
+        if result.eflags & cmd_result.SUGGEST_FORCE_OR_REFRESH != 0:
+            resp = dialogue.ask_force_refresh_absorb_or_cancel(result, clarification=None)
+            if resp == gtk.RESPONSE_CANCEL:
+                return
+            elif resp == dialogue.RESPONSE_FORCE:
+                force = True
+            elif resp == dialogue.RESPONSE_REFRESH:
+                refresh_tried = True
+                dialogue.show_busy()
+                result = ifce.PM.do_refresh_patch()
+                dialogue.unshow_busy()
+                dialogue.report_any_problems(result)
+            continue
+        elif result.eflags & cmd_result.SUGGEST_RENAME != 0:
+            resp = dialogue.ask_rename_overwrite_or_cancel(result, clarification=None)
+            if resp == gtk.RESPONSE_CANCEL:
+                return
+            elif resp == dialogue.RESPONSE_OVERWRITE:
+                overwrite = True
+            elif resp == dialogue.RESPONSE_RENAME:
+                export_filename = dialogue.ask_file_name(PROMPT, suggestion=export_filename, existing=False)
+                if export_filename is None:
+                    return
+            continue
+        dialogue.report_any_problems(result)
+        break
 
 class NewPatchDescrEditWidget(gtk.VBox):
     def __init__(self, view=None):
