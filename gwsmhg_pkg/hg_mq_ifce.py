@@ -16,6 +16,7 @@
 import os, os.path, tempfile, pango, re, time, collections
 from gwsmhg_pkg import ifce, utils, cmd_result, putils, ws_event, const, fsdb
 from gwsmhg_pkg import patchlib
+from gwsmhg_pkg import runext
 
 newlines_not_allowed_in_cmd = os.name == 'nt' or os.name == 'dos'
 
@@ -100,7 +101,7 @@ Deco = collections.namedtuple('Deco', ['style', 'foreground'])
 _hg_version_re = re.compile('[^(]*\(version ([0-9][0-9.]*)\).*')
 
 def _get_hg_version():
-    result = utils.run_cmd('hg version')
+    result = runext.run_cmd('hg version')
     match = _hg_version_re.match(result.stdout)
     if match:
         parts = match.group(1).split('.')
@@ -121,7 +122,7 @@ def _is_hg_version_ge(version):
     return True
 
 def _changes_exist():
-    result = utils.run_cmd('hg status -m')
+    result = runext.run_cmd('hg status -m')
     return result.stdout != ''
 
 class BaseInterface:
@@ -144,13 +145,13 @@ class BaseInterface:
     def _map_cmd_result(self, result, ignore_err_re=None):
         assert False, _("Must be defined in child")
     def _run_cmd_on_console(self, cmd, input_text=None, ignore_err_re=None):
-        result = utils.run_cmd_in_console(cmd, ifce.log, input_text)
+        result = runext.run_cmd_in_console(ifce.log, cmd, input_text)
         return self._map_cmd_result(result, ignore_err_re=ignore_err_re)
     def _inotify_warning(self, serr):
         return serr.strip() in ['(found dead inotify server socket; removing it)',
             '(inotify: received response from incompatible server version 1)']
     def get_extensions(self):
-        result = utils.run_cmd(_('hg showconfig extensions'))
+        result = runext.run_cmd('hg showconfig extensions')
         extens = []
         for line in result.stdout.splitlines():
             preeq, posteq = line.split('=')
@@ -160,8 +161,8 @@ class BaseInterface:
         return exten in self.get_extensions()
     def get_author_name_and_email(self):
         cmd = 'hg showconfig ui.username'
-        result = utils.run_cmd(cmd)
-        if result.eflags == 0 and result.stdout:
+        result = runext.run_cmd(cmd)
+        if result.ecode == 0 and result.stdout:
             return result.stdout.strip()
         name = utils.get_first_in_envar(self._name_envars)
         if not name:
@@ -199,7 +200,7 @@ class BaseInterface:
         if file_list:
             cmd += ' %s' % utils.file_list_to_string(file_list)
         if dry_run:
-            return self._map_result(utils.run_cmd(cmd))
+            return self._map_result(runext.run_cmd(cmd))
         else:
             result = self._run_cmd_on_console(cmd)
             ws_event.notify_events(ws_event.FILE_ADD)
@@ -212,7 +213,7 @@ class BaseInterface:
             cmd += ' -f'
         cmd += ' %s' % utils.file_list_to_string(file_list + [target])
         if dry_run:
-            return self._map_result(utils.run_cmd(cmd))
+            return self._map_result(runext.run_cmd(cmd))
         else:
             result = self._run_cmd_on_console(cmd)
             ws_event.notify_events(ws_event.FILE_ADD)
@@ -225,7 +226,7 @@ class BaseInterface:
             cmd += ' -f'
         cmd += ' %s' % utils.file_list_to_string(file_list + [target])
         if dry_run:
-            return self._map_result(utils.run_cmd(cmd))
+            return self._map_result(runext.run_cmd(cmd))
         else:
             result = self._run_cmd_on_console(cmd)
             ws_event.notify_events(ws_event.FILE_DEL|ws_event.FILE_ADD)
@@ -239,7 +240,7 @@ class BaseInterface:
         else:
             cmd += ' --all'
         if dry_run:
-            return self._map_result(utils.run_cmd(cmd))
+            return self._map_result(runext.run_cmd(cmd))
         else:
             result = self._run_cmd_on_console(cmd)
             ws_event.notify_events(ws_event.FILE_CHANGES)
@@ -273,7 +274,7 @@ class BaseInterface:
         if source:
             cmd += ' "%s"' % source
         result = self._run_cmd_on_console(cmd)
-        if cmd_result.is_less_than_error(result.eflags):
+        if cmd_result.is_less_than_error(result.ecode):
             events = ws_event.REPO_MOD
             if update:
                 events |= ws_event.FILE_CHANGES
@@ -300,7 +301,7 @@ class SCMInterface(BaseInterface):
         self.cs_summary_template = '\\n'.join(self.cs_summary_template_lines)
         self.cs_table_template = '{rev}:{node}:{date|age}:{tags}:{branches}:{author|person}:{desc|firstline}\\n'
     def _map_cmd_result(self, result, ignore_err_re=None):
-        if not result.eflags:
+        if not result.ecode:
             if self._inotify_warning(result.stderr):
                 return result
             return cmd_result.map_cmd_result(result, ignore_err_re=ignore_err_re)
@@ -319,16 +320,16 @@ class SCMInterface(BaseInterface):
         return os.path.join('.hg', 'gwsmhg.saved.commit')
     def get_root(self):
         cmd = 'hg root'
-        result = utils.run_cmd(cmd)
-        return result.stdout.strip() if result.eflags == 0 and result.stdout else None
+        result = runext.run_cmd(cmd)
+        return result.stdout.strip() if result.ecode == 0 and result.stdout else None
     def _get_qbase(self):
         cmd = 'hg log --template "{rev}" -r qbase'
-        result = utils.run_cmd(cmd)
-        return result.stdout if result.eflags == 0 and result.stdout else None
+        result = runext.run_cmd(cmd)
+        return result.stdout if result.ecode == 0 and result.stdout else None
     def _get_qparent(self):
         cmd = 'hg log --template "{rev}" -r qparent'
-        result = utils.run_cmd(cmd)
-        return result.stdout if result.eflags == 0 and result.stdout else None
+        result = runext.run_cmd(cmd)
+        return result.stdout if result.ecode == 0 and result.stdout else None
     def get_parents(self, rev=None):
         cmd = 'hg parents --template "{rev}\\n"'
         if rev is None:
@@ -337,16 +338,16 @@ class SCMInterface(BaseInterface):
                 rev = qbase
         if rev is not None:
             cmd += ' -r %s' % rev
-        result = utils.run_cmd(cmd)
-        if result.eflags:
+        result = runext.run_cmd(cmd)
+        if result.ecode:
             raise cmd_result.Failure(result)
         return result.stdout.splitlines()
     def _unresolved_file_list(self,  fspath_list=None):
         cmd = 'hg resolve --list'
         if fspath_list:
             cmd += ' %s' % utils.file_list_to_string(fspath_list)
-        result = utils.run_cmd(cmd)
-        if result.eflags != 0:
+        result = runext.run_cmd(cmd)
+        if result.ecode != 0:
             return []
         return [line[2:] for line in result.stdout.splitlines() if line[0] == FSTATUS_UNRESOLVED]
     def get_ws_file_db(self):
@@ -354,7 +355,7 @@ class SCMInterface(BaseInterface):
         qprev = self._get_qparent()
         if qprev is not None:
             cmd += ' --rev %s' % qprev
-        result = utils.run_cmd(cmd)
+        result = runext.run_cmd(cmd)
         scm_file_db = ScmFileDb(result.stdout.splitlines(), self._unresolved_file_list())
         scm_file_db.decorate_dirs()
         return scm_file_db
@@ -362,15 +363,15 @@ class SCMInterface(BaseInterface):
         cmd = 'hg status -mardC'
         if fspath_list:
             cmd += ' %s' % utils.file_list_to_string(fspath_list)
-        result = utils.run_cmd(cmd)
+        result = runext.run_cmd(cmd)
         scm_file_db = ScmFileDb(result.stdout.splitlines(), self._unresolved_file_list())
         return scm_file_db
     def get_commit_diff(self, fspath_list=None):
         cmd = 'hg diff --git'
         if fspath_list:
             cmd += ' %s' % utils.file_list_to_string(fspath_list)
-        result = utils.run_cmd(cmd)
-        if result.eflags != 0:
+        result = runext.run_cmd(cmd)
+        if result.ecode != 0:
             raise cmd_result.Failure(result)
         return result.stdout
     def _css_line_index(self, tempfrag):
@@ -390,8 +391,8 @@ class SCMInterface(BaseInterface):
         return summary
     def get_change_set_summary(self, rev):
         cmd = 'hg log --template "%s" --rev %s' % (self.cs_summary_template, rev)
-        result = utils.run_cmd(cmd)
-        if result.eflags:
+        result = runext.run_cmd(cmd)
+        if result.ecode:
             raise cmd_result.Failure(result)
         return self._process_change_set_summary(result.stdout.splitlines())
     def get_change_set_files_db(self, rev):
@@ -399,8 +400,8 @@ class SCMInterface(BaseInterface):
         template = '{files}\\n{file_adds}\\n{file_dels}\\n'
         cmd = 'hg log --template "%s" --rev %s' % (template, rev)
         cs_file_db = ScmFileDb([])
-        result = utils.run_cmd(cmd)
-        if result.eflags:
+        result = runext.run_cmd(cmd)
+        if result.ecode:
             return cs_file_db
         lines = result.stdout.splitlines()
         file_names = utils.string_to_file_list(lines[0])
@@ -411,7 +412,7 @@ class SCMInterface(BaseInterface):
                 extra_info = None
                 for parent in parents:
                     cmd = 'hg status -aC --rev %s --rev %s "%s"' % (parent, rev, name)
-                    result = utils.run_cmd(cmd)
+                    result = runext.run_cmd(cmd)
                     lines = result.stdout.splitlines()
                     if len(lines) > 1 and lines[1][0] == ' ':
                         extra_info = lines[1].strip()
@@ -430,8 +431,8 @@ class SCMInterface(BaseInterface):
                 rev = qbase
         if rev is not None:
             cmd += ' --rev %s' % str(rev)
-        result = utils.run_cmd(cmd)
-        if result.eflags != 0:
+        result = runext.run_cmd(cmd)
+        if result.ecode != 0:
             return []
         plist = []
         for line in result.stdout.splitlines():
@@ -442,7 +443,7 @@ class SCMInterface(BaseInterface):
     def get_path_table_data(self):
         path_re = re.compile('^(\S*)\s+=\s+(\S*.*)\s*$')
         cmd = 'hg paths'
-        result = utils.run_cmd(cmd)
+        result = runext.run_cmd(cmd)
         paths = []
         for line in result.stdout.splitlines():
             match = path_re.match(line)
@@ -453,8 +454,8 @@ class SCMInterface(BaseInterface):
         cmd = 'hg -q outgoing --template "%s"' % self.cs_table_template
         if path:
             cmd += ' "%s"' % path
-        result = utils.run_cmd(cmd)
-        if result.eflags not in [0, 1]:
+        result = runext.run_cmd(cmd)
+        if result.ecode not in [0, 1]:
             raise cmd_result.Failure(result)
         plist = []
         for line in result.stdout.splitlines():
@@ -466,13 +467,13 @@ class SCMInterface(BaseInterface):
         return plist
     def get_outgoing_rev(self, revarg):
         cmd = 'hg -q outgoing -n -l 1 --template "{rev}" --rev %s' % revarg
-        return utils.run_cmd(cmd).stdout
+        return runext.run_cmd(cmd).stdout
     def get_incoming_table_data(self, path=None):
         cmd = 'hg -q incoming --template "%s"' % self.cs_table_template
         if path:
             cmd += ' "%s"' % path
-        result = utils.run_cmd(cmd)
-        if result.eflags not in [0, 1]:
+        result = runext.run_cmd(cmd)
+        if result.ecode not in [0, 1]:
             raise cmd_result.Failure(result)
         plist = []
         for line in result.stdout.splitlines():
@@ -484,18 +485,18 @@ class SCMInterface(BaseInterface):
         return plist
     def get_incoming_rev(self, revarg):
         cmd = 'hg -q incoming -n -l 1 --template "{rev}" --rev %s' % revarg
-        return utils.run_cmd(cmd).stdout
+        return runext.run_cmd(cmd).stdout
     def get_is_incoming(self, rev, path=None):
         cmd = 'hg incoming -qnl1 --template "{rev}" --rev %s' % str(rev)
         if path:
             cmd += ' "%s"' % path
-        return utils.run_cmd(cmd).stdout == str(rev)
+        return runext.run_cmd(cmd).stdout == str(rev)
     def get_incoming_change_set_summary(self, rev, path=None):
         cmd = 'hg -q incoming --template "%s" -nl 1 --rev %s' % (self.cs_summary_template, rev)
         if path:
             cmd += ' "%s"' % path
-        result = utils.run_cmd(cmd)
-        if result.eflags:
+        result = runext.run_cmd(cmd)
+        if result.ecode:
             raise cmd_result.Failure(result)
         return self._process_change_set_summary(result.stdout.splitlines())
     def get_incoming_change_set_files_db(self, rev, path=None):
@@ -504,8 +505,8 @@ class SCMInterface(BaseInterface):
         if path:
             cmd += ' "%s"' % path
         cs_file_db = ScmFileDb([])
-        result = utils.run_cmd(cmd)
-        if result.eflags:
+        result = runext.run_cmd(cmd)
+        if result.ecode:
             return cs_file_db
         lines = result.stdout.splitlines()
         file_names = utils.string_to_file_list(lines[0])
@@ -524,8 +525,8 @@ class SCMInterface(BaseInterface):
         cmd = 'hg -q incoming --template "{parents}" -nl 1 --rev %s' % rev
         if path:
             cmd += ' "%s"' % path
-        result = utils.run_cmd(cmd)
-        if result.eflags != 0:
+        result = runext.run_cmd(cmd)
+        if result.ecode != 0:
             raise cmd_result.Failure(result)
         parents = []
         if result.stdout:
@@ -548,8 +549,8 @@ class SCMInterface(BaseInterface):
                 cmd = base_cmd + ' --rev %s "%s"' % (parent, path)
             else:
                 cmd = base_cmd + ' --rev %s' % parent
-            result = utils.run_cmd(cmd)
-            if result.eflags != 0:
+            result = runext.run_cmd(cmd)
+            if result.ecode != 0:
                 raise cmd_result.Failure(result)
             pdata = result.stdout.strip().split(':', 6)
             if (len(pdata) < 6):
@@ -561,16 +562,16 @@ class SCMInterface(BaseInterface):
         cmd = 'hg incoming --patch -nl 1 --rev %s' % rev
         if path:
             cmd += ' "%s"' % path
-        result = utils.run_cmd(cmd)
-        if result.eflags:
+        result = runext.run_cmd(cmd)
+        if result.ecode:
             raise cmd_result.Failure(result)
         return putils.get_patch_diff_fm_text(result.stdout)
     def get_heads_data(self):
         if not self.get_root():
             return []
         cmd = 'hg heads --template "%s"' % self.cs_table_template
-        result = utils.run_cmd(cmd)
-        if result.eflags != 0:
+        result = runext.run_cmd(cmd)
+        if result.ecode != 0:
             raise cmd_result.Failure(result)
         plist = []
         for line in result.stdout.splitlines():
@@ -590,8 +591,8 @@ class SCMInterface(BaseInterface):
                 cmd += ' -l %d' % maxitems
         elif rev is not None:
             cmd += ' --rev %s' % rev
-        result = utils.run_cmd(cmd)
-        if result.eflags != 0:
+        result = runext.run_cmd(cmd)
+        if result.ecode != 0:
             raise cmd_result.Failure(result)
         plist = []
         for line in result.stdout.splitlines():
@@ -601,13 +602,13 @@ class SCMInterface(BaseInterface):
         return plist
     def get_rev(self, revarg):
         cmd = 'hg log --template "{rev}" --rev %s' % revarg
-        return utils.run_cmd(cmd).stdout
+        return runext.run_cmd(cmd).stdout
     def get_tags_data(self):
         if not self.get_root():
             return []
         cmd = 'hg -v tags'
-        result = utils.run_cmd(cmd)
-        if result.eflags:
+        result = runext.run_cmd(cmd)
+        if result.ecode:
             raise cmd_result.Failure(result)
         dre = re.compile('^(\S+)\s*(\d+):(\S+)\s*(\S*)')
         tag_list = []
@@ -622,7 +623,7 @@ class SCMInterface(BaseInterface):
                     cmd += ' -r %s' % rev
                     lastrev = rev
                 tag_list.append([dat.group(1), dat.group(4), int(dat.group(2))])
-        result = utils.run_cmd(cmd)
+        result = runext.run_cmd(cmd)
         index = 0
         ntags = len(tag_list)
         for line in result.stdout.splitlines():
@@ -635,8 +636,8 @@ class SCMInterface(BaseInterface):
         return tag_list
     def get_tags_list_for_table(self):
         cmd = 'hg tags'
-        result = utils.run_cmd(cmd)
-        if result.eflags:
+        result = runext.run_cmd(cmd)
+        if result.ecode:
             raise cmd_result.Failure(result)
         dre = re.compile('^(\S+)\s*\d+:')
         tag_list = []
@@ -649,8 +650,8 @@ class SCMInterface(BaseInterface):
         if not self.get_root():
             return []
         cmd = 'hg branches'
-        result = utils.run_cmd(cmd)
-        if result.eflags:
+        result = runext.run_cmd(cmd)
+        if result.ecode:
             raise cmd_result.Failure(result)
         dre = re.compile('^(\S+)\s*(\d+):')
         branch_list = []
@@ -659,13 +660,13 @@ class SCMInterface(BaseInterface):
             branch_list.append([dat.group(1), int(dat.group(2))])
         cmd = 'hg log --template "{tags}:{date|age}:{author|person}:{desc|firstline}" --rev '
         for branch in branch_list:
-            result = utils.run_cmd(cmd + str(branch[1]))
+            result = runext.run_cmd(cmd + str(branch[1]))
             branch += result.stdout.split(':', 3)
         return branch_list
     def get_branches_list_for_table(self):
         cmd = 'hg branches'
-        result = utils.run_cmd(cmd)
-        if result.eflags:
+        result = runext.run_cmd(cmd)
+        if result.ecode:
             raise cmd_result.Failure(result)
         dre = re.compile('^(\S+)\s*\d+:')
         tag_list = []
@@ -718,8 +719,8 @@ class SCMInterface(BaseInterface):
             cmd += ' --rev %s' % torev
         if file_list:
             cmd += ' %s' % utils.file_list_to_string(file_list)
-        result = utils.run_cmd(cmd)
-        if result.eflags != 0:
+        result = runext.run_cmd(cmd)
+        if result.ecode != 0:
             raise cmd_result.Failure(result)
         return result.stdout
     def launch_extdiff_for_ws(self, file_list=None):
@@ -729,12 +730,12 @@ class SCMInterface(BaseInterface):
             cmd += ' --rev %s' % rev
         if file_list:
             cmd += ' %s' % utils.file_list_to_string(file_list)
-        return utils.run_cmd_in_bgnd(cmd)
+        return runext.run_cmd_in_bgnd(cmd)
     def launch_extdiff_for_changeset(self, rev, file_list=None):
         cmd = 'hg extdiff --change %s' % rev
         if file_list:
             cmd += ' %s' % utils.file_list_to_string(file_list)
-        return utils.run_cmd_in_bgnd(cmd)
+        return runext.run_cmd_in_bgnd(cmd)
     def do_update_workspace(self, rev=None, discard=False):
         cmd = 'hg update'
         if discard:
@@ -806,7 +807,7 @@ class SCMInterface(BaseInterface):
             cmd += ' -m "%s"' % msg.replace('"', '\\"')
         cmd += ' %s' % tag
         result = self._run_cmd_on_console(cmd)
-        if cmd_result.is_less_than_error(result.eflags):
+        if cmd_result.is_less_than_error(result.ecode):
             ws_event.notify_events(ws_event.REPO_MOD)
         return result
     def do_remove_tag(self, tag, local=False, msg=None):
@@ -822,7 +823,7 @@ class SCMInterface(BaseInterface):
             cmd += ' -m "%s"' % msg.replace('"', '\\"')
         cmd += ' %s' % tag
         result = self._run_cmd_on_console(cmd)
-        if cmd_result.is_less_than_error(result.eflags):
+        if cmd_result.is_less_than_error(result.ecode):
             ws_event.notify_events(ws_event.REPO_MOD)
         return result
     def do_move_tag(self, tag, rev, msg=None):
@@ -836,7 +837,7 @@ class SCMInterface(BaseInterface):
             cmd += ' -m "%s"' % msg.replace('"', '\\"')
         cmd += " %s" % tag
         result = self._run_cmd_on_console(cmd)
-        if cmd_result.is_less_than_error(result.eflags):
+        if cmd_result.is_less_than_error(result.ecode):
             ws_event.notify_events(ws_event.REPO_MOD)
         return result
     def do_set_branch(self, branch, force=False):
@@ -903,10 +904,10 @@ class _WsUpdateStateMgr:
         return os.path.exists(self._state_file)
     def tip_is_patches_saved_state(self):
         cmd = 'hg log --template "{desc|firstline}" --rev tip'
-        return utils.run_cmd(cmd).stdout == self._saved_state_msg
+        return runext.run_cmd(cmd).stdout == self._saved_state_msg
     def parent_is_patches_saved_state(self):
         cmd = 'hg parent --template "{desc|firstline}"'
-        return utils.run_cmd(cmd).stdout == self._saved_state_msg
+        return runext.run_cmd(cmd).stdout == self._saved_state_msg
     def set_state(self, state):
         self._write_to_named_file(self._state_file, state)
     def get_state_is_in(self, state_list):
@@ -958,7 +959,7 @@ class PMInterface(BaseInterface):
         self._qpush_re = re.compile("^(merging|applying)\s.*$", re.M)
         self._qguard_re = re.compile("^[^:]*:\s*([+-].*)\s*$")
     def _map_cmd_result(self, result, ignore_err_re=None):
-        if not result.eflags:
+        if not result.ecode:
             if self._inotify_warning(result.stdout):
                 return result
             return cmd_result.map_cmd_result(result, ignore_err_re=ignore_err_re)
@@ -1008,7 +1009,7 @@ class PMInterface(BaseInterface):
         else:
             parent = self.get_parent(top)
             cmd += ' --rev %s' % parent
-        return ScmFileDb(utils.run_cmd(cmd).stdout.splitlines())
+        return ScmFileDb(runext.run_cmd(cmd).stdout.splitlines())
     def get_in_progress(self):
         if not self.get_enabled():
             return False
@@ -1018,7 +1019,7 @@ class PMInterface(BaseInterface):
         output = []
         if not self.get_enabled():
             return output
-        patch_plus_guard_list = utils.run_cmd('hg qguard -l').stdout.splitlines()
+        patch_plus_guard_list = runext.run_cmd('hg qguard -l').stdout.splitlines()
         applied_patches = self.get_applied_patches()
         if len(applied_patches) > 0:
             top_patch = applied_patches[-1]
@@ -1040,42 +1041,42 @@ class PMInterface(BaseInterface):
     def get_applied_patches(self):
         if not self.get_enabled():
             return []
-        result = utils.run_cmd('hg qapplied')
-        return result.stdout.splitlines() if result.eflags == 0 else []
+        result = runext.run_cmd('hg qapplied')
+        return result.stdout.splitlines() if result.ecode == 0 else []
     def get_unapplied_patches(self):
         if not self.get_enabled():
             return []
-        result = utils.run_cmd('hg qunapplied')
-        return result.stdout.splitlines() if result.eflags == 0 else []
+        result = runext.run_cmd('hg qunapplied')
+        return result.stdout.splitlines() if result.ecode == 0 else []
     def get_all_patches(self):
         if not self.get_enabled():
             return []
-        result = utils.run_cmd('hg qseries')
-        return result.stdout.splitlines() if result.eflags == 0 else []
+        result = runext.run_cmd('hg qseries')
+        return result.stdout.splitlines() if result.ecode == 0 else []
     def get_patch_is_applied(self, patch):
         return patch in self.get_applied_patches()
     def get_patch_guards(self, patch):
         if not self.get_enabled():
             return []
-        result = utils.run_cmd('hg qguard ' + patch)
-        if result.eflags != 0:
+        result = runext.run_cmd('hg qguard ' + patch)
+        if result.ecode != 0:
             return []
         match = self._qguard_re.match(result.stdout.strip())
         return match.group(1).split() if match else []
     def get_selected_guards(self):
-        result = utils.run_cmd('hg qselect')
-        if result.eflags != 0 or result.stdout.strip() == "no active guards":
+        result = runext.run_cmd('hg qselect')
+        if result.ecode != 0 or result.stdout.strip() == "no active guards":
             return []
         return result.stdout.split()
     def get_top_patch(self):
-        result = utils.run_cmd('hg qtop')
-        return result.stdout.strip() if result.eflags == 0 else None
+        result = runext.run_cmd('hg qtop')
+        return result.stdout.strip() if result.ecode == 0 else None
     def get_base_patch(self):
-        result = utils.run_cmd('hg qapplied')
-        return result.stdout.splitlines()[0] if result.stdout and result.eflags == 0 else None
+        result = runext.run_cmd('hg qapplied')
+        return result.stdout.splitlines()[0] if result.stdout and result.ecode == 0 else None
     def get_next_patch(self):
-        result = utils.run_cmd('hg qnext')
-        return result.stdout.strip() if result.stdout and result.eflags == 0 else None
+        result = runext.run_cmd('hg qnext')
+        return result.stdout.strip() if result.stdout and result.ecode == 0 else None
     def get_diff_for_files(self, file_list=None, patch=None):
         if patch:
             parent = self.get_parent(patch)
@@ -1094,20 +1095,20 @@ class PMInterface(BaseInterface):
             cmd += ' --rev %s' % patch
         if file_list:
             cmd += ' %s' % utils.file_list_to_string(file_list)
-        result = utils.run_cmd(cmd)
-        if result.eflags != 0:
+        result = runext.run_cmd(cmd)
+        if result.ecode != 0:
             raise cmd_result.Failure(result)
         return result.stdout
     def launch_extdiff_for_ws(self, file_list=None):
         cmd = 'hg extdiff --rev %s' % self.get_parent(self.get_top_patch())
         if file_list:
             cmd += ' %s' % utils.file_list_to_string(file_list)
-        return utils.run_cmd_in_bgnd(cmd)
+        return runext.run_cmd_in_bgnd(cmd)
     def launch_extdiff_for_patch(self, patch, file_list=None):
         cmd = 'hg extdiff --change %s' % patch
         if file_list:
             cmd += ' %s' % utils.file_list_to_string(file_list)
-        return utils.run_cmd_in_bgnd(cmd)
+        return runext.run_cmd_in_bgnd(cmd)
     def do_select_guards(self, guards):
         if not guards:
             guards = "--none"
@@ -1129,7 +1130,7 @@ class PMInterface(BaseInterface):
         ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.PATCH_PUSH)
     def do_refresh(self, notify=True):
         result = self._run_cmd_on_console('hg qrefresh')
-        if notify and not cmd_result.is_error(result.eflags):
+        if notify and not cmd_result.is_error(result.ecode):
             ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.PATCH_REFRESH)
         return result
     def do_pop_to(self, patch=None, force=False):
@@ -1149,7 +1150,7 @@ class PMInterface(BaseInterface):
             else:
                 cmd = 'hg qpop %s' % patch
         result = self._run_cmd_on_console(cmd)
-        if cmd_result.is_less_than_error(result.eflags):
+        if cmd_result.is_less_than_error(result.ecode):
             events = ws_event.CHECKOUT|ws_event.PATCH_POP|ws_event.FILE_CHANGES
             if not self.get_in_progress():
                 events |= ws_event.PMIC_CHANGE
@@ -1176,7 +1177,7 @@ class PMInterface(BaseInterface):
                 result = self._run_cmd_on_console('%s -f %s' % (cmd, patch), ignore_err_re=self._qpush_re)
             else:
                 result = self._run_cmd_on_console('%s %s' % (cmd, patch), ignore_err_re=self._qpush_re)
-        if cmd_result.is_less_than_error(result.eflags):
+        if cmd_result.is_less_than_error(result.ecode):
             events = ws_event.CHECKOUT|ws_event.PATCH_PUSH|ws_event.FILE_CHANGES
             if not in_charge:
                 events |= ws_event.PMIC_CHANGE
@@ -1224,17 +1225,17 @@ class PMInterface(BaseInterface):
         except cmd_result.Failure:
             return False
         cmd = 'hg log --template "{desc}" --rev %s' % patch
-        result = utils.run_cmd(cmd)
+        result = runext.run_cmd(cmd)
         if pf_descr != result.stdout.strip():
             top = self.get_top_patch()
             if top == patch:
-                utils.run_cmd('hg qrefresh')
+                runext.run_cmd('hg qrefresh')
             else:
                 # let's hope the user doesn't mind having the top patch refreshed
-                utils.run_cmd('hg qrefresh')
-                utils.run_cmd('hg qgoto %s' % patch)
-                utils.run_cmd('hg qrefresh')
-                utils.run_cmd('hg qgoto %s' % top)
+                runext.run_cmd('hg qrefresh')
+                runext.run_cmd('hg qgoto %s' % patch)
+                runext.run_cmd('hg qrefresh')
+                runext.run_cmd('hg qgoto %s' % top)
         return True
     def do_finish_patch(self, patch):
         result = self._run_cmd_on_console('hg qfinish %s' % patch)
@@ -1282,8 +1283,8 @@ class PMInterface(BaseInterface):
         cmd += ' "%s"' % patch_file_name
         result = self._run_cmd_on_console(cmd, ignore_err_re=self._adding_re)
         ws_event.notify_events(ws_event.PATCH_CREATE)
-        if result.eflags and re.search("already exists", result.stderr):
-            return result.Result(result.eflags | cmd_result.SUGGEST_FORCE_OR_RENAME, result.stdout, result.stderr)
+        if result.ecode and re.search("already exists", result.stderr):
+            return result.Result(result.ecode | cmd_result.SUGGEST_FORCE_OR_RENAME, result.stdout, result.stderr)
         return result
     def do_new_patch(self, patch_name_raw, force=False):
         in_charge = self.get_in_progress()
@@ -1303,8 +1304,8 @@ class PMInterface(BaseInterface):
         if not in_charge:
             events |= ws_event.PMIC_CHANGE
         ws_event.notify_events(events)
-        if result.eflags & cmd_result.SUGGEST_REFRESH:
-            return result.Result(result.eflags | cmd_result.SUGGEST_FORCE, result.stdout, result.stderr)
+        if result.ecode & cmd_result.SUGGEST_REFRESH:
+            return result.Result(result.ecode | cmd_result.SUGGEST_FORCE, result.stdout, result.stderr)
         return result
     def do_remove_files(self, file_list, force=False):
         applied_count = len(self.get_applied_patches())
@@ -1313,7 +1314,7 @@ class PMInterface(BaseInterface):
         elif applied_count == 1:
             parent = 'qparent'
         else:
-            result = utils.run_cmd('hg qprev')
+            result = runext.run_cmd('hg qprev')
             parent = result.stdout.strip()
         cmd = 'hg revert --rev %s' % parent
         if force:
@@ -1330,7 +1331,7 @@ class PMInterface(BaseInterface):
         return result
     def do_pull_from(self, rev=None, update=False, source=None):
         result = BaseInterface.do_pull_from(self, rev=rev, update=update, source=source)
-        if cmd_result.is_less_than_error(result.eflags):
+        if cmd_result.is_less_than_error(result.ecode):
             self._ws_update_mgr.set_state('pulled')
         return result
     def do_update_workspace(self, rev=None):
@@ -1338,7 +1339,7 @@ class PMInterface(BaseInterface):
         if rev is not None:
             cmd += ' -r %s' % rev
         result = self._run_cmd_on_console(cmd)
-        if not result.eflags:
+        if not result.ecode:
             ws_event.notify_events(ws_event.CHECKOUT)
             self._ws_update_mgr.set_state('updated')
         return result
@@ -1347,11 +1348,11 @@ class PMInterface(BaseInterface):
         if pcd:
             top_patch = self.get_top_patch()
             if top_patch:
-                utils.run_cmd('hg qpop -a')
+                runext.run_cmd('hg qpop -a')
             self._ws_update_mgr.finish()
             result = self._run_cmd_on_console('hg qpop -a -n %s' % pcd)
             if top_patch:
-                utils.run_cmd('hg qgoto %s' % top_patch)
+                runext.run_cmd('hg qgoto %s' % top_patch)
                 ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD|ws_event.PATCH_CHANGES)
             else:
                 ws_event.notify_events(ws_event.FILE_CHANGES|ws_event.REPO_MOD|ws_event.PATCH_CHANGES|ws_event.PMIC_CHANGE)

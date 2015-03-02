@@ -147,9 +147,9 @@ def _form_question(result, clarification):
 
 def ask_force_refresh_or_cancel(result, clarification=None, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
-    if result.eflags & cmd_result.SUGGEST_REFRESH:
+    if result.ecode & cmd_result.SUGGEST_REFRESH:
         buttons += (_('_Refresh and Retry'), RESPONSE_REFRESH)
-    if result.eflags & cmd_result.SUGGEST_FORCE:
+    if result.ecode & cmd_result.SUGGEST_FORCE:
         buttons += (_('_Force'), RESPONSE_FORCE)
     question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
@@ -161,9 +161,9 @@ def ask_force_or_cancel(result, clarification=None, parent=None):
 
 def ask_merge_discard_or_cancel(result, clarification=None, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
-    if result.eflags & cmd_result.SUGGEST_MERGE:
+    if result.ecode & cmd_result.SUGGEST_MERGE:
         buttons += (_('_Merge'), RESPONSE_MERGE)
-    if result.eflags & cmd_result.SUGGEST_DISCARD:
+    if result.ecode & cmd_result.SUGGEST_DISCARD:
         buttons += (_('_Discard Changes'), RESPONSE_DISCARD)
     question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
@@ -175,27 +175,27 @@ def ask_recover_or_cancel(result, clarification=None, parent=None):
 
 def ask_edit_force_or_cancel(result, clarification=None, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
-    if result.eflags & cmd_result.SUGGEST_EDIT:
+    if result.ecode & cmd_result.SUGGEST_EDIT:
         buttons += (_('_Edit'), RESPONSE_EDIT)
-    if result.eflags & cmd_result.SUGGEST_FORCE:
+    if result.ecode & cmd_result.SUGGEST_FORCE:
         buttons += (_('_Force'), RESPONSE_FORCE)
     question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
 def ask_rename_force_or_cancel(result, clarification=None, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
-    if result.eflags & cmd_result.SUGGEST_RENAME:
+    if result.ecode & cmd_result.SUGGEST_RENAME:
         buttons += (_('_Rename'), RESPONSE_RENAME)
-    if result.eflags & cmd_result.SUGGEST_FORCE:
+    if result.ecode & cmd_result.SUGGEST_FORCE:
         buttons += (_('_Force'), RESPONSE_FORCE)
     question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
 def ask_rename_force_or_skip(result, clarification=None, parent=None):
     buttons = ()
-    if result.eflags & cmd_result.SUGGEST_RENAME:
+    if result.ecode & cmd_result.SUGGEST_RENAME:
         buttons += (_('_Rename'), RESPONSE_RENAME)
-    if result.eflags & cmd_result.SUGGEST_FORCE:
+    if result.ecode & cmd_result.SUGGEST_FORCE:
         buttons += (_('_Force'), RESPONSE_FORCE)
     buttons += (_('_Skip'), RESPONSE_SKIP, _('Skip _All'), RESPONSE_SKIP_ALL)
     question = _form_question(result, clarification)
@@ -203,9 +203,9 @@ def ask_rename_force_or_skip(result, clarification=None, parent=None):
 
 def ask_rename_overwrite_or_cancel(result, clarification=None, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
-    if result.eflags & cmd_result.SUGGEST_RENAME:
+    if result.ecode & cmd_result.SUGGEST_RENAME:
         buttons += (_('_Rename'), RESPONSE_RENAME)
-    if result.eflags & cmd_result.SUGGEST_OVERWRITE:
+    if result.ecode & cmd_result.SUGGEST_OVERWRITE:
         buttons += (_('_Overwrite'), RESPONSE_OVERWRITE)
     question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
@@ -312,7 +312,7 @@ def report_any_problems(result, parent=None):
 
 def report_failure(failure, parent=None):
     result = failure.result
-    if result.eflags != 0:
+    if result.ecode != 0:
         inform_user(os.linesep.join(result[1:]), parent, gtk.MESSAGE_ERROR)
 
 _REPORT_REQUEST_MSG = \
@@ -372,4 +372,3 @@ def get_modified_string(title, prompt, string):
         string = dialog.entry.get_text()
     dialog.destroy()
     return string
-

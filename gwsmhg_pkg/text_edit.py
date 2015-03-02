@@ -264,7 +264,7 @@ class PatchSummaryBuffer(NewPatchSummaryBuffer):
     def _save_summary_acb(self, _action=None):
         text = self.get_text(self.get_start_iter(), self.get_end_iter())
         result = self._set_summary(self.patch, text)
-        if result.eflags:
+        if result.ecode:
             dialogue.report_any_problems(result)
         else:
             self.set_modified(False)
@@ -331,4 +331,3 @@ class PatchSummaryView(NewPatchSummaryView):
         self.save_button = gutils.ActionButton(action, use_underline=False)
     def load_summary(self):
         self.get_buffer().load_summary()
-

@@ -37,7 +37,7 @@ def init(ifce_module):
 
 def create_log(busy_indicator):
     global log
-    log = console.ConsoleLog(busy_indicator=busy_indicator, runentry=not terminal.AVAILABLE)
+    log = console.ConsoleLogWidget(busy_indicator=busy_indicator, runentry=not terminal.AVAILABLE)
     return log
 
 if terminal.AVAILABLE:
@@ -68,5 +68,5 @@ def chdir(newdir=None):
     new_wd = os.getcwd()
     if term:
         term.set_cwd(new_wd)
-    log.append_entry(_('New Working Directory: %s') % new_wd)
+    log.append_entry(_('New Working Directory: %s\n') % new_wd)
     return cmd_result.Result(cmd_result.OK, "", "")

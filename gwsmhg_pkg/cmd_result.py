@@ -19,7 +19,7 @@ External command return values
 
 import collections
 
-Result = collections.namedtuple('Result', ['eflags', 'stdout', 'stderr'])
+Result = collections.namedtuple('Result', ['ecode', 'stdout', 'stderr'])
 
 # N.B. WARNING is at bit 9 so that 8 bits are available for important
 # flags that we hope hg can be modified to use
@@ -50,10 +50,10 @@ SUGGEST_OVERWRITE_OR_RENAME = SUGGEST_OVERWRITE | SUGGEST_RENAME
 BASIC_VALUES_MASK = OK | WARNING | ERROR
 
 def basic_value(res):
-    if isinstance(res, Result):
-        return res.eflags & BASIC_VALUES_MASK
-    else:
+    if isinstance(res, int):
         return res & BASIC_VALUES_MASK
+    else:
+        return res.ecode & BASIC_VALUES_MASK
 
 def is_ok(res):
     return basic_value(res) == OK
@@ -71,13 +71,13 @@ def is_less_than_error(res):
     return basic_value(res) != ERROR
 
 def suggests_force(res):
-    if isinstance(res, Result):
-        return (res.eflags & SUGGEST_FORCE) == SUGGEST_FORCE
-    else:
+    if isinstance(res, int):
         return (res & SUGGEST_FORCE) == SUGGEST_FORCE
+    else:
+        return (res.ecode & SUGGEST_FORCE) == SUGGEST_FORCE
 
 def map_cmd_result(result, ignore_err_re=None):
-    if result.eflags == 0:
+    if result.ecode == 0:
         if result.stderr and not (ignore_err_re and ignore_err_re.match(result.stderr)):
             outres = WARNING
         else:

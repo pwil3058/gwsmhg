@@ -412,15 +412,15 @@ class ListView(table.TableView):
         self.show_busy()
         result = ifce.PM.do_refresh(notify=notify)
         self.unshow_busy()
-        if result.eflags != cmd_result.OK:
-            if result.eflags & cmd_result.SUGGEST_RECOVER:
+        if result.ecode != cmd_result.OK:
+            if result.ecode & cmd_result.SUGGEST_RECOVER:
                 if dialogue.ask_recover_or_cancel(result) == dialogue.RESPONSE_RECOVER:
                     self.show_busy()
                     result = ifce.PM.do_recover_interrupted_refresh()
-                    if result.eflags == cmd_result.OK:
+                    if result.ecode == cmd_result.OK:
                         result = ifce.PM.do_refresh(notify=notify)
                     self.unshow_busy()
-            if result.eflags != cmd_result.OK: # There're may still be problems
+            if result.ecode != cmd_result.OK: # There're may still be problems
                 dialogue.report_any_problems(result)
                 return
     def _do_pop_to(self, patch=None):
@@ -428,8 +428,8 @@ class ListView(table.TableView):
             self.show_busy()
             result = ifce.PM.do_pop_to(patch=patch)
             self.unshow_busy()
-            if result.eflags != cmd_result.OK:
-                if result.eflags & cmd_result.SUGGEST_FORCE_OR_REFRESH:
+            if result.ecode != cmd_result.OK:
+                if result.ecode & cmd_result.SUGGEST_FORCE_OR_REFRESH:
                     ans = dialogue.ask_force_refresh_or_cancel(result)
                     if ans == gtk.RESPONSE_CANCEL:
                         return False
@@ -440,7 +440,7 @@ class ListView(table.TableView):
                         self.show_busy()
                         result = ifce.PM.do_pop_to(force=True)
                         self.unshow_busy()
-                if result.eflags != cmd_result.OK: # there're are still problems
+                if result.ecode != cmd_result.OK: # there're are still problems
                     dialogue.report_any_problems(result)
                     return False
             return True
@@ -458,8 +458,8 @@ class ListView(table.TableView):
             self.show_busy()
             result = ifce.PM.do_push_to(patch=patch, merge=merge)
             self.unshow_busy()
-            if result.eflags != cmd_result.OK:
-                if result.eflags & cmd_result.SUGGEST_FORCE_OR_REFRESH:
+            if result.ecode != cmd_result.OK:
+                if result.ecode & cmd_result.SUGGEST_FORCE_OR_REFRESH:
                     ans = dialogue.ask_force_refresh_or_cancel(result, parent=None)
                     if ans == gtk.RESPONSE_CANCEL:
                         return False
@@ -470,7 +470,7 @@ class ListView(table.TableView):
                         self.show_busy()
                         result = ifce.PM.do_push_to(force=True, merge=merge)
                         self.unshow_busy()
-                if result.eflags != cmd_result.OK: # there're are still problems
+                if result.ecode != cmd_result.OK: # there're are still problems
                     dialogue.report_any_problems(result)
                     return False
             return True
@@ -499,7 +499,7 @@ class ListView(table.TableView):
                 self.unshow_busy()
                 if is_ok:
                     break
-                dummyres = cmd_result.Result(eflags=cmd_result.SUGGEST_ALL,
+                dummyres = cmd_result.Result(ecode=cmd_result.SUGGEST_ALL,
                     stdout = _('"%s" has an empty description.') % next_patch,
                     stderr = '')
                 ans = dialogue.ask_edit_force_or_cancel(dummyres, clarification=_finish_empty_msg_prompt, parent=None)
@@ -511,7 +511,7 @@ class ListView(table.TableView):
             self.show_busy()
             result = ifce.PM.do_finish_patch(next_patch)
             self.unshow_busy()
-            if result.eflags != cmd_result.OK:
+            if result.ecode != cmd_result.OK:
                 dialogue.report_any_problems(result)
                 break
             if patch == next_patch:
@@ -598,7 +598,7 @@ class ListView(table.TableView):
             self.show_busy()
             result = ifce.PM.do_fold_patch(next_patch)
             self.unshow_busy()
-            if result.eflags != cmd_result.OK:
+            if result.ecode != cmd_result.OK:
                 dialogue.report_any_problems(result)
                 return
             if patch == next_patch:
@@ -618,16 +618,16 @@ class ListView(table.TableView):
         old_pfname = ifce.PM.get_patch_file_name(patch)
         result = ifce.PM.do_import_patch(old_pfname, duplicate_patch_name)
         self.unshow_busy()
-        if result.eflags == cmd_result.ERROR_SUGGEST_FORCE:
+        if result.ecode == cmd_result.ERROR_SUGGEST_FORCE:
             if dialogue.ask_force_refresh_or_cancel(result) == dialogue.RESPONSE_FORCE:
                 self.show_busy()
                 result = ifce.PM.do_import_patch(old_pfname, duplicate_patch_name, force=True)
                 self.unshow_busy()
             else:
                 return
-        if result.eflags != cmd_result.OK:
+        if result.ecode != cmd_result.OK:
             dialogue.report_any_problems(result)
-            if result.eflags & cmd_result.ERROR:
+            if result.ecode & cmd_result.ERROR:
                 return
         self.show_busy()
         result = ifce.PM.do_set_patch_description(duplicate_patch_name, duplicate_patch_descr)
@@ -650,7 +650,7 @@ class ListView(table.TableView):
             top_pfname = ifce.PM.get_patch_file_name(top_patch)
             old_pfname = ifce.PM.get_patch_file_name(patch)
             result = utils.run_cmd("interdiff %s %s" % (top_pfname, old_pfname))
-            if result.eflags != cmd_result.OK:
+            if result.ecode != cmd_result.OK:
                 dialogue.report_any_problems(result)
                 return
             temp_pfname = tempfile.mktemp()
@@ -661,14 +661,14 @@ class ListView(table.TableView):
             temp_pfname = ifce.PM.get_patch_file_name(patch)
         result = ifce.PM.do_import_patch(temp_pfname, interdiff_patch_name)
         self.unshow_busy()
-        if result.eflags == cmd_result.ERROR_SUGGEST_FORCE:
+        if result.ecode == cmd_result.ERROR_SUGGEST_FORCE:
             if dialogue.ask_force_refresh_or_cancel(result) == dialogue.RESPONSE_FORCE:
                 self.show_busy()
                 result = ifce.PM.do_import_patch(temp_pfname, interdiff_patch_name, force=True)
                 self.unshow_busy()
         if top_patch:
             os.remove(temp_pfname)
-        if result.eflags != cmd_result.OK:
+        if result.ecode != cmd_result.OK:
             dialogue.report_any_problems(result)
     def do_save_queue_state_for_update(self, _action=None):
         if not ifce.PM.get_enabled():
@@ -749,7 +749,7 @@ class ListView(table.TableView):
             self.show_busy()
             result = ifce.PM.do_new_patch(new_patch_name, force=force)
             self.unshow_busy()
-            if result.eflags & cmd_result.SUGGEST_FORCE_OR_REFRESH:
+            if result.ecode & cmd_result.SUGGEST_FORCE_OR_REFRESH:
                 ans = dialogue.ask_force_refresh_or_cancel(result, parent=None)
                 if ans == gtk.RESPONSE_CANCEL:
                     return
@@ -760,7 +760,7 @@ class ListView(table.TableView):
             else:
                 dialogue.report_any_problems(result)
                 break
-        if new_patch_descr and result.eflags != cmd_result.ERROR:
+        if new_patch_descr and result.ecode != cmd_result.ERROR:
             self.show_busy()
             result = ifce.PM.do_set_patch_description(new_patch_name, new_patch_descr)
             self.unshow_busy()
@@ -778,7 +778,7 @@ class ListView(table.TableView):
             self.show_busy()
             result = ifce.PM.do_import_patch(patch_file_name, patch_name, force)
             self.unshow_busy()
-            if result.eflags & cmd_result.SUGGEST_FORCE_OR_RENAME:
+            if result.ecode & cmd_result.SUGGEST_FORCE_OR_RENAME:
                 ans = dialogue.ask_rename_force_or_cancel(result, clarification=_('Force import of patch, rename patch or cancel import?'))
                 if ans == gtk.RESPONSE_CANCEL:
                     return
@@ -822,7 +822,7 @@ class ListView(table.TableView):
                 self.show_busy()
                 result = ifce.PM.do_import_patch(patch_file_name, patch_name, force)
                 self.unshow_busy()
-                if result.eflags & cmd_result.SUGGEST_FORCE_OR_RENAME:
+                if result.ecode & cmd_result.SUGGEST_FORCE_OR_RENAME:
                     ans = dialogue.ask_rename_force_or_skip(result, clarification=_('Force import of patch, rename patch or skip patch?'))
                     if ans == dialogue.RESPONSE_SKIP_ALL:
                         index = len(series)
@@ -865,7 +865,7 @@ def do_export_named_patch(parent, patchname, suggestion=None, busy_indicator=Non
         busy_indicator.unshow_busy()
         if refresh_tried:
             result = cmd_result.turn_off_flags(result, cmd_result.SUGGEST_REFRESH)
-        if result.eflags & cmd_result.SUGGEST_FORCE_OR_REFRESH != 0:
+        if result.ecode & cmd_result.SUGGEST_FORCE_OR_REFRESH != 0:
             resp = dialogue.ask_force_refresh_absorb_or_cancel(result, clarification=None)
             if resp == gtk.RESPONSE_CANCEL:
                 return
@@ -878,7 +878,7 @@ def do_export_named_patch(parent, patchname, suggestion=None, busy_indicator=Non
                 dialogue.unshow_busy()
                 dialogue.report_any_problems(result)
             continue
-        elif result.eflags & cmd_result.SUGGEST_RENAME != 0:
+        elif result.ecode & cmd_result.SUGGEST_RENAME != 0:
             resp = dialogue.ask_rename_overwrite_or_cancel(result, clarification=None)
             if resp == gtk.RESPONSE_CANCEL:
                 return

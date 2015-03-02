@@ -716,7 +716,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         tortoise.run_tool_for_files(action, self.get_selected_files())
     def new_file(self, new_file_name):
         result = utils.create_file(new_file_name, ifce.log)
-        if result.eflags == 0:
+        if result.ecode == 0:
             result = ifce.SCM.do_add_files([new_file_name])
         return result
     def delete_files(self, file_list):
@@ -748,7 +748,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         self.show_busy()
         result = operation([], dry_run=True)
         self.unshow_busy()
-        if result.eflags != cmd_result.OK:
+        if result.ecode != cmd_result.OK:
             dialogue.report_any_problems(result)
             return
         if dialogue.confirm_list_action('\n'.join(result[1:]).splitlines(), _('About to be actioned. OK?')):
@@ -858,7 +858,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             self.show_busy()
             result = ifce.SCM.do_revert_files(file_list, dry_run=True)
             self.unshow_busy()
-            if result.eflags == cmd_result.OK:
+            if result.ecode == cmd_result.OK:
                 if result.stdout:
                     is_ok = dialogue.confirm_list_action(result.stdout.splitlines(), _('About to be actioned. OK?'))
                 else:
@@ -1378,7 +1378,7 @@ class TopPatchFileTreeView(CwdFileTreeView):
                     result = operation(file_list, target, force=force,
                                                 dry_run=True)
                     self.unshow_busy()
-                    if result.eflags == cmd_result.OK:
+                    if result.ecode == cmd_result.OK:
                         is_ok = dialogue.confirm_list_action(result.stdout.splitlines(), _('About to be actioned. OK?'))
                         break
                     elif not force and cmd_result.suggests_force(result):
@@ -1424,7 +1424,7 @@ class TopPatchFileTreeView(CwdFileTreeView):
             self.show_busy()
             result = ifce.PM.do_revert_files(file_list, dry_run=True)
             self.unshow_busy()
-            if result.eflags == cmd_result.OK:
+            if result.ecode == cmd_result.OK:
                 if result.stdout:
                     is_ok = dialogue.confirm_list_action(result.stdout.splitlines(), _('About to be actioned. OK?'))
                 else:

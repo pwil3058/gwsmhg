@@ -98,11 +98,12 @@ class View(_View):
         self._adjust_size_request()
 
 class Widget(gtk.ScrolledWindow):
+    TEXT_VIEW = View
     def __init__(self, width_in_chars=81, aspect_ratio=0.33, fdesc=None):
         gtk.ScrolledWindow.__init__(self)
         # Set up text buffer and view
         self.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
-        self.view = View(width_in_chars=width_in_chars, aspect_ratio=aspect_ratio, fdesc=fdesc)
+        self.view = self.TEXT_VIEW(width_in_chars=width_in_chars, aspect_ratio=aspect_ratio, fdesc=fdesc)
         self._initialize_contents()
         self.add(self.view)
     @property
