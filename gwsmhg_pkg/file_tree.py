@@ -23,7 +23,7 @@ from gwsmhg_pkg import tlview
 from gwsmhg_pkg import actions, ws_actions, fsdb, hg_mq_ifce
 
 class FileTreeModel(tlview.NamedTreeStore):
-    Row = collections.namedtuple('Row', ['name', 'is_dir', 'style', 'foreground', 'icon', 'status', 'origin'])
+    Row = collections.namedtuple('Row', ['name', 'is_dir', 'style', 'foreground', 'icon', 'status', 'related_file'])
     types = Row(
         name=gobject.TYPE_STRING,
         is_dir=gobject.TYPE_BOOLEAN,
@@ -31,7 +31,7 @@ class FileTreeModel(tlview.NamedTreeStore):
         foreground=gobject.TYPE_STRING,
         icon=gobject.TYPE_STRING,
         status=gobject.TYPE_STRING,
-        origin=gobject.TYPE_STRING
+        related_file=gobject.TYPE_STRING
     )
 
 _NAME = FileTreeModel.col_index('name')
@@ -40,7 +40,7 @@ _STYLE = FileTreeModel.col_index('style')
 _FOREGROUND = FileTreeModel.col_index('foreground')
 _ICON = FileTreeModel.col_index('icon')
 _STATUS = FileTreeModel.col_index('status')
-_ORIGIN = FileTreeModel.col_index('origin')
+_ORIGIN = FileTreeModel.col_index('related_file')
 
 _FILE_ICON = {True : gtk.STOCK_DIRECTORY, False : gtk.STOCK_FILE}
 
@@ -57,7 +57,7 @@ def _generate_row_tuple(data, isdir=None):
         is_dir=isdir,
         icon=_FILE_ICON[isdir],
         status=data.status,
-        origin=data.origin,
+        related_file=data.related_file,
         style=deco.style,
         foreground=deco.foreground
     )

@@ -62,6 +62,7 @@ class ScmDir(fsdb.GenDir):
         return False
 
 class ScmFileDb(fsdb.GenFileDb):
+    DIR_TYPE = ScmDir
     @staticmethod
     def map_patchlib_status(status):
         if status == patchlib.FilePathPlus.ADDED:
@@ -71,7 +72,7 @@ class ScmFileDb(fsdb.GenFileDb):
         else:
             return FSTATUS_MODIFIED
     def __init__(self, file_list, unresolved_file_list=list()):
-        fsdb.GenFileDb.__init__(self, ScmDir)
+        fsdb.GenFileDb.__init__(self)
         lfile_list = len(file_list)
         index = 0
         while index < lfile_list:
@@ -84,15 +85,15 @@ class ScmFileDb(fsdb.GenFileDb):
             else:
                 filename = item[2:]
                 status = item[0]
-                origin = None
+                related_file = None
                 if status == FSTATUS_ADDED and index < lfile_list:
                     if file_list[index][0] == FSTATUS_ORIGIN:
-                        origin = file_list[index][2:]
+                        related_file = file_list[index][2:]
                         index += 1
                 elif filename in unresolved_file_list:
                     status = FSTATUS_UNRESOLVED
                 parts = fsdb.split_path(filename)
-                self.base_dir.add_file(parts, status, origin)
+                self.base_dir.add_file(parts, status, related_file)
 
 Deco = collections.namedtuple('Deco', ['style', 'foreground'])
 
