@@ -600,22 +600,27 @@ TAG_MSG_UI_DESCR = \
 </ui>
 '''
 
-class TagMessageWidget(gtk.VBox):
+class TagMessageWidget(text_edit.MessageWidget):
+    UI_DESCR = \
+        '''
+        <ui>
+          <toolbar name="tag_message_toolbar">
+            <toolitem action="text_edit_ack"/>
+            <toolitem action="text_edit_sign_off"/>
+            <toolitem action="text_edit_author"/>
+          </toolbar>
+        </ui>
+        '''
     def __init__(self, label=_('Message (optional)')):
-        gtk.VBox.__init__(self)
-        self.view = text_edit.SummaryView()
-        self.view.ui_manager.add_ui_from_string(TAG_MSG_UI_DESCR)
-        hbox = gtk.HBox()
-        hbox.pack_start(gtk.Label(label), expand=False, fill=False)
-        toolbar = self.view.ui_manager.get_widget("/tag_message_toolbar")
+        text_edit.MessageWidget.__init__(self)
+        self.top_hbox.pack_start(gtk.Label(label), expand=False, fill=False)
+        toolbar = self.ui_manager.get_widget("/tag_message_toolbar")
         toolbar.set_style(gtk.TOOLBAR_BOTH)
         toolbar.set_orientation(gtk.ORIENTATION_HORIZONTAL)
-        hbox.pack_end(toolbar, fill=False, expand=False)
-        self.pack_start(hbox, expand=False)
-        self.pack_start(gutils.wrap_in_scrolled_window(self.view))
+        self.top_hbox.pack_end(toolbar, fill=False, expand=False)
         self.show_all()
     def get_msg(self):
-        return self.view.get_msg()
+        return self.get_contents()
 
 class SetTagDialog(dialogue.ReadTextAndToggleDialog):
     def __init__(self, rev=None, parent=None):

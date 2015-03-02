@@ -1037,22 +1037,44 @@ class ScmCommitFileTreeView(FileTreeView):
         ifce.SCM.launch_extdiff_for_ws(file_list=self.get_file_mask())
 
 class ScmCommitWidget(gtk.VPaned, ws_event.Listener):
+    class SummaryWidget(text_edit.MessageWidget):
+        UI_DESCR = \
+            '''
+            <ui>
+              <menubar name="change_summary_menubar">
+                <menu name="change_summary_menu" action="menu_summary">
+                  <menuitem action="text_edit_save_to_file"/>
+                  <menuitem action="text_edit_save_as"/>
+                  <menuitem action="text_edit_load_fm_file"/>
+                  <menuitem action="text_edit_load_from"/>
+                  <menuitem action="text_edit_insert_from"/>
+                </menu>
+              </menubar>
+              <toolbar name="change_summary_toolbar">
+                <toolitem action="text_edit_ack"/>
+                <toolitem action="text_edit_sign_off"/>
+                <toolitem action="text_edit_author"/>
+                <toolitem action="text_edit_toggle_auto_save"/>
+              </toolbar>
+            </ui>
+            '''
+        def __init__(self, save_file_name=None, auto_save=True):
+            text_edit.MessageWidget.__init__(self, save_file_name=save_file_name, auto_save=auto_save)
+            menubar = self.ui_manager.get_widget("/change_summary_menubar")
+            self.top_hbox.pack_start(menubar, fill=True, expand=False)
+            toolbar = self.ui_manager.get_widget("/change_summary_toolbar")
+            toolbar.set_style(gtk.TOOLBAR_BOTH)
+            toolbar.set_orientation(gtk.ORIENTATION_HORIZONTAL)
+            self.top_hbox.pack_end(toolbar, fill=False, expand=False)
+        def populate_action_groups(self):
+            text_edit.MessageWidget.populate_action_groups(self)
+            self.action_groups[actions.AC_DONT_CARE].add_action(gtk.Action("menu_summary", _("Summary"), _(""), None))
     def __init__(self, busy_indicator, file_mask=None):
         gtk.VPaned.__init__(self)
         ws_event.Listener.__init__(self)
         # TextView for change message
-        self.view = text_edit.ChangeSummaryView()
-        vbox = gtk.VBox()
-        hbox = gtk.HBox()
-        menubar = self.view.ui_manager.get_widget("/change_summary_menubar")
-        hbox.pack_start(menubar, fill=True, expand=False)
-        toolbar = self.view.ui_manager.get_widget("/change_summary_toolbar")
-        toolbar.set_style(gtk.TOOLBAR_BOTH)
-        toolbar.set_orientation(gtk.ORIENTATION_HORIZONTAL)
-        hbox.pack_end(toolbar, fill=False, expand=False)
-        vbox.pack_start(hbox, expand=False)
-        vbox.pack_start(gutils.wrap_in_scrolled_window(self.view))
-        self.add1(vbox)
+        self.summary_widget = self.SummaryWidget()
+        self.add1(self.summary_widget)
         # TreeView of files in change set
         self.files = ScmCommitFileTreeView(busy_indicator=busy_indicator,
                                            auto_refresh=False,
@@ -1072,9 +1094,9 @@ class ScmCommitWidget(gtk.VPaned, ws_event.Listener):
         vbox.show_all()
         self.add2(vbox)
         self.show_all()
-        self.set_focus_child(self.view)
+        self.set_focus_child(self.summary_widget.view)
     def get_msg(self):
-        return self.view.get_msg()
+        return self.summary_widget.get_contents()
     def get_file_mask(self):
         return self.files.get_file_mask()
     def do_commit(self):
@@ -1089,7 +1111,7 @@ class ScmCommitDialog(dialogue.AmodalDialog):
         self.set_title(_('Commit Changes: %s') % utils.cwd_rel_home())
         self.commit_widget = ScmCommitWidget(busy_indicator=self, file_mask=filelist)
         self.vbox.pack_start(self.commit_widget)
-        self.set_focus_child(self.commit_widget.view)
+        self.set_focus_child(self.commit_widget.summary_widget.view)
         tws_display = self.commit_widget.files.model.tws_display
         self.action_area.pack_end(tws_display, expand=False, fill=False)
         self.add_buttons(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
@@ -1101,7 +1123,7 @@ class ScmCommitDialog(dialogue.AmodalDialog):
         self.commit_widget.files.update_tree()
     def _finish_up(self, clear_save=False):
         self.show_busy()
-        self.commit_widget.view.get_buffer().finish_up(clear_save)
+        self.commit_widget.summary_widget.finish_up(clear_save)
         self.unshow_busy()
         self.destroy()
     def _handle_response_cb(self, dialog, response_id):
@@ -1110,8 +1132,8 @@ class ScmCommitDialog(dialogue.AmodalDialog):
                 self._finish_up(clear_save=True)
             else:
                 dialog.update_files()
-        elif self.commit_widget.view.get_buffer().get_modified():
-            if self.commit_widget.view.get_auto_save():
+        elif self.commit_widget.summary_widget.bfr.get_modified():
+            if self.commit_widget.summary_widget.get_auto_save():
                 self._finish_up()
             else:
                 qtn = _('Unsaved changes to summary will be lost.\n\nCancel anyway?')

@@ -76,18 +76,17 @@ class ConsoleLog(textview.Widget):
         while gtk.events_pending():
             gtk.main_iteration(False)
 
-CONSOLE_LOG_UI_DESCR = \
-'''
-<ui>
-  <menubar name="console_log_menubar">
-    <menu name="Console" action="menu_console">
-        <menuitem action="console_log_clear"/>
-    </menu>
-  </menubar>
-</ui>
-'''
-
 class ConsoleLogWidget(gtk.VBox, dialogue.BusyIndicatorUser):
+    UI_DESCR = \
+        '''
+        <ui>
+          <menubar name="console_log_menubar">
+            <menu name="Console" action="menu_console">
+                <menuitem action="console_log_clear"/>
+            </menu>
+          </menubar>
+        </ui>
+        '''
     def __init__(self, busy_indicator=None, runentry=False, _table=None):
         gtk.VBox.__init__(self)
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
@@ -101,7 +100,7 @@ class ConsoleLogWidget(gtk.VBox, dialogue.BusyIndicatorUser):
                  _('Clear the console log'), self._clear_acb),
                 ("menu_console", None, _('_Console')),
             ])
-        self.change_summary_merge_id = self.ui_manager.add_ui_from_string(CONSOLE_LOG_UI_DESCR)
+        self.change_summary_merge_id = self.ui_manager.add_ui_from_string(self.UI_DESCR)
         self._menubar = self.ui_manager.get_widget("/console_log_menubar")
         hbox = gtk.HBox()
         hbox.pack_start(self._menubar, expand=False)

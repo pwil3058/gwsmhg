@@ -892,43 +892,56 @@ def do_export_named_patch(parent, patchname, suggestion=None, busy_indicator=Non
         dialogue.report_any_problems(result)
         break
 
-class NewPatchDescrEditWidget(gtk.VBox):
-    def __init__(self, view=None):
-        gtk.VBox.__init__(self)
-        # TextView for change message
-        if view:
-            self.view = view
-        else:
-            self.view = text_edit.NewPatchSummaryView()
-        hbox = gtk.HBox()
-        menubar = self.view.ui_manager.get_widget("/patch_summary_menubar")
-        hbox.pack_start(menubar, fill=True, expand=False)
-        toolbar = self.view.ui_manager.get_widget("/patch_summary_toolbar")
+class NewPatchDescrEditWidget(text_edit.DbMessageWidget):
+    UI_DESCR = \
+        '''
+        <ui>
+          <menubar name="patch_summary_menubar">
+            <menu name="patch_summary_menu" action="menu_summary">
+              <separator/>
+              <menuitem action="text_edit_insert_from"/>
+            </menu>
+          </menubar>
+          <toolbar name="patch_summary_toolbar">
+            <toolitem action="text_edit_ack"/>
+            <toolitem action="text_edit_sign_off"/>
+            <toolitem action="text_edit_author"/>
+          </toolbar>
+        </ui>
+        '''
+    def __init__(self, save_file_name=None, auto_save=False):
+        text_edit.DbMessageWidget.__init__(self, save_file_name=save_file_name, auto_save=auto_save)
+        menubar = self.ui_manager.get_widget("/patch_summary_menubar")
+        self.top_hbox.pack_start(menubar, fill=True, expand=False)
+        toolbar = self.ui_manager.get_widget("/patch_summary_toolbar")
         toolbar.set_style(gtk.TOOLBAR_BOTH)
         toolbar.set_orientation(gtk.ORIENTATION_HORIZONTAL)
-        hbox.pack_end(toolbar, fill=False, expand=False)
-        self.pack_start(hbox, expand=False)
-        self.pack_start(gutils.wrap_in_scrolled_window(self.view))
+        self.top_hbox.pack_end(toolbar, fill=False, expand=False)
         self.show_all()
         self.set_focus_child(self.view)
+    def populate_action_groups(self):
+        text_edit.DbMessageWidget.populate_action_groups(self)
+        self.action_groups[actions.AC_DONT_CARE].add_action(gtk.Action("menu_summary", _("Description"), _(""), None))
 
 class PatchDescrEditWidget(NewPatchDescrEditWidget):
-    def __init__(self, get_summary, set_summary, patch=None):
-        self.view = text_edit.PatchSummaryView(get_summary, set_summary, patch)
-        NewPatchDescrEditWidget.__init__(self, view=self.view)
-        self.view.load_summary()
-    def get_save_button(self):
-        return self.view.save_button
+    def __init__(self, patch):
+        NewPatchDescrEditWidget.__init__(self, save_file_name=None, auto_save=False)
+        self._patch = patch
+        self.load_text_fm_db()
+    def get_text_fm_db(self):
+        return ifce.PM.get_patch_description(self._patch)
+    def set_text_in_db(self, text):
+        return ifce.PM.do_set_patch_description(self._patch, text)
 
-class GenericPatchDescrEditDialog(dialogue.AmodalDialog):
-    def __init__(self, get_summary, set_summary, parent, patch=None):
+class PatchDescrEditDialog(dialogue.AmodalDialog):
+    def __init__(self, patch, parent=None):
         flags = gtk.DIALOG_DESTROY_WITH_PARENT
         dialogue.AmodalDialog.__init__(self, None, parent, flags, None)
         self.set_title(_('"%s" Description: %s') % (patch, utils.cwd_rel_home()))
-        self.edit_descr_widget = PatchDescrEditWidget(get_summary, set_summary,
-                                                      patch)
+        self.edit_descr_widget = PatchDescrEditWidget(patch)
         self.vbox.pack_start(self.edit_descr_widget)
-        self.action_area.pack_start(self.edit_descr_widget.get_save_button())
+        self.action_area.pack_start(self.edit_descr_widget.reload_button)
+        self.action_area.pack_start(self.edit_descr_widget.save_button)
         self.add_button(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
         self.connect('response', self._handle_response_cb)
         self.set_focus_child(self.edit_descr_widget.view)
@@ -940,13 +953,6 @@ class GenericPatchDescrEditDialog(dialogue.AmodalDialog):
                     self.destroy()
             else:
                 self.destroy()
-
-class PatchDescrEditDialog(GenericPatchDescrEditDialog):
-    def __init__(self, patch, parent):
-        GenericPatchDescrEditDialog.__init__(self,
-            get_summary=ifce.PM.get_patch_description,
-            set_summary=ifce.PM.do_set_patch_description,
-            parent=parent, patch=patch)
 
 class DuplicatePatchDialog(dialogue.Dialog):
     def __init__(self, patch, parent, verb=_('Duplicate')):
@@ -1005,4 +1011,4 @@ class NewPatchDialog(dialogue.Dialog):
     def get_new_patch_name(self):
         return self.new_name_entry.get_text()
     def get_new_patch_descr(self):
-        return self.edit_descr_widget.view.get_msg()
+        return self.edit_descr_widget.get_contents()
