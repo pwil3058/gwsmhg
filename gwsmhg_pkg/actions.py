@@ -235,7 +235,7 @@ class CAGandUIManager(gobject.GObject):
         self._popup_cb_id = self._popup = None
         self.set_popup(popup)
     def populate_action_groups(self):
-        assert False, 'should be derived in subclass'
+        assert False, _("should be derived in subclass")
     @staticmethod
     def _button_press_cb(widget, event):
         if event.type == gtk.gdk.BUTTON_PRESS:

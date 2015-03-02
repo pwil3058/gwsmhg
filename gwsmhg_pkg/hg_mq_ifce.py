@@ -141,7 +141,7 @@ class BaseInterface:
         self._name_envars = DEFAULT_NAME_EVARS
         self._email_envars = DEFAULT_EMAIL_VARS
     def _map_cmd_result(self, result, ignore_err_re=None):
-        assert False, _('Must be defined in child')
+        assert False, _("Must be defined in child")
     def _run_cmd_on_console(self, cmd, input_text=None, ignore_err_re=None):
         result = utils.run_cmd_in_console(cmd, ifce.log, input_text)
         return self._map_cmd_result(result, ignore_err_re=ignore_err_re)
@@ -364,6 +364,14 @@ class SCMInterface(BaseInterface):
         result = utils.run_cmd(cmd)
         scm_file_db = ScmFileDb(result.stdout.splitlines(), self._unresolved_file_list())
         return scm_file_db
+    def get_commit_diff(self, fspath_list=None):
+        cmd = 'hg diff --git'
+        if fspath_list:
+            cmd += ' %s' % utils.file_list_to_string(fspath_list)
+        result = utils.run_cmd(cmd)
+        if result.eflags != 0:
+            raise cmd_result.Failure(result)
+        return result.stdout
     def _css_line_index(self, tempfrag):
         return self.cs_summary_template_lines.index(tempfrag)
     def _process_change_set_summary(self, lines):

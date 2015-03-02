@@ -61,7 +61,7 @@ def chdir(newdir=None):
         os.chdir(root)
         in_valid_repo = True
         from gwsmhg_pkg import config
-        config.append_saved_ws(root)
+        config.WSPathTable.append_saved_wd(root)
     else:
         in_valid_repo = False
     ws_event.notify_events(ws_event.CHANGE_WD)

@@ -99,7 +99,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, ws_actions.AGandUIManager):
         self._rhs_menubar = self.ui_manager.get_widget("/gwsm_right_side_menubar")
         self._toolbar = self.ui_manager.get_widget("/gwsm_toolbar")
         self._toolbar.set_style(gtk.TOOLBAR_BOTH)
-        self._parent_table = change_set.ParentsTable()
+        self._parent_table = change_set.ParentsTable(scroll_bar=False)
         self._file_tree_widget = file_tree.ScmCwdFilesWidget()
         self._notebook = gtk.Notebook()
         self._notebook.set_size_request(640, 360)
@@ -140,7 +140,7 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, ws_actions.AGandUIManager):
         self.add(vbox)
         self.show_all()
         self._update_title()
-        self._parent_table.view.get_selection().unselect_all()
+        self._parent_table.unselect_all()
         self.add_notification_cb(ws_event.CHANGE_WD, self._reset_after_cd)
         if open_dialog:
             open_dialog.unshow_busy()

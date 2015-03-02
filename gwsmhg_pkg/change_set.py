@@ -19,32 +19,20 @@ from gwsmhg_pkg import ifce, cmd_result, gutils, utils, icons, file_tree, diff
 from gwsmhg_pkg import text_edit, ws_event, dialogue, table, actions, ws_actions
 from gwsmhg_pkg import tlview
 
-CSRow = collections.namedtuple('CSRow', [_('Rev'), _('Node'), _('Age'), _('Tags'), _('Branches'), _('Author'), _('Description')])
-
-LOG_MODEL_DESCR = CSRow(
-    Rev=gobject.TYPE_INT,
-    Node=gobject.TYPE_STRING,
-    Age=gobject.TYPE_STRING,
-    Tags=gobject.TYPE_STRING,
-    Branches=gobject.TYPE_STRING,
-    Author=gobject.TYPE_STRING,
-    Description=gobject.TYPE_STRING,
-)
-
 def cs_table_column(model_descr, name):
-    return tlview.Column(
+    return tlview.ColumnSpec(
         title=name,
         properties={'expand' : False, 'resizable' : True},
         cells=[
-            tlview.Cell(
-                creator=tlview.CellCreator(
-                    function=gtk.CellRendererText,
+            tlview.CellSpec(
+                cell_renderer_spec=tlview.CellRendererSpec(
+                    cell_renderer=gtk.CellRendererText,
                     expand=False,
                     start=True
                 ),
                 properties={'editable' : False},
-                renderer=None,
-                attributes={'text' : tlview.model_col(model_descr, name)}
+                cell_data_function_spec=None,
+                attributes={'text' : model_descr.col_index(name)}
             )
         ]
     )
@@ -70,20 +58,20 @@ def cs_description_crf(_column, cell, model, model_iter, user_data):
     cell.set_property('markup', markup)
 
 def cs_description_column(model_descr, extras):
-    mcols = tuple(tlview.model_col(model_descr, x) for x in (_('Description'),) + extras)
+    mcols = tuple(model_descr.col_index(x) for x in (_('Description'),) + extras)
     cols = tuple(_MARKUP_COLOURS[x] for x in extras)
-    return tlview.Column(
+    return tlview.ColumnSpec(
         title=_('Description'),
         properties={'expand' : False, 'resizable' : True},
         cells=[
-            tlview.Cell(
-                creator=tlview.CellCreator(
-                    function=gtk.CellRendererText,
+            tlview.CellSpec(
+                cell_renderer_spec=tlview.CellRendererSpec(
+                    cell_renderer=gtk.CellRendererText,
                     expand=False,
                     start=True
                 ),
                 properties={'editable' : False},
-                renderer=tlview.Renderer(
+                cell_data_function_spec=tlview.CellDataFunctionSpec(
                     function=cs_description_crf,
                     user_data=(mcols, cols)
                 ),
@@ -92,23 +80,7 @@ def cs_description_column(model_descr, extras):
         ]
     )
 
-LOG_TABLE_DESCR = tlview.ViewTemplate(
-    properties={
-        'enable-grid-lines' : False,
-        'reorderable' : False,
-        'rules_hint' : False,
-        'headers-visible' : True,
-    },
-    selection_mode=gtk.SELECTION_SINGLE,
-    columns=[
-        cs_table_column(LOG_MODEL_DESCR, _('Rev')),
-        cs_table_column(LOG_MODEL_DESCR, _('Age')),
-        cs_description_column(LOG_MODEL_DESCR, (_('Tags'), _('Branches'))),
-        cs_table_column(LOG_MODEL_DESCR, _('Author')),
-    ]
-)
-
-class ChangeSetTable(table.MapManagedTable):
+class ChangeSetTableView(table.MapManagedTableView):
     UI_DESCR = \
         '''
         <ui>
@@ -123,21 +95,38 @@ class ChangeSetTable(table.MapManagedTable):
           </popup>
         </ui>
         '''
-    def __init__(self, model_descr = None,
-                 table_descr = None, popup='/table_popup',
-                 scroll_bar=True, busy_indicator=None, size_req=None):
-        if model_descr is None:
-            model_descr = LOG_MODEL_DESCR
-        if table_descr is None:
-            table_descr = LOG_TABLE_DESCR
-        table.MapManagedTable.__init__(self, model_descr=model_descr,
-                                       table_descr=table_descr, popup=popup,
-                                       busy_indicator=busy_indicator,
-                                       size_req=size_req,
-                                       scroll_bar=scroll_bar)
+    class Model(tlview.NamedListStore):
+        Row = collections.namedtuple('CSRow', [_('Rev'), _('Node'), _('Age'), _('Tags'), _('Branches'), _('Author'), _('Description')])
+        types = Row(
+            Rev=gobject.TYPE_INT,
+            Node=gobject.TYPE_STRING,
+            Age=gobject.TYPE_STRING,
+            Tags=gobject.TYPE_STRING,
+            Branches=gobject.TYPE_STRING,
+            Author=gobject.TYPE_STRING,
+            Description=gobject.TYPE_STRING,
+        )
+    specification = tlview.ViewSpec(
+        properties={
+            'enable-grid-lines' : False,
+            'reorderable' : False,
+            'rules_hint' : False,
+            'headers-visible' : True,
+        },
+        selection_mode=gtk.SELECTION_SINGLE,
+        columns=[
+            cs_table_column(Model, _('Rev')),
+            cs_table_column(Model, _('Age')),
+            cs_description_column(Model, (_('Tags'), _('Branches'))),
+            cs_table_column(Model, _('Author')),
+        ]
+    )
+    PopUp = "/table_popup"
+    def __init__(self, busy_indicator=None, size_req=None):
+        table.MapManagedTableView.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
         self.add_notification_cb(ws_event.REPO_MOD|ws_event.PATCH_CHANGES, self.refresh_contents_if_mapped)
     def populate_action_groups(self):
-        table.MapManagedTable.populate_action_groups(self)
+        table.MapManagedTableView.populate_action_groups(self)
         self.action_groups[ws_actions.AC_IN_REPO + actions.AC_SELN_UNIQUE].add_actions(
             [
                 ("cs_summary", gtk.STOCK_INFO, _('Summary'), None,
@@ -216,6 +205,9 @@ class ChangeSetTable(table.MapManagedTable):
         SetTagDialog(rev=str(rev)).run()
         self.unshow_busy()
 
+class ChangeSetTable(table.TableWidget):
+    View = ChangeSetTableView
+
 CS_TABLE_REFRESH_UI_DESCR = \
 '''
 <ui>
@@ -263,9 +255,9 @@ CS_TABLE_TAG_UI_DESCR = \
 </ui>
 '''
 
-class HeadsTable(ChangeSetTable):
+class HeadsTableView(ChangeSetTableView):
     def __init__(self, busy_indicator=None, size_req=None):
-        ChangeSetTable.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
+        ChangeSetTableView.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
         self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR)
         self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR)
     def _fetch_contents(self):
@@ -275,9 +267,13 @@ class HeadsTable(ChangeSetTable):
             dialogue.report_failure(failure)
             return []
 
-class SearchableChangeSetTable(ChangeSetTable):
-    def __init__(self, busy_indicator=None, size_req=None, prefix=None, rev=True):
-        ChangeSetTable.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
+class HeadsTable(table.TableWidget):
+    View = HeadsTableView
+
+class SearchableChangeSetTable(table.TableWidget):
+    View = ChangeSetTableView
+    def __init__(self, scroll_bar=True, busy_indicator=None, size_req=None, prefix=None, rev=True, **kwargs):
+        table.TableWidget.__init__(self, scroll_bar=scroll_bar, busy_indicator=busy_indicator, size_req=size_req, **kwargs)
         if rev:
             if prefix:
                 self._search = gutils.LabelledEntry(prefix + _(': Find Rev/Tag/Node Id:'))
@@ -288,8 +284,8 @@ class SearchableChangeSetTable(ChangeSetTable):
                 self._search = gutils.LabelledEntry(prefix + _(': Find Tag/Node Id:'))
             else:
                 self._search = gutils.LabelledEntry(_('Find Tag/Node Id:'))
-        self._search.entry.connect('activate', self._search_entry_cb)
         self.header.lhs.pack_start(self._search, expand=True, fill=True)
+        self._search.entry.connect('activate', self._search_entry_cb)
     def _search_entry_cb(self, entry):
         text = entry.get_text_and_clear_to_history()
         if not text:
@@ -299,19 +295,13 @@ class SearchableChangeSetTable(ChangeSetTable):
         except cmd_result.Failure as failure:
             dialogue.report_failure(failure)
     def _select_and_scroll_to_rev(self, rev):
-        self.select_and_scroll_to_row_with_key_value(key=_('Rev'), key_value=rev)
+        self.view.select_and_scroll_to_row_with_key_value(key=_('Rev'), key_value=rev)
     def _fetch_rev(self, revarg):
-        assert True, 'define in child'
-        return (self, revarg)
+        assert False, _("Must be defined in child")
 
-class HistoryTable(SearchableChangeSetTable):
-    @staticmethod
-    def search_equal_func(model, column, key, model_iter, _data=None):
-        text = model.get_labelled_value(model_iter, label=_('Description'))
-        return text.find(key) == -1
+class HistoryTableView(ChangeSetTableView):
     def __init__(self, busy_indicator=None, size_req=None):
-        SearchableChangeSetTable.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
-        self.view.set_search_equal_func(HistoryTable.search_equal_func)
+        ChangeSetTableView.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
         self._default_max = 8192
         self._current_max = self._default_max
         self.action_groups[ws_actions.AC_IN_REPO].add_actions(
@@ -326,26 +316,19 @@ class HistoryTable(SearchableChangeSetTable):
         self.ui_manager.add_ui_from_string(CS_TABLE_TAG_UI_DESCR)
         self._button_box = self.action_groups.create_action_button_box(['cs_next_tranch', 'cs_load_all'],
                                                          expand=False)
-        self.header.rhs.pack_start(gtk.VSeparator(), expand=True)
-        self.header.rhs.pack_end(self._button_box, expand=False)
-    def _oldest_loaded_rev(self):
+    def oldest_loaded_rev(self):
         if len(self.model) == 0:
             return 0
-        return int(self.model[-1][self.model.get_col(_('Rev'))])
-    def _fetch_rev(self, revarg):
-        return ifce.SCM.get_rev(revarg)
+        return int(self.model[-1][self.model.col_index(_('Rev'))])
     def _fetch_contents(self):
         try:
             return ifce.SCM.get_history_data(maxitems=self._current_max)
         except cmd_result.Failure as failure:
             dialogue.report_failure(failure)
             return []
-    def _select_and_scroll_to_rev(self, rev):
-        while not self.select_and_scroll_to_row_with_key_value(key=_('Rev'), key_value=rev):
-            self._append_contents(torev=rev)
     def _append_contents(self, torev=None):
         self.show_busy()
-        oldest_rev = self._oldest_loaded_rev()
+        oldest_rev = self.oldest_loaded_rev()
         start_rev = oldest_rev - 1
         if start_rev < 0:
             start_rev = 0
@@ -360,7 +343,7 @@ class HistoryTable(SearchableChangeSetTable):
         self._check_button_visibility()
         self.unshow_busy()
     def _check_button_visibility(self):
-        if self._oldest_loaded_rev() == 0:
+        if self.oldest_loaded_rev() == 0:
             self._button_box.hide()
             self._button_box.set_no_show_all(True)
             self._current_max = None
@@ -371,19 +354,34 @@ class HistoryTable(SearchableChangeSetTable):
                 self._current_max = self._default_max
     def reset_contents_if_mapped(self, arg=None):
         self._current_max = self._default_max
-        SearchableChangeSetTable.reset_contents_if_mapped(self, arg)
+        ChangeSetTableView.reset_contents_if_mapped(self, arg)
     def _set_contents(self):
-        SearchableChangeSetTable._set_contents(self)
+        ChangeSetTableView._set_contents(self)
         self._check_button_visibility()
     def _cs_next_tranche_acb(self, _action=None):
         self._append_contents()
     def _cs_load_all_acb(self, _action=None):
         self._append_contents(torev=0)
 
-class ParentsTable(ChangeSetTable):
+class HistoryTable(SearchableChangeSetTable):
+    View = HistoryTableView
+    @staticmethod
+    def search_equal_func(model, column, key, model_iter, _data=None):
+        text = model.get_labelled_value(model_iter, label=_('Description'))
+        return text.find(key) == -1
+    def __init__(self, scroll_bar=True, busy_indicator=None, size_req=None, prefix=None, rev=True):
+        SearchableChangeSetTable.__init__(self, scroll_bar=scroll_bar, busy_indicator=busy_indicator, size_req=size_req, prefix=prefix, rev=rev)
+        self.header.rhs.pack_start(gtk.VSeparator(), expand=True)
+        self.header.rhs.pack_end(self.view._button_box, expand=False)
+    def _select_and_scroll_to_rev(self, rev):
+        while not self.view.select_and_scroll_to_row_with_key_value(key=_('Rev'), key_value=rev):
+            self.view._append_contents(torev=rev)
+    def _fetch_rev(self, revarg):
+        return ifce.SCM.get_rev(revarg)
+
+class ParentsTableView(ChangeSetTableView):
     def __init__(self, rev=None, busy_indicator=None, size_req=None):
-        ChangeSetTable.__init__(self, busy_indicator=busy_indicator,
-                                size_req=size_req, scroll_bar=False)
+        ChangeSetTableView.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
         self._rev = rev
         self.add_notification_cb(ws_event.CHANGE_WD, self._checkout_cb)
         if rev is None:
@@ -398,17 +396,8 @@ class ParentsTable(ChangeSetTable):
             self.hide()
         return parents
 
-TagRow = collections.namedtuple('TagRow', [_('Tag'), _('Scope'), _('Rev'), _('Branches'), _('Age'), _('Author'), _('Description')])
-
-TAGS_MODEL_DESCR = TagRow(
-    Tag=gobject.TYPE_STRING,
-    Scope=gobject.TYPE_STRING,
-    Rev=gobject.TYPE_INT,
-    Branches=gobject.TYPE_STRING,
-    Age=gobject.TYPE_STRING,
-    Author=gobject.TYPE_STRING,
-    Description=gobject.TYPE_STRING,
-)
+class ParentsTable(table.TableWidget):
+    View = ParentsTableView
 
 def cs_tag_crf(_column, cell, model, model_iter, mcols):
     markup = safe_escape(model.get_value(model_iter, mcols[0]))
@@ -417,21 +406,21 @@ def cs_tag_crf(_column, cell, model, model_iter, mcols):
     cell.set_property('markup', markup)
 
 def cs_tag_column(model_descr):
-    mcols = ( tlview.model_col(model_descr, _('Tag')),
-              tlview.model_col(model_descr, _('Scope')),
+    mcols = ( model_descr.col_index(_('Tag')),
+              model_descr.col_index(_('Scope')),
             )
-    return tlview.Column(
+    return tlview.ColumnSpec(
         title=_('Tag'),
         properties={'expand' : False, 'resizable' : True},
         cells=[
-            tlview.Cell(
-                creator=tlview.CellCreator(
-                    function=gtk.CellRendererText,
+            tlview.CellSpec(
+                cell_renderer_spec=tlview.CellRendererSpec(
+                    cell_renderer=gtk.CellRendererText,
                     expand=False,
                     start=True
                 ),
                 properties={'editable' : False},
-                renderer=tlview.Renderer(
+                cell_data_function_spec=tlview.CellDataFunctionSpec(
                     function=cs_tag_crf,
                     user_data=mcols
                 ),
@@ -439,23 +428,6 @@ def cs_tag_column(model_descr):
             )
         ]
     )
-
-TAGS_TABLE_DESCR = tlview.ViewTemplate(
-    properties={
-        'enable-grid-lines' : False,
-        'reorderable' : False,
-        'rules_hint' : False,
-        'headers-visible' : True,
-    },
-    selection_mode=gtk.SELECTION_SINGLE,
-    columns=[
-        cs_tag_column(TAGS_MODEL_DESCR),
-        cs_table_column(TAGS_MODEL_DESCR, _('Rev')),
-        cs_table_column(TAGS_MODEL_DESCR, _('Age')),
-        cs_description_column(TAGS_MODEL_DESCR, (_('Branches'),)),
-        cs_table_column(TAGS_MODEL_DESCR, _('Author')),
-    ]
-)
 
 TAG_TABLE_UI_DESCR = \
 '''
@@ -473,17 +445,41 @@ TAG_TABLE_UI_DESCR = \
 </ui>
 '''
 
-class TagsTable(ChangeSetTable):
+class TagsTableView(ChangeSetTableView):
+    class Model(tlview.NamedListStore):
+        Row = collections.namedtuple('TagRow', [_('Tag'), _('Scope'), _('Rev'), _('Branches'), _('Age'), _('Author'), _('Description')])
+        types = Row(
+            Tag=gobject.TYPE_STRING,
+            Scope=gobject.TYPE_STRING,
+            Rev=gobject.TYPE_INT,
+            Branches=gobject.TYPE_STRING,
+            Age=gobject.TYPE_STRING,
+            Author=gobject.TYPE_STRING,
+            Description=gobject.TYPE_STRING,
+        )
+    specification = tlview.ViewSpec(
+        properties={
+            'enable-grid-lines' : False,
+            'reorderable' : False,
+            'rules_hint' : False,
+            'headers-visible' : True,
+        },
+        selection_mode=gtk.SELECTION_SINGLE,
+        columns=[
+            cs_tag_column(Model),
+            cs_table_column(Model, _('Rev')),
+            cs_table_column(Model, _('Age')),
+            cs_description_column(Model, (_('Branches'),)),
+            cs_table_column(Model, _('Author')),
+        ]
+    )
     def __init__(self, busy_indicator=None, size_req=None):
-        ChangeSetTable.__init__(self, model_descr = TAGS_MODEL_DESCR,
-                                table_descr = TAGS_TABLE_DESCR,
-                                busy_indicator=busy_indicator,
-                                size_req=size_req)
+        ChangeSetTableView.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
         self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR)
         self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR)
         self.ui_manager.add_ui_from_string(TAG_TABLE_UI_DESCR)
     def populate_action_groups(self):
-        ChangeSetTable.populate_action_groups(self)
+        ChangeSetTableView.populate_action_groups(self)
         self.action_groups[ws_actions.AC_IN_REPO + ws_actions.AC_NOT_PMIC + actions.AC_SELN_UNIQUE].add_actions(
             [
                 ("cs_remove_selected_tag", icons.STOCK_REMOVE, _('Remove'), None,
@@ -511,40 +507,38 @@ class TagsTable(ChangeSetTable):
             dialogue.report_failure(failure)
             return []
 
-BranchRow = collections.namedtuple('BranchRow', [_('Branch'), _('Rev'), _('Tags'), _('Age'), _('Author'), _('Description')])
+class TagsTable(table.TableWidget):
+    View = TagsTableView
 
-BRANCHES_MODEL_DESCR = BranchRow(
-    Branch=gobject.TYPE_STRING,
-    Rev=gobject.TYPE_INT,
-    Tags=gobject.TYPE_STRING,
-    Age=gobject.TYPE_STRING,
-    Author=gobject.TYPE_STRING,
-    Description=gobject.TYPE_STRING,
-)
-
-BRANCHES_TABLE_DESCR = tlview.ViewTemplate(
-    properties={
-        'enable-grid-lines' : False,
-        'reorderable' : False,
-        'rules_hint' : False,
-        'headers-visible' : True,
-    },
-    selection_mode=gtk.SELECTION_SINGLE,
-    columns=[
-        cs_table_column(BRANCHES_MODEL_DESCR, _('Branch')),
-        cs_table_column(BRANCHES_MODEL_DESCR, _('Rev')),
-        cs_table_column(BRANCHES_MODEL_DESCR, _('Age')),
-        cs_description_column(BRANCHES_MODEL_DESCR, (_('Tags'),)),
-        cs_table_column(BRANCHES_MODEL_DESCR, _('Author')),
-    ]
-)
-
-class BranchesTable(ChangeSetTable):
+class BranchesTableView(ChangeSetTableView):
+    class Model(tlview.NamedListStore):
+        Row = collections.namedtuple('BranchRow', [_('Branch'), _('Rev'), _('Tags'), _('Age'), _('Author'), _('Description')])
+        types = Row(
+            Branch=gobject.TYPE_STRING,
+            Rev=gobject.TYPE_INT,
+            Tags=gobject.TYPE_STRING,
+            Age=gobject.TYPE_STRING,
+            Author=gobject.TYPE_STRING,
+            Description=gobject.TYPE_STRING,
+        )
+    specification = tlview.ViewSpec(
+        properties={
+            'enable-grid-lines' : False,
+            'reorderable' : False,
+            'rules_hint' : False,
+            'headers-visible' : True,
+        },
+        selection_mode=gtk.SELECTION_SINGLE,
+        columns=[
+            cs_table_column(Model, _('Branch')),
+            cs_table_column(Model, _('Rev')),
+            cs_table_column(Model, _('Age')),
+            cs_description_column(Model, (_('Tags'),)),
+            cs_table_column(Model, _('Author')),
+        ]
+    )
     def __init__(self, busy_indicator=None, size_req=None):
-        ChangeSetTable.__init__(self, model_descr = BRANCHES_MODEL_DESCR,
-                                table_descr = BRANCHES_TABLE_DESCR,
-                                busy_indicator=busy_indicator,
-                                size_req=size_req)
+        ChangeSetTableView.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
         self.ui_manager.add_ui_from_string(CS_TABLE_EXEC_UI_DESCR)
         self.ui_manager.add_ui_from_string(CS_TABLE_REFRESH_UI_DESCR)
         self.ui_manager.add_ui_from_string(CS_TABLE_TAG_UI_DESCR)
@@ -554,6 +548,9 @@ class BranchesTable(ChangeSetTable):
         except cmd_result.Failure as failure:
             dialogue.report_failure(failure)
             return []
+
+class BranchesTable(table.TableWidget):
+    View = BranchesTableView
 
 class PrecisType:
     def __init__(self, get_data, model_descr=None, table_descr=None):
@@ -567,10 +564,10 @@ class PrecisType:
             self.table_descr = table_descr
         self.get_data = get_data
 
-class SelectTable(table.TableWithAGandUI):
+class SelectTable(table.TableView):
     def __init__(self, ptype, size=(640, 240)):
         self._ptype = ptype
-        table.TableWithAGandUI.__init__(self, model_descr = ptype.model_descr,
+        table.TableView.__init__(self, model_descr = ptype.model_descr,
                                         table_descr = ptype.table_descr,
                                         size_req=size)
         self.set_contents()
@@ -707,12 +704,11 @@ class MoveTagDialog(dialogue.ReadTextDialog):
             self.unshow_busy()
             dialogue.report_any_problems(result)
             self.destroy()
+class TagListModel(tlview.NamedListStore):
+    Row = collections.namedtuple('TagListRow', [_('Tag')])
+    types = Row(Tag=gobject.TYPE_STRING)
 
-TagListRow = collections.namedtuple('TagListRow', [_('Tag')])
-
-TAG_LIST_MODEL_DESCR = TagListRow(Tag=gobject.TYPE_STRING)
-
-TAG_LIST_TABLE_DESCR = tlview.ViewTemplate(
+TAG_LIST_TABLE_DESCR = tlview.ViewSpec(
     properties={
         'enable-grid-lines' : False,
         'reorderable' : False,
@@ -721,15 +717,15 @@ TAG_LIST_TABLE_DESCR = tlview.ViewTemplate(
     },
     selection_mode=gtk.SELECTION_SINGLE,
     columns=[
-        cs_table_column(TAG_LIST_MODEL_DESCR, _('Tag')),
+        cs_table_column(TagListModel, _('Tag')),
     ]
 )
 
-BranchListRow = collections.namedtuple('BranchListRow', [_('Branch')])
+class BranchListModel(tlview.NamedListStore):
+    Row = collections.namedtuple('BranchListRow', [_('Branch')])
+    types = Row(Branch=gobject.TYPE_STRING)
 
-BRANCH_LIST_MODEL_DESCR = BranchListRow(Branch=gobject.TYPE_STRING)
-
-BRANCH_LIST_TABLE_DESCR = tlview.ViewTemplate(
+BRANCH_LIST_TABLE_DESCR = tlview.ViewSpec(
     properties={
         'enable-grid-lines' : False,
         'reorderable' : False,
@@ -738,7 +734,7 @@ BRANCH_LIST_TABLE_DESCR = tlview.ViewTemplate(
     },
     selection_mode=gtk.SELECTION_SINGLE,
     columns=[
-        cs_table_column(BRANCH_LIST_MODEL_DESCR, _('Branch')),
+        cs_table_column(BranchListModel, _('Branch')),
     ]
 )
 
@@ -974,8 +970,8 @@ class BackoutDialog(dialogue.ReadTextAndToggleDialog):
         parents_data = ifce.SCM.get_parents_data(rev)
         if len(parents_data) > 1:
             for data in parents_data:
-                rev = str(data[tlview.model_col(LOG_MODEL_DESCR, _('Rev'))])
-                descr = data[tlview.model_col(LOG_MODEL_DESCR, _('Description'))]
+                rev = str(data[tlview.model_col(ChangeSetModel.types, _('Rev'))])
+                descr = data[tlview.model_col(ChangeSetModel.types, _('Description'))]
                 self._radio_labels.append('%s: %s' % (rev, descr))
                 self._parent_revs.append(rev)
             self._radio_buttons = gutils.RadioButtonFramedVBox(title=_('Choose Parent'), labels=self._radio_labels)

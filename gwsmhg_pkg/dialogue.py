@@ -264,6 +264,29 @@ def ask_dir_name(prompt, suggestion=None, existing=True, parent=None):
     dialog.destroy()
     return new_dir_name
 
+def ask_uri_name(prompt, suggestion=None, parent=None):
+    if suggestion and not os.path.exists(suggestion):
+        suggestion = None
+    dialog = FileChooserDialog(prompt, parent, gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER,
+                               (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                gtk.STOCK_OK, gtk.RESPONSE_OK))
+    dialog.set_default_response(gtk.RESPONSE_OK)
+    dialog.set_local_only(False)
+    if suggestion:
+        if os.path.isdir(suggestion):
+            dialog.set_current_folder(suggestion)
+        else:
+            dirname = os.path.dirname(suggestion)
+            if dirname:
+                dialog.set_current_folder(dirname)
+    response = dialog.run()
+    if response == gtk.RESPONSE_OK:
+        uri = os.path.relpath(dialog.get_uri())
+    else:
+        uri = None
+    dialog.destroy()
+    return uri
+
 def inform_user(msg, parent=None, problem_type=gtk.MESSAGE_INFO):
     dialog = MessageDialog(parent=parent,
                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,

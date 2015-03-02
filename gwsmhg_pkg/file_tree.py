@@ -18,29 +18,29 @@ import os, os.path, gtk, gobject, collections
 from gwsmhg_pkg import patchlib
 
 from gwsmhg_pkg import ifce, utils, text_edit, cmd_result, diff, gutils
-from gwsmhg_pkg import tortoise, icons, ws_event, dialogue, tlview
+from gwsmhg_pkg import tortoise, icons, ws_event, dialogue
+from gwsmhg_pkg import tlview
 from gwsmhg_pkg import actions, ws_actions, fsdb, hg_mq_ifce
 
-Row = collections.namedtuple('Row',
-    ['name', 'is_dir', 'style', 'foreground', 'icon', 'status', 'origin'])
+class FileTreeModel(tlview.NamedTreeStore):
+    Row = collections.namedtuple('Row', ['name', 'is_dir', 'style', 'foreground', 'icon', 'status', 'origin'])
+    types = Row(
+        name=gobject.TYPE_STRING,
+        is_dir=gobject.TYPE_BOOLEAN,
+        style=gobject.TYPE_INT,
+        foreground=gobject.TYPE_STRING,
+        icon=gobject.TYPE_STRING,
+        status=gobject.TYPE_STRING,
+        origin=gobject.TYPE_STRING
+    )
 
-_MODEL_TEMPLATE = Row(
-    name=gobject.TYPE_STRING,
-    is_dir=gobject.TYPE_BOOLEAN,
-    style=gobject.TYPE_INT,
-    foreground=gobject.TYPE_STRING,
-    icon=gobject.TYPE_STRING,
-    status=gobject.TYPE_STRING,
-    origin=gobject.TYPE_STRING
-)
-
-_NAME = tlview.model_col(_MODEL_TEMPLATE, 'name')
-_IS_DIR = tlview.model_col(_MODEL_TEMPLATE, 'is_dir')
-_STYLE = tlview.model_col(_MODEL_TEMPLATE, 'style')
-_FOREGROUND = tlview.model_col(_MODEL_TEMPLATE, 'foreground')
-_ICON = tlview.model_col(_MODEL_TEMPLATE, 'icon')
-_STATUS = tlview.model_col(_MODEL_TEMPLATE, 'status')
-_ORIGIN = tlview.model_col(_MODEL_TEMPLATE, 'origin')
+_NAME = FileTreeModel.col_index('name')
+_IS_DIR = FileTreeModel.col_index('is_dir')
+_STYLE = FileTreeModel.col_index('style')
+_FOREGROUND = FileTreeModel.col_index('foreground')
+_ICON = FileTreeModel.col_index('icon')
+_STATUS = FileTreeModel.col_index('status')
+_ORIGIN = FileTreeModel.col_index('origin')
 
 _FILE_ICON = {True : gtk.STOCK_DIRECTORY, False : gtk.STOCK_FILE}
 
@@ -52,7 +52,7 @@ def _get_status_deco(status=None):
 
 def _generate_row_tuple(data, isdir=None):
     deco = _get_status_deco(data.status)
-    row = Row(
+    row = FileTreeModel.Row(
         name=data.name,
         is_dir=isdir,
         icon=_FILE_ICON[isdir],
@@ -63,21 +63,40 @@ def _generate_row_tuple(data, isdir=None):
     )
     return row
 
-class FileTreeStore(tlview.TreeStore):
-    def __init__(self, show_hidden=False, populate_all=False, auto_expand=False, view=None):
-        tlview.TreeStore.__init__(self, _MODEL_TEMPLATE)
+class FileTreeStore(FileTreeModel):
+    def __init__(self):
+        FileTreeModel.__init__(self)
         self._file_db = None
         # If 'view' this isn't set explicitly it will be set automatically
         # when any row is expanded
-        self.view = view
-        self._populate_all = populate_all
-        self._auto_expand = auto_expand
+        self.view = None
+        self._populate_all = False
+        self._auto_expand = False
         self.show_hidden_action = gtk.ToggleAction('show_hidden_files', _('Show Hidden Files'),
                                                    _('Show/hide ignored files and those beginning with "."'), None)
-        self.show_hidden_action.set_active(show_hidden)
+        self.show_hidden_action.set_active(False)
         self.show_hidden_action.connect('toggled', self._toggle_show_hidden_cb)
         self.show_hidden_action.set_menu_item_type(gtk.CheckMenuItem)
         self.show_hidden_action.set_tool_item_type(gtk.ToggleToolButton)
+    @property
+    def populate_all(self):
+        return self._populate_all
+    @populate_all.setter
+    def populate_all(self, new_value):
+        self._populate_all = new_value
+    @property
+    def auto_expand(self):
+        return self._auto_expand
+    @auto_expand.setter
+    def auto_expand(self, new_value):
+        self._auto_expand = new_value
+    @property
+    def show_hidden(self):
+        return self.show_hidden_action.get_active()
+    @show_hidden.setter
+    def show_hidden(self, new_value):
+        self.show_hidden_action.set_active(new_value)
+        self._update_dir('', None)
     def set_view(self, view):
         self.view = view
         if self._expand_new_rows():
@@ -138,6 +157,8 @@ class FileTreeStore(tlview.TreeStore):
         if self.iter_n_children(dir_iter) == 0:
             self._insert_place_holder(dir_iter)
     def _get_dir_contents(self, dirpath):
+        if self._file_db is None:
+            return ((), ())
         return self._file_db.dir_contents(dirpath, self.show_hidden_action.get_active())
     def _populate(self, dirpath, parent_iter):
         dirs, files = self._get_dir_contents(dirpath)
@@ -241,42 +262,42 @@ def _format_file_name_crcb(_column, cell_renderer, store, tree_iter, _arg=None):
         name += ' <- %s' % xinfo
     cell_renderer.set_property('text', name)
 
-_VIEW_TEMPLATE = tlview.ViewTemplate(
+_VIEW_TEMPLATE = tlview.ViewSpec(
     properties={'headers-visible' : False},
     selection_mode=gtk.SELECTION_MULTIPLE,
     columns=[
-        tlview.Column(
+        tlview.ColumnSpec(
             title=_('File Name'),
             properties={},
             cells=[
-                tlview.Cell(
-                    creator=tlview.CellCreator(
-                        function=gtk.CellRendererPixbuf,
+                tlview.CellSpec(
+                    cell_renderer_spec=tlview.CellRendererSpec(
+                        cell_renderer=gtk.CellRendererPixbuf,
                         expand=False,
                         start=True
                     ),
                     properties={},
-                    renderer=None,
+                    cell_data_function_spec=None,
                     attributes={'stock-id' : _ICON}
                 ),
-                tlview.Cell(
-                    creator=tlview.CellCreator(
-                        function=gtk.CellRendererText,
+                tlview.CellSpec(
+                    cell_renderer_spec=tlview.CellRendererSpec(
+                        cell_renderer=gtk.CellRendererText,
                         expand=False,
                         start=True
                     ),
                     properties={},
-                    renderer=None,
+                    cell_data_function_spec=None,
                     attributes={'text' : _STATUS, 'style' : _STYLE, 'foreground' : _FOREGROUND}
                 ),
-                tlview.Cell(
-                    creator=tlview.CellCreator(
-                        function=gtk.CellRendererText,
+                tlview.CellSpec(
+                    cell_renderer_spec=tlview.CellRendererSpec(
+                        cell_renderer=gtk.CellRendererText,
                         expand=False,
                         start=True
                     ),
                     properties={},
-                    renderer=tlview.Renderer(function=_format_file_name_crcb, user_data=None),
+                    cell_data_function_spec=tlview.CellDataFunctionSpec(function=_format_file_name_crcb, user_data=None),
                     attributes={'style' : _STYLE, 'foreground' : _FOREGROUND}
                 )
             ]
@@ -285,16 +306,16 @@ _VIEW_TEMPLATE = tlview.ViewTemplate(
 )
 
 class CwdFileTreeStore(FileTreeStore):
-    def __init__(self, show_hidden=False):
-        FileTreeStore.__init__(self, show_hidden=show_hidden)
+    def __init__(self):
+        FileTreeStore.__init__(self)
         self._os_file_db = fsdb.OsFileDb()
     def _get_file_db(self):
         return self._os_file_db
 
 class _ViewWithActionGroups(tlview.View, dialogue.BusyIndicatorUser,
                             ws_actions.AGandUIManager):
-    def __init__(self, template, busy_indicator, model=None):
-        tlview.View.__init__(self, template, model)
+    def __init__(self, busy_indicator, model=None):
+        tlview.View.__init__(self, model)
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
         ws_actions.AGandUIManager.__init__(self, self.get_selection())
         self.connect('button_press_event', self._handle_button_press_cb)
@@ -343,17 +364,20 @@ class FileTreeView(_ViewWithActionGroups):
       </toolbar>
     </ui>
     '''
+    specification = _VIEW_TEMPLATE
+    Model = FileTreeStore
     def __init__(self, busy_indicator, model=None, auto_refresh=False,
                  show_hidden=False, show_status=False):
         if model is None:
-            model = FileTreeStore(show_hidden=show_hidden)
+            model = FileTreeStore()
+        model.show_hidden = show_hidden
         self.auto_refresh_action = gtk.ToggleAction("auto_refresh_files", _('Auto Refresh'),
                                                    _('Automatically/periodically refresh file display'), None)
         self.auto_refresh_action.set_active(auto_refresh)
         self.auto_refresh_action.connect("toggled", self._toggle_auto_refresh_cb)
         self.auto_refresh_action.set_menu_item_type(gtk.CheckMenuItem)
         self.auto_refresh_action.set_tool_item_type(gtk.ToggleToolButton)
-        _ViewWithActionGroups.__init__(self, _VIEW_TEMPLATE, busy_indicator, model=model)
+        _ViewWithActionGroups.__init__(self, busy_indicator, model=model)
         if not show_status:
             pass # TODO: hide the status column
         model.set_view(self)
@@ -443,10 +467,12 @@ CWD_UI_DESCR = \
 '''
 
 class CwdFileTreeView(FileTreeView):
+    Model = CwdFileTreeStore
     def __init__(self, busy_indicator, model=None, auto_refresh=False,
                  show_hidden=False, show_status=False):
         if not model:
-            model = CwdFileTreeStore(show_hidden=show_hidden)
+            model = CwdFileTreeStore()
+        model.show_hidden = show_hidden
         FileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
             auto_refresh=auto_refresh, show_status=show_status)
         self.ui_manager.add_ui_from_string(CWD_UI_DESCR)
@@ -525,8 +551,8 @@ class CwdFileTreeView(FileTreeView):
         self._delete_named_files(self.get_selected_files())
 
 class ScmCwdFileTreeStore(CwdFileTreeStore):
-    def __init__(self, show_hidden=False):
-        CwdFileTreeStore.__init__(self, show_hidden=show_hidden)
+    def __init__(self):
+        CwdFileTreeStore.__init__(self)
         self.hide_clean_action = gtk.ToggleAction('hide_clean_files', _('Hide Clean Files'),
                                                    _('Show/hide "clean" files'), None)
         self.hide_clean_action.set_active(False)
@@ -535,14 +561,16 @@ class ScmCwdFileTreeStore(CwdFileTreeStore):
         self.hide_clean_action.set_tool_item_type(gtk.ToggleToolButton)
     def _get_file_db(self):
         if ifce.in_valid_repo:
-            self._populate_all = True
+            self.populate_all = True
             return ifce.SCM.get_ws_file_db()
         else:
-            self._populate_all = False
+            self.populate_all = False
             return self._os_file_db
     def _toggle_hide_clean_cb(self, toggleaction):
         self._update_dir('', None)
     def _get_dir_contents(self, dirpath):
+        if self._file_db is None:
+            return ((), ())
         show_hidden = self.show_hidden_action.get_active()
         if not show_hidden and self.hide_clean_action.get_active():
             dirs, files = self._file_db.dir_contents(dirpath, show_hidden)
@@ -602,8 +630,10 @@ def _check_if_force(result):
     return dialogue.ask_force_or_cancel(result) == dialogue.RESPONSE_FORCE
 
 class ScmCwdFileTreeView(CwdFileTreeView):
+    Model = ScmCwdFileTreeStore
     def __init__(self, busy_indicator, auto_refresh=False, show_hidden=False):
-        model = ScmCwdFileTreeStore(show_hidden=show_hidden)
+        model = ScmCwdFileTreeStore()
+        model.show_hidden = show_hidden
         CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
             auto_refresh=auto_refresh, show_status=True)
         self.add_notification_cb(ws_event.CHECKOUT|ws_event.FILE_CHANGES, self.update_tree),
@@ -763,7 +793,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         elif reqop == "m":
             operation = ifce.SCM.do_move_files
         else:
-            assert False, _('Invalid operation requested')
+            assert False, _("Invalid operation requested")
         response, target = self._get_target(file_list)
         if response == gtk.RESPONSE_OK:
             force = False
@@ -879,15 +909,14 @@ class ScmCwdFilesWidget(gtk.VBox):
 class ScmCommitFileTreeStore(FileTreeStore):
     class TWSDisplay(diff.TextWidget.TwsLineCountDisplay):
         LABEL = _('File(s) that add TWS: ')
-    def __init__(self, show_hidden=True, view=None, file_mask=None):
-        if file_mask is None:
-            self._file_mask = []
-        else:
-            self._file_mask = file_mask
+    def __init__(self):
+        self._file_mask = []
         self.tws_display = self.TWSDisplay()
         self.tws_display.set_value(0)
-        FileTreeStore.__init__(self, show_hidden=show_hidden, populate_all=True,
-                               auto_expand=True, view=view)
+        FileTreeStore.__init__(self)
+        self.populate_all = True
+        self.auto_expand = True
+        self.show_hidden = True
         self.repopulate()
     def set_file_mask(self, file_mask):
         self._file_mask = file_mask
@@ -898,7 +927,7 @@ class ScmCommitFileTreeStore(FileTreeStore):
     def _get_file_db(self):
         return ifce.SCM.get_commit_file_db(self._file_mask)
     def set_tws_file_count(self):
-        diff_text = ifce.SCM.get_diff_for_files(self._file_mask)
+        diff_text = ifce.SCM.get_commit_diff(self._file_mask)
         epatch = patchlib.Patch.parse_text(diff_text)
         self.tws_display.set_value(len(epatch.report_trailing_whitespace()))
 
@@ -927,11 +956,15 @@ SCM_CHANGE_UI_DESCR = \
 '''
 
 class ScmCommitFileTreeView(FileTreeView):
+    Model = ScmCommitFileTreeStore
     def __init__(self, busy_indicator, auto_refresh=False, show_hidden=True, file_mask=None):
         self.removeds = []
-        self.model = ScmCommitFileTreeStore(show_hidden=show_hidden, file_mask=file_mask)
-        FileTreeView.__init__(self, model=self.model, busy_indicator=busy_indicator,
+        model = ScmCommitFileTreeStore()
+        model.show_hidden = show_hidden
+        model.set_file_mask(file_mask)
+        FileTreeView.__init__(self, model=model, busy_indicator=busy_indicator,
                               auto_refresh=auto_refresh, show_status=True)
+        self.model.set_view(self)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.set_headers_visible(False)
         self.scm_change_merge_id = self.ui_manager.add_ui_from_string(SCM_CHANGE_UI_DESCR)
@@ -1088,12 +1121,20 @@ class ScmCommitDialog(dialogue.AmodalDialog):
             self._finish_up()
 
 class PatchFileTreeStore(FileTreeStore):
-    def __init__(self, patch=None, view=None):
-        self._patch = patch
-        FileTreeStore.__init__(self, show_hidden=True, populate_all=True,
-                                         auto_expand=True, view=view)
-        self.view = view
+    def __init__(self):
+        self._patch = None
+        FileTreeStore.__init__(self)
+        self.show_hidden = True
+        self.populate_all = True
+        self.auto_expand = True
         self._null_file_db = fsdb.NullFileDb()
+    @property
+    def patch(self):
+        return self._patch
+    @patch.setter
+    def patch(self, new_patch):
+        self._patch = new_patch
+        self.repopulate()
     def _get_file_db(self):
         if ifce.in_valid_repo:
             return ifce.PM.get_patch_file_db(self._patch)
@@ -1125,9 +1166,11 @@ PATCH_FILES_UI_DESCR = \
 '''
 
 class PatchFileTreeView(CwdFileTreeView):
+    Model = PatchFileTreeStore
     def __init__(self, busy_indicator, patch=None):
         self._patch = patch
-        model = PatchFileTreeStore(patch=patch)
+        model = PatchFileTreeStore()
+        model.patch = patch
         CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, model=model,
              auto_refresh=False, show_status=True)
         if not ifce.SCM.get_extension_enabled("extdiff") or not ifce.PM.get_patch_is_applied(self._patch):
@@ -1226,6 +1269,7 @@ PM_FILES_UI_DESCR = \
 '''
 
 class TopPatchFileTreeView(CwdFileTreeView):
+    Model = PatchFileTreeStore
     def __init__(self, busy_indicator, auto_refresh=False):
         model = PatchFileTreeStore()
         CwdFileTreeView.__init__(self, busy_indicator=busy_indicator,

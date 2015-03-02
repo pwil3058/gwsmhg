@@ -39,26 +39,6 @@ from gwsmhg_pkg import ws_actions
 from gwsmhg_pkg import table
 from gwsmhg_pkg import patch_view
 
-Row = collections.namedtuple('Row',    ['name', 'icon', 'markup'])
-
-_MODEL_TEMPLATE = Row(
-    name=gobject.TYPE_STRING,
-    icon=gobject.TYPE_STRING,
-    markup=gobject.TYPE_STRING,
-)
-
-_NAME = tlview.model_col(_MODEL_TEMPLATE, 'name')
-_MARKUP = tlview.model_col(_MODEL_TEMPLATE, 'markup')
-_ICON = tlview.model_col(_MODEL_TEMPLATE, 'icon')
-
-class Store(table.Model):
-    def __init__(self, template=_MODEL_TEMPLATE):
-        table.Model.__init__(self, template)
-    def get_patch_name(self, plist_iter):
-        return self.get_labelled_value(plist_iter, 'name')
-    def get_patch_is_applied(self, plist_iter):
-        return self.get_labelled_value(plist_iter, 'icon') is not None
-
 def _markup_applied_patch(patch_name, guards, selected):
     markup = patch_name
     appliable = True
@@ -206,44 +186,6 @@ def get_ws_update_condns(applied_count, unapplied_count):
         condn += AC_WS_UPDATE_CLEAN_UP_READY
     return actions.MaskedCondns(condn, AC_WS_CONDNS)
 
-_VIEW_TEMPLATE = tlview.ViewTemplate(
-    properties={
-        'enable-grid-lines' : False,
-        'reorderable' : False,
-        'rules_hint' : False,
-        'headers-visible' : False,
-    },
-    selection_mode=gtk.SELECTION_SINGLE,
-    columns=[
-        tlview.Column(
-            title=_('Patch List'),
-            properties={'expand': False, 'resizable' : True},
-            cells=[
-                tlview.Cell(
-                    creator=tlview.CellCreator(
-                        function=gtk.CellRendererPixbuf,
-                        expand=False,
-                        start=True
-                    ),
-                    properties={},
-                    renderer=None,
-                    attributes = {'stock_id' : tlview.model_col(_MODEL_TEMPLATE, 'icon')}
-                ),
-                tlview.Cell(
-                    creator=tlview.CellCreator(
-                        function=gtk.CellRendererText,
-                        expand=False,
-                        start=True
-                    ),
-                    properties={'editable' : False},
-                    renderer=None,
-                    attributes = {'markup' : tlview.model_col(_MODEL_TEMPLATE, 'markup')}
-                ),
-            ],
-        ),
-    ]
-)
-
 _finish_empty_msg_prompt = '\n'.join(
     [_('Do you wish to:'),
      _('\tcancel,'),
@@ -251,17 +193,73 @@ _finish_empty_msg_prompt = '\n'.join(
      _('\tforce the finish operation?')
     ])
 
-class List(table.TableWithAGandUI):
-    def __init__(self, busy_indicator=None):
+class ListView(table.TableView):
+    class Model(tlview.NamedListStore):
+        Row = collections.namedtuple('Row',    ['name', 'icon', 'markup'])
+        types = Row(
+            name=gobject.TYPE_STRING,
+            icon=gobject.TYPE_STRING,
+            markup=gobject.TYPE_STRING,
+        )
+        def get_patch_name(self, plist_iter):
+            return self.get_value_named(plist_iter, 'name')
+        def get_patch_is_applied(self, plist_iter):
+            return self.get_value_named(plist_iter, 'icon') is not None
+    specification = tlview.ViewSpec(
+        properties={
+            'enable-grid-lines' : False,
+            'reorderable' : False,
+            'rules_hint' : False,
+            'headers-visible' : False,
+        },
+        selection_mode=gtk.SELECTION_SINGLE,
+        columns=[
+            tlview.ColumnSpec(
+                title=_('Patch List'),
+                properties={'expand': False, 'resizable' : True},
+                cells=[
+                    tlview.CellSpec(
+                        cell_renderer_spec=tlview.CellRendererSpec(
+                            cell_renderer=gtk.CellRendererPixbuf,
+                            expand=False,
+                            start=True
+                        ),
+                        properties={},
+                        cell_data_function_spec=None,
+                        attributes = {'stock_id' : Model.col_index('icon')}
+                    ),
+                    tlview.CellSpec(
+                        cell_renderer_spec=tlview.CellRendererSpec(
+                            cell_renderer=gtk.CellRendererText,
+                            expand=False,
+                            start=True
+                        ),
+                        properties={'editable' : False},
+                        cell_data_function_spec=None,
+                        attributes = {'markup' : Model.col_index('markup')}
+                    ),
+                ],
+            ),
+        ]
+    )
+    PopUp = "/patches_popup"
+    def __init__(self, busy_indicator=None, size_req=None):
         self.last_import_dir = None
-        table.TableWithAGandUI.__init__(self,
-                                        model_descr=_MODEL_TEMPLATE,
-                                        table_descr=_VIEW_TEMPLATE,
-                                        popup='/patches_popup',
-                                        scroll_bar=True,
-                                        busy_indicator=None,
-                                        size_req=None,
-                                        model_class=Store)
+        table.TableView.__init__(self, busy_indicator=None, size_req=size_req)
+        toggle_data = list(range(4))
+        toggle_data[gutils.TOC_NAME] = "auto_refresh_patch_list"
+        toggle_data[gutils.TOC_LABEL] = _('Auto Update')
+        toggle_data[gutils.TOC_TOOLTIP] = "Enable/disable automatic updating of the patch list"
+        toggle_data[gutils.TOC_STOCK_ID] = gtk.STOCK_REFRESH
+        self.toc = gutils.TimeOutController(toggle_data, function=self._update_list_cb, is_on=False)
+        self.action_groups[actions.AC_DONT_CARE].add_action(self.toc.toggle_action)
+        self.ui_manager.add_ui_from_string(_UI_DESCR)
+        # This callback is needed to process applied/unapplied status
+        self.get_selection().connect('changed', self._selection_changed_cb)
+        self.add_notification_cb(ws_event.CHANGE_WD, self._repopulate_list_cb)
+        self.add_notification_cb(ws_event.PATCH_CHANGES, self._update_list_cb)
+        self.repopulate_list()
+    def populate_action_groups(self):
         self.action_groups[AC_APPLIED].add_actions(
             [
                 ("pm_pop_to_patch", icons.STOCK_POP_PATCH, _('QPop To'), None,
@@ -369,20 +367,6 @@ class List(table.TableWithAGandUI):
                 ("pm_clean_up_after_update", gtk.STOCK_CLEAR, _('Clean Up'), None,
                  _('Clean up left over heads after repostory and patch series update'), self.do_clean_up_after_update),
             ])
-        toggle_data = list(range(4))
-        toggle_data[gutils.TOC_NAME] = "auto_refresh_patch_list"
-        toggle_data[gutils.TOC_LABEL] = _('Auto Update')
-        toggle_data[gutils.TOC_TOOLTIP] = "Enable/disable automatic updating of the patch list"
-        toggle_data[gutils.TOC_STOCK_ID] = gtk.STOCK_REFRESH
-        self.toc = gutils.TimeOutController(toggle_data, function=self._update_list_cb, is_on=False)
-        self.action_groups[actions.AC_DONT_CARE].add_action(self.toc.toggle_action)
-        self.ui_manager.add_ui_from_string(_UI_DESCR)
-        self.header.lhs.pack_start(self.ui_manager.get_widget('/patch_list_menubar'), expand=True, fill=True)
-        # This callback is needed to process applied/unapplied status
-        self.seln.connect('changed', self._selection_changed_cb)
-        self.add_notification_cb(ws_event.CHANGE_WD, self._repopulate_list_cb)
-        self.add_notification_cb(ws_event.PATCH_CHANGES, self._update_list_cb)
-        self.repopulate_list()
     def _selection_changed_cb(self, selection):
         # This callback is needed to process applied/unapplied status
         # self.action_groups' callback handles the other selection conditions
@@ -415,7 +399,7 @@ class List(table.TableWithAGandUI):
         return contents
     def repopulate_list(self):
         self.set_contents()
-        condns = get_applied_condns(self.view.get_selection())
+        condns = get_applied_condns(self.get_selection())
         condns |= get_in_pgnd_condns()
         condns |= get_interdiff_condns()
         self.action_groups.update_condns(condns)
@@ -856,6 +840,12 @@ class List(table.TableWithAGandUI):
                 dialogue.report_any_problems(result)
                 break
             index += 1
+
+class List(table.TableWidget):
+    View = ListView
+    def __init__(self, scroll_bar=True, busy_indicator=None, size_req=None):
+        table.TableWidget.__init__(self, scroll_bar=scroll_bar, busy_indicator=busy_indicator, size_req=size_req)
+        self.header.lhs.pack_start(self.view.ui_manager.get_widget('/patch_list_menubar'), expand=True, fill=True)
 
 def do_export_named_patch(parent, patchname, suggestion=None, busy_indicator=None):
     if not suggestion:

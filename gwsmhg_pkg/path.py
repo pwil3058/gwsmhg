@@ -18,58 +18,57 @@ from gwsmhg_pkg import dialogue, gutils, cmd_result, change_set, icons
 from gwsmhg_pkg import file_tree, diff, ws_event, ifce, utils, actions, ws_actions, table
 from gwsmhg_pkg import tlview
 
-PathRow = collections.namedtuple('PathRow', [_('Alias'), _('Path')])
-
-PATH_PRECIS_MODEL_DESCR = PathRow(
-    Alias=gobject.TYPE_STRING,
-    Path=gobject.TYPE_STRING,
-)
-
-PATH_PRECIS_TABLE_DESCR = tlview.ViewTemplate(
-    properties={
-        'enable-grid-lines' : False,
-        'reorderable' : False,
-        'rules_hint' : False,
-        'headers-visible' : True,
-    },
-    selection_mode=gtk.SELECTION_SINGLE,
-    columns=[
-        tlview.Column(
-            title=_('Alias'),
-            properties={'expand': False, 'resizable' : True},
-            cells=[
-                tlview.Cell(
-                    creator=tlview.CellCreator(
-                        function=gtk.CellRendererText,
-                        expand=False,
-                        start=True
+class PathTable(table.MapManagedTableView):
+    class Model(tlview.NamedListStore):
+        Row = collections.namedtuple('Row', [_('Alias'), _('Path')])
+        types = Row(
+            Alias=gobject.TYPE_STRING,
+            Path=gobject.TYPE_STRING,
+        )
+    specification = tlview.ViewSpec(
+        properties={
+            'enable-grid-lines' : False,
+            'reorderable' : False,
+            'rules_hint' : False,
+            'headers-visible' : True,
+        },
+        selection_mode=gtk.SELECTION_SINGLE,
+        columns=[
+            tlview.ColumnSpec(
+                title=_('Alias'),
+                properties={'expand': False, 'resizable' : True},
+                cells=[
+                    tlview.CellSpec(
+                        cell_renderer_spec=tlview.CellRendererSpec(
+                            cell_renderer=gtk.CellRendererText,
+                            expand=False,
+                            start=True
+                        ),
+                        properties={'editable' : False},
+                        cell_data_function_spec=None,
+                        attributes = {'text' : Model.col_index(_('Alias'))}
                     ),
-                    properties={'editable' : False},
-                    renderer=None,
-                    attributes = {'text' : tlview.model_col(PATH_PRECIS_MODEL_DESCR, _('Alias'))}
-                ),
-            ],
-        ),
-        tlview.Column(
-            title=_('Path'),
-            properties={'expand': False, 'resizable' : True},
-            cells=[
-                tlview.Cell(
-                    creator=tlview.CellCreator(
-                        function=gtk.CellRendererText,
-                        expand=False,
-                        start=True
+                ],
+            ),
+            tlview.ColumnSpec(
+                title=_('Path'),
+                properties={'expand': False, 'resizable' : True},
+                cells=[
+                    tlview.CellSpec(
+                        cell_renderer_spec=tlview.CellRendererSpec(
+                            cell_renderer=gtk.CellRendererText,
+                            expand=False,
+                            start=True
+                        ),
+                        properties={'editable' : False},
+                        cell_data_function_spec=None,
+                        attributes = {'text' : Model.col_index(_('Path'))}
                     ),
-                    properties={'editable' : False},
-                    renderer=None,
-                    attributes = {'text' : tlview.model_col(PATH_PRECIS_MODEL_DESCR, _('Path'))}
-                ),
-            ],
-        ),
-    ]
-)
-
-class PathTable(table.MapManagedTable):
+                ],
+            ),
+        ]
+    )
+    PopUp = "/table_popup"
     UI_DESCR = \
         '''
         <ui>
@@ -91,15 +90,11 @@ class PathTable(table.MapManagedTable):
         </ui>
         '''
     def __init__(self, busy_indicator=None):
-        table.MapManagedTable.__init__(self, model_descr=PATH_PRECIS_MODEL_DESCR,
-                                       table_descr=PATH_PRECIS_TABLE_DESCR,
-                                       busy_indicator=busy_indicator,
-                                       popup='/table_popup')
-        self.ui_manager.add_ui_from_string(change_set.CS_TABLE_REFRESH_UI_DESCR)
+        table.MapManagedTableView.__init__(self, busy_indicator=busy_indicator)
         self.add_notification_cb(ws_event.REPO_HGRC, self.refresh_contents_if_mapped)
         self.show_all()
     def populate_action_groups(self):
-        table.MapManagedTable.populate_action_groups(self)
+        table.MapManagedTableView.populate_action_groups(self)
         self.action_groups[ws_actions.AC_IN_REPO + actions.AC_SELN_UNIQUE].add_actions(
             [
                 ("remote_repo_mgmt", gtk.STOCK_EXECUTE, _('Manage'), None,
@@ -256,11 +251,21 @@ INCOMING_TABLE_UI_DESCR = \
 '''
 
 class IncomingTable(change_set.SearchableChangeSetTable):
+    class View(change_set.SearchableChangeSetTable.View):
+        def __init__(self, path, busy_indicator=None, size_req=None):
+            self._path = path
+            change_set.SearchableChangeSetTable.View.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
+        def _fetch_contents(self):
+            try:
+                return ifce.SCM.get_incoming_table_data(self._path)
+            except cmd_result.Failure as failure:
+                dialogue.report_failure(failure)
+                return []
     def __init__(self, path=None, busy_indicator=None):
         self._path = path
         change_set.SearchableChangeSetTable.__init__(self, busy_indicator=busy_indicator,
                                                      size_req = (640, 120),
-                                                     prefix = _('Incoming'), rev=False)
+                                                     prefix = _('Incoming'), rev=False, path=path)
         self.action_groups[ws_actions.AC_IN_REPO + actions.AC_SELN_UNIQUE].add_actions(
            [
                 ("cs_pull_to", gtk.STOCK_EXECUTE, _('Pull To'), None,
@@ -282,12 +287,6 @@ class IncomingTable(change_set.SearchableChangeSetTable):
         dialog = IncomingCSSummaryDialog(rev, self._path)
         self.unshow_busy()
         dialog.show()
-    def _fetch_contents(self):
-        try:
-            return ifce.SCM.get_incoming_table_data(self._path)
-        except cmd_result.Failure as failure:
-            dialogue.report_failure(failure)
-            return []
 
 OUTGOING_TABLE_UI_DESCR = \
 '''
@@ -358,9 +357,9 @@ class OutgoingCSDialog(PathCSDialog):
         PathCSDialog.__init__(self, path=path, title=_('Outgoing From'),
                               table_type=OutgoingTable)
 
-class PathSelectTable(table.TableWithAGandUI):
+class PathSelectTable(table.TableView):
     def __init__(self, size_req=(640, 240), busy_indicator=None):
-        table.TableWithAGandUI.__init__(self, model_descr=PATH_PRECIS_MODEL_DESCR,
+        table.TableView.__init__(self, model_descr=PATH_PRECIS_MODEL_DESCR,
                                              table_descr=PATH_PRECIS_TABLE_DESCR,
                                              size_req=size_req, busy_indicator=busy_indicator)
         self.set_contents()
