@@ -14,9 +14,23 @@
 ### Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import os, gtk, sys
-from gwsmhg_pkg import dialogue, icons, ifce, actions, ws_actions, change_set, file_tree
-from gwsmhg_pkg import path, cmd_result, diff, config, tortoise
-from gwsmhg_pkg import ws_event, patch_mgr, utils
+
+from gwsmhg_pkg import dialogue
+from gwsmhg_pkg import icons
+from gwsmhg_pkg import ifce
+from gwsmhg_pkg import actions
+from gwsmhg_pkg import ws_actions
+from gwsmhg_pkg import change_set
+from gwsmhg_pkg import file_tree
+from gwsmhg_pkg import path
+from gwsmhg_pkg import cmd_result
+from gwsmhg_pkg import diff
+from gwsmhg_pkg import config
+from gwsmhg_pkg import tortoise
+from gwsmhg_pkg import ws_event
+from gwsmhg_pkg import patch_mgr
+from gwsmhg_pkg import utils
+from gwsmhg_pkg import console
 
 GWSM_UI_DESCR = \
 '''
@@ -66,31 +80,14 @@ GWSM_UI_DESCR = \
 </ui>
 '''
 
-class gwsm(gtk.Window, dialogue.BusyIndicator, ws_actions.AGandUIManager):
-    def __init__(self, dir_specified):
+class MainWindow(gtk.Window, dialogue.BusyIndicator, ws_actions.AGandUIManager):
+    def __init__(self):
         gtk.Window.__init__(self, gtk.WINDOW_TOPLEVEL)
         self.set_icon_from_file(icons.APP_ICON_FILE)
         dialogue.BusyIndicator.__init__(self)
-        ifce.create_log(self)
         self.connect("destroy", self._quit)
         # see if we're in a valid work space and if not offer a selection
         # unless a directory was specified on the command line
-        open_dialog = None # we need this later
-        if dir_specified:
-            if ifce.term:
-                ifce.term.set_cwd(os.getcwd())
-        elif not ifce.in_valid_repo:
-            open_dialog = config.WSOpenDialog()
-            if open_dialog.run() == gtk.RESPONSE_OK:
-                wspath = open_dialog.get_path()
-                if wspath:
-                    open_dialog.show_busy()
-                    result = ifce.chdir(wspath)
-                    open_dialog.unshow_busy()
-                    dialogue.report_any_problems(result)
-            else:
-                sys.exit()
-            open_dialog.show_busy()
         dialogue.init(self)
         ws_actions.AGandUIManager.__init__(self)
         self.ui_manager.add_ui_from_string(GWSM_UI_DESCR)
@@ -132,21 +129,18 @@ class gwsm(gtk.Window, dialogue.BusyIndicator, ws_actions.AGandUIManager):
         vpane = gtk.VPaned()
         hpane.add2(vpane)
         vpane.add1(self._notebook)
-        if ifce.term:
+        if ifce.TERM:
             self._tl_notebook = gtk.Notebook()
-            self._tl_notebook.append_page(ifce.log, gtk.Label(_('Transactions')))
-            self._tl_notebook.append_page(ifce.term, gtk.Label(_('Terminal')))
+            self._tl_notebook.append_page(console.LOG, gtk.Label(_('Transactions')))
+            self._tl_notebook.append_page(ifce.TERM, gtk.Label(_('Terminal')))
             vpane.add2(self._tl_notebook)
         else:
-            vpane.add2(ifce.log)
+            vpane.add2(console.LOG)
         self.add(vbox)
         self.show_all()
         self._update_title()
         self._parent_table.unselect_all()
         self.add_notification_cb(ws_event.CHANGE_WD, self._reset_after_cd)
-        if open_dialog:
-            open_dialog.unshow_busy()
-            open_dialog.destroy()
     def populate_action_groups(self):
         actions.CLASS_INDEP_AGS[actions.AC_DONT_CARE].add_actions(
             [

@@ -158,3 +158,5 @@ class ConsoleLogWidget(gtk.VBox, dialogue.BusyIndicatorUser):
         self.unshow_busy()
         dialogue.report_any_problems(result)
         ws_event.notify_events(ws_event.ALL_BUT_CHANGE_WD)
+
+LOG = ConsoleLogWidget()

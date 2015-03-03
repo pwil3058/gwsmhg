@@ -16,7 +16,13 @@
 import os, os.path, tempfile, pango, re, time, collections
 import hashlib
 
-from gwsmhg_pkg import ifce, utils, cmd_result, putils, ws_event, const, fsdb
+from gwsmhg_pkg import console
+from gwsmhg_pkg import utils
+from gwsmhg_pkg import cmd_result
+from gwsmhg_pkg import putils
+from gwsmhg_pkg import ws_event
+from gwsmhg_pkg import const
+from gwsmhg_pkg import fsdb
 from gwsmhg_pkg import patchlib
 from gwsmhg_pkg import runext
 
@@ -193,7 +199,7 @@ class BaseInterface:
     def _map_cmd_result(self, result, ignore_err_re=None):
         assert False, _("Must be defined in child")
     def _run_cmd_on_console(self, cmd, input_text=None, ignore_err_re=None):
-        result = runext.run_cmd_in_console(ifce.log, cmd, input_text)
+        result = runext.run_cmd_in_console(console.LOG, cmd, input_text)
         return self._map_cmd_result(result, ignore_err_re=ignore_err_re)
     def _inotify_warning(self, serr):
         return serr.strip() in ['(found dead inotify server socket; removing it)',
@@ -294,21 +300,21 @@ class BaseInterface:
             ws_event.notify_events(ws_event.FILE_CHANGES)
             return result
     def do_delete_files(self, file_list):
-        if ifce.log:
-            ifce.log.start_cmd(_('Deleting: %s') % utils.file_list_to_string(file_list))
+        if console.LOG:
+            console.LOG.start_cmd(_('Deleting: %s') % utils.file_list_to_string(file_list))
         serr = ""
         for filename in file_list:
             try:
                 os.remove(filename)
-                if ifce.log:
-                    ifce.log.append_stdout((_('Deleted: %s\n')) % filename)
+                if console.LOG:
+                    console.LOG.append_stdout((_('Deleted: %s\n')) % filename)
             except os.error as value:
                 errmsg = ('%s: "%s"\n') % (value[1], filename)
                 serr += errmsg
-                if ifce.log:
-                    ifce.log.append_stderr(errmsg)
-        if ifce.log:
-            ifce.log.end_cmd()
+                if console.LOG:
+                    console.LOG.append_stderr(errmsg)
+        if console.LOG:
+            console.LOG.end_cmd()
         ws_event.notify_events(ws_event.FILE_DEL)
         if serr:
             return cmd_result.Result(cmd_result.ERROR, "", serr)
@@ -366,6 +372,9 @@ class SCMInterface(BaseInterface):
             return cmd_result.Result(flags, result.stdout, result.stderr)
     def get_default_commit_save_file(self):
         return os.path.join('.hg', 'gwsmhg.saved.commit')
+    @staticmethod
+    def is_valid_repo():
+        return runext.run_cmd(["hg", "root"]).ecode == 0
     def get_root(self):
         cmd = 'hg root'
         result = runext.run_cmd(cmd)
@@ -1258,14 +1267,14 @@ class PMInterface(BaseInterface):
         return epatch
     def do_set_patch_description(self, patch, descr):
         pfn = self.get_patch_file_name(patch)
-        ifce.log.start_cmd("set description for: %s" %patch)
+        console.LOG.start_cmd("set description for: %s" %patch)
         if putils.set_patch_descr(pfn, descr):
-            ifce.log.append_stdout(descr)
+            console.LOG.append_stdout(descr)
             serr = ''
         else:
             serr = 'Error writing description to "%s" patch file' % patch
-            ifce.log.append_stderr(serr)
-        ifce.log.end_cmd()
+            console.LOG.append_stderr(serr)
+        console.LOG.end_cmd()
         return cmd_result.Result(cmd_result.ERROR if serr else cmd_result.OK, '', serr)
     def get_description_is_finish_ready(self, patch):
         try:

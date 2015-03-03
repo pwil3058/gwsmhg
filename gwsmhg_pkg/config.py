@@ -34,15 +34,6 @@ from gwsmhg_pkg import ws_event
 SAVED_WKSPCE_FILE_NAME = os.sep.join([config_data.CONFIG_DIR_NAME, "workspaces"])
 SAVED_REPO_FILE_NAME = os.sep.join([config_data.CONFIG_DIR_NAME, "repositories"])
 
-def append_saved_ws(path, alias=None):
-    fobj = open(SAVED_WKSPCE_FILE_NAME, 'a')
-    abbr_path = utils.path_rel_home(path)
-    if not alias:
-        alias = os.path.basename(path)
-    fobj.write(os.pathsep.join([alias, abbr_path]))
-    fobj.write(os.linesep)
-    fobj.close()
-
 _KEYVAL_ESCAPE = gtk.gdk.keyval_from_name('Escape')
 
 class AliasPathTable(table.Table):

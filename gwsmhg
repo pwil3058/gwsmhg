@@ -16,39 +16,83 @@
 
 """Launch a GUI wrapper for Mercurial (hg)"""
 
-import sys
+import argparse
 import os
-import getopt
-
+import sys
 import gtk
 
 from gwsmhg_pkg import i18n
-from gwsmhg_pkg import ifce, hg_mq_ifce, gwsm, dialogue
-from gwsmhg_pkg import recollect
 
-def usage():
-    """Print the program's usage message"""
-    print(_('Usage: gwsmhg [dir]'))
+_BUG_TRACK_URL = 'https://sourceforge.net/p/gwsmhg/bugs/'
+_DISCUSSION_GRP = 'pwil3058@bigpond.net.au'
+_REPORT_REQUEST_MSG = \
+_('''<b>Please report this problem by either:
+  submitting a bug report at &lt;{url}&gt;
+or:
+  e-mailing &lt;{grp}&gt;
+and including a copy of the details below this message.
 
-# read required directory from the command line
+Thank you.</b>
+''').format(url=_BUG_TRACK_URL, grp=_DISCUSSION_GRP)
+
+def report_exception(exc_data, parent=None):
+    def copy_cb(tview):
+        tview.get_buffer().copy_clipboard(gtk.clipboard_get())
+    import traceback
+    msg = ''.join(traceback.format_exception(exc_data[0], exc_data[1], exc_data[2]))
+    dialog = gtk.Dialog(title=_('gwsmhg: Unhandled Exception'),
+                        parent=parent, flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
+                        buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE))
+    icon = gtk.Image()
+    icon.set_from_stock(gtk.STOCK_DIALOG_ERROR, gtk.ICON_SIZE_DIALOG)
+    vbox = gtk.VBox()
+    vbox.pack_start(icon, expand=False, fill=False)
+    hbox = gtk.HBox()
+    hbox.pack_start(vbox, expand=False, fill=False)
+    label = gtk.Label()
+    label.set_selectable(True)
+    label.set_markup(_REPORT_REQUEST_MSG)
+    hbox.pack_start(label, expand=False, fill=False)
+    dialog.get_content_area().pack_start(hbox, expand=False, fill=False)
+    sbw = gtk.ScrolledWindow()
+    tview = gtk.TextView()
+    tview.set_editable(False)
+    tview.get_buffer().set_text(msg)
+    tview.connect('copy-clipboard', copy_cb)
+    sbw.add(tview)
+    dialog.get_content_area().pack_end(sbw, expand=True, fill=True)
+    dialog.show_all()
+    dialog.set_resizable(True)
+    dialog.run()
+    dialog.destroy()
+
 try:
-    OPTION_LIST, ARG_LIST = getopt.getopt(sys.argv[1:], "")
-except getopt.GetoptError as err:
-    sys.stderr.write(str(err) + os.linesep)
-    usage()
-    sys.exit(1)
+    from gwsmhg_pkg import gwsm
+    from gwsmhg_pkg import ifce
+    from gwsmhg_pkg import config
+    from gwsmhg_pkg import dialogue
+    from gwsmhg_pkg import recollect
+except Exception:
+    report_exception(sys.exc_info())
+    sys.exit(3)
 
-if len(ARG_LIST) > 1:
-    usage()
-    sys.exit(1)
+PARSER = argparse.ArgumentParser(description=_('GUI to manage stacked patches'))
 
-DIR_SPECIFIED = len(ARG_LIST) == 1
+PARSER.add_argument(
+    'workspace',
+    help=_('Directory where patches are to be managed'),
+    metavar=_('dir'),
+    nargs='?'
+)
 
-if DIR_SPECIFIED:
+ARGS = PARSER.parse_args()
+
+if ARGS.workspace:
     try:
-        os.chdir(sys.argv[1])
+        os.chdir(ARGS.workspace)
+        recollect.set("gwsmhg", "last_wd", ARGS.workspace)
     except OSError as msg:
-        sys.stderr.write(str(msg) + os.linesep)
+        sys.stderr.write(str(msg) + '\n')
         sys.exit(2)
 else:
     last_dir = recollect.get("gwsmhg", "last_wd")
@@ -57,13 +101,33 @@ else:
             os.chdir(last_dir)
         except OSError as msg:
             pass # go back to asking the user where he wants to start
+        ARGS.workspace = os.getcwd()
+
 
 try:
-    ifce.init(hg_mq_ifce)
-    gwsm.gwsm(DIR_SPECIFIED).show()
+    dialogue.report_any_problems(ifce.init(ARGS.workspace is not None))
+    open_dialog = None # we need this later
+    if not ifce.in_valid_repo and ARGS.workspace is None:
+        open_dialog = config.WSOpenDialog()
+        if open_dialog.run() == gtk.RESPONSE_OK:
+            wspath = open_dialog.get_path()
+            if wspath:
+                open_dialog.show_busy()
+                result = ifce.chdir(wspath)
+                open_dialog.unshow_busy()
+                open_dialog.report_any_problems(result)
+        else:
+            sys.exit()
+        open_dialog.show_busy()
+    gwsm.MainWindow().show()
+    if open_dialog:
+        open_dialog.unshow_busy()
+        open_dialog.destroy()
     gtk.main()
 except (SystemExit, KeyboardInterrupt):
     pass
 except Exception:
-    dialogue.report_exception(sys.exc_info())
+    report_exception(sys.exc_info())
     sys.exit(3)
+finally:
+    ifce.close()
