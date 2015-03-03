@@ -19,6 +19,7 @@ import gobject
 import os
 import tempfile
 import re
+import hashlib
 
 from gwsmhg_pkg import dialogue
 from gwsmhg_pkg import ws_event
@@ -108,8 +109,6 @@ _UI_DESCR = \
   <menubar name="patch_list_menubar">
     <menu name="patch_list_menu" action="menu_patch_list">
       <menuitem action="refresh_patch_list"/>
-      <separator/>
-      <menuitem action="auto_refresh_patch_list"/>
     </menu>
   </menubar>
   <popup name="patches_popup">
@@ -245,15 +244,14 @@ class ListView(table.TableView):
     PopUp = "/patches_popup"
     def __init__(self, busy_indicator=None, size_req=None):
         self.last_import_dir = None
+        self._hash_data = None
         table.TableView.__init__(self, busy_indicator=None, size_req=size_req)
-        toggle_data = gutils.TimeOutController.ToggleData(name="auto_refresh_patch_list", label=_('Auto Update'), tooltip="Enable/disable automatic updating of the patch list", stock_id=gtk.STOCK_REFRESH)
-        self.toc = gutils.TimeOutController(toggle_data, function=self._update_list_cb, is_on=False)
-        self.action_groups[actions.AC_DONT_CARE].add_action(self.toc.toggle_action)
         self.ui_manager.add_ui_from_string(_UI_DESCR)
         # This callback is needed to process applied/unapplied status
         self.get_selection().connect('changed', self._selection_changed_cb)
         self.add_notification_cb(ws_event.CHANGE_WD, self._repopulate_list_cb)
         self.add_notification_cb(ws_event.PATCH_CHANGES, self._update_list_cb)
+        self.add_notification_cb(ws_event.AUTO_UPDATE, self._auto_update_list_cb)
         self.repopulate_list()
     def populate_action_groups(self):
         self.action_groups[AC_APPLIED].add_actions(
@@ -372,9 +370,13 @@ class ListView(table.TableView):
         return None if store_iter is None else store.get_patch_name(store_iter)
     def _update_list_cb(self, _arg=None):
         self.refresh_contents()
+    def _auto_update_list_cb(self, _arg=None):
+        if not self._hash_data or (self._hash_data.digest() != ifce.PM.get_all_patches_hash_digest()):
+            self.refresh_contents()
     def _fetch_contents(self):
-        patch_data_list = ifce.PM.get_all_patches_data()
-        selected = ifce.PM.get_selected_guards()
+        self._hash_data = hashlib.sha1()
+        patch_data_list = ifce.PM.get_all_patches_data(self._hash_data)
+        selected = ifce.PM.get_selected_guards(self._hash_data)
         unapplied_count = 0
         applied_count = 0
         contents = []

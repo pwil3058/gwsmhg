@@ -1074,11 +1074,20 @@ class PMInterface(BaseInterface):
             return False
         return (self.get_top_patch() is not None) or \
             self._ws_update_mgr.is_in_progress()
-    def get_all_patches_data(self):
+    def get_all_patches_hash_digest(self):
+        import hashlib
+        h = hashlib.sha1()
+        h.update(runext.run_cmd('hg qguard -l').stdout)
+        h.update(runext.run_cmd('hg qselect').stdout)
+        return h.digest()
+    def get_all_patches_data(self, hashd=None):
         output = []
         if not self.get_enabled():
             return output
-        patch_plus_guard_list = runext.run_cmd('hg qguard -l').stdout.splitlines()
+        result = runext.run_cmd('hg qguard -l')
+        if hashd:
+            hashd.update(result.stdout)
+        patch_plus_guard_list = result.stdout.splitlines()
         applied_patches = self.get_applied_patches()
         if len(applied_patches) > 0:
             top_patch = applied_patches[-1]
@@ -1122,8 +1131,10 @@ class PMInterface(BaseInterface):
             return []
         match = self._qguard_re.match(result.stdout.strip())
         return match.group(1).split() if match else []
-    def get_selected_guards(self):
+    def get_selected_guards(self, hashd=None):
         result = runext.run_cmd('hg qselect')
+        if hashd:
+            hashd.update(result.stdout)
         if result.ecode != 0 or result.stdout.strip() == "no active guards":
             return []
         return result.stdout.split()
