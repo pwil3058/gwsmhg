@@ -360,7 +360,8 @@ class Tree(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialog
         if parent_iter is not None:
             self.model.insert_place_holder_if_needed(parent_iter)
         return changed
-    def _get_file_db(self):
+    @staticmethod
+    def _get_file_db():
         assert False, '_get_file_db() must be defined in descendants'
     def repopulate(self, _arg=None):
         self.show_busy()
@@ -812,7 +813,8 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         self.revert_named_files(self.get_selected_files())
     def revert_all_files_acb(self, _action=None):
         self.revert_named_files([])
-    def _get_file_db(self):
+    @staticmethod
+    def _get_file_db():
         if ifce.in_valid_repo:
             return ifce.SCM.get_ws_file_db()
         else:

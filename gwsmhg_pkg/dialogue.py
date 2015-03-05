@@ -264,6 +264,8 @@ def ask_file_name(prompt, suggestion=None, existing=True, parent=None):
                 dialog.set_current_folder(os.getcwd())
             if basename:
                 dialog.set_current_name(basename)
+    else:
+        dialog.set_current_folder(os.getcwd())
     response = dialog.run()
     if response == gtk.RESPONSE_OK:
         new_file_name = os.path.relpath(dialog.get_filename())
