@@ -88,4 +88,8 @@ def set(section, oname, val):
 
 define('gwsmhg', 'last_wd', Defn(str, ""))
 
+define("main_window", "last_geometry", Defn(str, ""))
+define("main_window", "vpaned_position", Defn(int, -1))
+define("main_window", "hpaned_position", Defn(int, -1))
+
 load_recollections()

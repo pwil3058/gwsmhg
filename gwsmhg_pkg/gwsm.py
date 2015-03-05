@@ -31,6 +31,7 @@ from gwsmhg_pkg import ws_event
 from gwsmhg_pkg import patch_mgr
 from gwsmhg_pkg import utils
 from gwsmhg_pkg import console
+from gwsmhg_pkg import recollect
 
 GWSM_UI_DESCR = \
 '''
@@ -83,6 +84,7 @@ GWSM_UI_DESCR = \
 class MainWindow(gtk.Window, dialogue.BusyIndicator, ws_actions.AGandUIManager):
     def __init__(self):
         gtk.Window.__init__(self, gtk.WINDOW_TOPLEVEL)
+        self.parse_geometry(recollect.get("main_window", "last_geometry"))
         self.set_icon_from_file(icons.APP_ICON_FILE)
         dialogue.BusyIndicator.__init__(self)
         self.connect("destroy", self._quit)
@@ -123,19 +125,23 @@ class MainWindow(gtk.Window, dialogue.BusyIndicator, ws_actions.AGandUIManager):
         vbox.pack_start(hbox, expand=False)
         vbox.pack_start(self._parent_table, expand=False)
         vbox.pack_start(self._toolbar, expand=False)
-        hpane = gtk.HPaned()
-        vbox.pack_start(hpane, expand=True)
-        hpane.add1(self._file_tree_widget)
-        vpane = gtk.VPaned()
-        hpane.add2(vpane)
-        vpane.add1(self._notebook)
+        hpaned = gtk.HPaned()
+        hpaned.set_position(recollect.get("main_window", "hpaned_position"))
+        vbox.pack_start(hpaned, expand=True)
+        hpaned.add1(self._file_tree_widget)
+        vpaned = gtk.VPaned()
+        vpaned.set_position(recollect.get("main_window", "vpaned_position"))
+        hpaned.add2(vpaned)
+        vpaned.add1(self._notebook)
         if ifce.TERM:
             self._tl_notebook = gtk.Notebook()
             self._tl_notebook.append_page(console.LOG, gtk.Label(_('Transactions')))
             self._tl_notebook.append_page(ifce.TERM, gtk.Label(_('Terminal')))
-            vpane.add2(self._tl_notebook)
+            vpaned.add2(self._tl_notebook)
         else:
-            vpane.add2(console.LOG)
+            vpaned.add2(console.LOG)
+        vpaned.connect("notify", self._paned_notify_cb, "vpaned_position")
+        hpaned.connect("notify", self._paned_notify_cb, "hpaned_position")
         self.add(vbox)
         self.show_all()
         self._update_title()
@@ -392,3 +398,8 @@ class MainWindow(gtk.Window, dialogue.BusyIndicator, ws_actions.AGandUIManager):
             dialogue.report_any_problems(result)
     def _config_editors_acb(self, _action=None):
         config.EditorAllocationDialog(parent=self).show()
+    def _configure_event_cb(self, widget, event):
+        recollect.set("main_window", "last_geometry", "{0.width}x{0.height}+{0.x}+{0.y}".format(event))
+    def _paned_notify_cb(self, widget, parameter, oname=None):
+        if parameter.name == "position":
+            recollect.set("main_window", oname, str(widget.get_position()))
