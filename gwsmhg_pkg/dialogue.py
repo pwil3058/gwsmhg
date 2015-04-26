@@ -191,6 +191,11 @@ def ask_force_or_cancel(result, clarification=None, parent=None):
     question = _form_question(result, clarification)
     return ask_question(question, parent, buttons)
 
+def ask_force_skip_or_cancel(result, clarification=None, parent=None):
+    buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, _('_Skip'), Response.SKIP, _('_Force'), Response.FORCE)
+    question = _form_question(result, clarification)
+    return ask_question(question, parent, buttons)
+
 def ask_merge_discard_or_cancel(result, clarification=None, parent=None):
     buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
     if result.ecode & cmd_result.SUGGEST_MERGE:
@@ -354,7 +359,7 @@ def report_failure(failure, parent=None):
 _REPORT_REQUEST_MSG = \
 _('''
 Please report this problem by either:
-  submitting a bug report at <https://sourceforge.net/tracker/?group_id=258223&atid=1127211>
+  submitting a bug report at <https://sourceforge.net/tracker/?group_id=258223&amp;atid=1127211>
 or:
   e-mailing <gwsmhg-discussion@lists.sourceforge.net>
 and including a copy of the details below this message.

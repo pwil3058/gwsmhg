@@ -370,7 +370,8 @@ class SCMInterface(BaseInterface):
             elif result.stderr.find('use \'hg update -C\'') != -1:
                 flags |= cmd_result.SUGGEST_DISCARD
             return cmd_result.Result(flags, result.stdout, result.stderr)
-    def get_default_commit_save_file(self):
+    @staticmethod
+    def get_default_commit_save_file():
         return os.path.join('.hg', 'gwsmhg.saved.commit')
     @staticmethod
     def is_valid_repo():
@@ -1036,6 +1037,9 @@ class PMInterface(BaseInterface):
     def update_is_enabled(self):
         self._is_enabled = self.get_extension_enabled('mq')
         self._enabled_checked_at = time.time()
+    @staticmethod
+    def get_default_new_patch_save_file():
+        return SCMInterface.get_default_commit_save_file()
     def get_enabled(self):
         if (time.time() - self._enabled_checked_at) > 20.0:
             self.update_is_enabled()

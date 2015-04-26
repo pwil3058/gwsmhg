@@ -736,8 +736,9 @@ class ListView(table.TableView):
             return
         new_patch_name = dialog.get_new_patch_name()
         new_patch_descr = dialog.get_new_patch_descr()
-        dialog.destroy()
+        dialog.hide()
         if not new_patch_name:
+            dialog.finish_up(False)
             return
         force = False
         while True:
@@ -747,17 +748,20 @@ class ListView(table.TableView):
             if result.ecode & cmd_result.SUGGEST_FORCE_OR_REFRESH:
                 ans = dialogue.ask_force_refresh_or_cancel(result, parent=None)
                 if ans == gtk.RESPONSE_CANCEL:
+                    dialog.finish_up(False)
                     return
                 if ans == dialogue.Response.REFRESH:
                     self.do_refresh(notify=False)
                 elif ans == dialogue.Response.FORCE:
                     force = True
             else:
+                dialog.finish_up(False)
                 dialogue.report_any_problems(result)
                 break
         if new_patch_descr and result.ecode != cmd_result.ERROR:
             self.show_busy()
             result = ifce.PM.do_set_patch_description(new_patch_name, new_patch_descr)
+            dialog.finish_up(True)
             self.unshow_busy()
             dialogue.report_any_problems(result)
     def do_import_external_patch(self, _action=None):
@@ -887,7 +891,7 @@ def do_export_named_patch(parent, patchname, suggestion=None, busy_indicator=Non
         dialogue.report_any_problems(result)
         break
 
-class NewPatchDescrEditWidget(text_edit.DbMessageWidget):
+class NewPatchDescrEditWidget(text_edit.MessageWidget):
     UI_DESCR = \
         '''
         <ui>
@@ -904,8 +908,12 @@ class NewPatchDescrEditWidget(text_edit.DbMessageWidget):
           </toolbar>
         </ui>
         '''
-    def __init__(self, save_file_name=None, auto_save=False):
-        text_edit.DbMessageWidget.__init__(self, save_file_name=save_file_name, auto_save=auto_save)
+    def __init__(self):
+        save_file_name = ifce.PM.get_default_new_patch_save_file()
+        auto_save = save_file_name is not None and save_file_name is not ""
+        text_edit.MessageWidget.__init__(self, save_file_name=save_file_name, auto_save=auto_save)
+        if auto_save and os.path.exists(save_file_name):
+            self.load_text_fm_file(save_file_name, already_checked=True)
         menubar = self.ui_manager.get_widget("/patch_summary_menubar")
         self.top_hbox.pack_start(menubar, fill=True, expand=False)
         toolbar = self.ui_manager.get_widget("/patch_summary_toolbar")
@@ -915,14 +923,43 @@ class NewPatchDescrEditWidget(text_edit.DbMessageWidget):
         self.show_all()
         self.set_focus_child(self.view)
     def populate_action_groups(self):
-        text_edit.DbMessageWidget.populate_action_groups(self)
+        text_edit.MessageWidget.populate_action_groups(self)
         self.action_groups[actions.AC_DONT_CARE].add_action(gtk.Action("menu_summary", _("Description"), _(""), None))
 
-class PatchDescrEditWidget(NewPatchDescrEditWidget):
+class PatchDescrEditWidget(text_edit.DbMessageWidget):
+    UI_DESCR = \
+        '''
+        <ui>
+          <menubar name="patch_summary_menubar">
+            <menu name="patch_summary_menu" action="menu_summary">
+              <separator/>
+              <menuitem action="text_edit_load"/>
+              <menuitem action="text_edit_save"/>
+              <menuitem action="text_edit_insert_from"/>
+            </menu>
+          </menubar>
+          <toolbar name="patch_summary_toolbar">
+            <toolitem action="text_edit_ack"/>
+            <toolitem action="text_edit_sign_off"/>
+            <toolitem action="text_edit_author"/>
+          </toolbar>
+        </ui>
+        '''
     def __init__(self, patch):
-        NewPatchDescrEditWidget.__init__(self, save_file_name=None, auto_save=False)
         self._patch = patch
+        text_edit.DbMessageWidget.__init__(self, save_file_name=None, auto_save=False)
+        menubar = self.ui_manager.get_widget('/patch_summary_menubar')
+        self.top_hbox.pack_start(menubar, fill=True, expand=False)
+        toolbar = self.ui_manager.get_widget('/patch_summary_toolbar')
+        toolbar.set_style(gtk.TOOLBAR_BOTH)
+        toolbar.set_orientation(gtk.ORIENTATION_HORIZONTAL)
+        self.top_hbox.pack_end(toolbar, fill=False, expand=False)
+        self.show_all()
+        self.set_focus_child(self.view)
         self.load_text_fm_db()
+    def populate_action_groups(self):
+        text_edit.DbMessageWidget.populate_action_groups(self)
+        self.action_groups[actions.AC_DONT_CARE].add_action(gtk.Action("menu_summary", _("Description"), _(""), None))
     def get_text_fm_db(self):
         return ifce.PM.get_patch_description(self._patch)
     def set_text_in_db(self, text):
@@ -983,11 +1020,14 @@ class DuplicatePatchDialog(dialogue.Dialog):
         return self.new_name_entry.get_text()
     def get_duplicate_patch_descr(self):
         return self.edit_descr_widget.view.get_msg()
+    def finish_up(self, clear_save=False):
+        self.edit_descr_widget.finish_up(clear_save)
+        self.destroy()
 
 class NewPatchDialog(dialogue.Dialog):
     def __init__(self, parent, objname=_('Patch')):
         flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT
-        title = 'New %s: %s -- gwsmhg' % (objname, utils.path_rel_home(os.getcwd()))
+        title = _('New %s: %s -- gwsmhg') % (objname, utils.path_rel_home(os.getcwd()))
         dialogue.Dialog.__init__(self, title, parent, flags,
                                  (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
                                   gtk.STOCK_OK, gtk.RESPONSE_OK))
@@ -1007,3 +1047,6 @@ class NewPatchDialog(dialogue.Dialog):
         return self.new_name_entry.get_text()
     def get_new_patch_descr(self):
         return self.edit_descr_widget.get_contents()
+    def finish_up(self, clear_save=False):
+        self.edit_descr_widget.finish_up(clear_save)
+        self.destroy()

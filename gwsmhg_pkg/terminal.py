@@ -14,6 +14,7 @@
 ### Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import gtk
+
 from gwsmhg_pkg import dialogue
 
 try:

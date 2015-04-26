@@ -36,8 +36,8 @@ from gwsmhg_pkg import ifce
 from gwsmhg_pkg import config
 from gwsmhg_pkg import actions
 
-def edit_files_extern(file_list):
-    def _edit_files_extern(filelist, edstr=config.DEFAULT_EDITOR):
+def _edit_files_extern(file_list, ed_assigns):
+    def _launch_editor(filelist, edstr=config.DEFAULT_EDITOR):
         cmd = shlex.split(edstr) + filelist
         if cmd[0] in config.EDITORS_THAT_NEED_A_TERMINAL:
             if config.DEFAULT_TERMINAL == "gnome-terminal":
@@ -46,9 +46,11 @@ def edit_files_extern(file_list):
                 flag = '-e'
             cmd = [config.DEFAULT_TERMINAL, flag] + cmd
         return runext.run_cmd_in_bgnd(cmd)
-    ed_assigns = config.assign_extern_editors(file_list)
     for edstr in list(ed_assigns.keys()):
-        _edit_files_extern(ed_assigns[edstr], edstr)
+        _launch_editor(ed_assigns[edstr], edstr)
+
+def edit_files_extern(file_list):
+    return _edit_files_extern(file_list, config.assign_extern_editors(file_list))
 
 class MessageWidget(textview.Widget, actions.CAGandUIManager):
     UI_DESCR = ''
@@ -70,7 +72,6 @@ class MessageWidget(textview.Widget, actions.CAGandUIManager):
         self._update_action_sensitivities()
     def populate_action_groups(self):
         # Set up action groups
-        #self.action_group = gtk.ActionGroup("always on")
         # TODO: self.conditional_action_group = gtk.ActionGroup("save file dependent")
         self.action_groups[0].add_actions(
             [
@@ -183,7 +184,7 @@ class MessageWidget(textview.Widget, actions.CAGandUIManager):
     def set_auto_save_inerval(self, interval):
         self._save_interval = interval
     def do_auto_save(self):
-        if self._save_file_name:
+        if self.get_auto_save() and self._save_file_name:
             if not self._save_file_digest or self._save_file_digest != self.digest:
                 self.save_text_to_file()
         return self.get_auto_save()
@@ -193,9 +194,9 @@ class MessageWidget(textview.Widget, actions.CAGandUIManager):
     def finish_up(self, clear_save=False):
         if self.get_auto_save():
             self.set_auto_save(False)
-            self.do_auto_save()
+            self.save_text_to_file()
         if clear_save and self._save_file_name:
-            self.save_text_to_file(content="")
+            self.save_text_to_file("")
 
 class DbMessageWidget(MessageWidget):
     UI_DESCR = ''

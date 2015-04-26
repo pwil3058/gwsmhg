@@ -23,6 +23,7 @@ from gwsmhg_pkg import gutils
 from gwsmhg_pkg import ws_event
 from gwsmhg_pkg import textview
 from gwsmhg_pkg import actions
+from gwsmhg_pkg import terminal
 
 class ConsoleLog(textview.Widget):
     def __init__(self, width_in_chars=81, fdesc=None):
@@ -87,7 +88,7 @@ class ConsoleLogWidget(gtk.VBox, dialogue.BusyIndicatorUser):
           </menubar>
         </ui>
         '''
-    def __init__(self, busy_indicator=None, runentry=False, _table=None):
+    def __init__(self, busy_indicator=None):
         gtk.VBox.__init__(self)
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
         self._text_widget = ConsoleLog()
@@ -105,7 +106,7 @@ class ConsoleLogWidget(gtk.VBox, dialogue.BusyIndicatorUser):
         hbox = gtk.HBox()
         hbox.pack_start(self._menubar, expand=False)
         cmd_entry = gutils.EntryWithHistory()
-        if runentry:
+        if not terminal.AVAILABLE:
             hbox.pack_start(gtk.Label(_('Run: ')), expand=False)
             cmd_entry.connect("activate", self._cmd_entry_cb)
         else:
