@@ -13,11 +13,12 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-import gtk
-import gobject
 import collections
 import os
 import os.path
+
+import gtk
+import gobject
 
 from . import utils
 from . import cmd_result
@@ -43,7 +44,7 @@ def _check_if_force(result):
 
 class FileTreeView(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialogue.BusyIndicatorUser):
     class Model(tlview.TreeView.Model):
-        Row = collections.namedtuple('Row', ['name', 'is_dir', 'style', 'foreground', 'icon', 'status', 'related_file_str'])
+        Row = collections.namedtuple('Row', ['name', 'is_dir', 'style', 'foreground', 'icon', 'status', 'related_file_data'])
         types = Row(
             name=gobject.TYPE_STRING,
             is_dir=gobject.TYPE_BOOLEAN,
@@ -51,7 +52,7 @@ class FileTreeView(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener
             foreground=gobject.TYPE_STRING,
             icon=gobject.TYPE_STRING,
             status=gobject.TYPE_STRING,
-            related_file_str=gobject.TYPE_STRING
+            related_file_data=gobject.TYPE_PYOBJECT
         )
         def insert_place_holder(self, dir_iter):
             self.append(dir_iter)
@@ -100,7 +101,7 @@ class FileTreeView(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener
         def on_row_collapsed_cb(self, _view, dir_iter, _dummy):
             self.insert_place_holder_if_needed(dir_iter)
         def update_iter_row_tuple(self, fsobj_iter, to_tuple):
-            for label in ["style", "foreground", "status", "related_file_str", "icon"]:
+            for label in ["style", "foreground", "status", "related_file_data", "icon"]:
                 self.set_value_named(fsobj_iter, label, getattr(to_tuple, label))
         def _get_file_paths(self, fsobj_iter, path_list):
             while fsobj_iter != None:
@@ -121,8 +122,11 @@ class FileTreeView(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener
         if name is None:
             cell_renderer.set_property("text", _("<empty>"))
             return
-        name += store.get_value_named(tree_iter, "related_file_str")
-        cell_renderer.set_property("text", name)
+        rfd = store.get_value_named(tree_iter, "related_file_data")
+        if rfd:
+            cell_renderer.set_property("text", " ".join((name, rfd.relation, rfd.path)))
+        else:
+            cell_renderer.set_property("text", name)
     UI_DESCR = \
     '''
     <ui>
@@ -188,14 +192,6 @@ class FileTreeView(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener
     KEYVAL_ESCAPE = gtk.gdk.keyval_from_name('Escape')
     AUTO_EXPAND = False
     @staticmethod
-    def _get_related_file_str(data):
-        if data.related_file:
-            if isinstance(data.related_file, str):
-                return " <- " + data.related_file
-            else:
-                return " {0} {1}".format(data.related_file.relation, data.related_file.path)
-        return ""
-    @staticmethod
     def _handle_button_press_cb(widget, event):
         if event.type == gtk.gdk.BUTTON_PRESS:
             if event.button == 2:
@@ -231,7 +227,7 @@ class FileTreeView(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener
             is_dir=isdir,
             icon=cls._FILE_ICON[isdir],
             status=data.status,
-            related_file_str=cls._get_related_file_str(data),
+            related_file_data=data.related_file_data,
             style=deco.style,
             foreground=deco.foreground
         )
