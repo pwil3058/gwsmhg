@@ -24,7 +24,7 @@ try:
 except ImportError:
     import ConfigParser as configparser
 
-from gwsmhg_pkg import config_data
+from . import config_data
 
 _RECOLLECTIONS_PATH = os.path.join(config_data.CONFIG_DIR_NAME, 'guistate.mem')
 

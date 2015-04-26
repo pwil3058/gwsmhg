@@ -17,11 +17,12 @@
 (if available) and also ensures text is utf-8 friendly before
 insertion'''
 
-import gtk
-import pango
 import hashlib
 
-from gwsmhg_pkg import utils
+import gtk
+import pango
+
+from . import utils
 
 try:
     from gtksourceview2 import Buffer as _Buffer

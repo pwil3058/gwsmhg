@@ -15,7 +15,7 @@
 
 import gtk, gtk.gdk, os.path, sys, collections
 
-from gwsmhg_pkg import config_data
+from . import config_data
 
 # find the icons directory
 # first look in the source directory (so that we can run uninstalled)

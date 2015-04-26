@@ -23,7 +23,7 @@ import gobject
 import gtk
 import select
 
-from gwsmhg_pkg import cmd_result
+from . import cmd_result
 
 def run_cmd(cmd, input_text=None):
     '''Run the given external command and return the results'''

@@ -13,17 +13,21 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-import os, gtk, pango, time
+import os
+import time
 
-from gwsmhg_pkg import runext
-from gwsmhg_pkg import cmd_result
+import gtk
+import pango
 
-from gwsmhg_pkg import dialogue
-from gwsmhg_pkg import gutils
-from gwsmhg_pkg import ws_event
-from gwsmhg_pkg import textview
-from gwsmhg_pkg import actions
-from gwsmhg_pkg import terminal
+from . import runext
+from . import cmd_result
+
+from . import dialogue
+from . import gutils
+from . import ws_event
+from . import textview
+from . import actions
+from . import terminal
 
 class ConsoleLog(textview.Widget):
     def __init__(self, width_in_chars=81, fdesc=None):
@@ -138,7 +142,7 @@ class ConsoleLogWidget(gtk.VBox, dialogue.BusyIndicatorUser):
         if pre_dir == os.getcwd():
             ws_event.notify_events(ws_event.ALL_BUT_CHANGE_WD)
         else:
-            from gwsmhg_pkg import ifce
+            from . import ifce
             ifce.chdir()
     def _hg_cmd_entry_cb(self, entry):
         text = entry.get_text_and_clear_to_history()

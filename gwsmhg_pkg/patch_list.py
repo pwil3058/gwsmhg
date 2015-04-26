@@ -14,31 +14,32 @@
 ### Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import collections
-import gtk
-import gobject
 import os
 import tempfile
 import re
 import hashlib
 
-from gwsmhg_pkg import dialogue
-from gwsmhg_pkg import ws_event
-from gwsmhg_pkg import gutils
-from gwsmhg_pkg import icons
-from gwsmhg_pkg import ifce
-from gwsmhg_pkg import utils
-from gwsmhg_pkg import file_tree
-from gwsmhg_pkg import cmd_result
-from gwsmhg_pkg import text_edit
-from gwsmhg_pkg import const
-from gwsmhg_pkg import diff
-from gwsmhg_pkg import tlview
-from gwsmhg_pkg import path
-from gwsmhg_pkg import change_set
-from gwsmhg_pkg import actions
-from gwsmhg_pkg import ws_actions
-from gwsmhg_pkg import table
-from gwsmhg_pkg import patch_view
+import gtk
+import gobject
+
+from . import dialogue
+from . import ws_event
+from . import gutils
+from . import icons
+from . import ifce
+from . import utils
+from . import file_tree
+from . import cmd_result
+from . import text_edit
+from . import const
+from . import diff
+from . import tlview
+from . import path
+from . import change_set
+from . import actions
+from . import ws_actions
+from . import table
+from . import patch_view
 
 def _markup_applied_patch(patch_name, guards, selected):
     markup = patch_name

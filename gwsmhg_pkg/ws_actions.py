@@ -21,9 +21,9 @@ import collections
 
 import gtk
 
-from gwsmhg_pkg import actions
-from gwsmhg_pkg import ws_event
-from gwsmhg_pkg import ifce
+from . import actions
+from . import ws_event
+from . import ifce
 
 AC_NOT_IN_PGND, AC_IN_PGND, AC_IN_PGND_MASK = actions.ActionCondns.new_flags_and_mask(2)
 AC_NOT_IN_REPO, AC_IN_REPO, AC_IN_REPO_MASK = actions.ActionCondns.new_flags_and_mask(2)

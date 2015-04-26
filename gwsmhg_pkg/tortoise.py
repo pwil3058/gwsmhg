@@ -15,13 +15,13 @@
 
 import gtk
 
-from gwsmhg_pkg import utils
-from gwsmhg_pkg import dialogue
-from gwsmhg_pkg import icons
-from gwsmhg_pkg import ws_event
-from gwsmhg_pkg import actions
-from gwsmhg_pkg import ws_actions
-from gwsmhg_pkg import cmd_result
+from . import utils
+from . import dialogue
+from . import icons
+from . import ws_event
+from . import actions
+from . import ws_actions
+from . import cmd_result
 
 TORTOISE_HGTK_UI = \
 '''
@@ -161,4 +161,3 @@ def run_tool_for_files(action, file_list):
     result = utils.run_cmd(cmd)
     dialogue.report_any_problems(result)
     _notify_event_by_name(name)
-

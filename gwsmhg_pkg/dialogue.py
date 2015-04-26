@@ -15,15 +15,16 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-import gtk
 import os
 
-from gwsmhg_pkg import cmd_result
-from gwsmhg_pkg import config_data
+import gtk
 
-from gwsmhg_pkg import icons
-from gwsmhg_pkg import ws_event
-from gwsmhg_pkg import gutils
+from . import cmd_result
+from . import config_data
+
+from . import icons
+from . import ws_event
+from . import gutils
 
 main_window = None
 

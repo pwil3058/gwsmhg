@@ -21,7 +21,7 @@ import os
 import email
 import zlib
 
-from gwsmhg_pkg import gitbase85
+from . import gitbase85
 
 # Useful named tuples to make code clearer
 _CHUNK = collections.namedtuple('_CHUNK', ['start', 'length'])

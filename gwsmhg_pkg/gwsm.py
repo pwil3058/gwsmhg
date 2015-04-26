@@ -13,25 +13,28 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-import os, gtk, sys
+import os
+import sys
 
-from gwsmhg_pkg import dialogue
-from gwsmhg_pkg import icons
-from gwsmhg_pkg import ifce
-from gwsmhg_pkg import actions
-from gwsmhg_pkg import ws_actions
-from gwsmhg_pkg import change_set
-from gwsmhg_pkg import file_tree
-from gwsmhg_pkg import path
-from gwsmhg_pkg import cmd_result
-from gwsmhg_pkg import diff
-from gwsmhg_pkg import config
-from gwsmhg_pkg import tortoise
-from gwsmhg_pkg import ws_event
-from gwsmhg_pkg import patch_mgr
-from gwsmhg_pkg import utils
-from gwsmhg_pkg import console
-from gwsmhg_pkg import recollect
+import gtk
+
+from . import dialogue
+from . import icons
+from . import ifce
+from . import actions
+from . import ws_actions
+from . import change_set
+from . import file_tree
+from . import path
+from . import cmd_result
+from . import diff
+from . import config
+from . import tortoise
+from . import ws_event
+from . import patch_mgr
+from . import utils
+from . import console
+from . import recollect
 
 GWSM_UI_DESCR = \
 '''
@@ -387,7 +390,7 @@ class MainWindow(gtk.Window, dialogue.BusyIndicator, ws_actions.AGandUIManager):
     def _refresh_displayed_data_acb(self, _action=None):
         ws_event.notify_events(ws_event.CHANGE_WD)
     def _edit_repo_config_acb(self, _action=None):
-        from gwsmhg_pkg import text_edit
+        from . import text_edit
         text_edit.edit_files_extern(['.hg/hgrc'])
     def _rollback_repo_acb(self, _action=None):
         question = os.linesep.join([_('About to roll back last transaction'),

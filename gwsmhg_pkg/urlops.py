@@ -1,4 +1,4 @@
-### Copyright (C) 2009 Peter Williams <peter_ono@users.sourceforge.net>
+### Copyright (C) 2009-2015 Peter Williams <peter_ono@users.sourceforge.net>
 
 ### This program is free software; you can redistribute it and/or modify
 ### it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@ except ImportError:
     _USE_URLPARSE = False
     import urllib.parse
 
-def parse_url(path, scheme="", allow_fragments=True):
+def parse_url(path, scheme='', allow_fragments=True):
     """Return ParseResult for the given path"""
     if _USE_URLPARSE:
         return urlparse.urlparse(path, scheme, allow_fragments)

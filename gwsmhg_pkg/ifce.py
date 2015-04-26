@@ -17,16 +17,16 @@ in_valid_repo = False
 
 import os
 
-from gwsmhg_pkg import hg_mq_ifce
+from . import hg_mq_ifce
 
-from gwsmhg_pkg import cmd_result
-from gwsmhg_pkg import utils
-from gwsmhg_pkg import options
-from gwsmhg_pkg import recollect
+from . import cmd_result
+from . import utils
+from . import options
+from . import recollect
 
-from gwsmhg_pkg import ws_event
-from gwsmhg_pkg import terminal
-from gwsmhg_pkg.console import LOG
+from . import ws_event
+from . import terminal
+from .console import LOG
 
 SCM = hg_mq_ifce.SCMInterface()
 PM = hg_mq_ifce.PMInterface()
@@ -41,7 +41,7 @@ def init(log_chdir=False):
     result = options.load_global_options()
     in_valid_repo = SCM.is_valid_repo()
     if in_valid_repo:
-        from gwsmhg_pkg import config
+        from . import config
         root = SCM.get_root()
         os.chdir(root)
         config.WSPathTable.append_saved_wd(root)
@@ -77,7 +77,7 @@ def chdir(newdir=None):
             retval = cmd_result.Result(cmd_result.ERROR, "", '%s: "%s" :%s' % (ecode, newdir, emsg))
     in_valid_repo = SCM.is_valid_repo()
     if in_valid_repo:
-        from gwsmhg_pkg import config
+        from . import config
         root = SCM.get_root()
         os.chdir(root)
         config.WSPathTable.append_saved_wd(root)

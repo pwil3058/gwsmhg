@@ -18,16 +18,16 @@
 import os
 import gtk
 
-from gwsmhg_pkg import utils
-from gwsmhg_pkg import const
+from . import utils
+from . import const
 
-from gwsmhg_pkg import textview
-from gwsmhg_pkg import dialogue
-from gwsmhg_pkg import icons
-from gwsmhg_pkg import diff
-from gwsmhg_pkg import ws_event
-from gwsmhg_pkg import gutils
-from gwsmhg_pkg import ifce
+from . import textview
+from . import dialogue
+from . import icons
+from . import diff
+from . import ws_event
+from . import gutils
+from . import ifce
 
 class Widget(gtk.VBox):
     status_icons = {
@@ -183,5 +183,5 @@ class Dialogue(dialogue.AmodalDialog):
         self.unshow_busy()
         dialogue.report_any_problems(result)
     def _save_as_acb(self, _action):
-        from gwsmhg_pkg import patch_list
+        from . import patch_list
         patch_list.do_export_named_patch(self, self.widget.patchname, suggestion=self._save_file, busy_indicator=self)

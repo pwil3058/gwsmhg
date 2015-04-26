@@ -19,17 +19,17 @@ import gtk
 import fnmatch
 import collections
 
-from gwsmhg_pkg import config_data
-from gwsmhg_pkg import utils
-from gwsmhg_pkg import urlops
+from . import config_data
+from . import utils
+from . import urlops
 
-from gwsmhg_pkg import dialogue
-from gwsmhg_pkg import gutils
-from gwsmhg_pkg import tlview
-from gwsmhg_pkg import table
-from gwsmhg_pkg import actions
-from gwsmhg_pkg import ifce
-from gwsmhg_pkg import ws_event
+from . import dialogue
+from . import gutils
+from . import tlview
+from . import table
+from . import actions
+from . import ifce
+from . import ws_event
 
 SAVED_WKSPCE_FILE_NAME = os.sep.join([config_data.CONFIG_DIR_NAME, "workspaces"])
 SAVED_REPO_FILE_NAME = os.sep.join([config_data.CONFIG_DIR_NAME, "repositories"])

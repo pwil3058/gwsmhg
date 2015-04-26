@@ -15,8 +15,9 @@
 
 import gtk
 
-from gwsmhg_pkg import gutils, file_tree
-from gwsmhg_pkg import patch_list
+from . import gutils
+from . import file_tree
+from . import patch_list
 
 class TopPatchFilesWidget(gtk.VBox):
     def __init__(self, busy_indicator):

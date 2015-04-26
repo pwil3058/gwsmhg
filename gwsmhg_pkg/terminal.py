@@ -15,7 +15,7 @@
 
 import gtk
 
-from gwsmhg_pkg import dialogue
+from . import dialogue
 
 try:
     import vte

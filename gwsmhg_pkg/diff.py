@@ -14,19 +14,20 @@
 ### Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import re
-import gtk
-import pango
 import os
 
-from gwsmhg_pkg import utils
-from gwsmhg_pkg import cmd_result
-from gwsmhg_pkg import patchlib
+import gtk
+import pango
 
-from gwsmhg_pkg import dialogue
-from gwsmhg_pkg import textview
-from gwsmhg_pkg import ifce
-from gwsmhg_pkg import gutils
-from gwsmhg_pkg import icons
+from . import utils
+from . import cmd_result
+from . import patchlib
+
+from . import dialogue
+from . import textview
+from . import ifce
+from . import gutils
+from . import icons
 
 class FileAndRefreshActions:
     def __init__(self):

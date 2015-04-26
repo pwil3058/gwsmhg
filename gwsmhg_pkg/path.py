@@ -13,10 +13,26 @@
 ### along with this program; if not, write to the Free Software
 ### Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-import gtk, gobject, os, collections
-from gwsmhg_pkg import dialogue, gutils, cmd_result, change_set, icons
-from gwsmhg_pkg import file_tree, diff, ws_event, ifce, utils, actions, ws_actions, table
-from gwsmhg_pkg import tlview
+import os
+import collections
+
+import gtk
+import gobject
+
+from . import dialogue
+from . import gutils
+from . import cmd_result
+from . import change_set
+from . import icons
+from . import file_tree
+from . import diff
+from . import ws_event
+from . import ifce
+from . import utils
+from . import actions
+from . import ws_actions
+from . import table
+from . import tlview
 
 class PathTableView(table.MapManagedTableView):
     class Model(tlview.NamedListStore):

@@ -25,16 +25,16 @@ import gtk
 import pango
 import gobject
 
-from gwsmhg_pkg import cmd_result
-from gwsmhg_pkg import utils
-from gwsmhg_pkg import runext
+from . import cmd_result
+from . import utils
+from . import runext
 
-from gwsmhg_pkg import textview
-from gwsmhg_pkg import gutils
-from gwsmhg_pkg import dialogue
-from gwsmhg_pkg import ifce
-from gwsmhg_pkg import config
-from gwsmhg_pkg import actions
+from . import textview
+from . import gutils
+from . import dialogue
+from . import ifce
+from . import config
+from . import actions
 
 def _edit_files_extern(file_list, ed_assigns):
     def _launch_editor(filelist, edstr=config.DEFAULT_EDITOR):

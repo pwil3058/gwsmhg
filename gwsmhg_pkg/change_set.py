@@ -15,9 +15,20 @@
 
 import collections, gtk, gobject, os
 
-from gwsmhg_pkg import ifce, cmd_result, gutils, utils, icons, file_tree, diff
-from gwsmhg_pkg import text_edit, ws_event, dialogue, table, actions, ws_actions
-from gwsmhg_pkg import tlview
+from . import ifce
+from . import cmd_result
+from . import gutils
+from . import utils
+from . import icons
+from . import file_tree
+from . import diff
+from . import text_edit
+from . import ws_event
+from . import dialogue
+from . import table
+from . import actions
+from . import ws_actions
+from . import tlview
 
 def cs_table_column(model_descr, name):
     return tlview.ColumnSpec(

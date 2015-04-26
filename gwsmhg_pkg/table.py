@@ -20,13 +20,13 @@ them from templates and allow easier access to named contents.
 
 import gtk
 
-from gwsmhg_pkg import gutils
-from gwsmhg_pkg import actions
-from gwsmhg_pkg import ws_actions
-from gwsmhg_pkg import ws_event
-from gwsmhg_pkg import tlview
-from gwsmhg_pkg import icons
-from gwsmhg_pkg import dialogue
+from . import gutils
+from . import actions
+from . import ws_actions
+from . import ws_event
+from . import tlview
+from . import icons
+from . import dialogue
 
 ALWAYS_ON = 'table_always_on'
 MODIFIED = 'table_modified'

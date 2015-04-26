@@ -21,8 +21,8 @@ import re
 import os.path
 import tempfile
 
-from gwsmhg_pkg import utils
-from gwsmhg_pkg import patchlib
+from . import utils
+from . import patchlib
 
 def get_patch_descr_fm_text(text):
     obj = patchlib.Patch.parse_text(text)

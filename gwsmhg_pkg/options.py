@@ -24,9 +24,9 @@ try:
 except ImportError:
     import ConfigParser as configparser
 
-from gwsmhg_pkg import config_data
-from gwsmhg_pkg import cmd_result
-from gwsmhg_pkg import utils
+from . import config_data
+from . import cmd_result
+from . import utils
 
 _GLOBAL_CFG_FILE = os.path.join(config_data.CONFIG_DIR_NAME, "options.cfg")
 GLOBAL_OPTIONS = configparser.SafeConfigParser()
