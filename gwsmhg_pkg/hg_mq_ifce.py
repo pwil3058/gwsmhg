@@ -16,239 +16,21 @@
 import os, os.path, tempfile, pango, re, time, collections
 import hashlib
 
-from gwsmhg_pkg import console
-from gwsmhg_pkg import utils
-from gwsmhg_pkg import cmd_result
-from gwsmhg_pkg import putils
-from gwsmhg_pkg import ws_event
-from gwsmhg_pkg import const
-from gwsmhg_pkg import fsdb
-from gwsmhg_pkg import patchlib
-from gwsmhg_pkg import runext
+from . import console
+from . import utils
+from . import cmd_result
+from . import putils
+from . import ws_event
+from . import const
+from . import fsdb
+from . import fsdb_hg_mq
+from . import patchlib
+from . import runext
 
 newlines_not_allowed_in_cmd = os.name == 'nt' or os.name == 'dos'
 
 DEFAULT_NAME_EVARS = ["GIT_AUTHOR_NAME", "GECOS"]
 DEFAULT_EMAIL_VARS = ["GIT_AUTHOR_EMAIL", "EMAIL_ADDRESS"]
-
-FSTATUS_MODIFIED = 'M'
-FSTATUS_ADDED = 'A'
-FSTATUS_REMOVED = 'R'
-FSTATUS_CLEAN = 'C'
-FSTATUS_MISSING = '!'
-FSTATUS_NOT_TRACKED = '?'
-FSTATUS_IGNORED = 'I'
-FSTATUS_ORIGIN = ' '
-FSTATUS_UNRESOLVED = 'U'
-
-FSTATUS_MODIFIED_SET = set([FSTATUS_MODIFIED, FSTATUS_ADDED, FSTATUS_REMOVED,
-                           FSTATUS_MISSING, FSTATUS_UNRESOLVED])
-
-class ScmDir(fsdb.GenDir):
-    @staticmethod
-    def map_patchlib_status(status):
-        if status == patchlib.FilePathPlus.ADDED:
-            return FSTATUS_ADDED
-        elif status == patchlib.FilePathPlus.DELETED:
-            return FSTATUS_REMOVED
-        else:
-            return FSTATUS_MODIFIED
-    def __init__(self):
-        fsdb.GenDir.__init__(self)
-    def _new_dir(self):
-        return ScmDir()
-    def _update_own_status(self):
-        if FSTATUS_UNRESOLVED in self.status_set:
-            self.status = FSTATUS_UNRESOLVED
-        elif self.status_set & FSTATUS_MODIFIED_SET:
-            self.status = FSTATUS_MODIFIED
-        elif self.status_set == set([FSTATUS_IGNORED]):
-            self.status = FSTATUS_IGNORED
-        elif self.status_set in [set([FSTATUS_NOT_TRACKED]), set([FSTATUS_NOT_TRACKED, FSTATUS_IGNORED])]:
-            self.status = FSTATUS_NOT_TRACKED
-        elif self.status_set in [set([FSTATUS_CLEAN]), set([FSTATUS_CLEAN, FSTATUS_IGNORED])]:
-            self.status = FSTATUS_CLEAN
-    def _is_hidden_dir(self, dkey):
-        status = self.subdirs[dkey].status
-        if status not in [FSTATUS_UNRESOLVED, FSTATUS_MODIFIED]:
-            return dkey[0] == '.' or status == FSTATUS_IGNORED
-        return False
-    def _is_hidden_file(self, fkey):
-        if fkey[0] == ".":
-            return self.files[fkey].status not in FSTATUS_MODIFIED_SET
-        return self.files[fkey].status == FSTATUS_IGNORED
-
-class ScmFileDb(fsdb.GenSnapshotFileDb):
-    DIR_TYPE = ScmDir
-    def __init__(self, file_list_cmd, unresolved_file_list_cmd):
-        fsdb.GenSnapshotFileDb.__init__(self)
-        self._file_list_cmd = file_list_cmd
-        self._unresolved_file_list_cmd = unresolved_file_list_cmd
-        file_list = self._get_file_list(self.tree_hash)
-        unresolved_file_list = self._get_unresolved_file_list(self.tree_hash)
-        index = 0
-        while index < len(file_list):
-            item = file_list[index]
-            index += 1
-            if isinstance(item, patchlib.FilePathPlus):
-                parts = fsdb.split_path(item.path)
-                status = DIR_TYPE.map_patchlib_status(item.status)
-                self.base_dir.add_file(parts, status, item.expath)
-            else:
-                filename = item[2:]
-                status = item[0]
-                related_file = None
-                if status == FSTATUS_ADDED and index < len(file_list):
-                    if file_list[index][0] == FSTATUS_ORIGIN:
-                        related_file = file_list[index][2:]
-                        index += 1
-                elif filename in unresolved_file_list:
-                    status = FSTATUS_UNRESOLVED
-                parts = fsdb.split_path(filename)
-                self.base_dir.add_file(parts, status, related_file)
-    def _get_file_list(self, h):
-        if not self._file_list_cmd:
-            return []
-        result = runext.run_cmd(self._file_list_cmd)
-        h.update(result.stdout)
-        return result.stdout.splitlines()
-    def _get_unresolved_file_list(self, h):
-        ret = []
-        if self._unresolved_file_list_cmd:
-            result = runext.run_cmd(self._unresolved_file_list_cmd)
-            if result.ecode == 0:
-                for line in result.stdout.splitlines():
-                    if line[0] == FSTATUS_UNRESOLVED:
-                        h.update(line)
-                        ret.append(line)
-        return ret
-    def _get_current_tree_hash(self):
-        h = hashlib.sha1()
-        self._get_file_list(h)
-        self._get_unresolved_file_list(h)
-        return h
-
-class NewScmDir(fsdb.GenSnapshotDir):
-    def __init__(self, dir_path=None):
-        fsdb.GenSnapshotDir.__init__(self, dir_path)
-    def _get_dir_current_status(self):
-        if not os.path.isdir(self._dir_path):
-            return FSTATUS_MISSING
-        elif self._dir_path == ".hg": # make sure that we dont run "hg status" on ".hg"
-            return FSTATUS_IGNORED
-        elif self._contains_unresolved_files:
-            return FSTATUS_UNRESOLVED
-        # don't use -A because we don't care about ignored files
-        status_set = set(line[0] for line in runext.run_cmd(["hg", "status", "-marduc", self._dir_path]).stdout.splitlines())
-        if FSTATUS_MODIFIED_SET & status_set:
-                return FSTATUS_MODIFIED
-        elif FSTATUS_NOT_TRACKED in status_set:
-            return FSTATUS_NOT_TRACKED
-        elif FSTATUS_CLEAN in status_set:
-            return FSTATUS_CLEAN
-        return None
-    @property
-    def _contains_unresolved_files(self):
-        result = runext.run_cmd(["hg", "resolve", "--list"] + [self._dir_path])
-        if result.ecode == 0:
-            for line in result.stdout.splitlines():
-                if line[0] == FSTATUS_UNRESOLVED:
-                    return True
-        return False
-    def _get_file_list_text(self, h, exclude_list):
-        cmd = ["hg", "status", "-AC"] + exclude_list
-        qparent = runext.run_cmd(["hg", "log", "--template", "{rev}", "-rqparent"]).stdout
-        if qparent:
-            cmd += ["--rev", qparent]
-        result = runext.run_cmd(cmd + [self._dir_path])
-        h.update(result.stdout)
-        return result.stdout
-    def _get_unresolved_file_list(self, h, exclude_list):
-        result = runext.run_cmd(["hg", "resolve", "--list"] + exclude_list + [self._dir_path])
-        if result.ecode == 0:
-            h.update(result.stdout)
-            return [line[2:] for line in result.stdout.splitlines() if line[0] == FSTATUS_UNRESOLVED]
-        return []
-    def _get_current_hash(self):
-        h = hashlib.sha1()
-        cur_dirs, _files = self._get_os_current_dirs_and_files()
-        exclude_list = []
-        for cur_dir in cur_dirs:
-            if cur_dir != ".hg":
-                exclude_list.append("-X" + os.path.join(self._dir_path, cur_dir))
-            h.update(cur_dir)
-        self._get_file_list_text(h, exclude_list)
-        self._get_unresolved_file_list(h, exclude_list)
-        return h
-    def _populate(self):
-        h = hashlib.sha1()
-        cur_dirs, _files = self._get_os_current_dirs_and_files()
-        exclude_list = []
-        for cur_dir in cur_dirs:
-            cur_dir_path = os.path.join(self._dir_path, cur_dir)
-            if cur_dir != ".hg":
-                exclude_list.append("-X" + cur_dir_path)
-            self._subdirs[cur_dir] = NewScmDir(cur_dir_path)
-            h.update(cur_dir)
-        file_data_list = self._get_file_list_text(h, exclude_list).splitlines()
-        unresolved_file_list = self._get_unresolved_file_list(h, exclude_list)
-        expected_num_parts = len(fsdb.split_path(self._dir_path))
-        index = 0
-        while index < len(file_data_list):
-            item = file_data_list[index]
-            index += 1
-            filepath = item[2:]
-            status = item[0]
-            related_file = None
-            if status == FSTATUS_ADDED and index < len(file_data_list):
-                if file_data_list[index][0] == FSTATUS_ORIGIN:
-                    related_file = os.path.relpath(file_data_list[index][2:], self._dir_path)
-                    index += 1
-            elif filepath in unresolved_file_list:
-                status = FSTATUS_UNRESOLVED
-            parts = fsdb.split_path(filepath)
-            # handle the case where a directory with tracked files has been deleted
-            if len(parts) > expected_num_parts:
-                self._subdirs[parts[0]] = NewScmDir(os.path.join(self._dir_path, parts[0]))
-            else:
-                name = parts[-1]
-                self._files[name] = fsdb.Data(name=name, status=status, related_file=related_file)
-        self._is_populated = True
-        return h
-    def _is_hidden_file(self, fkey):
-        if fkey[0] == ".":
-            return self._files[fkey].status not in FSTATUS_MODIFIED_SET
-        return self._files[fkey].status == FSTATUS_IGNORED
-
-class NewScmFileDb(fsdb.NewGenSnapshotFileDb):
-    DIR_TYPE = NewScmDir
-
-class PatchFileDb(fsdb.GenFileDb):
-    DIR_TYPE = ScmDir
-    def __init__(self, file_list, unresolved_file_list=list()):
-        fsdb.GenFileDb.__init__(self)
-        index = 0
-        while index < len(file_list):
-            item = file_list[index]
-            index += 1
-            if isinstance(item, patchlib.FilePathPlus):
-                parts = fsdb.split_path(item.path)
-                status = DIR_TYPE.map_patchlib_status(item.status)
-                self.base_dir.add_file(parts, status, item.expath)
-            else:
-                filename = item[2:]
-                status = item[0]
-                related_file = None
-                if status == FSTATUS_ADDED and index < len(file_list):
-                    if file_list[index][0] == FSTATUS_ORIGIN:
-                        related_file = file_list[index][2:]
-                        index += 1
-                elif filename in unresolved_file_list:
-                    status = FSTATUS_UNRESOLVED
-                parts = fsdb.split_path(filename)
-                self.base_dir.add_file(parts, status, related_file)
-
-Deco = collections.namedtuple('Deco', ['style', 'foreground'])
 
 _hg_version_re = re.compile('[^(]*\(version ([0-9][0-9.]*)\).*')
 
@@ -278,19 +60,9 @@ def _changes_exist():
     return result.stdout != ''
 
 class BaseInterface:
+    status_deco_map = fsdb_hg_mq.STATUS_DECO_MAP
     def __init__(self, name):
         self.name = name
-        self.status_deco_map = {
-            None: Deco(pango.STYLE_NORMAL, "black"),
-            FSTATUS_CLEAN: Deco(pango.STYLE_NORMAL, "black"),
-            FSTATUS_MODIFIED: Deco(pango.STYLE_NORMAL, "blue"),
-            FSTATUS_ADDED: Deco(pango.STYLE_NORMAL, "darkgreen"),
-            FSTATUS_REMOVED: Deco(pango.STYLE_NORMAL, "red"),
-            FSTATUS_UNRESOLVED: Deco(pango.STYLE_NORMAL, "magenta"),
-            FSTATUS_MISSING: Deco(pango.STYLE_ITALIC, "pink"),
-            FSTATUS_NOT_TRACKED: Deco(pango.STYLE_ITALIC, "cyan"),
-            FSTATUS_IGNORED: Deco(pango.STYLE_ITALIC, "grey"),
-        }
         self.extra_info_sep = " <- "
         self._name_envars = DEFAULT_NAME_EVARS
         self._email_envars = DEFAULT_EMAIL_VARS
@@ -324,8 +96,6 @@ class BaseInterface:
         if not email:
             email = _('UNKNOWN')
         return "%s <%s>" % (name, email)
-    def get_status_row_data(self):
-        return (self.status_deco_map, self.extra_info_sep)
     def _map_result(self, result, ignore_err_re=None):
         outres, sout, serr = cmd_result.map_cmd_result(result, ignore_err_re)
         if outres != cmd_result.OK:
@@ -501,15 +271,9 @@ class SCMInterface(BaseInterface):
             raise cmd_result.Failure(result)
         return result.stdout.splitlines()
     def get_ws_file_db(self):
-        return NewScmFileDb()
+        return fsdb_hg_mq.WsFileDb()
     def get_commit_file_db(self, fspath_list=None):
-        cmd = 'hg status -mardC'
-        urfl_cmd = 'hg resolve --list'
-        if fspath_list:
-            flstr = utils.file_list_to_string(fspath_list)
-            cmd += ' %s' % flstr
-            urfl_cmd += ' %s' % flstr
-        return ScmFileDb(cmd, urfl_cmd)
+        return fsdb_hg_mq.CommitFileDb(fspath_list)
     def get_commit_diff(self, fspath_list=None):
         cmd = 'hg diff --git'
         if fspath_list:
@@ -540,33 +304,7 @@ class SCMInterface(BaseInterface):
             raise cmd_result.Failure(result)
         return self._process_change_set_summary(result.stdout.splitlines())
     def get_change_set_files_db(self, rev):
-        parents = self.get_parents(rev)
-        template = '{files}\\n{file_adds}\\n{file_dels}\\n'
-        cmd = 'hg log --template "%s" --rev %s' % (template, rev)
-        cs_file_db = PatchFileDb([])
-        result = runext.run_cmd(cmd)
-        if result.ecode:
-            return cs_file_db
-        lines = result.stdout.splitlines()
-        file_names = utils.string_to_file_list(lines[0])
-        added_files = utils.string_to_file_list(lines[1])
-        deleted_files = utils.string_to_file_list(lines[2])
-        for name in file_names:
-            if name in added_files:
-                extra_info = None
-                for parent in parents:
-                    cmd = 'hg status -aC --rev %s --rev %s "%s"' % (parent, rev, name)
-                    result = runext.run_cmd(cmd)
-                    lines = result.stdout.splitlines()
-                    if len(lines) > 1 and lines[1][0] == ' ':
-                        extra_info = lines[1].strip()
-                        break
-                cs_file_db.add_file(name, FSTATUS_ADDED, extra_info)
-            elif name in deleted_files:
-                cs_file_db.add_file(name, FSTATUS_REMOVED, None)
-            else:
-                cs_file_db.add_file(name, FSTATUS_MODIFIED, None)
-        return cs_file_db
+        return fsdb_hg_mq.ChangeSetFileDb(rev)
     def get_parents_data(self, rev=None):
         cmd = 'hg parents --template "%s"' % self.cs_table_template
         if rev is None:
@@ -1139,25 +877,11 @@ class PMInterface(BaseInterface):
         return None
     def get_patch_file_db(self, patch=None):
         if not self.get_enabled():
-            return PatchFileDb([])
-        if patch and not self.get_patch_is_applied(patch):
-            pfn = self.get_patch_file_name(patch)
-            try:
-                return PatchFileDb(putils.get_patch_files_plus(pfn))
-            except:
-                return PatchFileDb([])
-        top = self.get_top_patch()
-        if not top:
-            # either we're not in an mq playground or no patches are applied
-            return PatchFileDb([])
-        cmd = 'hg status -mardC'
-        if patch:
-            parent = self.get_parent(patch)
-            cmd += ' --rev %s --rev %s' % (parent, patch)
+            return fsdb.NullFileDb()
+        elif patch is None:
+            return fsdb_hg_mq.TopPatchFileDb()
         else:
-            parent = self.get_parent(top)
-            cmd += ' --rev %s' % parent
-        return PatchFileDb(runext.run_cmd(cmd).stdout.splitlines())
+            return fsdb_hg_mq.PatchFileDb(patch)
     def get_in_progress(self):
         if not self.get_enabled():
             return False

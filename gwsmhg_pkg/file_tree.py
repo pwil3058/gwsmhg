@@ -19,24 +19,24 @@ import collections
 import os
 import os.path
 
-from gwsmhg_pkg import utils
-from gwsmhg_pkg import cmd_result
-from gwsmhg_pkg import fsdb
+from . import utils
+from . import cmd_result
+from . import fsdb
 
-from gwsmhg_pkg import tlview
-from gwsmhg_pkg import gutils
-from gwsmhg_pkg import ifce
-from gwsmhg_pkg import actions
-from gwsmhg_pkg import ws_actions
-from gwsmhg_pkg import dialogue
-from gwsmhg_pkg import ws_event
-from gwsmhg_pkg import icons
-from gwsmhg_pkg import text_edit
-from gwsmhg_pkg import diff
-from gwsmhg_pkg import tortoise
+from . import tlview
+from . import gutils
+from . import ifce
+from . import actions
+from . import ws_actions
+from . import dialogue
+from . import ws_event
+from . import icons
+from . import text_edit
+from . import diff
+from . import tortoise
 
-from gwsmhg_pkg import patchlib
-from gwsmhg_pkg import hg_mq_ifce
+from . import patchlib
+from . import hg_mq_ifce
 
 def _check_if_force(result):
     return dialogue.ask_force_or_cancel(result) == dialogue.Response.FORCE
@@ -238,7 +238,7 @@ class FileTreeView(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener
         return row
     def __init__(self, show_hidden=False, busy_indicator=None):
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator=busy_indicator)
-        self._file_db = fsdb.OsSnapshotFileDb()
+        self._file_db = fsdb.OsFileDb()
         ws_event.Listener.__init__(self)
         self.show_hidden_action = gtk.ToggleAction('show_hidden_files', _('Show Hidden Files'), _('Show/hide ignored files and those beginning with "."'), None)
         self.show_hidden_action.set_active(show_hidden)
@@ -309,7 +309,7 @@ class FileTreeView(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener
         self._update_dir('', None)
         self.unshow_busy()
     def _get_dir_contents(self, dirpath):
-        return self._file_db.dir_contents(dirpath, self.show_hidden_action.get_active())
+        return self._file_db.dir_contents(dirpath, show_hidden=self.show_hidden_action.get_active())
     def _row_expanded(self, dir_iter):
         return self.row_expanded(self.model.get_path(dir_iter))
     def _populate(self, dirpath, parent_iter):
@@ -425,7 +425,7 @@ class FileTreeView(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener
         return changed
     @staticmethod
     def _get_file_db():
-        return fsdb.OsSnapshotFileDb()
+        return fsdb.OsFileDb()
     def repopulate(self, _arg=None):
         self.show_busy()
         self._file_db = self._get_file_db()
@@ -867,18 +867,15 @@ class ScmCwdFileTreeView(FileTreeView):
         if ifce.in_valid_repo:
             return ifce.SCM.get_ws_file_db()
         else:
-            return fsdb.OsSnapshotFileDb()
+            return fsdb.OsFileDb()
     def _toggle_hide_clean_cb(self, toggleaction):
         self._update_dir('', None)
     def _get_dir_contents(self, dirpath):
         if self._file_db is None:
             return ((), ())
         show_hidden = self.show_hidden_action.get_active()
-        if not show_hidden and self.hide_clean_action.get_active():
-            dirs, files = self._file_db.dir_contents(dirpath, show_hidden)
-            return ([ncd for ncd in dirs if ncd.status != hg_mq_ifce.FSTATUS_CLEAN],
-                    [ncf for ncf in files if ncf.status != hg_mq_ifce.FSTATUS_CLEAN])
-        return self._file_db.dir_contents(dirpath, show_hidden)
+        hide_clean = self.hide_clean_action.get_active()
+        return self._file_db.dir_contents(dirpath, show_hidden=show_hidden, hide_clean=hide_clean)
 
 class ScmCwdFilesWidget(FileTreeWidget):
     MENUBAR = "/files_menubar"
@@ -1069,8 +1066,7 @@ class ScmCommitDialog(dialogue.AmodalDialog):
         self.set_focus_child(self.commit_widget.summary_widget.view)
         tws_display = self.commit_widget.files.tws_display
         self.action_area.pack_end(tws_display, expand=False, fill=False)
-        self.add_buttons(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                                       gtk.STOCK_OK, gtk.RESPONSE_OK)
+        self.add_buttons(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK)
         self.connect('response', self._handle_response_cb)
     def get_mesg_and_files(self):
         return (self.commit_widget.get_msg(), self.commit_widget.file_mask)
@@ -1083,10 +1079,7 @@ class ScmCommitDialog(dialogue.AmodalDialog):
         self.destroy()
     def _handle_response_cb(self, dialog, response_id):
         if response_id == gtk.RESPONSE_OK:
-            if self.commit_widget.do_commit():
-                self._finish_up(clear_save=True)
-            else:
-                dialog.update_files()
+            self._finish_up(clear_save=self.commit_widget.do_commit())
         elif self.commit_widget.summary_widget.bfr.get_modified():
             if self.commit_widget.summary_widget.get_auto_save():
                 self._finish_up()

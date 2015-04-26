@@ -31,10 +31,10 @@ import shutil
 import gtk
 import gobject
 
-from gwsmhg_pkg import cmd_result
-from gwsmhg_pkg import ws_event
-from gwsmhg_pkg import urlops
-from gwsmhg_pkg import fsdb
+from . import cmd_result
+from . import ws_event
+from . import urlops
+from . import fsdb
 
 HOME = os.path.expanduser("~")
 
