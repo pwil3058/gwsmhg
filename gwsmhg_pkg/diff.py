@@ -336,14 +336,19 @@ def launch_reconciliation_tool(file_a, file_b, file_c):
 class DiffDisplay(TextWidget):
     def __init__(self, diffplus):
         self.diffplus = diffplus
+        self._diff_digest = diffplus.get_hash_digest()
         TextWidget.__init__(self)
         self.tws_nav_buttonbox.pack_start(self.tws_display, expand=False)
         self.tws_nav_buttonbox.reorder_child(self.tws_display, 0)
+        self.set_contents()
     def _get_diff_text(self):
         return str(self.diffplus)
     def update(self, diffplus):
-        self.diffplus = diffplus
-        self.set_contents()
+        digest = diffplus.get_hash_digest()
+        if digest != self._diff_digest:
+            self.diffplus = diffplus
+            self._diff_digest = digest
+            self.set_contents()
 
 class DiffNotebook(gtk.Notebook):
     class TWSDisplay(TextWidget.TwsLineCountDisplay):

@@ -20,6 +20,7 @@ import re
 import os
 import email
 import zlib
+import hashlib
 
 from . import gitbase85
 
@@ -958,6 +959,10 @@ class DiffPlus(object):
         elif path_plus.status == FilePathPlus.ADDED and path_plus.expath is None:
             path_plus.expath = self.preambles.get_file_expath(strip_level=strip_level)
         return path_plus
+    def get_hash_digest(self):
+        h = hashlib.sha1()
+        h.update(str(self))
+        return h.digest()
 
 class Patch(object):
     '''Class to hold patch information relavent to multiple files with
@@ -1116,3 +1121,7 @@ class Patch(object):
                 path = diff_plus.get_file_path(strip_level=strip_level)
                 reports.append(_FILE_AND_TWS_LINES(path, bad_lines))
         return reports
+    def get_hash_digest(self):
+        h = hashlib.sha1()
+        h.update(str(self))
+        return h.digest()
