@@ -186,7 +186,7 @@ class WSPathTable(AliasPathTable):
 
 class PathSelectDialog(dialogue.Dialog):
     def __init__(self, create_table, label, parent=None):
-        dialogue.Dialog.__init__(self, title=_('gwsmg: Select %s') % label, parent=parent,
+        dialogue.Dialog.__init__(self, title=_("{0}: Select {1}").format(config_data.CMD_NAME, label), parent=parent,
                                  flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                                  buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
                                           gtk.STOCK_OK, gtk.RESPONSE_OK)
@@ -215,7 +215,7 @@ class PathSelectDialog(dialogue.Dialog):
     def _path_cb(self, entry=None):
         self.response(gtk.RESPONSE_OK)
     def _browse_cb(self, button=None):
-        dirname = dialogue.ask_dir_name(_('gwsmhg: Browse for Directory'), existing=True, parent=self)
+        dirname = dialogue.ask_dir_name(_("{0}: Browse for Directory").format(config_data.CMD_NAME), existing=True, parent=self)
         if dirname:
             self._path.set_text(utils.path_rel_home(dirname))
     def get_path(self):
@@ -292,7 +292,7 @@ class RepoSelectDialog(PathSelectDialog):
             target = self._get_default_target()
         return target
     def _browse_cb(self, button=None):
-        repo_uri = dialogue.ask_uri_name(_('gwsmhg: Browse for Repository'), parent=self)
+        repo_uri = dialogue.ask_uri_name(_("{0}: Browse for Repository").format(config_data.CMD_NAME), parent=self)
         if repo_uri:
             parsed = urlops.parse_url(repo_uri)
             if parsed.scheme and parsed.scheme != 'file':
@@ -437,29 +437,25 @@ class EditorAllocationTable(table.Table):
         self.set_contents()
 
 class EditorAllocationDialog(dialogue.Dialog):
-    def __init__(self, edeff=EDITOR_GLOB_FILE_NAME, parent=None):
-        dialogue.Dialog.__init__(self, title=_('gwsmg: Editor Allocation'), parent=parent,
+    EDEFF = EDITOR_GLOB_FILE_NAME
+    TITLE = _("{0}: Editor Allocation".format(config_data.CMD_NAME))
+    def __init__(self, parent=None):
+        dialogue.Dialog.__init__(self, title=self.TITLE, parent=parent,
                                  flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                                  buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE,
                                           gtk.STOCK_OK, gtk.RESPONSE_OK)
                                 )
-        self._table = EditorAllocationTable(edeff=edeff)
+        self._table = EditorAllocationTable(edeff=self.EDEFF)
         self._buttons = gutils.ActionHButtonBox(list(self._table.action_groups.values()))
         self.vbox.pack_start(self._table)
         self.vbox.pack_start(self._buttons, expand=False)
-        self.connect("response", self._handle_response_cb)
+        self.connect('response', self._handle_response_cb)
         self.show_all()
         self._table.view.get_selection().unselect_all()
     def _handle_response_cb(self, dialog, response_id):
         if response_id == gtk.RESPONSE_OK:
             self._table.apply_changes()
         self.destroy()
-
-def change_repository_cb(_widget, repo):
-    dialogue.show_busy()
-    result = ifce.chdir(repo)
-    dialogue.unshow_busy()
-    dialogue.report_any_problems(result)
 
 def auto_update_cb(_arg=None):
     if dialogue.is_busy():
@@ -477,6 +473,12 @@ AUTO_UPDATE = gutils.RefreshController(
 )
 
 actions.CLASS_INDEP_AGS[actions.AC_DONT_CARE].add_action(AUTO_UPDATE.toggle_action)
+
+def change_repository_cb(_widget, repo):
+    dialogue.show_busy()
+    result = ifce.chdir(repo)
+    dialogue.unshow_busy()
+    dialogue.report_any_problems(result)
 
 class WorkspacesMenu(gtk.MenuItem):
     def __init__(self, label=_("Workspaces")):

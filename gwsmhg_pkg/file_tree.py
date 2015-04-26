@@ -187,7 +187,7 @@ class Tree(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialog
     def _get_status_deco(cls, status=None):
         try:
             return ifce.SCM.status_deco_map[status]
-        except:
+        except KeyError:
             return ifce.SCM.status_deco_map[None]
     @classmethod
     def _generate_row_tuple(cls, data, isdir):
@@ -997,6 +997,8 @@ class ScmCommitWidget(gtk.VPaned, ws_event.Listener):
             </ui>
             '''
         def __init__(self, save_file_name=None, auto_save=True):
+            if save_file_name is None:
+                save_file_name = ifce.SCM.get_default_commit_save_file()
             text_edit.MessageWidget.__init__(self, save_file_name=save_file_name, auto_save=auto_save)
             menubar = self.ui_manager.get_widget("/change_summary_menubar")
             self.top_hbox.pack_start(menubar, fill=True, expand=False)
