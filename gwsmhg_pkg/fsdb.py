@@ -142,27 +142,105 @@ class GenSnapshotFileDb(GenFileDb):
         self.tree_hash = hashlib.sha1()
     def _get_current_tree_hash(self):
         assert False, _("_get_current_tree_hash() must be defined in child")
+    @property
     def is_current(self):
         h = self._get_current_tree_hash()
         return h.digest() == self.tree_hash.digest()
 
-class OsSnapshotFileDb(GenSnapshotFileDb):
-    DIR_TYPE = GenDir
-    def __init__(self, default_status=None):
-        GenSnapshotFileDb.__init__(self)
-        for root, dirs, files in os.walk('.'):
-            self.tree_hash.update(root)
-            rparts = split_path(root)[1:] # get rid of the leading './'
-            dir_data = self.base_dir._find_dir(rparts)
-            for d in dirs:
-                dir_data.subdirs[d] = self.DIR_TYPE()
-            for f in files:
-                self.tree_hash.update(f)
-                dir_data.files[f] = Data(f, default_status, None)
-    def _get_current_tree_hash(self):
+class OsSnapshotDir(object):
+    def __init__(self, dir_path=None):
+        self._dir_path = dir_path if dir_path is not None else os.curdir
+        self._is_populated = False
+        self._status = None
+        self._subdirs = {}
+        self._files = {}
+        self.dir_hash = hashlib.sha1()
+    def _get_os_current_dirs_and_files(self):
+        # return a tuple containing the directory and filenames sorted alphabetically
+        files = []
+        dirs = []
+        try:
+            items = os.listdir(self._dir_path)
+        except OSError:
+            return ([], [])
+        for item in items:
+            if os.path.isdir(os.path.join(self._dir_path, item)):
+                dirs.append(item)
+            else:
+                files.append(item)
+        dirs.sort()
+        files.sort()
+        return (dirs, files)
+    def _get_current_hash(self):
         h = hashlib.sha1()
-        for root, dirs, files in os.walk('.'):
-            h.update(root)
-            for f in files:
-                h.update(f)
+        cur_dirs, cur_files = self._get_os_current_dirs_and_files()
+        for cur_dir in cur_dirs:
+            h.update(cur_dir)
+        for cur_file in cur_files:
+            h.update(cur_file)
         return h
+    def _populate(self):
+        h = hashlib.sha1()
+        cur_dirs, cur_files = self._get_os_current_dirs_and_files()
+        for cur_dir in cur_dirs:
+            self._subdirs[cur_dir] = OsSnapshotDir(os.path.join(self._dir_path, cur_dir))
+            h.update(cur_dir)
+        for cur_file in cur_files:
+            self._files[cur_file] = Data(name=cur_file, status=None, related_file=None)
+            h.update(cur_file)
+        self._is_populated = True
+        return h
+    @property
+    def is_current(self):
+        if not os.path.isdir(self._dir_path):
+            return False
+        elif not self._is_populated:
+            return True
+        elif self._get_current_hash().digest() != self.dir_hash.digest():
+            return False
+        for subdir in self._subdirs.values():
+            if not subdir.is_current:
+                return False
+        return True
+    def _find_dir(self, dirpath_parts):
+        if not dirpath_parts:
+            return self
+        elif dirpath_parts[0] in self._subdirs:
+            return self._subdirs[dirpath_parts[0]]._find_dir(dirpath_parts[1:])
+        else:
+            return None
+    def find_dir(self, dirpath):
+        if not dirpath:
+            return self
+        return self._find_dir(split_path(dirpath))
+    def _is_hidden_dir(self, dkey):
+        return dkey[0] == '.'
+    def _is_hidden_file(self, fdata):
+        return fdata.name[0] == '.'
+    def dirs_and_files(self, show_hidden=False):
+        if not self._is_populated:
+            self.dir_hash = self._populate()
+        dkeys = list(self._subdirs.keys())
+        dkeys.sort()
+        dirs = []
+        for dkey in dkeys:
+            if not show_hidden and self._is_hidden_dir(dkey):
+                continue
+            dirs.append(Data(name=dkey, status=self._subdirs[dkey]._status, related_file=None))
+        files = []
+        fkeys = list(self._files.keys())
+        fkeys.sort()
+        for fkey in fkeys:
+            fdata = self._files[fkey]
+            if not show_hidden and self._is_hidden_file(fdata):
+                continue
+            files.append(fdata)
+        return (dirs, files)
+
+class OsSnapshotFileDb(GenFileDb):
+    DIR_TYPE = OsSnapshotDir
+    def __init__(self):
+        GenFileDb.__init__(self)
+    @property
+    def is_current(self):
+        return self.base_dir.is_current

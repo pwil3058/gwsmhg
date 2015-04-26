@@ -582,7 +582,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         self.init_action_states()
         self.repopulate()
     def auto_update(self, _arg=None):
-        if not self._file_db.is_current():
+        if not self._file_db.is_current:
             ws_event.notify_events(ws_event.FILE_CHANGES)
     def populate_action_groups(self):
         CwdFileTreeView.populate_action_groups(self)
@@ -900,7 +900,7 @@ class ScmCommitFileTreeView(Tree):
             self.action_groups.get_action("scm_extdiff_files_all").set_visible(False)
         self.add_notification_cb(ws_event.AUTO_UPDATE, self.auto_update)
     def auto_update(self, _arg=None):
-        if not self._file_db.is_current():
+        if not self._file_db.is_current:
             self.update()
     def populate_action_groups(self):
         Tree.populate_action_groups(self)
