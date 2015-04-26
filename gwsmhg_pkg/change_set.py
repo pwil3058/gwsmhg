@@ -855,7 +855,7 @@ class FileTreeView(file_tree.Tree):
         parent = dialogue.main_window
         self.show_busy()
         dialog = diff.ScmDiffTextDialog(parent=parent,
-                                     file_list=self.get_selected_files(),
+                                     file_list=self.get_selected_filepaths(),
                                      torev=self._rev)
         self.unshow_busy()
         dialog.show()
@@ -866,7 +866,7 @@ class FileTreeView(file_tree.Tree):
         self.unshow_busy()
         dialog.show()
     def _extdiff_selected_files_acb(self, _action=None):
-        ifce.SCM.launch_extdiff_for_changeset(self._rev, self.get_selected_files())
+        ifce.SCM.launch_extdiff_for_changeset(self._rev, self.get_selected_filepaths())
     def _extdiff_all_files_acb(self, _action=None):
         ifce.SCM.launch_extdiff_for_changeset(self._rev)
     def _get_file_db(self):

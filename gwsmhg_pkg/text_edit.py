@@ -131,6 +131,8 @@ class MessageWidget(textview.Widget, actions.CAGandUIManager):
         return True
     def save_text_to_file(self, file_name=None):
         if not file_name:
+            if not self._save_file_name:
+                return
             file_name = self._save_file_name
         try:
             open(file_name, 'w').write(self.get_contents())
@@ -151,8 +153,9 @@ class MessageWidget(textview.Widget, actions.CAGandUIManager):
         if not already_checked and not self._ok_to_overwrite_summary():
             return
         if not file_name:
+            if not self._save_file_name:
+                return
             file_name = self._save_file_name
-        # TODO: fix this for the case there is no saved_file_name
         try:
             self.set_contents(open(file_name, 'rb').read())
             self._save_file_name = file_name
@@ -192,11 +195,12 @@ class MessageWidget(textview.Widget, actions.CAGandUIManager):
         if self.get_auto_save():
             gobject.timeout_add(self._save_interval, self.do_auto_save)
     def finish_up(self, clear_save=False):
-        if self.get_auto_save():
-            self.set_auto_save(False)
+        do_save = self.get_auto_save() and self._save_file_name
+        self.set_auto_save(False)
+        if do_save:
+            if clear_save:
+                self.set_contents("")
             self.save_text_to_file()
-        if clear_save and self._save_file_name:
-            self.save_text_to_file("")
 
 class DbMessageWidget(MessageWidget):
     UI_DESCR = ''

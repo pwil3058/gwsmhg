@@ -75,7 +75,10 @@ class ConsoleLog(textview.Widget):
         self._append_tagged_text(msg, self.stderr_tag)
         while gtk.events_pending():
             gtk.main_iteration(False)
-    def end_cmd(self):
+    def end_cmd(self, result=None):
+        if result:
+            self.append_stdout(result.stdout)
+            self.append_stderr(result.stderr)
         self._append_tagged_text("% ", self.bold_tag)
         while gtk.events_pending():
             gtk.main_iteration(False)

@@ -26,6 +26,7 @@ import time
 import zlib
 import gzip
 import bz2
+import shutil
 
 import gtk
 import gobject
@@ -250,3 +251,104 @@ def make_utf8_compliant(text):
         except UnicodeError:
             continue
     raise UnicodeError
+
+def os_move_or_copy_file(self, file_path, dest, opsym, force=False, dry_run=False, extra_checks=None, verbose=False):
+    assert opsym in (fsdb.Relation.RENAMED_TO, fsdb.Relation.COPIED_TO), _("Invalid operation requested")
+    if os.path.isdir(dest):
+        dest = os.path.join(dest, os.path.basename(file_path))
+    omsg = "{0} {1} {2}.".format(file_path, opsym, dest) if verbose else ""
+    if dry_run:
+        if os.path.exists(dest):
+            return cmd_result.Result(cmd_result.ERROR_SUGGEST_FORCE, omsg, _('File "{0}" already exists. Select "force" to overwrite.').format(dest))
+        else:
+            return cmd_result.Result(cmd_result.OK, omsg, "")
+    from gquilt_pkg import console
+    console.LOG.start_cmd("{0} {1} {2}\n".format(file_path, opsym, dest))
+    if not force and os.path.exists(dest):
+        emsg = _('File "{0}" already exists. Select "force" to overwrite.').format(dest)
+        result = cmd_result.Result(cmd_result.ERROR_SUGGEST_FORCE, omsg, emsg)
+        console.LOG.end_cmd(result)
+        return result
+    if extra_checks:
+        result = extra_check([(file_path, dest)])
+        if result.ecode is not cmd_result.OK:
+            console.LOG.end_cmd(result)
+            return result
+    try:
+        if opsym is fsdb.MOVED_TO:
+            os.rename(file_path, dest)
+        elif opsym is fsdb.COPIED_TO:
+            shutil.copy(file_path, dest)
+        result = cmd_result.Result(cmd_result.OK, omsg, "")
+    except (IOError, os.error, shutil.Error) as why:
+        result = cmd_result.Result(cmd_result.ERROR, omsg, _('"{0}" {1} "{2}" failed. {3}.\n') % (file_path, opsym, dest, str(why)))
+    console.LOG.end_cmd(result)
+    ws_event.notify_events(ws_event.FILE_ADD|ws_event.FILE_DEL)
+    return result
+
+def os_move_or_copy_files(self, file_path_list, dest, opsym, force=False, dry_run=False, extra_checks=None, verbose=False):
+    assert opsym in (fsdb.MOVED_TO, fsdb.COPIED_TO), _("Invalid operation requested")
+    if len(file_path_list) == 1:
+        return _os_move_or_copy_file(file_path_list[0], dest, force=force, dry_run=dry_run, extra_checks=extra_checks)
+    from gquilt_pkg import console
+    if not dry_run:
+        console.LOG.start_cmd("{0} {1} {2}\n".format(file_list_to_string(file_path_list), opsym, dest))
+    if not os.path.isdir(dest):
+        result = cmd_result.Result(cmd_result.ERROR, '', _('"{0}": Destination must be a directory for multifile rename.').format(dest))
+        if not dry_run:
+            console.LOG.end_cmd(result)
+        return result
+    opn_paths_list = [(file_path, os.path.join(dest, os.path.basename(file_path))) for file_path in file_path_list]
+    omsg = "\n".join(["{0} {1} {2}.".format(src, opsym, dest) for (src, dest) in opn_paths_list]) if verbose else ""
+    if dry_run:
+        overwrites = [dest for (src, dest) in opn_paths_list if os.path.exists(dest)]
+        if len(overwrites) > 0:
+            emsg = _("File(s) {0} already exist(s). Select \"force\" to overwrite.").format(", ".join(["\"" + fp + "\"" for fp in overwrites]))
+            return cmd_result.Result(cmd_result.ERROR_SUGGEST_FORCE, omsg, emsg)
+        else:
+            return cmd_result.Result(cmd_result.OK, omsg, "")
+    if not force:
+        overwrites = [dest for (src, dest) in opn_paths_list if os.path.exists(dest)]
+        if len(overwrites) > 0:
+            result = cmd_result.Result(cmd_result.ERROR_SUGGEST_FORCE, omsg, _("File(s) {0} already exist(s). Select \"force\" to overwrite.").format(", ".join(["\"" + fp + "\"" for fp in overwrites])))
+            console.LOG.end_cmd(result)
+            return result
+    if extra_checks:
+        result = extra_check(opn_paths_list)
+        if result.ecode is not cmd_result.OK:
+            console.LOG.end_cmd(result)
+            return result
+    failed_opns_str = ""
+    for (src, dest) in opn_paths_list:
+        if verbose:
+            console.LOG.append_stdout("{0} {1} {2}.".format(src, opsym, dest))
+        try:
+            if opsym is fsdb.MOVED_TO:
+                os.rename(src, dest)
+            elif opsym is fsdb.COPIED_TO:
+                if os.path.isdir(src):
+                    shutil.copytree(src, dest)
+                else:
+                    shutil.copy2(src, dest)
+        except (IOError, os.error, shutil.Error) as why:
+            serr = _('"{0}" {1} "{2}" failed. {3}.\n').format(src, opsym, dest, str(why))
+            console.LOG.append_stderr(serr)
+            failed_opns_str += serr
+            continue
+    console.LOG.end_cmd()
+    ws_event.notify_events(ws_event.FILE_ADD|ws_event.FILE_DEL)
+    if failed_opns_str:
+        return cmd_result.Result(cmd_result.ERROR, omsg, failed_opns_str)
+    return cmd_result.Result(cmd_result.OK, omsg, "")
+
+def os_copy_file(file_path, dest, force=False, dry_run=False):
+    return os_move_or_copy_file(file_path, dest, opsym=fsdb.COPIED_TO, force=force, dry_run=dry_run)
+
+def os_copy_files(file_path_list, dest, force=False, dry_run=False):
+    return os_move_or_copy_files(file_path_list, dest, opsym=fsdb.COPIED_TO, force=force, dry_run=dry_run)
+
+def os_move_file(file_path, dest, force=False, dry_run=False):
+    return os_move_or_copy_file(file_path, dest, opsym=fsdb.MOVED_TO, force=force, dry_run=dry_run)
+
+def os_move_files(file_path_list, dest, force=False, dry_run=False):
+    return os_move_or_copy_files(file_path_list, dest, opsym=fsdb.MOVED_TO, force=force, dry_run=dry_run)

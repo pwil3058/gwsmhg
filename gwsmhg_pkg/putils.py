@@ -19,7 +19,6 @@
 
 import re
 import os.path
-import shutil
 import tempfile
 
 from gwsmhg_pkg import utils

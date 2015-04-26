@@ -73,7 +73,7 @@ class ScmDir(fsdb.GenDir):
         if status not in [FSTATUS_UNRESOLVED, FSTATUS_MODIFIED]:
             return dkey[0] == '.' or status == FSTATUS_IGNORED
         return False
-    def _is_hidden_file(self, fdata):
+    def _is_hidden_file(self, fkey):
         if fkey[0] == ".":
             return self.files[fkey].status not in FSTATUS_MODIFIED_SET
         return self.files[fkey].status == FSTATUS_IGNORED
@@ -107,17 +107,20 @@ class ScmFileDb(fsdb.GenSnapshotFileDb):
                 parts = fsdb.split_path(filename)
                 self.base_dir.add_file(parts, status, related_file)
     def _get_file_list(self, h):
+        if not self._file_list_cmd:
+            return []
         result = runext.run_cmd(self._file_list_cmd)
         h.update(result.stdout)
         return result.stdout.splitlines()
     def _get_unresolved_file_list(self, h):
         ret = []
-        result = runext.run_cmd(self._unresolved_file_list_cmd)
-        if result.ecode == 0:
-            for line in result.stdout.splitlines():
-                if line[0] == FSTATUS_UNRESOLVED:
-                    h.update(line)
-                    ret.append(line)
+        if self._unresolved_file_list_cmd:
+            result = runext.run_cmd(self._unresolved_file_list_cmd)
+            if result.ecode == 0:
+                for line in result.stdout.splitlines():
+                    if line[0] == FSTATUS_UNRESOLVED:
+                        h.update(line)
+                        ret.append(line)
         return ret
     def _get_current_tree_hash(self):
         h = hashlib.sha1()
@@ -328,7 +331,7 @@ class BaseInterface:
         if outres != cmd_result.OK:
             for force_suggested in ["use -f to force", "not overwriting - file exists"]:
                 if serr.find(force_suggested) != -1 or sout.find(force_suggested) != -1:
-                    outres += cmd_result.SUGGEST_FORCE
+                    outres |= cmd_result.SUGGEST_FORCE
         return cmd_result.Result(outres, sout, serr)
     def _file_list_to_I_string(self, file_list):
         mod_file_list = []
@@ -367,7 +370,7 @@ class BaseInterface:
         else:
             result = self._run_cmd_on_console(cmd)
             ws_event.notify_events(ws_event.FILE_ADD)
-            return result
+            return self._map_result(result)
     def do_move_files(self, file_list, target, force=False, dry_run=False):
         cmd = 'hg rename'
         if dry_run:
@@ -380,7 +383,7 @@ class BaseInterface:
         else:
             result = self._run_cmd_on_console(cmd)
             ws_event.notify_events(ws_event.FILE_DEL|ws_event.FILE_ADD)
-            return result
+            return self._map_result(result)
     def do_revert_files(self, file_list=None, dry_run=False):
         cmd = 'hg revert'
         if dry_run:
@@ -712,7 +715,8 @@ class SCMInterface(BaseInterface):
             return []
         cmd = 'hg heads --template "%s"' % self.cs_table_template
         result = runext.run_cmd(cmd)
-        if result.ecode != 0:
+        # WORKAROUND: "hg heads" returns 1 with no error message or other output if repository is empty
+        if result.ecode != 0 and not (result.ecode == 1 and not result.stderr and not result.stdout):
             raise cmd_result.Failure(result)
         plist = []
         for line in result.stdout.splitlines():
