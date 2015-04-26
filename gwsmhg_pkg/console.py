@@ -28,6 +28,13 @@ from gwsmhg_pkg import terminal
 class ConsoleLog(textview.Widget):
     def __init__(self, width_in_chars=81, fdesc=None):
         textview.Widget.__init__(self, width_in_chars=width_in_chars, fdesc=fdesc)
+        self.action_group = gtk.ActionGroup("console_log")
+        self.action_group.add_actions(
+            [
+                ("console_log_clear", gtk.STOCK_CLEAR, _('_Clear'), None,
+                 _('Clear the console log'), self.clear),
+            ])
+        self.view.connect("populate-popup", self._populate_popup_cb)
         self.view.set_editable(False)
         self.bold_tag = self.bfr.create_tag("BOLD", weight=pango.WEIGHT_BOLD, foreground="black", family="monospace")
         self.cmd_tag = self.bfr.create_tag("CMD", foreground="black", family="monospace")
@@ -39,12 +46,14 @@ class ConsoleLog(textview.Widget):
         self.bfr.begin_not_undoable_action()
         self.bfr.set_text("")
         self._append_tagged_text("% ", self.bold_tag)
+    def _populate_popup_cb(self, tview, menu):
+        menu.prepend(self.action_group.get_action("console_log_clear").create_menu_item())
     def _append_tagged_text(self, text, tag):
         model_iter = self.bfr.get_end_iter()
         assert model_iter is not None, "ConsoleLogBuffer"
         self.bfr.insert_with_tags(model_iter, text, tag)
         self.view and self.view.scroll_to_mark(self._eobuf, 0.001)
-    def clear(self):
+    def clear(self, _action=None):
         self.bfr.end_not_undoable_action()
         self.bfr.set_text("")
         self._append_tagged_text("% ", self.bold_tag)
@@ -78,39 +87,17 @@ class ConsoleLog(textview.Widget):
             gtk.main_iteration(False)
 
 class ConsoleLogWidget(gtk.VBox, dialogue.BusyIndicatorUser):
-    UI_DESCR = \
-        '''
-        <ui>
-          <menubar name="console_log_menubar">
-            <menu name="Console" action="menu_console">
-                <menuitem action="console_log_clear"/>
-            </menu>
-          </menubar>
-        </ui>
-        '''
     def __init__(self, busy_indicator=None):
         gtk.VBox.__init__(self)
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator)
         self._text_widget = ConsoleLog()
-        self._action_group = gtk.ActionGroup("console_log")
-        self.ui_manager = gutils.UIManager()
-        self.ui_manager.insert_action_group(self._action_group, -1)
-        self._action_group.add_actions(
-            [
-                ("console_log_clear", gtk.STOCK_CLEAR, _('_Clear'), None,
-                 _('Clear the console log'), self._clear_acb),
-                ("menu_console", None, _('_Console')),
-            ])
-        self.change_summary_merge_id = self.ui_manager.add_ui_from_string(self.UI_DESCR)
-        self._menubar = self.ui_manager.get_widget("/console_log_menubar")
         hbox = gtk.HBox()
-        hbox.pack_start(self._menubar, expand=False)
         cmd_entry = gutils.EntryWithHistory()
         if not terminal.AVAILABLE:
             hbox.pack_start(gtk.Label(_('Run: ')), expand=False)
             cmd_entry.connect("activate", self._cmd_entry_cb)
         else:
-            hbox.pack_start(gtk.Label(_(': hg ')), expand=False)
+            hbox.pack_start(gtk.Label(_('Run: hg ')), expand=False)
             cmd_entry.connect("activate", self._hg_cmd_entry_cb)
         hbox.pack_start(cmd_entry, expand=True, fill=True)
         self.pack_start(hbox, expand=False)
