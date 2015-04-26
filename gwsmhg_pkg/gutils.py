@@ -14,6 +14,7 @@
 ### Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import collections
+
 import gtk
 import gobject
 
@@ -294,6 +295,10 @@ class LabelledEntry(gtk.HBox):
         self.entry = EntryWithHistory(max_chars)
         self.pack_start(self.entry, expand=True, fill=True)
         self.entry.set_text(text)
+    def get_text_and_clear_to_history(self):
+        return self.entry.get_text_and_clear_to_history()
+    def set_label(self, text):
+        self.label.set_text(text)
 
 class LabelledText(gtk.HBox):
     def __init__(self, label="", text="", min_chars=0):

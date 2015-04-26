@@ -25,12 +25,16 @@ from gwsmhg_pkg import actions
 from gwsmhg_pkg import ws_event
 from gwsmhg_pkg import ifce
 
-AC_NOT_IN_PGND, AC_IN_PGND, AC_IN_PGND_MUTABLE, AC_IN_PGND_MASK = actions.ActionCondns.new_flags_and_mask(3)
+AC_NOT_IN_PGND, AC_IN_PGND, AC_IN_PGND_MASK = actions.ActionCondns.new_flags_and_mask(2)
 AC_NOT_IN_REPO, AC_IN_REPO, AC_IN_REPO_MASK = actions.ActionCondns.new_flags_and_mask(2)
 AC_NOT_PMIC, AC_PMIC, AC_PMIC_MASK = actions.ActionCondns.new_flags_and_mask(2)
 
+def get_in_pgnd_condns():
+    return actions.MaskedCondns(AC_IN_PGND if ifce.in_valid_repo and ifce.PM.get_enabled() else AC_NOT_IN_PGND, AC_IN_PGND_MASK)
+
 def get_in_repo_condns():
     return actions.MaskedCondns(AC_IN_REPO if ifce.in_valid_repo else AC_NOT_IN_REPO, AC_IN_REPO_MASK)
+
 def get_pmic_condns():
     return actions.MaskedCondns(AC_PMIC if ifce.PM.get_in_progress() else AC_NOT_PMIC, AC_PMIC_MASK)
 

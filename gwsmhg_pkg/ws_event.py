@@ -130,3 +130,5 @@ class Listener(gobject.GObject):
         """Remove all of my callbacks from the notification database"""
         for cb_token in self._listener_cbs:
             del_notification_cb(cb_token)
+        # this callback seems to get called twice, so ...
+        self._listener_cbs = []

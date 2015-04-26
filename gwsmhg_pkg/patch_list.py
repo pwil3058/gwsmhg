@@ -77,73 +77,12 @@ def _patch_status_icon(status):
     else:
         return None
 
-_UI_DESCR = \
-'''
-<ui>
-  <menubar name="patches_menubar">
-    <menu name="patches_menu" action="menu_patches">
-      <menuitem action="pm_pop_all"/>
-      <menuitem action="pm_push_all"/>
-      <menuitem action="pm_import_patch_series"/>
-    </menu>
-    <menu name="patches_ws_menu" action="menu_patches_ws">
-      <menuitem action="save_queue_state_for_update"/>
-      <menuitem action="pm_pull_to_repository"/>
-      <menuitem action="pm_update_workspace"/>
-      <menuitem action="pm_update_workspace_to"/>
-      <menuitem action="pm_push_all_with_merge"/>
-      <menuitem action="pm_clean_up_after_update"/>
-    </menu>
-  </menubar>
-  <toolbar name="patches_toolbar">
-    <toolitem name="Refresh" action="pm_refresh_top_patch"/>
-    <toolitem name="Push" action="pm_push"/>
-    <toolitem name="Pop" action="pm_pop"/>
-    <separator/>
-    <toolitem name="PushMerge" action="pm_push_merge"/>
-    <separator/>
-    <toolitem name="New" action="pm_new"/>
-    <toolitem name="Select Guards" action="pm_select_guards"/>
-    <toolitem name="Import" action="pm_import_external_patch"/>
-  </toolbar>
-  <menubar name="patch_list_menubar">
-    <menu name="patch_list_menu" action="menu_patch_list">
-      <menuitem action="refresh_patch_list"/>
-    </menu>
-  </menubar>
-  <popup name="patches_popup">
-    <placeholder name="applied">
-      <menuitem action="pm_pop_to_patch"/>
-      <menuitem action="pm_finish_to"/>
-    </placeholder>
-    <separator/>
-    <placeholder name="applied_indifferent">
-      <menuitem action="pm_edit_patch_descr"/>
-      <menuitem action="pm_patch_view"/>
-      <menuitem action="pm_view_patch_files"/>
-      <menuitem action="pm_view_patch_diff"/>
-      <menuitem action="pm_rename_patch"/>
-      <menuitem action="pm_set_patch_guards"/>
-    </placeholder>
-    <separator/>
-    <placeholder name="unapplied">
-      <menuitem action="pm_delete_patch"/>
-      <menuitem action="pm_push_to"/>
-      <menuitem action="pm_fold"/>
-      <menuitem action="pm_fold_to"/>
-      <menuitem action="pm_duplicate"/>
-    </placeholder>
-    <placeholder name="unapplied_and_interdiff">
-      <menuitem action="pm_interdiff"/>
-    </placeholder>
-  </popup>
-</ui>
-'''
-
 AC_POP_POSSIBLE = ws_actions.AC_PMIC
+AC_PUSH_POSSIBLE, AC_PUSH_POSSIBLE_MASK = actions.ActionCondns.new_flags_and_mask(1)
+
 AC_APPLIED, AC_UNAPPLIED, AC_APPLIED_CONDNS = actions.ActionCondns.new_flags_and_mask(2)
 AC_INTERDIFF, AC_INTERDIFF_MASK = actions.ActionCondns.new_flags_and_mask(1)
-AC_PUSH_POSSIBLE, AC_PUSH_POSSIBLE_MASK = actions.ActionCondns.new_flags_and_mask(1)
+
 AC_WS_UPDATE_QSAVE_READY, \
 AC_WS_UPDATE_PULL_READY, \
 AC_WS_UPDATE_READY, \
@@ -151,7 +90,6 @@ AC_WS_UPDATE_TO_READY, \
 AC_WS_UPDATE_MERGE_READY, \
 AC_WS_UPDATE_CLEAN_UP_READY, \
 AC_WS_CONDNS = actions.ActionCondns.new_flags_and_mask(6)
-AC_IN_PGND, AC_IN_PGND_MASK = actions.ActionCondns.new_flags_and_mask(1)
 
 def get_applied_condns(seln):
     model, model_iter = seln.get_selected()
@@ -161,13 +99,10 @@ def get_applied_condns(seln):
     return actions.MaskedCondns(cond, AC_APPLIED_CONDNS)
 
 def get_interdiff_condns():
-    return actions.MaskedCondns(AC_INTERDIFF if utils.which("interdiff") is not None else 0, AC_INTERDIFF)
-
-def get_in_pgnd_condns():
-    return actions.MaskedCondns(AC_IN_PGND if ifce.in_valid_repo and ifce.PM.get_enabled() else 0, AC_IN_PGND)
+    return actions.MaskedCondns(AC_INTERDIFF if utils.which("interdiff") is not None else 0, AC_INTERDIFF_MASK)
 
 def get_pushable_condns(unapplied_count):
-    return actions.MaskedCondns(AC_PUSH_POSSIBLE if unapplied_count > 0 else 0, AC_PUSH_POSSIBLE)
+    return actions.MaskedCondns(AC_PUSH_POSSIBLE if unapplied_count > 0 else 0, AC_PUSH_POSSIBLE_MASK)
 
 def get_ws_update_condns(applied_count, unapplied_count):
     condn = actions.AC_DONT_CARE
@@ -193,6 +128,7 @@ _finish_empty_msg_prompt = '\n'.join(
     ])
 
 class ListView(table.TableView):
+    PopUp = "/patches_popup"
     class Model(tlview.NamedListStore):
         Row = collections.namedtuple('Row',    ['name', 'icon', 'markup'])
         types = Row(
@@ -241,12 +177,72 @@ class ListView(table.TableView):
             ),
         ]
     )
-    PopUp = "/patches_popup"
+    UI_DESCR = \
+    '''
+    <ui>
+      <menubar name="patches_menubar">
+        <menu name="patches_menu" action="menu_patches">
+          <menuitem action="pm_pop_all"/>
+          <menuitem action="pm_push_all"/>
+          <menuitem action="pm_import_patch_series"/>
+        </menu>
+        <menu name="patches_ws_menu" action="menu_patches_ws">
+          <menuitem action="save_queue_state_for_update"/>
+          <menuitem action="pm_pull_to_repository"/>
+          <menuitem action="pm_update_workspace"/>
+          <menuitem action="pm_update_workspace_to"/>
+          <menuitem action="pm_push_all_with_merge"/>
+          <menuitem action="pm_clean_up_after_update"/>
+        </menu>
+      </menubar>
+      <toolbar name="patches_toolbar">
+        <toolitem action="pm_refresh_top_patch"/>
+        <toolitem action="pm_push"/>
+        <toolitem action="pm_pop"/>
+        <separator/>
+        <toolitem name="PushMerge" action="pm_push_merge"/>
+        <separator/>
+        <toolitem action="pm_new"/>
+        <toolitem action="pm_select_guards"/>
+        <toolitem action="pm_import_external_patch"/>
+      </toolbar>
+      <menubar name="patch_list_menubar">
+        <menu name="patch_list_menu" action="menu_patch_list">
+          <menuitem action="refresh_patch_list"/>
+        </menu>
+      </menubar>
+      <popup name="patches_popup">
+        <placeholder name="applied">
+          <menuitem action="pm_pop_to_patch"/>
+          <menuitem action="pm_finish_to"/>
+        </placeholder>
+        <separator/>
+        <placeholder name="applied_indifferent">
+          <menuitem action="pm_edit_patch_descr"/>
+          <menuitem action="pm_patch_view"/>
+          <menuitem action="pm_view_patch_files"/>
+          <menuitem action="pm_view_patch_diff"/>
+          <menuitem action="pm_rename_patch"/>
+          <menuitem action="pm_set_patch_guards"/>
+        </placeholder>
+        <separator/>
+        <placeholder name="unapplied">
+          <menuitem action="pm_delete_patch"/>
+          <menuitem action="pm_push_to"/>
+          <menuitem action="pm_fold"/>
+          <menuitem action="pm_fold_to"/>
+          <menuitem action="pm_duplicate"/>
+        </placeholder>
+        <placeholder name="unapplied_and_interdiff">
+          <menuitem action="pm_interdiff"/>
+        </placeholder>
+      </popup>
+    </ui>
+    '''
     def __init__(self, busy_indicator=None, size_req=None):
         self.last_import_dir = None
         self._hash_data = None
-        table.TableView.__init__(self, busy_indicator=None, size_req=size_req)
-        self.ui_manager.add_ui_from_string(_UI_DESCR)
+        table.TableView.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
         # This callback is needed to process applied/unapplied status
         self.get_selection().connect('changed', self._selection_changed_cb)
         self.add_notification_cb(ws_event.CHANGE_WD, self._repopulate_list_cb)
@@ -254,6 +250,7 @@ class ListView(table.TableView):
         self.add_notification_cb(ws_event.AUTO_UPDATE, self._auto_update_list_cb)
         self.repopulate_list()
     def populate_action_groups(self):
+        table.TableView.populate_action_groups(self)
         self.action_groups[AC_APPLIED].add_actions(
             [
                 ("pm_pop_to_patch", icons.STOCK_POP_PATCH, _('QPop To'), None,
@@ -310,7 +307,7 @@ class ListView(table.TableView):
                 ("pm_refresh_top_patch", icons.STOCK_QREFRESH, None, None,
                  _('Refresh the top patch'), self.do_refresh),
             ])
-        self.action_groups[AC_IN_PGND].add_actions(
+        self.action_groups[ws_actions.AC_IN_PGND].add_actions(
             [
                 ("menu_patches", None, _('_Patches')),
                 ("menu_patches_ws", None, _('_Workspace Update')),
@@ -398,7 +395,7 @@ class ListView(table.TableView):
     def repopulate_list(self):
         self.set_contents()
         condns = get_applied_condns(self.get_selection())
-        condns |= get_in_pgnd_condns()
+        condns |= ws_actions.get_in_pgnd_condns()
         condns |= get_interdiff_condns()
         self.action_groups.update_condns(condns)
     def _repopulate_list_cb(self, _arg=None):
@@ -475,16 +472,16 @@ class ListView(table.TableView):
     def do_push_to(self, _action=None):
         patch = self.get_selected_patch()
         while ifce.PM.get_top_patch() != patch:
-            if not self._do_push_to(patch):
+            if not self._do_push_to(patch=patch):
                 break
     def do_push(self, _action=None):
         self._do_push_to()
     def do_push_merge(self, _action=None):
         self._do_push_to(merge=True)
     def do_push_all(self, _action=None):
-        self._do_push_to("", merge=False)
+        self._do_push_to(patch="", merge=False)
     def do_push_all_with_merge(self, _action=None):
-        self._do_push_to("", merge=True)
+        self._do_push_to(patch="", merge=True)
     def do_finish_to(self, _action=None):
         patch = self.get_selected_patch()
         while True:
@@ -843,7 +840,7 @@ class List(table.TableWidget):
     View = ListView
     def __init__(self, scroll_bar=True, busy_indicator=None, size_req=None):
         table.TableWidget.__init__(self, scroll_bar=scroll_bar, busy_indicator=busy_indicator, size_req=size_req)
-        self.header.lhs.pack_start(self.view.ui_manager.get_widget('/patch_list_menubar'), expand=True, fill=True)
+        self.header.lhs.pack_start(self.ui_manager.get_widget('/patch_list_menubar'), expand=True, fill=True)
 
 def do_export_named_patch(parent, patchname, suggestion=None, busy_indicator=None):
     if not suggestion:
