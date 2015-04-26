@@ -147,11 +147,11 @@ class GenSnapshotFileDb(GenFileDb):
         h = self._get_current_tree_hash()
         return h.digest() == self.tree_hash.digest()
 
-class OsSnapshotDir(object):
+class GenSnapshotDir(object):
     def __init__(self, dir_path=None):
         self._dir_path = dir_path if dir_path is not None else os.curdir
         self._is_populated = False
-        self._status = None
+        self._status = self._get_dir_current_status()
         self._subdirs = {}
         self._files = {}
         self.dir_hash = hashlib.sha1()
@@ -173,26 +173,17 @@ class OsSnapshotDir(object):
         return (dirs, files)
     def _get_current_hash(self):
         h = hashlib.sha1()
-        cur_dirs, cur_files = self._get_os_current_dirs_and_files()
-        for cur_dir in cur_dirs:
-            h.update(cur_dir)
-        for cur_file in cur_files:
-            h.update(cur_file)
+        assert False, "needs to be defined in children"
         return h
     def _populate(self):
         h = hashlib.sha1()
-        cur_dirs, cur_files = self._get_os_current_dirs_and_files()
-        for cur_dir in cur_dirs:
-            self._subdirs[cur_dir] = OsSnapshotDir(os.path.join(self._dir_path, cur_dir))
-            h.update(cur_dir)
-        for cur_file in cur_files:
-            self._files[cur_file] = Data(name=cur_file, status=None, related_file=None)
-            h.update(cur_file)
-        self._is_populated = True
+        assert False, "needs to be defined in children"
         return h
     @property
     def is_current(self):
-        if not os.path.isdir(self._dir_path):
+        if self._get_dir_current_status() != self._status:
+            return False
+        elif not os.path.isdir(self._dir_path):
             return False
         elif not self._is_populated:
             return True
@@ -216,7 +207,7 @@ class OsSnapshotDir(object):
     def _is_hidden_dir(self, dkey):
         return dkey[0] == '.'
     def _is_hidden_file(self, fdata):
-        return fdata.name[0] == '.'
+        assert False, "needs to be defined in children"
     def dirs_and_files(self, show_hidden=False):
         if not self._is_populated:
             self.dir_hash = self._populate()
@@ -237,10 +228,40 @@ class OsSnapshotDir(object):
             files.append(fdata)
         return (dirs, files)
 
-class OsSnapshotFileDb(GenFileDb):
-    DIR_TYPE = OsSnapshotDir
+class NewGenSnapshotFileDb(GenFileDb):
+    DIR_TYPE = GenSnapshotDir
     def __init__(self):
         GenFileDb.__init__(self)
     @property
     def is_current(self):
         return self.base_dir.is_current
+
+class OsSnapshotDir(GenSnapshotDir):
+    def __init__(self, dir_path=None):
+        GenSnapshotDir.__init__(self, dir_path)
+    def _get_dir_current_status(self):
+        return None if os.path.isdir(self._dir_path) else False
+    def _get_current_hash(self):
+        h = hashlib.sha1()
+        cur_dirs, cur_files = self._get_os_current_dirs_and_files()
+        for cur_dir in cur_dirs:
+            h.update(cur_dir)
+        for cur_file in cur_files:
+            h.update(cur_file)
+        return h
+    def _populate(self):
+        h = hashlib.sha1()
+        cur_dirs, cur_files = self._get_os_current_dirs_and_files()
+        for cur_dir in cur_dirs:
+            self._subdirs[cur_dir] = OsSnapshotDir(os.path.join(self._dir_path, cur_dir))
+            h.update(cur_dir)
+        for cur_file in cur_files:
+            self._files[cur_file] = Data(name=cur_file, status=None, related_file=None)
+            h.update(cur_file)
+        self._is_populated = True
+        return h
+    def _is_hidden_file(self, fdata):
+        return fdata.name[0] == '.'
+
+class OsSnapshotFileDb(NewGenSnapshotFileDb):
+    DIR_TYPE = OsSnapshotDir
