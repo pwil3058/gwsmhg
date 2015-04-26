@@ -31,7 +31,10 @@ import shutil
 import gtk
 import gobject
 
-from gwsmhg_pkg import cmd_result, ws_event, urlops
+from gwsmhg_pkg import cmd_result
+from gwsmhg_pkg import ws_event
+from gwsmhg_pkg import urlops
+from gwsmhg_pkg import fsdb
 
 HOME = os.path.expanduser("~")
 
@@ -252,8 +255,8 @@ def make_utf8_compliant(text):
             continue
     raise UnicodeError
 
-def os_move_or_copy_file(self, file_path, dest, opsym, force=False, dry_run=False, extra_checks=None, verbose=False):
-    assert opsym in (fsdb.Relation.RENAMED_TO, fsdb.Relation.COPIED_TO), _("Invalid operation requested")
+def os_move_or_copy_file(file_path, dest, opsym, force=False, dry_run=False, extra_checks=None, verbose=False):
+    assert opsym in (fsdb.Relation.MOVED_TO, fsdb.Relation.COPIED_TO), _("Invalid operation requested")
     if os.path.isdir(dest):
         dest = os.path.join(dest, os.path.basename(file_path))
     omsg = "{0} {1} {2}.".format(file_path, opsym, dest) if verbose else ""
@@ -275,9 +278,9 @@ def os_move_or_copy_file(self, file_path, dest, opsym, force=False, dry_run=Fals
             console.LOG.end_cmd(result)
             return result
     try:
-        if opsym is fsdb.MOVED_TO:
+        if opsym is fsdb.Relation.MOVED_TO:
             os.rename(file_path, dest)
-        elif opsym is fsdb.COPIED_TO:
+        elif opsym is fsdb.Relation.COPIED_TO:
             shutil.copy(file_path, dest)
         result = cmd_result.Result(cmd_result.OK, omsg, "")
     except (IOError, os.error, shutil.Error) as why:
@@ -286,10 +289,17 @@ def os_move_or_copy_file(self, file_path, dest, opsym, force=False, dry_run=Fals
     ws_event.notify_events(ws_event.FILE_ADD|ws_event.FILE_DEL)
     return result
 
-def os_move_or_copy_files(self, file_path_list, dest, opsym, force=False, dry_run=False, extra_checks=None, verbose=False):
-    assert opsym in (fsdb.MOVED_TO, fsdb.COPIED_TO), _("Invalid operation requested")
+def os_move_or_copy_files(file_path_list, dest, opsym, force=False, dry_run=False, extra_checks=None, verbose=False):
+    assert opsym in (fsdb.Relation.MOVED_TO, fsdb.Relation.COPIED_TO), _("Invalid operation requested")
+    def _overwrite_msg(overwrites):
+        if len(overwrites) == 0:
+            return ""
+        elif len(overwrites) > 1:
+            return _("Files:\n\t{0}\nalready exist. Select \"force\" to overwrite.").format("\n\t".join(["\"" + fp + "\"" for fp in overwrites]))
+        else:
+            return _("File \"{0}\" already exists. Select \"force\" to overwrite.").format(overwrites[0])
     if len(file_path_list) == 1:
-        return _os_move_or_copy_file(file_path_list[0], dest, force=force, dry_run=dry_run, extra_checks=extra_checks)
+        return os_move_or_copy_file(file_path_list[0], dest, opsym, force=force, dry_run=dry_run, extra_checks=extra_checks)
     from gquilt_pkg import console
     if not dry_run:
         console.LOG.start_cmd("{0} {1} {2}\n".format(file_list_to_string(file_path_list), opsym, dest))
@@ -303,14 +313,15 @@ def os_move_or_copy_files(self, file_path_list, dest, opsym, force=False, dry_ru
     if dry_run:
         overwrites = [dest for (src, dest) in opn_paths_list if os.path.exists(dest)]
         if len(overwrites) > 0:
-            emsg = _("File(s) {0} already exist(s). Select \"force\" to overwrite.").format(", ".join(["\"" + fp + "\"" for fp in overwrites]))
+            emsg = _overwrite_msg(overwrites)
             return cmd_result.Result(cmd_result.ERROR_SUGGEST_FORCE, omsg, emsg)
         else:
             return cmd_result.Result(cmd_result.OK, omsg, "")
     if not force:
         overwrites = [dest for (src, dest) in opn_paths_list if os.path.exists(dest)]
         if len(overwrites) > 0:
-            result = cmd_result.Result(cmd_result.ERROR_SUGGEST_FORCE, omsg, _("File(s) {0} already exist(s). Select \"force\" to overwrite.").format(", ".join(["\"" + fp + "\"" for fp in overwrites])))
+            emsg = _overwrite_msg(overwrites)
+            result = cmd_result.Result(cmd_result.ERROR_SUGGEST_FORCE, omsg, emsg)
             console.LOG.end_cmd(result)
             return result
     if extra_checks:
@@ -323,9 +334,9 @@ def os_move_or_copy_files(self, file_path_list, dest, opsym, force=False, dry_ru
         if verbose:
             console.LOG.append_stdout("{0} {1} {2}.".format(src, opsym, dest))
         try:
-            if opsym is fsdb.MOVED_TO:
+            if opsym is fsdb.Relation.MOVED_TO:
                 os.rename(src, dest)
-            elif opsym is fsdb.COPIED_TO:
+            elif opsym is fsdb.Relation.COPIED_TO:
                 if os.path.isdir(src):
                     shutil.copytree(src, dest)
                 else:
@@ -342,13 +353,13 @@ def os_move_or_copy_files(self, file_path_list, dest, opsym, force=False, dry_ru
     return cmd_result.Result(cmd_result.OK, omsg, "")
 
 def os_copy_file(file_path, dest, force=False, dry_run=False):
-    return os_move_or_copy_file(file_path, dest, opsym=fsdb.COPIED_TO, force=force, dry_run=dry_run)
+    return os_move_or_copy_file(file_path, dest, opsym=fsdb.Relation.COPIED_TO, force=force, dry_run=dry_run)
 
 def os_copy_files(file_path_list, dest, force=False, dry_run=False):
-    return os_move_or_copy_files(file_path_list, dest, opsym=fsdb.COPIED_TO, force=force, dry_run=dry_run)
+    return os_move_or_copy_files(file_path_list, dest, opsym=fsdb.Relation.COPIED_TO, force=force, dry_run=dry_run)
 
 def os_move_file(file_path, dest, force=False, dry_run=False):
-    return os_move_or_copy_file(file_path, dest, opsym=fsdb.MOVED_TO, force=force, dry_run=dry_run)
+    return os_move_or_copy_file(file_path, dest, opsym=fsdb.Relation.MOVED_TO, force=force, dry_run=dry_run)
 
 def os_move_files(file_path_list, dest, force=False, dry_run=False):
-    return os_move_or_copy_files(file_path_list, dest, opsym=fsdb.MOVED_TO, force=force, dry_run=dry_run)
+    return os_move_or_copy_files(file_path_list, dest, opsym=fsdb.Relation.MOVED_TO, force=force, dry_run=dry_run)

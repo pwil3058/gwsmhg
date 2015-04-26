@@ -17,9 +17,9 @@ import os
 
 HOME = os.path.expanduser("~")
 
-CMD_NAME = "gwsmhg"
+APP_NAME = "gwsmhg"
 
-CONFIG_DIR_NAME = os.sep.join([HOME, '.gwsmhg.d'])
+CONFIG_DIR_NAME = os.sep.join([HOME, "." + APP_NAME + ".d"])
 
 if not os.path.exists(CONFIG_DIR_NAME):
     os.mkdir(CONFIG_DIR_NAME, 0o775)

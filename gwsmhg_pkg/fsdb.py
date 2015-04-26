@@ -20,8 +20,8 @@ import hashlib
 class Relation(object):
     COPIED_FROM = '<<-'
     COPIED_TO = '->>'
-    RENAMED_FROM = '<-'
-    RENAMED_TO = '->'
+    MOVED_FROM = '<-'
+    MOVED_TO = '->'
 
 RFD = collections.namedtuple('RFD', ['path', 'relation'])
 Data = collections.namedtuple('Data', ['name', 'status', 'related_file'])

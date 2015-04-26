@@ -142,6 +142,7 @@ class MainWindow(gtk.Window, dialogue.BusyIndicator, ws_actions.AGandUIManager):
             vpaned.add2(console.LOG)
         vpaned.connect("notify", self._paned_notify_cb, "vpaned_position")
         hpaned.connect("notify", self._paned_notify_cb, "hpaned_position")
+        self.connect("configure_event", self._configure_event_cb)
         self.add(vbox)
         self.show_all()
         self._update_title()

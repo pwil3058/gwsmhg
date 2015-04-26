@@ -186,7 +186,7 @@ class WSPathTable(AliasPathTable):
 
 class PathSelectDialog(dialogue.Dialog):
     def __init__(self, create_table, label, parent=None):
-        dialogue.Dialog.__init__(self, title=_("{0}: Select {1}").format(config_data.CMD_NAME, label), parent=parent,
+        dialogue.Dialog.__init__(self, title=_("{0}: Select {1}").format(config_data.APP_NAME, label), parent=parent,
                                  flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                                  buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
                                           gtk.STOCK_OK, gtk.RESPONSE_OK)
@@ -215,7 +215,7 @@ class PathSelectDialog(dialogue.Dialog):
     def _path_cb(self, entry=None):
         self.response(gtk.RESPONSE_OK)
     def _browse_cb(self, button=None):
-        dirname = dialogue.ask_dir_name(_("{0}: Browse for Directory").format(config_data.CMD_NAME), existing=True, parent=self)
+        dirname = dialogue.ask_dir_name(_("{0}: Browse for Directory").format(config_data.APP_NAME), existing=True, parent=self)
         if dirname:
             self._path.set_text(utils.path_rel_home(dirname))
     def get_path(self):
@@ -292,7 +292,7 @@ class RepoSelectDialog(PathSelectDialog):
             target = self._get_default_target()
         return target
     def _browse_cb(self, button=None):
-        repo_uri = dialogue.ask_uri_name(_("{0}: Browse for Repository").format(config_data.CMD_NAME), parent=self)
+        repo_uri = dialogue.ask_uri_name(_("{0}: Browse for Repository").format(config_data.APP_NAME), parent=self)
         if repo_uri:
             parsed = urlops.parse_url(repo_uri)
             if parsed.scheme and parsed.scheme != 'file':
@@ -438,7 +438,7 @@ class EditorAllocationTable(table.Table):
 
 class EditorAllocationDialog(dialogue.Dialog):
     EDEFF = EDITOR_GLOB_FILE_NAME
-    TITLE = _("{0}: Editor Allocation".format(config_data.CMD_NAME))
+    TITLE = _("{0}: Editor Allocation".format(config_data.APP_NAME))
     def __init__(self, parent=None):
         dialogue.Dialog.__init__(self, title=self.TITLE, parent=parent,
                                  flags=gtk.DIALOG_DESTROY_WITH_PARENT,

@@ -194,12 +194,12 @@ INCOMING_CS_FILES_UI_DESCR = \
 </ui>
 '''
 
-class IncomingFileTreeView(file_tree.Tree):
+class IncomingFileTreeView(file_tree.FileTreeView):
     AUTO_EXPAND = True
     def __init__(self, rev, path, busy_indicator):
         self._rev = rev
         self._path = path
-        file_tree.Tree.__init__(self, busy_indicator=busy_indicator, show_status=True, show_hidden=True)
+        file_tree.FileTreeView.__init__(self, busy_indicator=busy_indicator, show_hidden=True)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.set_headers_visible(False)
         self.action_groups[ws_actions.AC_IN_REPO + actions.AC_SELN_NONE].add_actions(

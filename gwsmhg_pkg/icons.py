@@ -15,11 +15,13 @@
 
 import gtk, gtk.gdk, os.path, sys, collections
 
+from gwsmhg_pkg import config_data
+
 # find the icons directory
 # first look in the source directory (so that we can run uninstalled)
 _libdir = os.path.join(sys.path[0], 'pixmaps')
 if not os.path.exists(_libdir) or not os.path.isdir(_libdir):
-    _TAILEND = os.path.join('share', 'pixmaps', 'gwsmhg')
+    _TAILEND = os.path.join('share', 'pixmaps', config_data.APP_NAME)
     _prefix = sys.path[0]
     while _prefix:
         _libdir = os.path.join(_prefix, _TAILEND)
@@ -27,7 +29,7 @@ if not os.path.exists(_libdir) or not os.path.isdir(_libdir):
             break
         _prefix = os.path.dirname(_prefix)
 
-APP_ICON = 'gwsmhg'
+APP_ICON = config_data.APP_NAME
 APP_ICON_FILE = os.path.join(os.path.dirname(_libdir), APP_ICON + os.extsep + 'png')
 
 STOCK_APPLIED = 'gwsmhg_stock_applied'

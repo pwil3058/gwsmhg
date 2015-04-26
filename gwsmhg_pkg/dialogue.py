@@ -19,6 +19,7 @@ import gtk
 import os
 
 from gwsmhg_pkg import cmd_result
+from gwsmhg_pkg import config_data
 
 from gwsmhg_pkg import icons
 from gwsmhg_pkg import ws_event
@@ -374,7 +375,7 @@ def report_exception(exc_data, parent=None):
                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                            type=gtk.MESSAGE_ERROR, buttons=gtk.BUTTONS_CLOSE,
                            message_format=_REPORT_REQUEST_MSG)
-    dialog.set_title(_('gwsmhg: Unexpected Exception'))
+    dialog.set_title(_(config_data.APP_NAME + ": Unexpected Exception"))
     dialog.format_secondary_text(msg)
     dialog.run()
     dialog.destroy()

@@ -38,7 +38,10 @@ from gwsmhg_pkg import tortoise
 from gwsmhg_pkg import patchlib
 from gwsmhg_pkg import hg_mq_ifce
 
-class Tree(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialogue.BusyIndicatorUser):
+def _check_if_force(result):
+    return dialogue.ask_force_or_cancel(result) == dialogue.Response.FORCE
+
+class FileTreeView(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialogue.BusyIndicatorUser):
     class Model(tlview.TreeView.Model):
         Row = collections.namedtuple('Row', ['name', 'is_dir', 'style', 'foreground', 'icon', 'status', 'related_file_str'])
         types = Row(
@@ -112,7 +115,7 @@ class Tree(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialog
             path_list = []
             self._get_file_paths(self.get_iter_first(), path_list)
             return path_list
-    # This is not a method but a function within the Tree namespace
+    # This is not a method but a function within the FileTreeView namespace
     def _format_file_name_crcb(_column, cell_renderer, store, tree_iter, _arg=None):
         name = store.get_value_named(tree_iter, "name")
         if name is None:
@@ -120,6 +123,24 @@ class Tree(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialog
             return
         name += store.get_value_named(tree_iter, "related_file_str")
         cell_renderer.set_property("text", name)
+    UI_DESCR = \
+    '''
+    <ui>
+      <menubar name="files_menubar">
+        <menu name="files_menu" action="menu_files">
+          <menuitem action="new_file"/>
+        </menu>
+      </menubar>
+      <popup name="files_popup">
+          <menuitem action="edit_files"/>
+          <menuitem action="delete_files"/>
+        <separator/>
+          <menuitem action="copy_files_selection"/>
+          <menuitem action="move_files_selection"/>
+          <menuitem action="rename_file"/>
+      </popup>
+    </ui>
+    '''
     specification = tlview.ViewSpec(
         properties={"headers-visible" : False},
         selection_mode=gtk.SELECTION_MULTIPLE,
@@ -184,10 +205,10 @@ class Tree(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialog
     @staticmethod
     def _handle_key_press_cb(widget, event):
         if event.state & gtk.gdk.CONTROL_MASK:
-            if event.keyval in [Tree.KEYVAL_c, Tree.KEYVAL_C]:
+            if event.keyval in [FileTreeView.KEYVAL_c, FileTreeView.KEYVAL_C]:
                 widget.add_selected_files_to_clipboard()
                 return True
-        elif event.keyval == Tree.KEYVAL_ESCAPE:
+        elif event.keyval == FileTreeView.KEYVAL_ESCAPE:
             widget.get_selection().unselect_all()
             return True
         return False
@@ -217,10 +238,9 @@ class Tree(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialog
         return row
     def __init__(self, show_hidden=False, busy_indicator=None):
         dialogue.BusyIndicatorUser.__init__(self, busy_indicator=busy_indicator)
-        self._file_db = None
+        self._file_db = fsdb.OsSnapshotFileDb()
         ws_event.Listener.__init__(self)
-        self.show_hidden_action = gtk.ToggleAction('show_hidden_files', _('Show Hidden Files'),
-                                                   _('Show/hide ignored files and those beginning with "."'), None)
+        self.show_hidden_action = gtk.ToggleAction('show_hidden_files', _('Show Hidden Files'), _('Show/hide ignored files and those beginning with "."'), None)
         self.show_hidden_action.set_active(show_hidden)
         self.show_hidden_action.connect('toggled', self._toggle_show_hidden_cb)
         self.show_hidden_action.set_menu_item_type(gtk.CheckMenuItem)
@@ -233,13 +253,41 @@ class Tree(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialog
         self.connect("button_press_event", self._handle_button_press_cb)
         self.connect("key_press_event", self._handle_key_press_cb)
         self.get_selection().set_select_function(self._dirs_not_selectable, full=True)
+        self.add_notification_cb(ws_event.AUTO_UPDATE, self.auto_update)
+        self.add_notification_cb(ws_event.CHANGE_WD, self.repopulate)
+        self.add_notification_cb(ws_event.FILE_CHANGES, self.update)
+        # TODO: investigate whether repopulate() needs to be called here
         self.repopulate()
+    def auto_update(self, _arg=None):
+        if not self._file_db.is_current:
+            self.update()
     def populate_action_groups(self):
         self.action_groups[actions.AC_DONT_CARE].add_action(self.show_hidden_action)
         self.action_groups[actions.AC_DONT_CARE].add_actions(
             [
                 ('refresh_files', gtk.STOCK_REFRESH, _('_Refresh Files'), None,
                  _('Refresh/update the file tree display'), self.update),
+            ])
+        self.action_groups[ws_actions.AC_NOT_IN_REPO|actions.AC_SELN_MADE].add_actions(
+            [
+                ("edit_files", gtk.STOCK_EDIT, _('_Edit'), None,
+                 _('Edit the selected file(s)'), self.edit_selected_files_acb),
+                ("copy_files_selection", gtk.STOCK_COPY, _('Copy'), None,
+                 _('Copy the selected file(s)'), self.copy_selected_files_acb),
+                ("move_files_selection", gtk.STOCK_PASTE, _('_Move/Rename'), None,
+                 _('Move the selected file(s)'), self.move_selected_files_acb),
+                ("delete_files", gtk.STOCK_DELETE, _('_Delete'), None,
+                 _('Delete the selected file(s)'), self.delete_selected_files_acb),
+            ])
+        self.action_groups[ws_actions.AC_NOT_IN_REPO|actions.AC_SELN_UNIQUE].add_actions(
+           [
+                ("rename_file", icons.STOCK_RENAME, _('Re_name/Move'), None,
+                 _('Rename/move the selected file'), self.move_selected_files_acb),
+            ])
+        self.action_groups[ws_actions.AC_NOT_IN_REPO].add_actions(
+            [
+                ("new_file", gtk.STOCK_NEW, _('_New'), None,
+                 _('Create a new file and open for editing'), self.create_new_file_acb),
             ])
     @property
     def _populate_all(self):
@@ -377,7 +425,7 @@ class Tree(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialog
         return changed
     @staticmethod
     def _get_file_db():
-        assert False, '_get_file_db() must be defined in descendants'
+        return fsdb.OsSnapshotFileDb()
     def repopulate(self, _arg=None):
         self.show_busy()
         self._file_db = self._get_file_db()
@@ -400,6 +448,14 @@ class Tree(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialog
             clipboard = gtk.clipboard_get(gtk.gdk.SELECTION_CLIPBOARD)
         sel = utils.file_list_to_string(self.get_selected_filepaths())
         clipboard.set_text(sel)
+    def get_filepaths_in_dir(self, dirname, show_hidden=True, recursive=True):
+        # TODO: fix get_filepaths_in_dir() -- use db NOT view
+        subdirs, files = self._file_db.dir_contents(dirname, show_hidden=show_hidden)
+        filepaths = [os.path.join(dirname, fdata.name) for fdata in files]
+        if recursive:
+            for subdir in subdirs:
+                filepaths += self.get_filepaths_in_dir(os.path.join(dirname, subdir.name), recursive)
+        return filepaths
     def get_file_paths(self):
         return self.model.get_file_paths()
     def is_dir_filepath(self, filepath):
@@ -414,74 +470,6 @@ class Tree(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialog
             else:
                 expanded_list.append(filepath)
         return expanded_list
-
-def _check_if_force(result):
-    return dialogue.ask_force_or_cancel(result) == dialogue.Response.FORCE
-
-class CwdFileTreeView(Tree):
-    UI_DESCR = \
-    '''
-    <ui>
-      <menubar name="files_menubar">
-        <menu name="files_menu" action="menu_files">
-          <menuitem action="new_file"/>
-        </menu>
-      </menubar>
-      <popup name="files_popup">
-        <placeholder name="selection_indifferent"/>
-        <separator/>
-        <placeholder name="selection">
-          <menuitem action="edit_files"/>
-          <menuitem action="delete_files"/>
-        </placeholder>
-        <separator/>
-        <placeholder name="selection_not_patched"/>
-        <separator/>
-        <placeholder name="unique_selection"/>
-        <separator/>
-        <placeholder name="no_selection"/>
-        <separator/>
-        <placeholder name="no_selection_not_patched"/>
-        <separator/>
-        <placeholder name="selection_no_scm_or_pm"/>
-          <menuitem action="copy_files_selection"/>
-          <menuitem action="move_files_selection"/>
-        <placeholder name="unique_selection">
-          <menuitem action="rename_file"/>
-        </placeholder>
-        <separator/>
-        <separator/>
-        <placeholder name='filter_options'>
-        <menuitem action="show_hidden_files"/>
-        </placeholder>
-      </popup>
-    </ui>
-    '''
-    def __init__(self, busy_indicator, show_hidden=False):
-        Tree.__init__(self, busy_indicator=busy_indicator, show_hidden=show_hidden)
-    def populate_action_groups(self):
-        Tree.populate_action_groups(self)
-        self.action_groups[actions.AC_SELN_MADE].add_actions(
-            [
-                ("edit_files", gtk.STOCK_EDIT, _('_Edit'), None,
-                 _('Edit the selected file(s)'), self.edit_selected_files_acb),
-                ("copy_files_selection", gtk.STOCK_COPY, _('Copy'), None,
-                 _('Copy the selected file(s)'), self.copy_selected_files_acb),
-                ("move_files_selection", gtk.STOCK_PASTE, _('_Move/Rename'), None,
-                 _('Move the selected file(s)'), self.move_selected_files_acb),
-                ("delete_files", gtk.STOCK_DELETE, _('_Delete'), None,
-                 _('Delete the selected file(s)'), self.delete_selected_files_acb),
-            ])
-        self.action_groups[ws_actions.AC_IN_REPO + actions.AC_SELN_UNIQUE].add_actions(
-           [
-                ("rename_file", icons.STOCK_RENAME, _('Re_name/Move'), None,
-                 _('Rename/move the selected file'), self.move_selected_files_acb),
-            ])
-        self.action_groups[actions.AC_DONT_CARE].add_actions(
-            [
-                ("new_file", gtk.STOCK_NEW, _('_New'), None,
-                 _('Create a new file and open for editing'), self.create_new_file_acb),
-            ])
     def _edit_named_files_extern(self, file_list):
         text_edit.edit_files_extern(file_list)
     def edit_selected_files_acb(self, _menu_item):
@@ -541,37 +529,57 @@ class CwdFileTreeView(Tree):
             dialogue.report_any_problems(result)
     def delete_selected_files_acb(self, _menu_item):
         self._delete_named_files(self.get_selected_filepaths())
+    def _get_target(self, src_file_list):
+        if len(src_file_list) > 1:
+            mode = gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER
+        else:
+            mode = gtk.FILE_CHOOSER_ACTION_SAVE
+        dialog = gtk.FileChooserDialog(_('Target'), dialogue.main_window, mode,
+                                       (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
+        dialog.set_default_response(gtk.RESPONSE_OK)
+        if mode == gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER:
+            dialog.set_current_folder(os.getcwd())
+        else:
+            dialog.set_current_folder(os.path.dirname(src_file_list[0]))
+            dialog.set_current_name(os.path.basename(src_file_list[0]))
+        response = dialog.run()
+        if response == gtk.RESPONSE_OK:
+            target = dialog.get_filename()
+        else:
+            target = None
+        dialog.destroy()
+        return (response, target)
     def _move_or_copy_files(self, file_list, operation, dry_run_first=True):
         response, target = self._get_target(file_list)
         if response == gtk.RESPONSE_OK:
-           force = False
-           is_ok = not dry_run_first
-           if dry_run_first:
-               self.show_busy()
-               result = operation(file_list, target, force=False, dry_run=True)
-               self.unshow_busy()
-               if cmd_result.suggests_force(result):
-                   is_ok = force = _check_if_force(result)
-                   if not force:
-                       return
-               elif cmd_result.is_less_than_error(result):
-                   lines = result.stdout.splitlines() + result.stderr.splitlines()
-                   is_ok = not lines or dialogue.confirm_list_action(lines, _('About to be actioned. OK?'))
-               else:
-                   dialogue.report_any_problems(result)
-                   return
-           if is_ok:
-               while True:
-                   self.show_busy()
-                   result = operation(file_list, target, force=force)
-                   self.unshow_busy()
-                   if not force and cmd_result.suggests_force(result):
-                       force = _check_if_force(result)
-                       if not force:
-                           return
-                       continue
-                   break
-               dialogue.report_any_problems(result)
+            force = False
+            is_ok = not dry_run_first
+            if dry_run_first:
+                self.show_busy()
+                result = operation(file_list, target, force=False, dry_run=True)
+                self.unshow_busy()
+                if cmd_result.suggests_force(result):
+                    is_ok = force = _check_if_force(result)
+                    if not force:
+                        return
+                elif cmd_result.is_less_than_error(result):
+                    lines = result.stdout.splitlines() + result.stderr.splitlines()
+                    is_ok = not lines or dialogue.confirm_list_action(lines, _('About to be actioned. OK?'))
+                else:
+                    dialogue.report_any_problems(result)
+                    return
+            if is_ok:
+                while True:
+                    self.show_busy()
+                    result = operation(file_list, target, force=force)
+                    self.unshow_busy()
+                    if not force and cmd_result.suggests_force(result):
+                        force = _check_if_force(result)
+                        if not force:
+                            return
+                        continue
+                    break
+                dialogue.report_any_problems(result)
     def copy_files(self, file_list, dry_run_first=True):
         self._move_or_copy_files(file_list, utils.os_copy_files, dry_run_first=dry_run_first)
     def copy_selected_files_acb(self, _action=None):
@@ -580,11 +588,38 @@ class CwdFileTreeView(Tree):
         self._move_or_copy_files(file_list, utils.os_move_files, dry_run_first=dry_run_first)
     def move_selected_files_acb(self, _action=None):
         self.move_files(self.get_selected_filepaths())
-    @staticmethod
-    def _get_file_db():
-        return fsdb.OsSnapshotFileDb()
 
-class ScmCwdFileTreeView(CwdFileTreeView):
+class FileTreeWidget(gtk.VBox):
+    MENUBAR = "/files_menubar"
+    BUTTON_BAR_ACTIONS = ["show_hidden_files"]
+    TREE_VIEW = FileTreeView
+    SIZE = (240, 320)
+    def __init__(self, busy_indicator=None, show_hidden=False, **kwargs):
+        gtk.VBox.__init__(self)
+        # file tree view wrapped in scrolled window
+        self.file_tree = self.TREE_VIEW(busy_indicator=busy_indicator, show_hidden=show_hidden, **kwargs)
+        scw = gtk.ScrolledWindow()
+        scw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        self.file_tree.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
+        self.file_tree.set_headers_visible(False)
+        self.file_tree.set_size_request(*self.SIZE)
+        scw.add(self.file_tree)
+        # file tree menu bar
+        self.menu_bar = self.file_tree.ui_manager.get_widget(self.MENUBAR)
+        self.pack_start(self.menu_bar, expand=False)
+        self.pack_start(scw, expand=True, fill=True)
+        # Mode selectors
+        hbox = gtk.HBox()
+        for action_name in self.BUTTON_BAR_ACTIONS:
+            button = gtk.CheckButton()
+            action = self.file_tree.action_groups.get_action(action_name)
+            action.connect_proxy(button)
+            gutils.set_widget_tooltip_text(button, action.get_property("tooltip"))
+            hbox.pack_start(button)
+        self.pack_start(hbox, expand=False)
+        self.show_all()
+
+class ScmCwdFileTreeView(FileTreeView):
     UI_DESCR = \
     '''
     <ui>
@@ -641,10 +676,8 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         self.hide_clean_action.connect('toggled', self._toggle_hide_clean_cb)
         self.hide_clean_action.set_menu_item_type(gtk.CheckMenuItem)
         self.hide_clean_action.set_tool_item_type(gtk.ToggleToolButton)
-        CwdFileTreeView.__init__(self, busy_indicator=busy_indicator, show_hidden=show_hidden)
+        FileTreeView.__init__(self, busy_indicator=busy_indicator, show_hidden=show_hidden)
         self.add_notification_cb(ws_event.CHECKOUT|ws_event.FILE_CHANGES, self.update),
-        self.add_notification_cb(ws_event.CHANGE_WD, self.update_for_chdir),
-        self.add_notification_cb(ws_event.AUTO_UPDATE, self.auto_update)
         if not ifce.SCM.get_extension_enabled("extdiff"):
             self.get_conditional_action("scm_extdiff_files_selection").set_visible(False)
             self.get_conditional_action("scm_extdiff_files_all").set_visible(False)
@@ -659,10 +692,11 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         self.init_action_states()
         self.repopulate()
     def auto_update(self, _arg=None):
+        # TODO: check auto_update() in ScmFileTreeView
         if not self._file_db.is_current:
             ws_event.notify_events(ws_event.FILE_CHANGES)
     def populate_action_groups(self):
-        CwdFileTreeView.populate_action_groups(self)
+        FileTreeView.populate_action_groups(self)
         self.action_groups[actions.AC_DONT_CARE].add_action(self.hide_clean_action)
         self.action_groups[ws_actions.AC_IN_REPO + actions.AC_SELN_MADE].add_actions(
             [
@@ -720,10 +754,6 @@ class ScmCwdFileTreeView(CwdFileTreeView):
     @property
     def _populate_all(self):
         return False
-    def update_for_chdir(self):
-        self.show_busy()
-        self.repopulate()
-        self.unshow_busy()
     def _tortoise_tool_acb(self, action=None):
         tortoise.run_tool_for_files(action, self.get_selected_filepaths())
     def new_file(self, new_file_name):
@@ -779,30 +809,14 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         self.commit_changes(self.get_selected_filepaths())
     def commit_all_changes_acb(self, _menu_item):
         self.commit_changes(None)
-    def _get_target(self, src_file_list):
-        if len(src_file_list) > 1:
-            mode = gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER
-        else:
-            mode = gtk.FILE_CHOOSER_ACTION_SAVE
-        dialog = gtk.FileChooserDialog(_('Target'), dialogue.main_window, mode,
-                                       (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
-        dialog.set_default_response(gtk.RESPONSE_OK)
-        if mode == gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER:
-            dialog.set_current_folder(os.getcwd())
-        else:
-            dialog.set_current_folder(os.path.abspath(os.path.dirname(src_file_list[0])))
-            dialog.set_current_name(os.path.basename(src_file_list[0]))
-        response = dialog.run()
-        if response == gtk.RESPONSE_OK:
-            target = dialog.get_filename()
-        else:
-            target = None
-        dialog.destroy()
-        return (response, target)
     def copy_files(self, file_list, dry_run_first=True):
-        self._move_or_copy_files(file_list, ifce.SCM.do_copy_files, dry_run_first=dry_run_first)
+        if ifce.in_valid_repo:
+            return FileTreeView.copy_files(self, file_list, dry_run_first=dry_run_first)
+        return self._move_or_copy_files(file_list, ifce.SCM.do_copy_files, dry_run_first=dry_run_first)
     def move_files(self, file_list, dry_run_first=False):
-        self._move_or_copy_files(file_list, ifce.SCM.do_move_files, dry_run_first=dry_run_first)
+        if ifce.in_valid_repo:
+            return FileTreeView.copy_files(self, file_list, dry_run_first=dry_run_first)
+        return self._move_or_copy_files(file_list, ifce.SCM.do_move_files, dry_run_first=dry_run_first)
     def diff_selected_files_acb(self, _action=None):
         dialog = diff.ScmDiffTextDialog(parent=dialogue.main_window, file_list=self.get_selected_filepaths())
         dialog.show()
@@ -866,33 +880,13 @@ class ScmCwdFileTreeView(CwdFileTreeView):
                     [ncf for ncf in files if ncf.status != hg_mq_ifce.FSTATUS_CLEAN])
         return self._file_db.dir_contents(dirpath, show_hidden)
 
-class ScmCwdFilesWidget(gtk.VBox):
-    def __init__(self, busy_indicator=None, show_hidden=False):
-        gtk.VBox.__init__(self)
-        # file tree view wrapped in scrolled window
-        self.file_tree = ScmCwdFileTreeView(busy_indicator=busy_indicator, show_hidden=show_hidden)
-        scw = gtk.ScrolledWindow()
-        scw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
-        self.file_tree.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
-        self.file_tree.set_headers_visible(False)
-        self.file_tree.set_size_request(240, 320)
-        scw.add(self.file_tree)
-        # file tree menu bar
-        self.menu_bar = self.file_tree.ui_manager.get_widget("/files_menubar")
-        self.pack_start(self.menu_bar, expand=False)
-        self.pack_start(scw, expand=True, fill=True)
-        # Mode selectors
-        hbox = gtk.HBox()
-        for action_name in ["show_hidden_files", "hide_clean_files"]:
-            button = gtk.CheckButton()
-            action = self.file_tree.action_groups.get_action(action_name)
-            action.connect_proxy(button)
-            gutils.set_widget_tooltip_text(button, action.get_property("tooltip"))
-            hbox.pack_start(button)
-        self.pack_start(hbox, expand=False)
-        self.show_all()
+class ScmCwdFilesWidget(FileTreeWidget):
+    MENUBAR = "/files_menubar"
+    BUTTON_BAR_ACTIONS = ["show_hidden_files", "hide_clean_files"]
+    TREE_VIEW = ScmCwdFileTreeView
+    SIZE = (240, 320)
 
-class ScmCommitFileTreeView(Tree):
+class ScmCommitFileTreeView(FileTreeView):
     UI_DESCR = \
     '''
     <ui>
@@ -924,19 +918,15 @@ class ScmCommitFileTreeView(Tree):
         self._file_mask = [] if file_mask is None else file_mask
         self.tws_display = self.TWSDisplay()
         self.tws_display.set_value(0)
-        Tree.__init__(self, busy_indicator=busy_indicator, show_hidden=show_hidden)
+        FileTreeView.__init__(self, busy_indicator=busy_indicator, show_hidden=show_hidden)
         self.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
         self.set_headers_visible(False)
         self.action_groups.get_action("scmch_undo_remove_files").set_sensitive(False)
         if not ifce.SCM.get_extension_enabled("extdiff"):
             self.action_groups.get_action("scm_extdiff_files_selection").set_visible(False)
             self.action_groups.get_action("scm_extdiff_files_all").set_visible(False)
-        self.add_notification_cb(ws_event.AUTO_UPDATE, self.auto_update)
-    def auto_update(self, _arg=None):
-        if not self._file_db.is_current:
-            self.update()
     def populate_action_groups(self):
-        Tree.populate_action_groups(self)
+        FileTreeView.populate_action_groups(self)
         self.action_groups[ws_actions.AC_IN_REPO + actions.AC_SELN_MADE].add_actions(
             [
                 ("scmch_remove_files", gtk.STOCK_DELETE, _('_Remove'), None,
@@ -1107,11 +1097,11 @@ class ScmCommitDialog(dialogue.AmodalDialog):
         else:
             self._finish_up()
 
-class GenericPatchFileTreeView(CwdFileTreeView):
+class GenericPatchFileTreeView(FileTreeView):
     AUTO_EXPAND = True
     def __init__(self, patch=None, busy_indicator=None):
         self._patch = patch
-        CwdFileTreeView.__init__(self, busy_indicator=busy_indicator)
+        FileTreeView.__init__(self, busy_indicator=busy_indicator)
     @property
     def patch(self):
         return self._patch
@@ -1231,15 +1221,15 @@ class TopPatchFileTreeView(GenericPatchFileTreeView):
           <menuitem action="edit_files"/>
           <menuitem action="delete_files"/>
           <menuitem action="pm_remove_files"/>
-          <menuitem action="copy_files_selection"/>
-          <menuitem action="move_files_selection"/>
+          <menuitem action="pm_copy_files_selection"/>
+          <menuitem action="pm_move_files_selection"/>
           <menuitem action="pm_revert_files_selection"/>
           <menuitem action="pm_diff_files_selection"/>
           <menuitem action="pm_extdiff_files_selection"/>
         </placeholder>
         <separator/>
         <placeholder name="unique_selection">
-          <menuitem action="rename_file"/>
+          <menuitem action="pm_rename_file"/>
         </placeholder>
         <placeholder name="selection_not_patched"/>
         <separator/>
@@ -1259,8 +1249,8 @@ class TopPatchFileTreeView(GenericPatchFileTreeView):
             self.action_groups.get_action("pm_extdiff_files_selection").set_visible(False)
             self.action_groups.get_action("pm_extdiff_files_all").set_visible(False)
         self.repopulate()
-        self.add_notification_cb(ws_event.CHECKOUT|ws_event.CHANGE_WD, self.repopulate)
-        self.add_notification_cb(ws_event.FILE_CHANGES, self.update)
+        self.add_notification_cb(ws_event.PATCH_PUSH|ws_event.PATCH_POP, self.repopulate)
+        self.add_notification_cb(ws_event.FILE_CHANGES|ws_event.PATCH_REFRESH, self.update)
         self.init_action_states()
     def populate_action_groups(self):
         GenericPatchFileTreeView.populate_action_groups(self)
@@ -1275,6 +1265,15 @@ class TopPatchFileTreeView(GenericPatchFileTreeView):
                  _('Launch extdiff for selected file(s)'), self.extdiff_selected_files_acb),
                 ("pm_revert_files_selection", gtk.STOCK_UNDO, _('Rever_t'), None,
                  _('Revert the selected file(s) to their state before the last refresh'), self.revert_selected_files_acb),
+                ("pm_copy_files_selection", gtk.STOCK_COPY, _('_Copy'), None,
+                 _('Copy the selected file(s) within the top patch'), self.copy_selected_files_acb),
+                ("pm_move_files_selection", icons.STOCK_RENAME, _('_Move/Rename'), None,
+                 _('Move the selected file(s) within the top patch'), self.move_selected_files_acb),
+            ])
+        self.action_groups[ws_actions.AC_IN_REPO + ws_actions.AC_PMIC + actions.AC_SELN_UNIQUE].add_actions(
+           [
+                ("pm_rename_file", icons.STOCK_RENAME, _('Re_name/Move'), None,
+                 _('Rename/move the selected file within the top patch'), self.move_selected_files_acb),
             ])
         self.action_groups[ws_actions.AC_IN_REPO + ws_actions.AC_PMIC + actions.AC_SELN_NONE].add_actions(
             [
@@ -1312,34 +1311,10 @@ class TopPatchFileTreeView(GenericPatchFileTreeView):
             dialogue.report_any_problems(result)
     def remove_selected_files_acb(self, _menu_item):
         self._remove_named_files(self.get_selected_filepaths())
-    def _get_target(self, src_file_list):
-        if len(src_file_list) > 1:
-            mode = gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER
-        else:
-            mode = gtk.FILE_CHOOSER_ACTION_SAVE
-        dialog = gtk.FileChooserDialog(_('Target'), dialogue.main_window, mode,
-                                       (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OK, gtk.RESPONSE_OK))
-        dialog.set_default_response(gtk.RESPONSE_OK)
-        if mode == gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER:
-            dialog.set_current_folder(os.getcwd())
-        else:
-            dialog.set_current_folder(os.path.dirname(src_file_list[0]))
-            dialog.set_current_name(os.path.basename(src_file_list[0]))
-        response = dialog.run()
-        if response == gtk.RESPONSE_OK:
-            target = dialog.get_filename()
-        else:
-            target = None
-        dialog.destroy()
-        return (response, target)
     def copy_files(self, file_list, dry_run_first=True):
-        if ifce.in_valid_repo:
-            CwdFileTreeView.copy_files(self, file_list, dry_run_first=dry_run_first)
-        self._move_or_copy_files(file_list, ifce.SCM.do_copy_files, dry_run_first=dry_run_first)
+        return self._move_or_copy_files(file_list, ifce.SCM.do_copy_files, dry_run_first=dry_run_first)
     def move_files(self, file_list, dry_run_first=True):
-        if ifce.in_valid_repo:
-            CwdFileTreeView.copy_files(self, file_list, dry_run_first=dry_run_first)
-        self._move_or_copy_files(file_list, ifce.SCM.do_move_files, dry_run_first=dry_run_first)
+        return self._move_or_copy_files(file_list, ifce.SCM.do_move_files, dry_run_first=dry_run_first)
     def diff_selected_files_acb(self, _action=None):
         dialog = diff.PmDiffTextDialog(parent=dialogue.main_window, file_list=self.get_selected_filepaths())
         dialog.show()
