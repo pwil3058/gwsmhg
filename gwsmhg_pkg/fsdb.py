@@ -102,24 +102,15 @@ class GenDir:
         return self._find_dir(split_path(dirpath))
     def _is_hidden_dir(self, dkey):
         return dkey[0] == '.'
-    def _is_hidden_file(self, fdata):
-        return fdata.name[0] == '.'
+    def _is_hidden_file(self, fkey):
+        return fkey[0] == '.'
     def dirs_and_files(self, show_hidden=False):
-        dkeys = list(self.subdirs.keys())
-        dkeys.sort()
-        dirs = []
-        for dkey in dkeys:
-            if not show_hidden and self._is_hidden_dir(dkey):
-                continue
-            dirs.append(Data(name=dkey, status=self.subdirs[dkey].status, related_file=None))
-        files = []
-        fkeys = list(self.files.keys())
-        fkeys.sort()
-        for fkey in fkeys:
-            fdata = self.files[fkey]
-            if not show_hidden and self._is_hidden_file(fdata):
-                continue
-            files.append(fdata)
+        if show_hidden:
+            dirs = [Data(name=dkey, status=self.subdirs[dkey].status, related_file=None) for dkey in sorted(self.subdirs)]
+            files = [self.files[fkey] for fkey in sorted(self.files)]
+        else:
+            dirs = [Data(name=dkey, status=self.subdirs[dkey].status, related_file=None) for dkey in sorted(self.subdirs) if not self._is_hidden_dir(dkey)]
+            files = [self.files[fkey] for fkey in sorted(self.files) if not self._is_hidden_file(fkey)]
         return (dirs, files)
 
 class GenFileDb:
@@ -181,12 +172,8 @@ class GenSnapshotDir(object):
         return h
     @property
     def is_current(self):
-        if self._get_dir_current_status() != self._status:
-            return False
-        elif not os.path.isdir(self._dir_path):
-            return False
-        elif not self._is_populated:
-            return True
+        if not self._is_populated:
+            return self._get_dir_current_status() == self._status
         elif self._get_current_hash().digest() != self.dir_hash.digest():
             return False
         for subdir in self._subdirs.values():
@@ -206,26 +193,17 @@ class GenSnapshotDir(object):
         return self._find_dir(split_path(dirpath))
     def _is_hidden_dir(self, dkey):
         return dkey[0] == '.'
-    def _is_hidden_file(self, fdata):
+    def _is_hidden_file(self, fkey):
         assert False, "needs to be defined in children"
     def dirs_and_files(self, show_hidden=False):
         if not self._is_populated:
             self.dir_hash = self._populate()
-        dkeys = list(self._subdirs.keys())
-        dkeys.sort()
-        dirs = []
-        for dkey in dkeys:
-            if not show_hidden and self._is_hidden_dir(dkey):
-                continue
-            dirs.append(Data(name=dkey, status=self._subdirs[dkey]._status, related_file=None))
-        files = []
-        fkeys = list(self._files.keys())
-        fkeys.sort()
-        for fkey in fkeys:
-            fdata = self._files[fkey]
-            if not show_hidden and self._is_hidden_file(fdata):
-                continue
-            files.append(fdata)
+        if show_hidden:
+            dirs = [Data(name=dkey, status=self._subdirs[dkey]._status, related_file=None) for dkey in sorted(self._subdirs)]
+            files = [self._files[fkey] for fkey in sorted(self._files)]
+        else:
+            dirs = [Data(name=dkey, status=self._subdirs[dkey]._status, related_file=None) for dkey in sorted(self._subdirs) if not self._is_hidden_dir(dkey)]
+            files = [self._files[fkey] for fkey in sorted(self._files) if not self._is_hidden_file(fkey)]
         return (dirs, files)
 
 class NewGenSnapshotFileDb(GenFileDb):
@@ -260,8 +238,8 @@ class OsSnapshotDir(GenSnapshotDir):
             h.update(cur_file)
         self._is_populated = True
         return h
-    def _is_hidden_file(self, fdata):
-        return fdata.name[0] == '.'
+    def _is_hidden_file(self, fkey):
+        return fkey[0] == '.'
 
 class OsSnapshotFileDb(NewGenSnapshotFileDb):
     DIR_TYPE = OsSnapshotDir

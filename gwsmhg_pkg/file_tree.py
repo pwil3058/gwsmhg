@@ -61,6 +61,14 @@ class Tree(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialog
                 while self.recursive_remove(child_iter):
                     pass
             return self.remove(fsobj_iter)
+        def depopulate(self, dir_iter):
+            child_iter = self.iter_children(dir_iter)
+            if child_iter != None:
+                if self.get_value_named(child_iter, "name") is None:
+                    return # already depopulated and placeholder in place
+                while self.recursive_remove(child_iter):
+                    pass
+            self.insert_place_holder(dir_iter)
         def remove_place_holder(self, dir_iter):
             child_iter = self.iter_children(dir_iter)
             if child_iter and self.get_value_named(child_iter, "name") is None:
@@ -76,9 +84,14 @@ class Tree(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialog
                 if name is None:
                     return os.path.join(self.fs_path(parent_iter), '')
                 return os.path.join(self.fs_path(parent_iter), name)
+        def _not_yet_populated(self, dir_iter):
+            if self.iter_n_children(dir_iter) < 2:
+                child_iter = self.iter_children(dir_iter)
+                return child_iter is None or self.get_value_named(child_iter, "name") is None
+            return False
         def on_row_expanded_cb(self, view, dir_iter, _dummy):
-            if not view._populate_all:
-                view._update_dir(self.fs_path(dir_iter), dir_iter)
+            if self._not_yet_populated(dir_iter):
+                view._populate(self.fs_path(dir_iter), dir_iter)
                 if self.iter_n_children(dir_iter) > 1:
                     self.remove_place_holder(dir_iter)
         def on_row_collapsed_cb(self, _view, dir_iter, _dummy):
@@ -331,6 +344,9 @@ class Tree(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialog
             self.model.update_iter_row_tuple(child_iter, row_tuple)
             if self._populate_all or self._row_expanded(child_iter):
                 changed |= self._update_dir(os.path.join(dirpath, name), child_iter)
+            else:
+                # make sure we don't leave bad data in children that were previously expanded
+                self.model.depopulate(child_iter)
             child_iter = self.model.iter_next(child_iter)
         while (child_iter is not None) and self.model.get_value_named(child_iter, 'is_dir'):
             dead_entries.append(child_iter)
@@ -382,13 +398,6 @@ class Tree(tlview.TreeView, ws_actions.AGandUIManager, ws_event.Listener, dialog
             clipboard = gtk.clipboard_get(gtk.gdk.SELECTION_CLIPBOARD)
         sel = utils.file_list_to_string(self.get_selected_files())
         clipboard.set_text(sel)
-    def get_filepaths_in_dir(self, dirname, show_hidden=True, recursive=True):
-        subdirs, files = self._file_db.dir_contents(dirname, show_hidden=show_hidden)
-        filepaths = [os.path.join(dirname, fdata.name) for fdata in files]
-        if recursive:
-            for subdir in subdirs:
-                filepaths += self.get_filepaths_in_dir(os.path.join(dirname, subdir.name), recursive)
-        return filepaths
     def get_file_paths(self):
         return self.model.get_file_paths()
 
@@ -556,6 +565,7 @@ def _check_if_force(result):
     return dialogue.ask_force_or_cancel(result) == dialogue.Response.FORCE
 
 class ScmCwdFileTreeView(CwdFileTreeView):
+    AUTO_EXPAND = False
     def __init__(self, busy_indicator=None, show_hidden=False):
         self.hide_clean_action = gtk.ToggleAction('hide_clean_files', _('Hide Clean Files'),
                                                    _('Show/hide "clean" files'), None)
@@ -642,7 +652,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
             ])
     @property
     def _populate_all(self):
-        return ifce.in_valid_repo
+        return False
     def update_for_chdir(self):
         self.show_busy()
         self.repopulate()

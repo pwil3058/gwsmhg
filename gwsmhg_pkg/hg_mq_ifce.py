@@ -74,9 +74,9 @@ class ScmDir(fsdb.GenDir):
             return dkey[0] == '.' or status == FSTATUS_IGNORED
         return False
     def _is_hidden_file(self, fdata):
-        if fdata.status not in FSTATUS_MODIFIED_SET:
-            return fdata.name[0] == '.' or fdata.status == FSTATUS_IGNORED
-        return False
+        if fkey[0] == ".":
+            return self.files[fkey].status not in FSTATUS_MODIFIED_SET
+        return self.files[fkey].status == FSTATUS_IGNORED
 
 class ScmFileDb(fsdb.GenSnapshotFileDb):
     DIR_TYPE = ScmDir
@@ -124,6 +124,101 @@ class ScmFileDb(fsdb.GenSnapshotFileDb):
         self._get_file_list(h)
         self._get_unresolved_file_list(h)
         return h
+
+class NewScmDir(fsdb.GenSnapshotDir):
+    def __init__(self, dir_path=None):
+        fsdb.GenSnapshotDir.__init__(self, dir_path)
+    def _get_dir_current_status(self):
+        if not os.path.isdir(self._dir_path):
+            return FSTATUS_MISSING
+        elif self._dir_path == ".hg": # make sure that we dont run "hg status" on ".hg"
+            return FSTATUS_IGNORED
+        elif self._contains_unresolved_files:
+            return FSTATUS_UNRESOLVED
+        # don't use -A because we don't care about ignored files
+        status_set = set(line[0] for line in runext.run_cmd(["hg", "status", "-marduc", self._dir_path]).stdout.splitlines())
+        if FSTATUS_MODIFIED_SET & status_set:
+                return FSTATUS_MODIFIED
+        elif FSTATUS_NOT_TRACKED in status_set:
+            return FSTATUS_NOT_TRACKED
+        elif FSTATUS_CLEAN in status_set:
+            return FSTATUS_CLEAN
+        return None
+    @property
+    def _contains_unresolved_files(self):
+        result = runext.run_cmd(["hg", "resolve", "--list"] + [self._dir_path])
+        if result.ecode == 0:
+            for line in result.stdout.splitlines():
+                if line[0] == FSTATUS_UNRESOLVED:
+                    return True
+        return False
+    def _get_file_list_text(self, h, exclude_list):
+        cmd = ["hg", "status", "-AC"] + exclude_list
+        qparent = runext.run_cmd(["hg", "log", "--template", "{rev}", "-rqparent"]).stdout
+        if qparent:
+            cmd += ["--rev", qparent]
+        result = runext.run_cmd(cmd + [self._dir_path])
+        h.update(result.stdout)
+        return result.stdout
+    def _get_unresolved_file_list(self, h, exclude_list):
+        result = runext.run_cmd(["hg", "resolve", "--list"] + exclude_list + [self._dir_path])
+        if result.ecode == 0:
+            h.update(result.stdout)
+            return [line[2:] for line in result.stdout.splitlines() if line[0] == FSTATUS_UNRESOLVED]
+        return []
+    def _get_current_hash(self):
+        h = hashlib.sha1()
+        cur_dirs, _files = self._get_os_current_dirs_and_files()
+        exclude_list = []
+        for cur_dir in cur_dirs:
+            if cur_dir != ".hg":
+                exclude_list.append("-X" + os.path.join(self._dir_path, cur_dir))
+            h.update(cur_dir)
+        self._get_file_list_text(h, exclude_list)
+        self._get_unresolved_file_list(h, exclude_list)
+        return h
+    def _populate(self):
+        h = hashlib.sha1()
+        cur_dirs, _files = self._get_os_current_dirs_and_files()
+        exclude_list = []
+        for cur_dir in cur_dirs:
+            cur_dir_path = os.path.join(self._dir_path, cur_dir)
+            if cur_dir != ".hg":
+                exclude_list.append("-X" + cur_dir_path)
+            self._subdirs[cur_dir] = NewScmDir(cur_dir_path)
+            h.update(cur_dir)
+        file_data_list = self._get_file_list_text(h, exclude_list).splitlines()
+        unresolved_file_list = self._get_unresolved_file_list(h, exclude_list)
+        expected_num_parts = len(fsdb.split_path(self._dir_path))
+        index = 0
+        while index < len(file_data_list):
+            item = file_data_list[index]
+            index += 1
+            filepath = item[2:]
+            status = item[0]
+            related_file = None
+            if status == FSTATUS_ADDED and index < len(file_data_list):
+                if file_data_list[index][0] == FSTATUS_ORIGIN:
+                    related_file = os.path.relpath(file_data_list[index][2:], self._dir_path)
+                    index += 1
+            elif filepath in unresolved_file_list:
+                status = FSTATUS_UNRESOLVED
+            parts = fsdb.split_path(filepath)
+            # handle the case where a directory with tracked files has been deleted
+            if len(parts) > expected_num_parts:
+                self._subdirs[parts[0]] = NewScmDir(os.path.join(self._dir_path, parts[0]))
+            else:
+                name = parts[-1]
+                self._files[name] = fsdb.Data(name=name, status=status, related_file=related_file)
+        self._is_populated = True
+        return h
+    def _is_hidden_file(self, fkey):
+        if fkey[0] == ".":
+            return self._files[fkey].status not in FSTATUS_MODIFIED_SET
+        return self._files[fkey].status == FSTATUS_IGNORED
+
+class NewScmFileDb(fsdb.NewGenSnapshotFileDb):
+    DIR_TYPE = NewScmDir
 
 class PatchFileDb(fsdb.GenFileDb):
     DIR_TYPE = ScmDir
@@ -204,7 +299,8 @@ class BaseInterface:
     def _inotify_warning(self, serr):
         return serr.strip() in ['(found dead inotify server socket; removing it)',
             '(inotify: received response from incompatible server version 1)']
-    def get_extensions(self):
+    @staticmethod
+    def get_extensions():
         result = runext.run_cmd('hg showconfig extensions')
         extens = []
         for line in result.stdout.splitlines():
@@ -401,23 +497,8 @@ class SCMInterface(BaseInterface):
         if result.ecode:
             raise cmd_result.Failure(result)
         return result.stdout.splitlines()
-    @staticmethod
-    def _unresolved_file_list(fspath_list=None):
-        cmd = 'hg resolve --list'
-        if fspath_list:
-            cmd += ' %s' % utils.file_list_to_string(fspath_list)
-        result = runext.run_cmd(cmd)
-        if result.ecode != 0:
-            return []
-        return [line[2:] for line in result.stdout.splitlines() if line[0] == FSTATUS_UNRESOLVED]
     def get_ws_file_db(self):
-        cmd = 'hg status -AC'
-        qprev = self._get_qparent()
-        if qprev is not None:
-            cmd += ' --rev %s' % qprev
-        scm_file_db = ScmFileDb(cmd, "hg resolve --list")
-        scm_file_db.decorate_dirs()
-        return scm_file_db
+        return NewScmFileDb()
     def get_commit_file_db(self, fspath_list=None):
         cmd = 'hg status -mardC'
         urfl_cmd = 'hg resolve --list'
