@@ -818,7 +818,7 @@ class ScmCwdFileTreeView(CwdFileTreeView):
         if ifce.in_valid_repo:
             return ifce.SCM.get_ws_file_db()
         else:
-            return self._os_file_db
+            return fsdb.OsSnapshotFileDb()
     def _toggle_hide_clean_cb(self, toggleaction):
         self._update_dir('', None)
     def _get_dir_contents(self, dirpath):

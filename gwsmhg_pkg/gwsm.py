@@ -114,7 +114,7 @@ class MainWindow(gtk.Window, dialogue.BusyIndicator, ws_actions.AGandUIManager):
         self._notebook.append_page(self._branches_table, gtk.Label(_('Branches')))
         self._history_table = change_set.HistoryTable()
         self._notebook.append_page(self._history_table, gtk.Label(_('History')))
-        self._path_table = path.PathTable()
+        self._path_table = path.PathTableView()
         self._notebook.append_page(self._path_table, gtk.Label(_('Paths')))
         self._notebook.set_current_page(pmpage)
         # Now lay the widgets out

@@ -552,43 +552,6 @@ class BranchesTableView(ChangeSetTableView):
 class BranchesTable(table.TableWidget):
     View = BranchesTableView
 
-class PrecisType:
-    def __init__(self, get_data, model_descr=None, table_descr=None):
-        if model_descr is None:
-            self.model_descr = LOG_MODEL_DESCR
-        else:
-            self.model_descr = model_descr
-        if table_descr is None:
-            self.table_descr = LOG_TABLE_DESCR
-        else:
-            self.table_descr = table_descr
-        self.get_data = get_data
-
-class SelectTable(table.TableView):
-    def __init__(self, ptype, size=(640, 240)):
-        self._ptype = ptype
-        table.TableView.__init__(self, model_descr = ptype.model_descr,
-                                        table_descr = ptype.table_descr,
-                                        size_req=size)
-        self.set_contents()
-        self.show_all()
-    def _fetch_contents(self):
-        return self._ptype.get_data()
-
-class SelectDialog(dialogue.Dialog):
-    def __init__(self, ptype, title, size=(640, 240), parent=None):
-        dialogue.Dialog.__init__(self, title=_('gwsmg: Select %s') % title, parent=parent,
-                                 flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
-                                 buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                                          gtk.STOCK_OK, gtk.RESPONSE_OK)
-                                )
-        self._table = SelectTable(ptype=ptype, size=size)
-        self.vbox.pack_start(self._table)
-        self.show_all()
-        self._table.seln.unselect_all()
-    def get_change_set(self):
-        return str(self._table.get_selected_key())
-
 TAG_MSG_UI_DESCR = \
 '''
 <ui>
@@ -709,6 +672,7 @@ class MoveTagDialog(dialogue.ReadTextDialog):
             self.unshow_busy()
             dialogue.report_any_problems(result)
             self.destroy()
+
 class TagListModel(tlview.NamedListStore):
     Row = collections.namedtuple('TagListRow', [_('Tag')])
     types = Row(Tag=gobject.TYPE_STRING)
@@ -743,6 +707,35 @@ BRANCH_LIST_TABLE_DESCR = tlview.ViewSpec(
     ]
 )
 
+class SelectTableView(table.TableView):
+    Model = ChangeSetTableView.Model
+    specification = ChangeSetTableView.specification
+    def __init__(self, get_data, size=(640, 240)):
+        self._get_data = get_data
+        table.TableView.__init__(self, size_req=size)
+        self.set_contents()
+        self.show_all()
+    def _fetch_contents(self):
+        return self._get_data()
+
+class TagsSelectTableView(SelectTableView):
+    Model = TagListModel
+    specification = TAG_LIST_TABLE_DESCR
+
+class SelectDialog(dialogue.Dialog):
+    def __init__(self, title, get_data, TableView=SelectTableView, size=(640, 240), parent=None):
+        dialogue.Dialog.__init__(self, title=_('gwsmg: Select %s') % title, parent=parent,
+                                 flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
+                                 buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                          gtk.STOCK_OK, gtk.RESPONSE_OK)
+                                )
+        self._table = TableView(get_data=get_data, size=size)
+        self.vbox.pack_start(self._table)
+        self.show_all()
+        self._table.seln.unselect_all()
+    def get_change_set(self):
+        return str(self._table.get_selected_key())
+
 class ChangeSetSelectWidget(gtk.VBox, dialogue.BusyIndicatorUser):
     def __init__(self, busy_indicator, label=_('Change Set:'), discard_toggle=False):
         gtk.VBox.__init__(self)
@@ -773,28 +766,22 @@ class ChangeSetSelectWidget(gtk.VBox, dialogue.BusyIndicatorUser):
             self._discard_toggle = None
         self.pack_start(hbox, expand=False, fill=False)
         self.show_all()
-    def _browse_change_set(self, ptype, title, size=(640, 240)):
+    def _browse_change_set(self, title, get_data, TableView=SelectTableView, size=(640, 240)):
         self.show_busy()
-        dialog = SelectDialog(ptype=ptype, title=title, size=size, parent=None)
+        dialog = SelectDialog(title=title, get_data=get_data, TableView=TableView, size=size, parent=None)
         self.unshow_busy()
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
             self._entry.set_text(dialog.get_change_set())
         dialog.destroy()
     def _browse_tags_cb(self, button=None):
-        ptype = PrecisType(ifce.SCM.get_tags_list_for_table,
-                           TAG_LIST_MODEL_DESCR, TAG_LIST_TABLE_DESCR)
-        self._browse_change_set(ptype, _('Tags'), size=(160, 320))
+        self._browse_change_set(_('Tags'), get_data=ifce.SCM.get_tags_list_for_table, TableView=TagsSelectTableView, size=(160, 320))
     def _browse_branches_cb(self, button=None):
-        ptype = PrecisType(ifce.SCM.get_branches_list_for_table,
-                           TAG_LIST_MODEL_DESCR, TAG_LIST_TABLE_DESCR)
-        self._browse_change_set(ptype, _('Branches'), size=(160, 320))
+        self._browse_change_set(_('Branches'), get_data=ifce.SCM.get_branches_list_for_table, TableView=TagsSelectTableView, size=(160, 320))
     def _browse_heads_cb(self, button=None):
-        ptype = PrecisType(ifce.SCM.get_heads_data)
-        self._browse_change_set(ptype, _('Heads'), size=(640, 480))
+        self._browse_change_set(_('Heads'), get_data=ifce.SCM.get_heads_data, size=(640, 480))
     def _browse_history_cb(self, button=None):
-        ptype = PrecisType(ifce.SCM.get_history_data)
-        self._browse_change_set(ptype, _('History'), size=(640, 480))
+        self._browse_change_set(_('History'), get_data=ifce.SCM.get_history_data, size=(640, 480))
     def _entry_cb(self, entry=None):
         self.response(gtk.RESPONSE_OK)
     def get_change_set(self):

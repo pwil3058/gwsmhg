@@ -18,7 +18,7 @@ from gwsmhg_pkg import dialogue, gutils, cmd_result, change_set, icons
 from gwsmhg_pkg import file_tree, diff, ws_event, ifce, utils, actions, ws_actions, table
 from gwsmhg_pkg import tlview
 
-class PathTable(table.MapManagedTableView):
+class PathTableView(table.MapManagedTableView):
     class Model(tlview.NamedListStore):
         Row = collections.namedtuple('Row', [_('Alias'), _('Path')])
         types = Row(
@@ -154,11 +154,22 @@ class PathTable(table.MapManagedTableView):
         dialogue.report_any_problems(result)
 
 class IncomingParentsTable(change_set.ChangeSetTable):
+    class View(change_set.ChangeSetTable.View):
+        def __init__(self, busy_indicator=None, size_req=None, rev=None, path=None):
+            self._path = path
+            self._rev = rev
+            change_set.ChangeSetTable.View.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
+        def _fetch_contents(self):
+            try:
+                return ifce.SCM.get_incoming_parents_table_data(self._rev, self._path)
+            except cmd_result.Failure as failure:
+                dialogue.report_failure(failure)
+                return []
     def __init__(self, rev, path=None, busy_indicator=None):
         self._path = path
         self._rev = rev
         change_set.ChangeSetTable.__init__(self, busy_indicator=busy_indicator,
-                                           scroll_bar=False)
+                                           scroll_bar=False, rev=rev, path=path)
     def _view_cs_summary_acb(self, _action):
         rev = self.get_selected_key()
         self.show_busy()
@@ -169,12 +180,6 @@ class IncomingParentsTable(change_set.ChangeSetTable):
             dialog = change_set.ChangeSetSummaryDialog(rev)
         self.unshow_busy()
         dialog.show()
-    def _fetch_contents(self):
-        try:
-            return ifce.SCM.get_incoming_parents_table_data(self._rev, self._path)
-        except cmd_result.Failure as failure:
-            dialogue.report_failure(failure)
-            return []
 
 INCOMING_CS_FILES_UI_DESCR = \
 '''
@@ -296,11 +301,21 @@ OUTGOING_TABLE_UI_DESCR = \
 '''
 
 class OutgoingTable(change_set.SearchableChangeSetTable):
+    class View(change_set.SearchableChangeSetTable.View):
+        def __init__(self, busy_indicator=None, size_req=None, path=None):
+            self._path = path
+            change_set.SearchableChangeSetTable.View.__init__(self, busy_indicator=busy_indicator, size_req=size_req)
+        def _fetch_contents(self):
+            try:
+                return ifce.SCM.get_outgoing_table_data(self._path)
+            except cmd_result.Failure as failure:
+                dialogue.report_failure(failure)
+                return []
     def __init__(self, path=None, busy_indicator=None):
         self._path = path
         change_set.SearchableChangeSetTable.__init__(self, busy_indicator=busy_indicator,
                                                      size_req = (640, 120),
-                                                     prefix = _('Outgoing'))
+                                                     prefix = _('Outgoing'), path=path)
         self.action_groups[ws_actions.AC_IN_REPO + ws_actions.AC_NOT_PMIC + actions.AC_SELN_UNIQUE].add_actions(
             [
                 ("cs_push_to", gtk.STOCK_EXECUTE, _('Push To'), None,
@@ -316,12 +331,6 @@ class OutgoingTable(change_set.SearchableChangeSetTable):
         ifce.SCM.do_push_to(rev=rev, path=self._path)
         self.refresh_contents()
         self.unshow_busy()
-    def _fetch_contents(self):
-        try:
-            return ifce.SCM.get_outgoing_table_data(self._path)
-        except cmd_result.Failure as failure:
-            dialogue.report_failure(failure)
-            return []
 
 class PathCSDialog(dialogue.AmodalDialog):
     def __init__(self, title, path=None, table_type=None, parent=None):
@@ -348,7 +357,7 @@ class OutgoingCSDialog(PathCSDialog):
         PathCSDialog.__init__(self, path=path, title=_('Outgoing From'),
                               table_type=OutgoingTable)
 
-class PathSelectTable(table.TableView):
+class PathSelectTableView(table.TableView):
     def __init__(self, size_req=(640, 240), busy_indicator=None):
         table.TableView.__init__(self, model_descr=PATH_PRECIS_MODEL_DESCR,
                                              table_descr=PATH_PRECIS_TABLE_DESCR,
@@ -370,7 +379,7 @@ class PullDialog(dialogue.Dialog):
                                           gtk.STOCK_OK, gtk.RESPONSE_OK)
                                 )
         hbox = gtk.HBox()
-        self.path_table = PathSelectTable()
+        self.path_table = PathSelectTableView()
         self.path_table.seln.connect("changed", self._selection_cb)
         hbox.pack_start(self.path_table)
         self._select_button = gtk.Button(label=_('_Select'))
@@ -429,8 +438,7 @@ class PullDialog(dialogue.Dialog):
     def _incoming_cb(self, button=None):
         self.show_busy()
         title = _('Choose Revision')
-        ptype = change_set.PrecisType(get_data=self._get_incoming_data)
-        dialog = change_set.SelectDialog(ptype=ptype, title=title, parent=self)
+        dialog = change_set.SelectDialog(title=title, get_data=self._get_incoming_data, parent=self)
         self.unshow_busy()
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
